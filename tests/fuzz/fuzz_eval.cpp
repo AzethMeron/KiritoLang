@@ -40,7 +40,8 @@ static std::string genExpr(int depth) {
 // Run source; OK if it succeeds or raises a KiritoError. Anything else is a failure.
 static void runSafely(const std::string& src) {
     KiritoVM vm;
-    vm.setGcThreshold(64);  // exercise the collector aggressively
+    vm.setGcThreshold(64);    // exercise the collector aggressively
+    vm.setMaxCallDepth(200);  // stress the recursion guard cheaply
     try {
         vm.runSource(src);
     } catch (const KiritoError&) {
@@ -113,6 +114,44 @@ int main() {
         runSafely(prog);
     }
 
-    if (kitest::failures == 0) std::printf("fuzz: 11000 inputs, no crashes\n");
+    // 5) Class / operator-overload soup: complete programs exercising operator dispatch, private
+    //    members, _str_, _getitem_/_setitem_, _call_, inheritance — the class attack surface.
+    //    Run with a small call-depth and aggressive GC to stress those paths too.
+    const char* classProgs[] = {
+        // operator overloads + _str_
+        "class V:\n    var _init_ = Function(self, x):\n        self.x = x\n"
+        "    var _add_ = Function(self, o):\n        return V(self.x + o.x)\n"
+        "    var _str_ = Function(self):\n        return String(self.x)\n"
+        "String(V(%d) + V(%d))\n",
+        // private member access from inside (ok) and a method chain
+        "class C:\n    var _init_ = Function(self):\n        self._n = %d\n"
+        "    var get = Function(self):\n        return self._n\nC().get()\n",
+        // private member access from OUTSIDE (must raise, not crash)
+        "class C:\n    var _init_ = Function(self):\n        self._n = %d\nC()._n\n",
+        // _getitem_/_setitem_ variadic
+        "class G:\n    var _init_ = Function(self):\n        self.d = {}\n"
+        "    var _setitem_ = Function(self, a, b, v):\n        self.d[String(a) + String(b)] = v\n"
+        "    var _getitem_ = Function(self, a, b):\n        return self.d[String(a) + String(b)]\n"
+        "var g = G()\ng[%d, %d] = %d\ng[%d, %d]\n",
+        // _call_ + inheritance
+        "class Base:\n    var _init_ = Function(self, n):\n        self.n = n\n"
+        "    var _call_ = Function(self, x):\n        return x + self.n\n"
+        "class Sub(Base):\n    var twice = Function(self, x):\n        return self(x) * 2\n"
+        "Sub(%d).twice(%d)\n",
+        // instance stored in a container then GC-churned
+        "class P:\n    var _init_ = Function(self, v):\n        self.v = v\n"
+        "var lst = []\nvar i = 0\nwhile i < %d %% 50:\n    lst.append(P(i))\n    i = i + 1\n"
+        "len(lst)\n",
+        // a class with a _str_ that references itself (cycle-ish)
+        "class Node:\n    var _init_ = Function(self):\n        self.next = None\n"
+        "    var _str_ = Function(self):\n        return \"node\"\n"
+        "var a = Node()\na.next = a\nString(a)\n",
+    };
+    for (int i = 0; i < 3000; ++i) {
+        std::string prog = fill(classProgs[randi(0, static_cast<int>(std::size(classProgs)) - 1)]);
+        runSafely(prog);
+    }
+
+    if (kitest::failures == 0) std::printf("fuzz: 14000 inputs, no crashes\n");
     return RUN_TESTS();
 }
