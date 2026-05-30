@@ -69,12 +69,19 @@ public:
     // handle of the last expression's value (or None). Defined in runtime.hpp.
     Handle runSource(std::string_view source, std::string_view chunkName = "<main>");
 
+    // Like runSource but reuses one persistent module scope across calls, so bindings survive
+    // between lines — for the REPL. Defined in runtime.hpp.
+    Handle runRepl(std::string_view source);
+
     // Keep a parsed chunk alive for the VM's lifetime so function bodies (referenced by closures
     // that may outlive the call) never dangle. Defined in runtime.hpp (needs a complete Program).
     void retainChunk(std::unique_ptr<ast::Program> chunk);
 
     // Register built-in globals (len, ...). Defined in runtime.hpp; called from the constructor.
     void installBuiltins();
+
+    // Shared lex->parse->retain->evaluate against a given scope. Defined in runtime.hpp.
+    Handle evalIn(std::string_view source, Handle scope);
 
     ~KiritoVM();  // out-of-line so unique_ptr<ast::Program> sees a complete type
 
@@ -88,6 +95,8 @@ private:
     std::vector<std::unique_ptr<NativeModule>> nativeModules_;
     std::unordered_map<std::string, ModuleFactory> moduleFactories_;
     std::unordered_map<std::string, Handle> moduleCache_;
+    Handle replScope_{};
+    bool replScopeReady_ = false;
 };
 
 }  // namespace kirito

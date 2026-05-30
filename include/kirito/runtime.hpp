@@ -239,6 +239,20 @@ inline Handle SetVal::getAttr(KiritoVM& vm, std::string_view name) {
     return Object::getAttr(vm, name);
 }
 
+// --- String indexing / iteration (needs sequenceIndex, above) --------------------------------
+
+inline Handle StrVal::getItem(KiritoVM& vm, Handle key) {
+    std::size_t i = sequenceIndex(vm, value_.size(), key);
+    return vm.makeString(std::string(1, value_[i]));
+}
+
+inline std::optional<std::vector<Handle>> StrVal::iterate(KiritoVM& vm) {
+    std::vector<Handle> out;
+    out.reserve(value_.size());
+    for (char c : value_) out.push_back(vm.makeString(std::string(1, c)));
+    return out;
+}
+
 // --- KiFunction call -------------------------------------------------------------------------
 
 inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
@@ -363,15 +377,26 @@ inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {
 
 inline KiritoVM::~KiritoVM() = default;
 
-inline Handle KiritoVM::runSource(std::string_view source, std::string_view) {
+inline Handle KiritoVM::evalIn(std::string_view source, Handle scope) {
     Lexer lexer(source);
     Parser parser(lexer.tokenize());
     auto prog = std::make_unique<ast::Program>(parser.parseProgram());
     const ast::Program& program = *prog;
     retainChunk(std::move(prog));  // keep the AST alive for the VM's lifetime (closures)
-    Handle moduleScope = newModuleScope();
-    Evaluator ev(*this, moduleScope);
+    Evaluator ev(*this, scope);
     return ev.run(program);
+}
+
+inline Handle KiritoVM::runSource(std::string_view source, std::string_view) {
+    return evalIn(source, newModuleScope());
+}
+
+inline Handle KiritoVM::runRepl(std::string_view source) {
+    if (!replScopeReady_) {
+        replScope_ = newModuleScope();
+        replScopeReady_ = true;
+    }
+    return evalIn(source, replScope_);
 }
 
 }  // namespace kirito

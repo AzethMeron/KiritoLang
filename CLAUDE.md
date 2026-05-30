@@ -58,6 +58,17 @@ Build the smallest thing that runs end-to-end first (lex+parse+eval an integer
 literal, then arithmetic, then `var`, then functions, then `io`), and grow outward.
 Every step must keep `main.ki`-style programs as the north star.
 
+**Status:** the core is implemented and tested end-to-end (`include/kirito/*.hpp`, the `ki`
+runner, CTest suite). Working today: arithmetic (Python-3 division), `var`/reference-assignment,
+comparisons, indentation blocks with `if/elif/else`/`while`/`for`/`break`/`continue`,
+`and`/`or`/`not`, first-class functions with closures and `return`, `List`/`Set`/`Dict` with
+literals/indexing/iteration/methods and `len`, `String` indexing/iteration, native modules +
+`import` (the `io` stdlib), the `Integer`/`Float`/`String`/`Bool` converters, the C++ extension
+API (`NativeModule`/`NativeClass`/`registerGlobal`), and a line REPL. The north-star
+`tests/lang/main.ki` runs. Not yet done: garbage collection (values accumulate until the VM dies),
+user-defined `class`es, `in`/membership operator, string slicing, multi-line REPL input, and the
+numeric enrichment (`Number`/`Matrix`).
+
 ## The Archive is reference only
 
 `Archive/V1` and `Archive/V2` are **prior incomplete attempts. We start from scratch.**

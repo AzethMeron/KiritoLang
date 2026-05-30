@@ -73,8 +73,11 @@ public:
     }
     bool hashable() const override { return true; }
     std::size_t hash() const override { return hash_; }
+    std::optional<int64_t> length(KiritoVM&) override { return static_cast<int64_t>(value_.size()); }
 
     Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;
+    Handle getItem(KiritoVM&, Handle key) override;
+    std::optional<std::vector<Handle>> iterate(KiritoVM&) override;
 
 private:
     std::string value_;
