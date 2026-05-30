@@ -33,6 +33,7 @@ public:
         for (int64_t v = kSmallIntLo; v <= kSmallIntHi; ++v)
             smallInts_.push_back(arena_.alloc(std::make_unique<IntVal>(v)));
         installBuiltins();
+        installStandardLibrary();
     }
 
     ObjectArena& arena() { return arena_; }
@@ -103,8 +104,13 @@ public:
     // --- extension / module API (defined in runtime.hpp) ---
     using ModuleFactory = std::function<Handle(KiritoVM&)>;
     void registerModule(std::string name, ModuleFactory factory);
-    template <class T> void install();              // install a NativeModule subclass
-    Handle importModule(const std::string& name);   // build-or-cache, per-VM singleton
+    template <class T> void install();              // install a NativeModule subclass (one-liner)
+    void installStandardLibrary();                  // register the bundled stdlib modules
+    Handle importModule(const std::string& name);   // native module, then <name>.ki on the lib path
+
+    // Directories searched (in order) when importing a `.ki` module file.
+    void addLibPath(std::string dir) { libPaths_.push_back(std::move(dir)); }
+    const std::vector<std::string>& libPaths() const { return libPaths_; }
 
     std::string stringify(Handle h) const {
         StringifyCtx ctx{arena_, {}};
@@ -141,6 +147,7 @@ private:
     std::vector<std::unique_ptr<NativeModule>> nativeModules_;
     std::unordered_map<std::string, ModuleFactory> moduleFactories_;
     std::unordered_map<std::string, Handle> moduleCache_;
+    std::vector<std::string> libPaths_;
     Handle replScope_{};
     bool replScopeReady_ = false;
     std::vector<Handle> tempRoots_;

@@ -5,7 +5,10 @@
 #include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <memory>
+#include <sstream>
 #include <string>
 
 #include "ast.hpp"
@@ -773,10 +776,39 @@ inline Handle KiritoVM::importModule(const std::string& name) {
     auto cached = moduleCache_.find(name);
     if (cached != moduleCache_.end()) return cached->second;  // modules are per-VM singletons
     auto factory = moduleFactories_.find(name);
-    if (factory == moduleFactories_.end()) throw KiritoError("no module named '" + name + "'");
-    Handle h = factory->second(*this);
-    moduleCache_[name] = h;
-    return h;
+    if (factory != moduleFactories_.end()) {
+        Handle h = factory->second(*this);
+        moduleCache_[name] = h;
+        return h;
+    }
+    // Otherwise search the library paths for <name>.ki and load it as a module: the file's
+    // top-level bindings become the module's members.
+    for (const auto& dir : libPaths_) {
+        std::filesystem::path path = std::filesystem::path(dir) / (name + ".ki");
+        std::error_code ec;
+        if (!std::filesystem::exists(path, ec)) continue;
+        std::ifstream in(path);
+        std::stringstream buf;
+        buf << in.rdbuf();
+        Handle scope = newModuleScope();
+        {
+            RootScope guard(*this);
+            guard.add(scope);
+            auto prog = std::make_unique<ast::Program>(
+                Parser(Lexer(buf.str()).tokenize()).parseProgram());
+            const ast::Program& program = *prog;
+            retainChunk(std::move(prog));
+            Evaluator ev(*this, scope);
+            ev.run(program);
+            auto mod = std::make_unique<ModuleValue>(name);
+            for (const auto& [k, v] : static_cast<EnvValue&>(arena_.deref(scope)).locals())
+                mod->members[k] = v;
+            Handle h = alloc(std::move(mod));
+            moduleCache_[name] = h;
+            return h;
+        }
+    }
+    throw KiritoError("no module named '" + name + "'");
 }
 
 // --- built-in globals ------------------------------------------------------------------------
@@ -849,7 +881,11 @@ inline void KiritoVM::installBuiltins() {
         if (args.size() != 1) throw KiritoError("Bool expected 1 argument");
         return vm.makeBool(vm.arena().deref(args[0]).truthy());
     });
+}
 
+// Register the bundled standard-library modules. Each line is a one-liner; a third party adds
+// their own module exactly the same way: #include the module's header, then vm.install<T>().
+inline void KiritoVM::installStandardLibrary() {
     install<IoModule>();
     install<MathModule>();
 }
