@@ -25,6 +25,7 @@ class NativeModule;
 class KiritoVM {
 public:
     KiritoVM() {
+        tempRoots_.reserve(1024);  // avoid reallocation churn on the hot RootScope path
         none_ = arena_.alloc(std::make_unique<NoneVal>());
         true_ = arena_.alloc(std::make_unique<BoolVal>(true));
         false_ = arena_.alloc(std::make_unique<BoolVal>(false));
