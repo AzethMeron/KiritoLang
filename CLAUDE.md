@@ -151,6 +151,11 @@ Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
 
 - Build is **thin CMake** (out-of-source, e.g. `build/`), C++20: the header-only core is an
   `INTERFACE` target; CMake builds only `ki` (from `main.cpp`) and the test executables.
+- **Cross-platform** (Linux + Windows minimum): the only platform-specific code is sockets,
+  isolated behind `net_compat.hpp` (BSD sockets vs Winsock); everything else is `std::filesystem`/
+  STL. CMake links `ws2_32` on Windows automatically.
+- **Static linking** by default (self-contained binaries): full `-static` on GCC/Clang, static CRT
+  on MSVC; TLS builds fall back to a static C++ runtime since OpenSSL is usually shared-only.
 - Tests run under **CTest**. **Every language feature gets a test.** Prefer many
   small, focused tests (one behavior each) over large ones. A feature isn't done
   until it has a test and the suite is green.
