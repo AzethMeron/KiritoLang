@@ -75,6 +75,37 @@ int main() {
         runSafely(s);
     }
 
-    if (kitest::failures == 0) std::printf("fuzz: 7000 inputs, no crashes\n");
+    // 4) Feature/library soup: assemble random fragments exercising collections, strings, classes,
+    //    control flow, and every stdlib module with random (sometimes invalid) arguments.
+    const char* frags[] = {
+        "var L = [%d, %d, %d]\n", "L.append(%d)\n", "L.sort()\n", "L.insert(%d, %d)\n",
+        "var D = {%d: %d, %d: %d}\n", "D.get(%d, 0)\n", "var S = {%d, %d, %d}\n",
+        "var t = \"abc%d\"\nt[%d]\nt[%d:%d]\nt.upper()\nt.split(\"b\")\n",
+        "f\"value {%d} and {%d}\"\n",
+        "range(%d)\nsum(range(%d))\nsorted([%d, %d, %d])\n",
+        "map(Function(x): return x + %d, [%d, %d])\n",
+        "import(\"math\").sqrt(%d)\nimport(\"math\").factorial(%d %% 10)\n",
+        "var rng = import(\"random\").Random(%d)\nrng.randint(%d, %d)\n",
+        "import(\"json\").parse(\"[%d, %d]\")\n",
+        "var m = import(\"matrix\").Matrix([[%d, %d], [%d, %d]])\nm.determinant()\n",
+        "var sr = import(\"serialize\")\nsr.loads(sr.dumps([%d, [%d], %d]))\n",
+        "class C:\n    var init = Function(self, v):\n        self.v = v\nC(%d).v\n",
+        "try:\n    raise %d\nexcept as e:\n    e + %d\n",
+        "var i = 0\nvar s = 0\nwhile i < %d %% 20:\n    s = s + i\n    i = i + 1\ns\n",
+        "%d if %d > %d else %d\n",  // not valid Kirito (no ternary) -> exercises parse errors too
+    };
+    for (int i = 0; i < 4000; ++i) {
+        std::string prog;
+        int lines = randi(1, 4);
+        for (int j = 0; j < lines; ++j) {
+            char buf[256];
+            std::snprintf(buf, sizeof(buf), frags[randi(0, static_cast<int>(std::size(frags)) - 1)],
+                          randi(-50, 50), randi(-50, 50), randi(-50, 50), randi(-50, 50), randi(-50, 50));
+            prog += buf;
+        }
+        runSafely(prog);
+    }
+
+    if (kitest::failures == 0) std::printf("fuzz: 11000 inputs, no crashes\n");
     return RUN_TESTS();
 }

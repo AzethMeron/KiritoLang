@@ -773,6 +773,8 @@ void KiritoVM::install() {
     NativeModule* mod = nativeModules_.back().get();
     registerModule(mod->name(), [mod](KiritoVM& vm) -> Handle {
         Handle h = vm.alloc(std::make_unique<ModuleValue>(mod->name()));
+        RootScope rs(vm);  // keep the module alive while setup() allocates members (which may GC)
+        rs.add(h);
         ModuleBuilder builder(vm, static_cast<ModuleValue&>(vm.arena().deref(h)));
         mod->setup(builder);
         return h;
