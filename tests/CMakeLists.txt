@@ -44,6 +44,7 @@ kirito_test(test_hash unit/test_hash.cpp)
 kirito_test(test_sort unit/test_sort.cpp)
 kirito_test(test_hostile_libs unit/test_hostile_libs.cpp)
 kirito_test(test_io unit/test_io.cpp)
+kirito_test(test_namedargs unit/test_namedargs.cpp)
 kirito_test(test_bytesio unit/test_bytesio.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
@@ -69,4 +70,20 @@ foreach(script ${ki_scripts})
              COMMAND ${CMAKE_COMMAND} -DKI=$<TARGET_FILE:ki> -DSCRIPT=${script}
                      -DEXPECTED=${expected} ${extra}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_script.cmake)
+endforeach()
+
+# --- error-message tests: .ki files that MUST fail, with a .experr of required diagnostic text ---
+# Verifies the interpreter reports actionable errors (syntax, indentation, runtime, annotations)
+# rather than crashing or going silent. Auto-discovered, so new cases need no CMake edits.
+file(GLOB ki_error_scripts ${CMAKE_CURRENT_SOURCE_DIR}/errors/*.ki)
+foreach(script ${ki_error_scripts})
+    get_filename_component(nm ${script} NAME_WE)
+    set(expected ${CMAKE_CURRENT_SOURCE_DIR}/errors/${nm}.experr)
+    if(NOT EXISTS ${expected})
+        continue()
+    endif()
+    add_test(NAME error_${nm}
+             COMMAND ${CMAKE_COMMAND} -DKI=$<TARGET_FILE:ki> -DSCRIPT=${script}
+                     -DEXPECTED=${expected}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_error.cmake)
 endforeach()
