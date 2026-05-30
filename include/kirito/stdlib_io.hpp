@@ -1,6 +1,7 @@
 #ifndef KIRITO_STDLIB_IO_HPP
 #define KIRITO_STDLIB_IO_HPP
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -111,12 +112,108 @@ public:
     }
 };
 
+// An in-memory binary buffer, like Python's io.BytesIO: an efficient growable byte buffer with a
+// read/write cursor. write() appends/overwrites at the cursor; read() consumes from it; getvalue()
+// returns the whole contents as a byte String. Useful as a sink for code that "writes a file"
+// (e.g. encoding an image) without touching disk.
+class BytesIO : public NativeClass<BytesIO> {
+public:
+    static constexpr const char* kTypeName = "BytesIO";
+    std::string buf;
+    std::size_t pos = 0;
+
+    BytesIO() = default;
+    explicit BytesIO(std::string initial) : buf(std::move(initial)) {}
+
+    std::string str(StringifyCtx&) const override {
+        return "BytesIO(" + std::to_string(buf.size()) + " bytes)";
+    }
+
+    Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
+        auto bind = [&](const char* nm, NativeFn fn) {
+            return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+        };
+        auto io = [](KiritoVM& vm, Handle self) -> BytesIO& {
+            return static_cast<BytesIO&>(vm.arena().deref(self));
+        };
+        if (name == "write")
+            return bind("write", [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                const Object& o = vm.arena().deref(a[0]);
+                if (o.kind() != ValueKind::String) throw KiritoError("BytesIO.write expects a byte String");
+                const std::string& data = static_cast<const StrVal&>(o).value();
+                auto& b = io(vm, self);
+                // overwrite at the cursor, extending the buffer as needed (Python semantics)
+                if (b.pos + data.size() > b.buf.size()) b.buf.resize(b.pos + data.size());
+                std::copy(data.begin(), data.end(), b.buf.begin() + static_cast<std::ptrdiff_t>(b.pos));
+                b.pos += data.size();
+                return vm.makeInt(static_cast<int64_t>(data.size()));
+            });
+        if (name == "read")
+            return bind("read", [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                auto& b = io(vm, self);
+                std::size_t n = b.buf.size() - b.pos;  // read all remaining by default
+                if (!a.empty()) {
+                    const Object& o = vm.arena().deref(a[0]);
+                    if (o.kind() == ValueKind::Integer) {
+                        int64_t want = static_cast<const IntVal&>(o).value();
+                        if (want >= 0) n = std::min<std::size_t>(n, static_cast<std::size_t>(want));
+                    }
+                }
+                std::string out = b.buf.substr(b.pos, n);
+                b.pos += out.size();
+                return vm.makeString(std::move(out));
+            });
+        if (name == "getvalue")
+            return bind("getvalue", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                return vm.makeString(io(vm, self).buf);
+            });
+        if (name == "tell")
+            return bind("tell", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                return vm.makeInt(static_cast<int64_t>(io(vm, self).pos));
+            });
+        if (name == "seek")
+            return bind("seek", [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                auto& b = io(vm, self);
+                int64_t off = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
+                int whence = a.size() > 1 ? static_cast<int>(static_cast<const IntVal&>(vm.arena().deref(a[1])).value()) : 0;
+                int64_t base = whence == 1 ? static_cast<int64_t>(b.pos)
+                             : whence == 2 ? static_cast<int64_t>(b.buf.size()) : 0;
+                int64_t np = base + off;
+                if (np < 0) np = 0;
+                b.pos = static_cast<std::size_t>(np);
+                return vm.makeInt(np);
+            });
+        if (name == "size" || name == "_len_")
+            return bind("size", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                return vm.makeInt(static_cast<int64_t>(io(vm, self).buf.size()));
+            });
+        if (name == "truncate")
+            return bind("truncate", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                auto& b = io(vm, self);
+                b.buf.resize(b.pos);
+                return vm.makeInt(static_cast<int64_t>(b.buf.size()));
+            });
+        if (name == "_enter_")
+            return bind("_enter_", [self](KiritoVM&, std::span<const Handle>) { return self; });
+        if (name == "_exit_" || name == "close")
+            return bind("close", [](KiritoVM& vm, std::span<const Handle>) { return vm.none(); });
+        return Object::getAttr(vm, self, name);
+    }
+};
+
 // The `io` standard module, authored via the extension API exactly as a third party would.
 class IoModule : public NativeModule {
 public:
     std::string name() const override { return "io"; }
 
     void setup(ModuleBuilder& m) override {
+        // BytesIO([initial]) -> an in-memory binary buffer.
+        m.fn("BytesIO", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) return vm.alloc(std::make_unique<BytesIO>());
+            const Object& o = vm.arena().deref(a[0]);
+            if (o.kind() != ValueKind::String) throw KiritoError("BytesIO expects a byte String");
+            return vm.alloc(std::make_unique<BytesIO>(static_cast<const StrVal&>(o).value()));
+        });
         m.fn("print", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
             for (std::size_t i = 0; i < args.size(); ++i) {
                 if (i) std::cout << ' ';
