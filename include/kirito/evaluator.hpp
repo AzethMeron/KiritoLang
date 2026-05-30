@@ -364,6 +364,16 @@ public:
         result_ = vm_.alloc(std::move(set));
     }
 
+    void visit(const ast::FStringExpr& e) override {
+        RootScope rs(vm_);
+        std::string out;
+        for (const auto& part : e.parts) {
+            if (part.isExpr) out += vm_.stringify(rs.add(eval(*part.expr)));
+            else out += part.literal;
+        }
+        result_ = vm_.makeString(std::move(out));
+    }
+
     void visit(const ast::DictLiteral& e) override {
         RootScope rs(vm_);
         auto dict = std::make_unique<DictVal>();

@@ -30,6 +30,7 @@ struct SliceExpr;
 struct ListLiteral;
 struct SetLiteral;
 struct DictLiteral;
+struct FStringExpr;
 
 struct ExprVisitor {
     virtual ~ExprVisitor() = default;
@@ -46,6 +47,7 @@ struct ExprVisitor {
     virtual void visit(const ListLiteral&) = 0;
     virtual void visit(const SetLiteral&) = 0;
     virtual void visit(const DictLiteral&) = 0;
+    virtual void visit(const FStringExpr&) = 0;
 };
 
 // A cheap tag for assignment-target dispatch, avoiding dynamic_cast on the hot path.
@@ -133,6 +135,17 @@ struct SetLiteral : Expr {
 
 struct DictLiteral : Expr {
     std::vector<std::pair<ExprPtr, ExprPtr>> entries;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
+// f"text {expr} ...": alternating literal text and embedded expressions.
+struct FStringExpr : Expr {
+    struct Part {
+        bool isExpr = false;
+        std::string literal;
+        ExprPtr expr;
+    };
+    std::vector<Part> parts;
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 

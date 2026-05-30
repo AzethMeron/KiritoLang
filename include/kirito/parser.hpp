@@ -443,6 +443,10 @@ private:
                 advance();
                 return literal(t.text, t.span);
             }
+            case TokenType::FString: {
+                advance();
+                return parseFString(t);
+            }
             case TokenType::KwTrue: advance(); return literal(true, t.span);
             case TokenType::KwFalse: advance(); return literal(false, t.span);
             case TokenType::KwNone: advance(); return literal(std::monostate{}, t.span);
@@ -514,6 +518,70 @@ private:
         }
         expect(TokenType::RBrace, "'}' to close the set");
         return set;
+    }
+
+    // Parse one embedded expression out of an f-string's {...}.
+    ast::ExprPtr parseEmbedded(const std::string& code, SourceSpan span) {
+        Lexer lex(code);
+        Parser sub(lex.tokenize());
+        ast::Program prog = sub.parseProgram();
+        if (prog.stmts.size() != 1)
+            throw KiritoError("f-string '{...}' must contain a single expression", span);
+        auto* es = dynamic_cast<ast::ExprStmt*>(prog.stmts[0].get());
+        if (!es) throw KiritoError("f-string '{...}' must contain an expression", span);
+        return std::move(es->expr);
+    }
+
+    ast::ExprPtr parseFString(const Token& t) {
+        auto node = std::make_unique<ast::FStringExpr>();
+        node->span = t.span;
+        const std::string& raw = t.text;
+        std::string lit;
+        auto flush = [&] {
+            if (!lit.empty()) {
+                ast::FStringExpr::Part p;
+                p.literal = lit;
+                node->parts.push_back(std::move(p));
+                lit.clear();
+            }
+        };
+        for (std::size_t i = 0; i < raw.size();) {
+            char c = raw[i];
+            if (c == '{') {
+                if (i + 1 < raw.size() && raw[i + 1] == '{') { lit += '{'; i += 2; continue; }
+                flush();
+                std::size_t depth = 1, j = i + 1;
+                for (; j < raw.size() && depth > 0; ++j) {
+                    if (raw[j] == '{') ++depth;
+                    else if (raw[j] == '}' && --depth == 0) break;
+                }
+                if (depth != 0) throw KiritoError("unmatched '{' in f-string", t.span);
+                ast::FStringExpr::Part p;
+                p.isExpr = true;
+                p.expr = parseEmbedded(raw.substr(i + 1, j - (i + 1)), t.span);
+                node->parts.push_back(std::move(p));
+                i = j + 1;
+            } else if (c == '}') {
+                if (i + 1 < raw.size() && raw[i + 1] == '}') { lit += '}'; i += 2; continue; }
+                throw KiritoError("single '}' in f-string", t.span);
+            } else if (c == '\\' && i + 1 < raw.size()) {
+                char e = raw[i + 1];
+                switch (e) {
+                    case 'n': lit += '\n'; break;
+                    case 't': lit += '\t'; break;
+                    case 'r': lit += '\r'; break;
+                    case '\\': lit += '\\'; break;
+                    case '"': lit += '"'; break;
+                    default: lit += e; break;
+                }
+                i += 2;
+            } else {
+                lit += c;
+                ++i;
+            }
+        }
+        flush();
+        return node;
     }
 
     template <typename T>

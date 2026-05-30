@@ -11,7 +11,7 @@
 namespace kirito {
 
 enum class TokenType {
-    Integer, Float, String, Identifier,
+    Integer, Float, String, FString, Identifier,
     KwVar, KwTrue, KwFalse, KwNone,
     KwIf, KwElif, KwElse, KwWhile, KwBreak, KwContinue,
     KwAnd, KwOr, KwNot, KwFunction, KwReturn, KwFor, KwIn,
@@ -62,6 +62,8 @@ public:
                 out.push_back(number());
             } else if (c == '"') {
                 out.push_back(string());
+            } else if (c == 'f' && peek(1) == '"') {
+                out.push_back(fstring());
             } else if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
                 out.push_back(identifier());
             } else {
@@ -210,6 +212,24 @@ private:
         }
         advance();  // closing quote
         return make(TokenType::String, line, col, std::move(text));
+    }
+
+    // f-string: keep the raw inner text (braces and escapes preserved); the parser splits it into
+    // literal segments and embedded {expression} parts.
+    Token fstring() {
+        uint32_t line = line_, col = col_;
+        advance();  // 'f'
+        advance();  // opening quote
+        std::string raw;
+        while (peek() != '"') {
+            char c = peek();
+            if (c == '\0' || c == '\n')
+                throw KiritoError("unterminated f-string", SourceSpan{line, col, 1});
+            if (c == '\\') { raw += c; advance(); raw += peek(); advance(); }
+            else { raw += c; advance(); }
+        }
+        advance();  // closing quote
+        return make(TokenType::FString, line, col, std::move(raw));
     }
 
     Token op() {
