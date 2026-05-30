@@ -2,9 +2,11 @@
 #define KIRITO_RUNTIME_HPP
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -880,6 +882,130 @@ inline void KiritoVM::installBuiltins() {
     def("Bool", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         if (args.size() != 1) throw KiritoError("Bool expected 1 argument");
         return vm.makeBool(vm.arena().deref(args[0]).truthy());
+    });
+
+    def("abs", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        const Object& o = vm.arena().deref(a[0]);
+        if (o.kind() == ValueKind::Integer) return vm.makeInt(std::llabs(static_cast<const IntVal&>(o).value()));
+        if (o.kind() == ValueKind::Float) return vm.makeFloat(std::fabs(static_cast<const FloatVal&>(o).value()));
+        throw KiritoError("abs expects a number");
+    });
+    def("round", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        double x = asDouble(vm.arena().deref(a[0]));
+        if (a.size() >= 2) {
+            int64_t nd = static_cast<const IntVal&>(vm.arena().deref(a[1])).value();
+            double f = std::pow(10.0, static_cast<double>(nd));
+            return vm.makeFloat(std::round(x * f) / f);
+        }
+        return vm.makeInt(static_cast<int64_t>(std::llround(x)));  // Python: round(x) -> Integer
+    });
+    def("range", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        auto iv = [&](Handle h) {
+            const Object& o = vm.arena().deref(h);
+            if (o.kind() != ValueKind::Integer) throw KiritoError("range expects Integers");
+            return static_cast<const IntVal&>(o).value();
+        };
+        int64_t start = 0, stop = 0, step = 1;
+        if (a.size() == 1) stop = iv(a[0]);
+        else if (a.size() == 2) { start = iv(a[0]); stop = iv(a[1]); }
+        else if (a.size() == 3) { start = iv(a[0]); stop = iv(a[1]); step = iv(a[2]); }
+        else throw KiritoError("range expects 1 to 3 arguments");
+        if (step == 0) throw KiritoError("range step cannot be zero");
+        RootScope rs(vm);
+        auto list = std::make_unique<ListVal>();
+        if (step > 0) for (int64_t i = start; i < stop; i += step) list->elems.push_back(rs.add(vm.makeInt(i)));
+        else for (int64_t i = start; i > stop; i += step) list->elems.push_back(rs.add(vm.makeInt(i)));
+        return vm.alloc(std::move(list));
+    });
+    def("sum", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        auto items = vm.arena().deref(a[0]).iterate(vm);
+        bool isFloat = false;
+        double f = 0;
+        int64_t n = 0;
+        for (Handle h : items.value()) {
+            const Object& o = vm.arena().deref(h);
+            if (o.kind() == ValueKind::Float) { isFloat = true; f += static_cast<const FloatVal&>(o).value(); }
+            else if (o.kind() == ValueKind::Integer) { int64_t v = static_cast<const IntVal&>(o).value(); n += v; f += static_cast<double>(v); }
+            else throw KiritoError("sum expects numbers");
+        }
+        return isFloat ? vm.makeFloat(f) : vm.makeInt(n);
+    });
+    auto extremum = [](KiritoVM& vm, std::span<const Handle> a, bool wantMax) -> Handle {
+        std::vector<Handle> items;
+        if (a.size() == 1) items = vm.arena().deref(a[0]).iterate(vm).value();
+        else items.assign(a.begin(), a.end());
+        if (items.empty()) throw KiritoError("min/max of empty sequence");
+        Handle best = items[0];
+        for (std::size_t i = 1; i < items.size(); ++i) {
+            bool better = wantMax ? kiLessThan(vm, best, items[i]) : kiLessThan(vm, items[i], best);
+            if (better) best = items[i];
+        }
+        return best;
+    };
+    def("min", [extremum](KiritoVM& vm, std::span<const Handle> a) { return extremum(vm, a, false); });
+    def("max", [extremum](KiritoVM& vm, std::span<const Handle> a) { return extremum(vm, a, true); });
+    def("sorted", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        RootScope rs(vm);
+        auto list = std::make_unique<ListVal>();
+        auto items = vm.arena().deref(a[0]).iterate(vm);
+        for (Handle h : items.value()) list->elems.push_back(rs.add(h));
+        std::sort(list->elems.begin(), list->elems.end(), [&](Handle x, Handle y) { return kiLessThan(vm, x, y); });
+        return vm.alloc(std::move(list));
+    });
+    def("enumerate", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        RootScope rs(vm);
+        auto out = std::make_unique<ListVal>();
+        auto items = vm.arena().deref(a[0]).iterate(vm);
+        int64_t i = 0;
+        for (Handle h : items.value()) {
+            rs.add(h);
+            auto pair = std::make_unique<ListVal>();
+            pair->elems.push_back(vm.makeInt(i++));
+            pair->elems.push_back(h);
+            out->elems.push_back(rs.add(vm.alloc(std::move(pair))));
+        }
+        return vm.alloc(std::move(out));
+    });
+    def("zip", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        RootScope rs(vm);
+        std::vector<std::vector<Handle>> cols;
+        std::size_t minLen = SIZE_MAX;
+        for (Handle h : a) { cols.push_back(vm.arena().deref(h).iterate(vm).value()); minLen = std::min(minLen, cols.back().size()); }
+        if (cols.empty()) minLen = 0;
+        auto out = std::make_unique<ListVal>();
+        for (std::size_t i = 0; i < minLen; ++i) {
+            auto tup = std::make_unique<ListVal>();
+            for (auto& c : cols) tup->elems.push_back(c[i]);
+            out->elems.push_back(rs.add(vm.alloc(std::move(tup))));
+        }
+        return vm.alloc(std::move(out));
+    });
+    def("map", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        RootScope rs(vm);
+        Handle f = a[0];
+        auto out = std::make_unique<ListVal>();
+        auto items = vm.arena().deref(a[1]).iterate(vm);
+        for (Handle x : items.value()) {
+            rs.add(x);
+            std::array<Handle, 1> args{x};
+            out->elems.push_back(rs.add(vm.arena().deref(f).call(vm, args)));
+        }
+        return vm.alloc(std::move(out));
+    });
+    def("filter", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        RootScope rs(vm);
+        Handle f = a[0];
+        auto out = std::make_unique<ListVal>();
+        auto items = vm.arena().deref(a[1]).iterate(vm);
+        for (Handle x : items.value()) {
+            rs.add(x);
+            std::array<Handle, 1> args{x};
+            if (vm.arena().deref(vm.arena().deref(f).call(vm, args)).truthy()) out->elems.push_back(x);
+        }
+        return vm.alloc(std::move(out));
+    });
+    def("type", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return vm.makeString(vm.arena().deref(a[0]).typeName());
     });
 }
 

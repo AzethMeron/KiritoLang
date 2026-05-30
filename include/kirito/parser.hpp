@@ -196,6 +196,11 @@ private:
 
     ast::Block parseBlock() {
         expect(TokenType::Colon, "':'");
+        return parseIndentedSuite();
+    }
+
+    // The ':'-introduced indented block, after the colon has been consumed.
+    ast::Block parseIndentedSuite() {
         expect(TokenType::Newline, "a newline before an indented block");
         expect(TokenType::Indent, "an indented block");
         ast::Block body;
@@ -424,8 +429,57 @@ private:
             }
         }
         expect(TokenType::RParen, "')' after parameters");
-        node->body = parseBlock();
+        expect(TokenType::Colon, "':' after Function parameters");
+        if (at(TokenType::Newline)) {
+            node->body = parseIndentedSuite();  // block body
+        } else {
+            // Inline body: one statement on the same line, e.g. Function(x): return x * x.
+            // It is a normal statement (uses explicit return) with no trailing-newline requirement.
+            node->body.push_back(parseInlineStatement());
+        }
         return node;
+    }
+
+    // A single statement for an inline function body. Unlike parseStatement it does not consume a
+    // statement terminator, so the enclosing context (e.g. a call's argument list) continues.
+    ast::StmtPtr parseInlineStatement() {
+        switch (peek().type) {
+            case TokenType::KwReturn: {
+                auto node = std::make_unique<ast::ReturnStmt>();
+                node->span = advance().span;
+                if (!at(TokenType::Newline) && !at(TokenType::EndOfFile) &&
+                    !at(TokenType::Comma) && !at(TokenType::RParen) && !at(TokenType::RBracket))
+                    node->value = parseExpr();
+                return node;
+            }
+            case TokenType::KwPass: {
+                auto node = std::make_unique<ast::PassStmt>();
+                node->span = advance().span;
+                return node;
+            }
+            case TokenType::KwRaise: {
+                auto node = std::make_unique<ast::RaiseStmt>();
+                node->span = advance().span;
+                node->value = parseExpr();
+                return node;
+            }
+            default: {
+                SourceSpan span = peek().span;
+                auto expr = parseExpr();
+                if (at(TokenType::Assign)) {
+                    advance();
+                    auto node = std::make_unique<ast::AssignStmt>();
+                    node->span = span;
+                    node->target = std::move(expr);
+                    node->value = parseExpr();
+                    return node;
+                }
+                auto node = std::make_unique<ast::ExprStmt>();
+                node->span = span;
+                node->expr = std::move(expr);
+                return node;
+            }
+        }
     }
 
     ast::ExprPtr parsePrimary() {

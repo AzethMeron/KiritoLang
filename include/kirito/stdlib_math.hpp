@@ -41,15 +41,56 @@ public:
             });
         };
         unary("sqrt", std::sqrt);
+        unary("cbrt", std::cbrt);
         unary("sin", std::sin);
         unary("cos", std::cos);
         unary("tan", std::tan);
         unary("asin", std::asin);
         unary("acos", std::acos);
         unary("atan", std::atan);
+        unary("sinh", std::sinh);
+        unary("cosh", std::cosh);
+        unary("tanh", std::tanh);
+        unary("asinh", std::asinh);
+        unary("acosh", std::acosh);
+        unary("atanh", std::atanh);
         unary("exp", std::exp);
+        unary("expm1", std::expm1);
+        unary("log1p", std::log1p);
         unary("log2", std::log2);
         unary("log10", std::log10);
+        unary("trunc", std::trunc);
+        unary("gamma", std::tgamma);
+        unary("lgamma", std::lgamma);
+        unary("erf", std::erf);
+
+        m.fn("isnan", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return vm.makeBool(std::isnan(mathNum(vm, a[0])));
+        });
+        m.fn("isinf", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return vm.makeBool(std::isinf(mathNum(vm, a[0])));
+        });
+        m.fn("isfinite", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return vm.makeBool(std::isfinite(mathNum(vm, a[0])));
+        });
+        m.fn("copysign", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return vm.makeFloat(std::copysign(mathNum(vm, a[0]), mathNum(vm, a[1])));
+        });
+        m.fn("fmod", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return vm.makeFloat(std::fmod(mathNum(vm, a[0]), mathNum(vm, a[1])));
+        });
+        m.fn("lcm", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            auto get = [&](Handle h) {
+                const Object& o = vm.arena().deref(h);
+                if (o.kind() != ValueKind::Integer) throw KiritoError("lcm expects Integers");
+                return static_cast<const IntVal&>(o).value();
+            };
+            int64_t x = std::abs(get(a[0])), y = std::abs(get(a[1]));
+            if (x == 0 || y == 0) return vm.makeInt(0);
+            int64_t g = x, h2 = y;
+            while (h2) { int64_t t = g % h2; g = h2; h2 = t; }
+            return vm.makeInt(x / g * y);
+        });
 
         m.fn("log", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.size() == 1) return vm.makeFloat(std::log(mathNum(vm, a[0])));

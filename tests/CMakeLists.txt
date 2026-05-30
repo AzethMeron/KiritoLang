@@ -26,6 +26,7 @@ kirito_test(test_extras unit/test_extras.cpp)
 kirito_test(test_fstring unit/test_fstring.cpp)
 kirito_test(test_references unit/test_references.cpp)
 kirito_test(test_imports unit/test_imports.cpp)
+kirito_test(test_builtins unit/test_builtins.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
 kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)
