@@ -72,13 +72,33 @@ a stability fuzzer, and a benchmark). Working today:
 - **Exceptions**: `try`/`except [Type as e]`/`finally`/`raise` (typed matching via the class chain).
 - **Context managers**: `with ... as ...` (enter/exit protocol).
 - **Garbage collection**: precise mark-sweep with rooted intermediates (AddressSanitizer-clean).
-- Modules + `import`: `io` (print/input/write/open files & streams) and `math`; `Integer`/`Float`/
-  `String`/`Bool` converters; the C++ extension API (`NativeModule`/`NativeClass`/`registerGlobal`).
-- Small-integer interning and other non-invasive perf wins; a line REPL.
+- **f-strings** `f"{expr}"`; inline anonymous functions `Function(x): return x*x`.
+- **Builtins**: `range`, `sum`, `min`, `max`, `abs`, `round`, `sorted`, `enumerate`, `zip`, `map`,
+  `filter`, `len`, `type`, `import`, and the `Integer`/`Float`/`String`/`Bool` converters.
+- **Standard library** (each a one-liner `vm.install<T>()`; a third party adds their own the same
+  way — `#include` a header, register on the VM, no global state):
+  - `io` — print/input/write, `open` files & streams (read/readline/readlines/write/writelines/
+    seek/tell/flush, iterable line-by-line, usable as a `with` context manager), plus filesystem
+    helpers (exists/remove/rename/mkdir/getcwd/listdir).
+  - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf, floor/ceil/
+    trunc, gcd/lcm, factorial, isnan/isinf, ...).
+  - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
+    randrange/choice/shuffle/sample.
+  - `matrix` — dense real matrices (no complex, no concurrency): +,-,* (matrix/scalar), transpose,
+    determinant, inverse, trace, apply, factories (zeros/ones/identity).
+  - `json` — parse (objects → Dict) / stringify.
+  - `serialize` — dumps/loads/save/load preserving shared references and cycles.
+  - `net` — TCP sockets (connect/bind/listen/accept/send/recv) and an HTTP client (http_get/http_post).
+- **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, and the
+  script's directory). The `ki` CLI is Python-like: REPL with no file, runs a file otherwise, with
+  script `argv`. Small-integer interning and other non-invasive perf wins.
 
-Not yet done (future enrichment): comprehensions, f-strings, default/variadic params, tuple
-unpacking, `super()`, generators/iterators protocol, the numeric depth (`Number`/`Matrix`/stats),
-and a bytecode VM behind the AST boundary.
+Tested under strict flags (`-O2 -Werror -Wall -Wextra -Wformat=2 -Wpointer-arith -Wpedantic
+-fstack-protector`, preset `strict`) and AddressSanitizer/UBSan; an 11k-input fuzzer guards
+stability.
+
+Not yet done (future enrichment): comprehensions, default/variadic params, tuple unpacking,
+`super()`, generators, complex numbers, and a bytecode VM behind the AST boundary.
 
 ## The Archive is reference only
 
