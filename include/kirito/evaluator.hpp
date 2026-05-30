@@ -5,6 +5,7 @@
 #include <variant>
 
 #include "ast.hpp"
+#include "control.hpp"
 #include "environment.hpp"
 #include "object.hpp"
 #include "vm.hpp"
@@ -20,12 +21,17 @@ public:
 
     // Returns the value of the last statement's expression, or None.
     Handle run(const ast::Program& prog) {
-        Handle last = vm_.none();
-        for (const auto& stmt : prog.stmts) {
+        result_ = vm_.none();
+        execBlock(prog.stmts);
+        return result_;
+    }
+
+    // Execute statements until one signals non-Normal control flow (break/continue/return).
+    void execBlock(const ast::Block& stmts) {
+        for (const auto& stmt : stmts) {
             stmt->accept(*this);
-            last = result_;
+            if (flow_ != Flow::Normal) return;
         }
-        return last;
     }
 
     Handle eval(const ast::Expr& e) {
@@ -51,6 +57,27 @@ public:
         result_ = vm_.none();
     }
 
+    void visit(const ast::IfStmt& s) override {
+        for (const auto& [cond, body] : s.branches) {
+            if (truthy(eval(*cond))) { execBlock(body); return; }
+        }
+        if (s.orelse) execBlock(*s.orelse);
+        result_ = vm_.none();
+    }
+
+    void visit(const ast::WhileStmt& s) override {
+        while (truthy(eval(*s.cond))) {
+            execBlock(s.body);
+            if (flow_ == Flow::Break) { flow_ = Flow::Normal; break; }
+            if (flow_ == Flow::Continue) { flow_ = Flow::Normal; continue; }
+            if (flow_ == Flow::Return) break;  // propagate to the enclosing function
+        }
+        result_ = vm_.none();
+    }
+
+    void visit(const ast::BreakStmt&) override { flow_ = Flow::Break; result_ = vm_.none(); }
+    void visit(const ast::ContinueStmt&) override { flow_ = Flow::Continue; result_ = vm_.none(); }
+
     // --- expressions ---
     void visit(const ast::LiteralExpr& e) override {
         if (std::holds_alternative<int64_t>(e.value))
@@ -72,8 +99,20 @@ public:
     }
 
     void visit(const ast::UnaryExpr& e) override {
+        if (e.op == UnOp::Not) {
+            result_ = vm_.makeBool(!truthy(eval(*e.operand)));
+            return;
+        }
         Handle operand = eval(*e.operand);
         result_ = located(e.span, [&] { return vm_.arena().deref(operand).unary(vm_, e.op, operand); });
+    }
+
+    void visit(const ast::LogicalExpr& e) override {
+        // Short-circuit, Python-style: yield the operand that decides the result.
+        Handle lhs = eval(*e.lhs);
+        bool lt = truthy(lhs);
+        if (e.isAnd) result_ = lt ? eval(*e.rhs) : lhs;
+        else result_ = lt ? lhs : eval(*e.rhs);
     }
 
     void visit(const ast::BinaryExpr& e) override {
@@ -91,6 +130,7 @@ public:
 
 private:
     EnvValue& scope() { return static_cast<EnvValue&>(vm_.arena().deref(env_)); }
+    bool truthy(Handle h) { return vm_.arena().deref(h).truthy(); }
 
     // Run an operation, tagging any location-less runtime error with this node's span.
     template <typename F>
@@ -106,6 +146,7 @@ private:
     KiritoVM& vm_;
     Handle env_;
     Handle result_{};
+    Flow flow_ = Flow::Normal;
 };
 
 }  // namespace kirito

@@ -13,10 +13,12 @@ namespace kirito {
 enum class TokenType {
     Integer, Float, String, Identifier,
     KwVar, KwTrue, KwFalse, KwNone,
+    KwIf, KwElif, KwElse, KwWhile, KwBreak, KwContinue,
+    KwAnd, KwOr, KwNot,
     Plus, Minus, Star, Slash, SlashSlash, Percent, StarStar,
     Assign, EqEq, NotEq, Lt, Le, Gt, Ge,
-    LParen, RParen,
-    Newline, EndOfFile,
+    LParen, RParen, Colon,
+    Newline, Indent, Dedent, EndOfFile,
 };
 
 struct Token {
@@ -33,15 +35,27 @@ public:
 
     std::vector<Token> tokenize() {
         std::vector<Token> out;
+        indent_ = {0};
+        bool lineStart = true;
         while (pos_ < src_.size()) {
+            if (lineStart && parenDepth_ == 0) {
+                if (!handleIndentation(out)) continue;  // blank/comment line: nothing emitted
+                lineStart = false;
+                continue;
+            }
             char c = src_[pos_];
             if (c == ' ' || c == '\t' || c == '\r') {
                 advance();
             } else if (c == '#') {
                 while (pos_ < src_.size() && src_[pos_] != '\n') advance();
             } else if (c == '\n') {
-                out.push_back(make(TokenType::Newline, line_, col_));
-                advance();
+                if (parenDepth_ == 0) {
+                    out.push_back(make(TokenType::Newline, line_, col_));
+                    advance();
+                    lineStart = true;
+                } else {
+                    advance();  // newline is insignificant inside (), line continuation
+                }
             } else if (std::isdigit(static_cast<unsigned char>(c))) {
                 out.push_back(number());
             } else if (c == '"') {
@@ -52,8 +66,13 @@ public:
                 out.push_back(op());
             }
         }
+        // Close the final logical line, then unwind any open indentation, then EOF.
         if (!out.empty() && out.back().type != TokenType::Newline)
             out.push_back(make(TokenType::Newline, line_, col_));
+        while (indent_.size() > 1) {
+            indent_.pop_back();
+            out.push_back(make(TokenType::Dedent, line_, col_));
+        }
         out.push_back(make(TokenType::EndOfFile, line_, col_));
         return out;
     }
@@ -69,6 +88,44 @@ private:
     }
     Token make(TokenType t, uint32_t line, uint32_t col, std::string text = {}) const {
         return Token{t, std::move(text), SourceSpan{line, col, 0}};
+    }
+
+    // At a logical line start: measure indentation and emit Indent / Dedent(s). Blank lines and
+    // comment-only lines yield no layout tokens (returns false after consuming the line). Errors
+    // on mixed tabs/spaces and on a dedent that matches no enclosing level.
+    bool handleIndentation(std::vector<Token>& out) {
+        int width = 0;
+        bool sawSpace = false, sawTab = false;
+        size_t scan = pos_;
+        while (scan < src_.size()) {
+            char c = src_[scan];
+            if (c == ' ') { ++width; sawSpace = true; ++scan; }
+            else if (c == '\t') { width += 8 - (width % 8); sawTab = true; ++scan; }
+            else break;
+        }
+        // Blank or comment-only line: skip to (and over) the newline, emit nothing.
+        if (scan >= src_.size() || src_[scan] == '\n' || src_[scan] == '#') {
+            while (pos_ < src_.size() && src_[pos_] != '\n') advance();
+            if (pos_ < src_.size()) advance();
+            return false;
+        }
+        if (sawSpace && sawTab)
+            throw KiritoError("inconsistent use of tabs and spaces in indentation",
+                              SourceSpan{line_, 1, 0});
+        while (pos_ < scan) advance();  // step over the leading whitespace
+
+        if (width > indent_.back()) {
+            indent_.push_back(width);
+            out.push_back(make(TokenType::Indent, line_, col_));
+        } else {
+            while (width < indent_.back()) {
+                indent_.pop_back();
+                out.push_back(make(TokenType::Dedent, line_, col_));
+            }
+            if (width != indent_.back())
+                throw KiritoError("inconsistent dedent", SourceSpan{line_, 1, 0});
+        }
+        return true;
     }
 
     Token number() {
@@ -96,6 +153,15 @@ private:
         else if (text == "True") type = TokenType::KwTrue;
         else if (text == "False") type = TokenType::KwFalse;
         else if (text == "None") type = TokenType::KwNone;
+        else if (text == "if") type = TokenType::KwIf;
+        else if (text == "elif") type = TokenType::KwElif;
+        else if (text == "else") type = TokenType::KwElse;
+        else if (text == "while") type = TokenType::KwWhile;
+        else if (text == "break") type = TokenType::KwBreak;
+        else if (text == "continue") type = TokenType::KwContinue;
+        else if (text == "and") type = TokenType::KwAnd;
+        else if (text == "or") type = TokenType::KwOr;
+        else if (text == "not") type = TokenType::KwNot;
         return make(type, line, col, std::move(text));
     }
 
@@ -146,8 +212,12 @@ private:
                 if (peek() == '/') { advance(); return make(TokenType::SlashSlash, line, col); }
                 return make(TokenType::Slash, line, col);
             case '%': advance(); return make(TokenType::Percent, line, col);
-            case '(': advance(); return make(TokenType::LParen, line, col);
-            case ')': advance(); return make(TokenType::RParen, line, col);
+            case ':': advance(); return make(TokenType::Colon, line, col);
+            case '(': advance(); ++parenDepth_; return make(TokenType::LParen, line, col);
+            case ')':
+                advance();
+                if (parenDepth_ > 0) --parenDepth_;
+                return make(TokenType::RParen, line, col);
             case '=':
                 advance();
                 if (peek() == '=') { advance(); return make(TokenType::EqEq, line, col); }
@@ -175,6 +245,8 @@ private:
     size_t pos_ = 0;
     uint32_t line_ = 1;
     uint32_t col_ = 1;
+    std::vector<int> indent_{0};
+    int parenDepth_ = 0;
 };
 
 }  // namespace kirito

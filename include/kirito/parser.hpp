@@ -44,7 +44,24 @@ private:
     }
 
     ast::StmtPtr parseStatement() {
-        if (at(TokenType::KwVar)) return parseVarDecl();
+        switch (peek().type) {
+            case TokenType::KwVar: return parseVarDecl();
+            case TokenType::KwIf: return parseIf();
+            case TokenType::KwWhile: return parseWhile();
+            case TokenType::KwBreak: {
+                auto node = std::make_unique<ast::BreakStmt>();
+                node->span = advance().span;
+                expectStatementEnd();
+                return node;
+            }
+            case TokenType::KwContinue: {
+                auto node = std::make_unique<ast::ContinueStmt>();
+                node->span = advance().span;
+                expectStatementEnd();
+                return node;
+            }
+            default: break;
+        }
 
         SourceSpan span = peek().span;
         auto expr = parseExpr();
@@ -78,7 +95,79 @@ private:
         return node;
     }
 
-    ast::ExprPtr parseExpr() { return parseComparison(); }
+    ast::Block parseBlock() {
+        expect(TokenType::Colon, "':'");
+        expect(TokenType::Newline, "a newline before an indented block");
+        expect(TokenType::Indent, "an indented block");
+        ast::Block body;
+        while (!at(TokenType::Dedent) && !at(TokenType::EndOfFile)) {
+            if (at(TokenType::Newline)) { advance(); continue; }
+            body.push_back(parseStatement());
+        }
+        expect(TokenType::Dedent, "a dedent to close the block");
+        return body;
+    }
+
+    ast::StmtPtr parseIf() {
+        auto node = std::make_unique<ast::IfStmt>();
+        node->span = advance().span;  // 'if'
+        {
+            auto cond = parseExpr();
+            auto body = parseBlock();
+            node->branches.emplace_back(std::move(cond), std::move(body));
+        }
+        while (at(TokenType::KwElif)) {
+            advance();
+            auto cond = parseExpr();
+            auto body = parseBlock();
+            node->branches.emplace_back(std::move(cond), std::move(body));
+        }
+        if (at(TokenType::KwElse)) {
+            advance();
+            node->orelse = parseBlock();
+        }
+        return node;
+    }
+
+    ast::StmtPtr parseWhile() {
+        auto node = std::make_unique<ast::WhileStmt>();
+        node->span = advance().span;  // 'while'
+        node->cond = parseExpr();
+        node->body = parseBlock();
+        return node;
+    }
+
+    ast::ExprPtr parseExpr() { return parseOr(); }
+
+    ast::ExprPtr parseOr() {
+        auto left = parseAnd();
+        while (at(TokenType::KwOr)) {
+            SourceSpan span = advance().span;
+            left = logical(std::move(left), /*isAnd=*/false, parseAnd(), span);
+        }
+        return left;
+    }
+
+    ast::ExprPtr parseAnd() {
+        auto left = parseNot();
+        while (at(TokenType::KwAnd)) {
+            SourceSpan span = advance().span;
+            left = logical(std::move(left), /*isAnd=*/true, parseNot(), span);
+        }
+        return left;
+    }
+
+    ast::ExprPtr parseNot() {
+        if (at(TokenType::KwNot)) {
+            SourceSpan span = advance().span;
+            auto node = std::make_unique<ast::UnaryExpr>();
+            node->span = span;
+            node->op = UnOp::Not;
+            node->operand = parseNot();
+            return node;
+        }
+        return parseComparison();
+    }
 
     ast::ExprPtr parseComparison() {
         auto left = parseAdd();
@@ -192,6 +281,15 @@ private:
         auto node = std::make_unique<ast::BinaryExpr>();
         node->span = span;
         node->op = op;
+        node->lhs = std::move(lhs);
+        node->rhs = std::move(rhs);
+        return node;
+    }
+
+    static ast::ExprPtr logical(ast::ExprPtr lhs, bool isAnd, ast::ExprPtr rhs, SourceSpan span) {
+        auto node = std::make_unique<ast::LogicalExpr>();
+        node->span = span;
+        node->isAnd = isAnd;
         node->lhs = std::move(lhs);
         node->rhs = std::move(rhs);
         return node;

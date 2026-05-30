@@ -3,7 +3,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -19,6 +21,7 @@ struct LiteralExpr;
 struct NameExpr;
 struct UnaryExpr;
 struct BinaryExpr;
+struct LogicalExpr;
 
 struct ExprVisitor {
     virtual ~ExprVisitor() = default;
@@ -26,6 +29,7 @@ struct ExprVisitor {
     virtual void visit(const NameExpr&) = 0;
     virtual void visit(const UnaryExpr&) = 0;
     virtual void visit(const BinaryExpr&) = 0;
+    virtual void visit(const LogicalExpr&) = 0;
 };
 
 struct Expr {
@@ -59,15 +63,31 @@ struct BinaryExpr : Expr {
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 
+// `and` / `or` — separate from BinaryExpr because they short-circuit and yield an operand.
+struct LogicalExpr : Expr {
+    bool isAnd;  // true == `and`, false == `or`
+    ExprPtr lhs;
+    ExprPtr rhs;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
 struct ExprStmt;
 struct VarDeclStmt;
 struct AssignStmt;
+struct IfStmt;
+struct WhileStmt;
+struct BreakStmt;
+struct ContinueStmt;
 
 struct StmtVisitor {
     virtual ~StmtVisitor() = default;
     virtual void visit(const ExprStmt&) = 0;
     virtual void visit(const VarDeclStmt&) = 0;
     virtual void visit(const AssignStmt&) = 0;
+    virtual void visit(const IfStmt&) = 0;
+    virtual void visit(const WhileStmt&) = 0;
+    virtual void visit(const BreakStmt&) = 0;
+    virtual void visit(const ContinueStmt&) = 0;
 };
 
 struct Stmt {
@@ -96,8 +116,31 @@ struct AssignStmt : Stmt {
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 
+using Block = std::vector<StmtPtr>;
+
+// `if cond: ... [elif cond: ...] [else: ...]` — one entry per if/elif branch, plus optional else.
+struct IfStmt : Stmt {
+    std::vector<std::pair<ExprPtr, Block>> branches;
+    std::optional<Block> orelse;
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+struct WhileStmt : Stmt {
+    ExprPtr cond;
+    Block body;
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+struct BreakStmt : Stmt {
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+struct ContinueStmt : Stmt {
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
 struct Program {
-    std::vector<StmtPtr> stmts;
+    Block stmts;
 };
 
 }  // namespace kirito::ast

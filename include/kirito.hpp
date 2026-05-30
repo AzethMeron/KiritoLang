@@ -6,6 +6,7 @@
 // NOT define main(); the standalone interpreter lives in main.cpp.
 
 #include "kirito/common.hpp"
+#include "kirito/control.hpp"
 #include "kirito/handle.hpp"
 #include "kirito/object.hpp"
 #include "kirito/arena.hpp"
