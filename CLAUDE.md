@@ -32,10 +32,16 @@ day swapping the tree-walker for a bytecode VM without rewriting the front end.
 
 From the design notes and `Archive/V2/main.ki`, Kirito should support:
 
-- `var` declarations; `#` line comments.
+- `var` declarations; `#` line comments. **Python-style significant indentation**: blocks are
+  introduced by `:` + newline + indent (no braces).
 - **Reference assignment semantics**: `A = B + C` allocates a new value, and `A`
-  is bound to it. Assignment binds names to values; it does not deep-copy.
-- **First-class functions**: `var main = Function() { ... }`, called as `main()`.
+  is bound to it. Assignment binds names to values; it does not deep-copy. `var` declares in the
+  current scope; bare `=` rebinds the nearest existing binding (a `NameError` if undefined).
+- **First-class functions**: `var main = Function():` followed by an indented block, called as `main()`.
+- **Control flow**: explicit `return` (functions default to `None`), `if`/`elif`/`else`, `while`,
+  `for VAR in ITERABLE`, `break`, `continue`; logical keywords `and`/`or`/`not`.
+- **Numerics**: separate `Integer` (int64) and `Float` (double); **Python-3 division** — `/` always
+  yields `Float`, `//` is floor division, `%` modulo, `**` right-assoc exponentiation.
 - **Modules** via `import("io")`; first stdlib module is `io` (`io.input`, `io.print`).
 - Built-in types, dynamically typed: `None`, `Bool`, `Integer`, `Float`, `String`,
   and collections `Array`, `List`, `Set`, `Dict`. Values are hashable where it makes
@@ -62,11 +68,35 @@ Every step must keep `main.ki`-style programs as the north star.
   re-implement cleanly.
 - The archives' MSVC `.vcxproj`/`.sln` files are dead on this Linux toolchain — ignore them.
 
+## Architecture (as built)
+
+- **Header-only core.** The whole interpreter lives in `include/kirito/*.hpp`, surfaced through one
+  umbrella header: `#include "kirito.hpp"` embeds Kirito in any C++ program (Lua-style), **no `main`**.
+  The standalone interpreter's `main()` lives only in `main.cpp`. Use **`#ifndef` include guards**
+  (e.g. `KIRITO_OBJECT_HPP`), **never `#pragma once`**; everything `inline`/templated, no mutable
+  globals — all state is VM-scoped.
+- **One `KiritoVM` = one fully-encapsulated process**, composing its owned sub-objects: an
+  `ObjectArena`, the global `Environment`, and the `ModuleRegistry`. No global/static mutable state,
+  so multiple VMs coexist and the whole context is serializable later.
+- **VM-owned value graph + handles.** Every value is an `Object` owned by an arena slot
+  (`unique_ptr`); everything else holds lightweight `Handle`s (slot+generation). Reference-assignment
+  = two bindings sharing one handle. No `shared_ptr`, no per-value refcount. Mark-sweep GC is
+  designed-for (`Object::children()`) but deferred — early on, values accumulate until the VM dies.
+- **Unified object protocol.** Built-ins, C++-authored types, and future Kirito `class`es all derive
+  from one `Object` base exposing the same slots (`truthy/str/equals/hash`, and operation slots
+  `binary/unary/call/getAttr/setAttr/getItem/setItem/iterate/length`). The evaluator dispatches
+  through the protocol — it can't tell built-ins from user types.
+- **Layered scoping**: global (built-ins) → module (per `.ki` file) → local (per function call);
+  closures capture their lexical scope by handle. Only functions/modules introduce scopes.
+- **Extending in C++**: subclass `NativeModule` (override `setup`) or `NativeClass` (override only
+  the slots you need) and register with one call — indistinguishable from a built-in to the evaluator.
+
 ## Build & test
 
 Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
 
-- Build system is **CMake** (out-of-source, e.g. `build/`). Target C++20.
+- Build is **thin CMake** (out-of-source, e.g. `build/`), C++20: the header-only core is an
+  `INTERFACE` target; CMake builds only `ki` (from `main.cpp`) and the test executables.
 - Tests run under **CTest**. **Every language feature gets a test.** Prefer many
   small, focused tests (one behavior each) over large ones. A feature isn't done
   until it has a test and the suite is green.
