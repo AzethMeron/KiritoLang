@@ -12,6 +12,10 @@ It is the source of truth for what Kirito is, how we build it, and how we work.
 **Kirito** — a from-scratch, dynamically-typed, strongly-typed general-purpose scripting language.
 Source files use the `.ki` extension. The language namespace is `Kirito`.
 
+Main idea for the language: it should be high-level language like Python that's fast to develop in. We want just right level of abstraction to allow for that without demanind "boilerplate code" from the user. At the same time, Kirito is supposed to be a C++ framework - users should be able to easily implement and wire-in new objects / functions / modules in C++ Kirito's framework.
+
+Furthemore, Kirito is expected to be capable of being extension language that can be integrated into bigger application in C++. It's therefore important that single "proccess" of Kirito is expected to be fully encapsulated in single object of KiritoVM class.
+
 Implementation: **modern C++ (C++20)**, as a **tree-walking interpreter**.
 
 Pipeline — keep these stages separate, each behind a clean interface:
