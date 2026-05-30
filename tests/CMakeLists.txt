@@ -29,6 +29,7 @@ kirito_test(test_imports unit/test_imports.cpp)
 kirito_test(test_builtins unit/test_builtins.cpp)
 kirito_test(test_random unit/test_random.cpp)
 kirito_test(test_matrix unit/test_matrix.cpp)
+kirito_test(test_json unit/test_json.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
 kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)

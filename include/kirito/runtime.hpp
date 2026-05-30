@@ -28,6 +28,7 @@
 #include "stdlib_math.hpp"
 #include "stdlib_random.hpp"
 #include "stdlib_matrix.hpp"
+#include "stdlib_json.hpp"
 #include "vm.hpp"
 
 // Definitions that need a complete KiritoVM (and the front end): they live here, included last,
@@ -1018,6 +1019,7 @@ inline void KiritoVM::installStandardLibrary() {
     install<MathModule>();
     install<RandomModule>();
     install<MatrixModule>();
+    install<JsonModule>();
 }
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {
