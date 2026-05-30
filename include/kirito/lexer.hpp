@@ -11,8 +11,10 @@
 namespace kirito {
 
 enum class TokenType {
-    Integer, Float,
+    Integer, Float, String, Identifier,
+    KwVar, KwTrue, KwFalse, KwNone,
     Plus, Minus, Star, Slash, SlashSlash, Percent, StarStar,
+    Assign, EqEq, NotEq, Lt, Le, Gt, Ge,
     LParen, RParen,
     Newline, EndOfFile,
 };
@@ -42,6 +44,10 @@ public:
                 advance();
             } else if (std::isdigit(static_cast<unsigned char>(c))) {
                 out.push_back(number());
+            } else if (c == '"') {
+                out.push_back(string());
+            } else if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
+                out.push_back(identifier());
             } else {
                 out.push_back(op());
             }
@@ -78,6 +84,53 @@ private:
         return make(isFloat ? TokenType::Float : TokenType::Integer, line, col, std::move(text));
     }
 
+    Token identifier() {
+        uint32_t line = line_, col = col_;
+        std::string text;
+        while (std::isalnum(static_cast<unsigned char>(peek())) || peek() == '_') {
+            text += peek();
+            advance();
+        }
+        TokenType type = TokenType::Identifier;
+        if (text == "var") type = TokenType::KwVar;
+        else if (text == "True") type = TokenType::KwTrue;
+        else if (text == "False") type = TokenType::KwFalse;
+        else if (text == "None") type = TokenType::KwNone;
+        return make(type, line, col, std::move(text));
+    }
+
+    Token string() {
+        uint32_t line = line_, col = col_;
+        advance();  // opening quote
+        std::string text;
+        while (peek() != '"') {
+            char c = peek();
+            if (c == '\0' || c == '\n')
+                throw KiritoError("unterminated string", SourceSpan{line, col, 1});
+            if (c == '\\') {
+                advance();
+                char e = peek();
+                switch (e) {
+                    case 'n': text += '\n'; break;
+                    case 't': text += '\t'; break;
+                    case 'r': text += '\r'; break;
+                    case '0': text += '\0'; break;
+                    case '\\': text += '\\'; break;
+                    case '"': text += '"'; break;
+                    default:
+                        throw KiritoError(std::string("invalid escape '\\") + e + "'",
+                                          SourceSpan{line_, col_, 1});
+                }
+                advance();
+            } else {
+                text += c;
+                advance();
+            }
+        }
+        advance();  // closing quote
+        return make(TokenType::String, line, col, std::move(text));
+    }
+
     Token op() {
         uint32_t line = line_, col = col_;
         char c = peek();
@@ -95,6 +148,23 @@ private:
             case '%': advance(); return make(TokenType::Percent, line, col);
             case '(': advance(); return make(TokenType::LParen, line, col);
             case ')': advance(); return make(TokenType::RParen, line, col);
+            case '=':
+                advance();
+                if (peek() == '=') { advance(); return make(TokenType::EqEq, line, col); }
+                return make(TokenType::Assign, line, col);
+            case '!':
+                advance();
+                if (peek() == '=') { advance(); return make(TokenType::NotEq, line, col); }
+                throw KiritoError("unexpected '!' (did you mean '!=' or 'not'?)",
+                                  SourceSpan{line, col, 1});
+            case '<':
+                advance();
+                if (peek() == '=') { advance(); return make(TokenType::Le, line, col); }
+                return make(TokenType::Lt, line, col);
+            case '>':
+                advance();
+                if (peek() == '=') { advance(); return make(TokenType::Ge, line, col); }
+                return make(TokenType::Gt, line, col);
             default:
                 throw KiritoError(std::string("unexpected character '") + c + "'",
                                   SourceSpan{line, col, 1});

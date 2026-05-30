@@ -36,6 +36,51 @@ public:
     std::size_t hash() const override { return 0; }
 };
 
+// Boolean. Interned per VM (True/False each share one slot).
+class BoolVal : public Object {
+public:
+    explicit BoolVal(bool v) : value_(v) {}
+    bool value() const { return value_; }
+
+    ValueKind kind() const override { return ValueKind::Bool; }
+    std::string typeName() const override { return "Bool"; }
+    bool truthy() const override { return value_; }
+    std::string str(StringifyCtx&) const override { return value_ ? "True" : "False"; }
+    bool equals(const ObjectArena&, const Object& other) const override {
+        return other.kind() == ValueKind::Bool &&
+               static_cast<const BoolVal&>(other).value_ == value_;
+    }
+    bool hashable() const override { return true; }
+    std::size_t hash() const override { return value_ ? 1 : 0; }
+
+private:
+    bool value_;
+};
+
+// Immutable text. Hash is computed once and cached.
+class StrVal : public Object {
+public:
+    explicit StrVal(std::string v) : value_(std::move(v)), hash_(std::hash<std::string>{}(value_)) {}
+    const std::string& value() const { return value_; }
+
+    ValueKind kind() const override { return ValueKind::String; }
+    std::string typeName() const override { return "String"; }
+    bool truthy() const override { return !value_.empty(); }
+    std::string str(StringifyCtx&) const override { return value_; }
+    bool equals(const ObjectArena&, const Object& other) const override {
+        return other.kind() == ValueKind::String &&
+               static_cast<const StrVal&>(other).value_ == value_;
+    }
+    bool hashable() const override { return true; }
+    std::size_t hash() const override { return hash_; }
+
+    Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;
+
+private:
+    std::string value_;
+    std::size_t hash_;
+};
+
 // 64-bit signed integer.
 class IntVal : public Object {
 public:

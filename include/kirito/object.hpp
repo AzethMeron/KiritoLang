@@ -20,6 +20,7 @@ enum class ValueKind {
     None, Bool, Integer, Float, String,
     Array, List, Set, Dict,
     Function, NativeFunction, Module, Class, Instance,
+    Environment,
 };
 
 // Threaded through str() so containers can detect reference cycles (a value already being

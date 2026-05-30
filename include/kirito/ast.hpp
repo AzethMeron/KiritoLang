@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -15,12 +16,14 @@ namespace kirito::ast {
 // evaluator visits via accept(); a future bytecode compiler could be a second visitor.
 
 struct LiteralExpr;
+struct NameExpr;
 struct UnaryExpr;
 struct BinaryExpr;
 
 struct ExprVisitor {
     virtual ~ExprVisitor() = default;
     virtual void visit(const LiteralExpr&) = 0;
+    virtual void visit(const NameExpr&) = 0;
     virtual void visit(const UnaryExpr&) = 0;
     virtual void visit(const BinaryExpr&) = 0;
 };
@@ -34,7 +37,12 @@ using ExprPtr = std::unique_ptr<Expr>;
 
 // std::monostate == the None literal.
 struct LiteralExpr : Expr {
-    std::variant<std::monostate, int64_t, double> value;
+    std::variant<std::monostate, int64_t, double, bool, std::string> value;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
+struct NameExpr : Expr {
+    std::string name;
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 
@@ -52,10 +60,14 @@ struct BinaryExpr : Expr {
 };
 
 struct ExprStmt;
+struct VarDeclStmt;
+struct AssignStmt;
 
 struct StmtVisitor {
     virtual ~StmtVisitor() = default;
     virtual void visit(const ExprStmt&) = 0;
+    virtual void visit(const VarDeclStmt&) = 0;
+    virtual void visit(const AssignStmt&) = 0;
 };
 
 struct Stmt {
@@ -67,6 +79,20 @@ using StmtPtr = std::unique_ptr<Stmt>;
 
 struct ExprStmt : Stmt {
     ExprPtr expr;
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+// `var NAME = init` — declares NAME in the current scope.
+struct VarDeclStmt : Stmt {
+    std::string name;
+    ExprPtr init;
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+// `target = value` — rebinds an existing name (target is a NameExpr for now).
+struct AssignStmt : Stmt {
+    ExprPtr target;
+    ExprPtr value;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 

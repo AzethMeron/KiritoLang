@@ -13,6 +13,7 @@
 #include "kirito/ast.hpp"
 #include "kirito/lexer.hpp"
 #include "kirito/parser.hpp"
+#include "kirito/environment.hpp"
 #include "kirito/vm.hpp"
 #include "kirito/evaluator.hpp"
 #include "kirito/runtime.hpp"

@@ -68,6 +68,14 @@ inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
         return vm.makeFloat(asDouble(a) / db);
     }
 
+    switch (op) {
+        case BinOp::Lt: return vm.makeBool(asDouble(a) < asDouble(b));
+        case BinOp::Le: return vm.makeBool(asDouble(a) <= asDouble(b));
+        case BinOp::Gt: return vm.makeBool(asDouble(a) > asDouble(b));
+        case BinOp::Ge: return vm.makeBool(asDouble(a) >= asDouble(b));
+        default: break;
+    }
+
     if (a.kind() == ValueKind::Integer && b.kind() == ValueKind::Integer) {
         int64_t x = static_cast<const IntVal&>(a).value();
         int64_t y = static_cast<const IntVal&>(b).value();
@@ -141,13 +149,36 @@ inline Handle FloatVal::unary(KiritoVM& vm, UnOp op, Handle) {
     throw KiritoError("Float does not support this unary operator");
 }
 
+// --- StrVal out-of-line members --------------------------------------------------------------
+
+inline Handle StrVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
+    const Object& b = vm.arena().deref(rhs);
+    if (op == BinOp::Add) {
+        if (b.kind() != ValueKind::String)
+            throw KiritoError("can only concatenate String to String, not '" + b.typeName() + "'");
+        return vm.makeString(value_ + static_cast<const StrVal&>(b).value());
+    }
+    if (b.kind() == ValueKind::String) {
+        const std::string& r = static_cast<const StrVal&>(b).value();
+        switch (op) {
+            case BinOp::Lt: return vm.makeBool(value_ < r);
+            case BinOp::Le: return vm.makeBool(value_ <= r);
+            case BinOp::Gt: return vm.makeBool(value_ > r);
+            case BinOp::Ge: return vm.makeBool(value_ >= r);
+            default: break;
+        }
+    }
+    throw KiritoError("type 'String' does not support this operator");
+}
+
 // --- VM entry point --------------------------------------------------------------------------
 
 inline Handle KiritoVM::runSource(std::string_view source, std::string_view) {
     Lexer lexer(source);
     Parser parser(lexer.tokenize());
     ast::Program prog = parser.parseProgram();
-    Evaluator ev(*this);
+    Handle moduleScope = newModuleScope();
+    Evaluator ev(*this, moduleScope);
     return ev.run(prog);
 }
 
