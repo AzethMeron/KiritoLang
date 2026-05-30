@@ -47,9 +47,22 @@ int main() {
         CHECK_THROWS(lex.tokenize());
     }
     {
-        // mixing tabs and spaces in one indent is an error
-        Lexer lex("if x:\n \ty\n");
+        // ambiguous tabs-vs-spaces between sibling lines is an error: a tab (8 wide, 1 narrow)
+        // and 8 spaces (8 wide, 8 narrow) look the same only under tab=8 -> rejected.
+        Lexer lex("if x:\n\ty\n        z\n");
         CHECK_THROWS(lex.tokenize());
+    }
+    {
+        // consistent indentation with tabs only is fine
+        Lexer lex("if x:\n\ty\n\tz\n");
+        auto t = lex.tokenize();
+        CHECK(countOf(t, TokenType::Indent) == 1);
+    }
+    {
+        // a lone space+tab indent (unambiguously deeper than 0) is allowed
+        Lexer lex("if x:\n \ty\n");
+        auto t = lex.tokenize();
+        CHECK(countOf(t, TokenType::Indent) == 1);
     }
     return RUN_TESTS();
 }

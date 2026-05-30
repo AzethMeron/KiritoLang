@@ -37,7 +37,7 @@ public:
 
     std::vector<Token> tokenize() {
         std::vector<Token> out;
-        indent_ = {0};
+        indent_ = {{0, 0}};
         bool lineStart = true;
         while (pos_ < src_.size()) {
             if (lineStart && parenDepth_ == 0) {
@@ -95,16 +95,19 @@ private:
     }
 
     // At a logical line start: measure indentation and emit Indent / Dedent(s). Blank lines and
-    // comment-only lines yield no layout tokens (returns false after consuming the line). Errors
-    // on mixed tabs/spaces and on a dedent that matches no enclosing level.
+    // comment-only lines yield no layout tokens (returns false after consuming the line).
+    //
+    // Tabs and spaces are both allowed, but indentation must be UNAMBIGUOUS: every indent is
+    // measured two ways — tabs as 8 columns ("wide") and tabs as 1 column ("narrow") — and the two
+    // measures must agree on the relation (deeper/same/shallower) to each enclosing level. This is
+    // Python 3's rule and rejects e.g. a tab where the surrounding block used 8 spaces.
     bool handleIndentation(std::vector<Token>& out) {
-        int width = 0;
-        bool sawSpace = false, sawTab = false;
+        int wide = 0, narrow = 0;
         size_t scan = pos_;
         while (scan < src_.size()) {
             char c = src_[scan];
-            if (c == ' ') { ++width; sawSpace = true; ++scan; }
-            else if (c == '\t') { width += 8 - (width % 8); sawTab = true; ++scan; }
+            if (c == ' ') { ++wide; ++narrow; ++scan; }
+            else if (c == '\t') { wide += 8 - (wide % 8); ++narrow; ++scan; }
             else break;
         }
         // Blank or comment-only line: skip to (and over) the newline, emit nothing.
@@ -113,21 +116,28 @@ private:
             if (pos_ < src_.size()) advance();
             return false;
         }
-        if (sawSpace && sawTab)
-            throw KiritoError("inconsistent use of tabs and spaces in indentation",
-                              SourceSpan{line_, 1, 0});
         while (pos_ < scan) advance();  // step over the leading whitespace
 
-        if (width > indent_.back()) {
-            indent_.push_back(width);
+        auto ambiguous = [&] {
+            throw KiritoError("inconsistent use of tabs and spaces in indentation",
+                              SourceSpan{line_, 1, 0});
+        };
+        Indent cur{wide, narrow};
+        const Indent top = indent_.back();
+        if (cur.wide == top.wide) {
+            if (cur.narrow != top.narrow) ambiguous();  // same wide width, different tab usage
+        } else if (cur.wide > top.wide) {
+            if (cur.narrow <= top.narrow) ambiguous();
+            indent_.push_back(cur);
             out.push_back(make(TokenType::Indent, line_, col_));
         } else {
-            while (width < indent_.back()) {
+            if (cur.narrow >= top.narrow) ambiguous();
+            while (cur.wide < indent_.back().wide) {
                 indent_.pop_back();
                 out.push_back(make(TokenType::Dedent, line_, col_));
             }
-            if (width != indent_.back())
-                throw KiritoError("inconsistent dedent", SourceSpan{line_, 1, 0});
+            if (cur.wide != indent_.back().wide) throw KiritoError("inconsistent dedent", SourceSpan{line_, 1, 0});
+            if (cur.narrow != indent_.back().narrow) ambiguous();
         }
         return true;
     }
@@ -292,7 +302,8 @@ private:
     size_t pos_ = 0;
     uint32_t line_ = 1;
     uint32_t col_ = 1;
-    std::vector<int> indent_{0};
+    struct Indent { int wide; int narrow; };  // tab-as-8 and tab-as-1 column measures
+    std::vector<Indent> indent_{{0, 0}};
     int parenDepth_ = 0;
 };
 
