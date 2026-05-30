@@ -10,19 +10,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # dependency-free; enable with -DKIRITO_ENABLE_TLS=ON.
 option(KIRITO_ENABLE_TLS "Enable HTTPS in the net module via OpenSSL" OFF)
 
-# Static linking for all builds, so the binaries don't depend on a matching libstdc++/libgcc on
-# the target machine. We statically link the C++ runtime and libgcc; on MSVC we use the static
-# CRT. We deliberately do NOT force a fully static libc (-static) on Linux: glibc's name-service
-# (getaddrinfo) needs shared NSS modules at runtime, and a full static link only warns about that
-# while offering no portability gain over a static C++ runtime.
+# Static linking for all builds, so the binaries are self-contained and don't depend on matching
+# shared libraries on the target machine. MSVC uses the static CRT (/MT); GCC/Clang link fully
+# static. Note: a fully static glibc link emits a harmless link-time warning about getaddrinfo
+# (glibc's NSS name resolution prefers shared modules) — plain DNS/hosts resolution still works.
+# When TLS is enabled, OpenSSL is usually shared-only, so we fall back to a static C++ runtime.
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-else()
+elseif(KIRITO_ENABLE_TLS)
     add_link_options(-static-libgcc -static-libstdc++)
-    if(MINGW)
-        # On Windows/MinGW a full static link is clean and desirable (no NSS concern).
-        add_link_options(-static)
-    endif()
+else()
+    add_link_options(-static)
 endif()
 
 # The interpreter is header-only: an INTERFACE target that just exposes include/. It also carries
