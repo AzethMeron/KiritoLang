@@ -42,10 +42,15 @@ kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)
 kirito_test(bench bench/bench.cpp)
 
 # --- end-to-end .ki script tests (run through the `ki` interpreter, diff vs .expected) ---
+# A .ki file is only registered as a test if it has a matching .expected; this lets library
+# files (imported by other scripts, e.g. complex.ki) live alongside without being run directly.
 file(GLOB ki_scripts ${CMAKE_CURRENT_SOURCE_DIR}/scripts/*.ki)
 foreach(script ${ki_scripts})
     get_filename_component(nm ${script} NAME_WE)
     set(expected ${CMAKE_CURRENT_SOURCE_DIR}/scripts/${nm}.expected)
+    if(NOT EXISTS ${expected})
+        continue()
+    endif()
     set(input ${CMAKE_CURRENT_SOURCE_DIR}/scripts/${nm}.in)
     set(extra "")
     if(EXISTS ${input})
