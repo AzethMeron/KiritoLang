@@ -34,7 +34,7 @@ public:
     }
 
     std::string iso() const {
-        char buf[32];
+        char buf[64];
         std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d",
                       tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                       tm.tm_hour, tm.tm_min, tm.tm_sec);
@@ -71,8 +71,17 @@ public:
                     const Object& o = vm.arena().deref(a[0]);
                     if (o.kind() != ValueKind::String) throw KiritoError("format expects a String");
                     char buf[256];
+                    // The format string is intentionally user-supplied (that's the feature), so the
+                    // non-literal-format warning is expected here; silence it locally.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
                     std::size_t n = std::strftime(buf, sizeof(buf),
                                                   static_cast<const StrVal&>(o).value().c_str(), &dt.tm);
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
                     return vm.makeString(std::string(buf, n));
                 }, std::vector<Handle>{self}));
         return Object::getAttr(vm, self, name);
