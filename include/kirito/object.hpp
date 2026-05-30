@@ -22,9 +22,6 @@ enum class ValueKind {
     Function, NativeFunction, Module, Class, Instance,
 };
 
-enum class BinOp { Add, Sub, Mul, Div, FloorDiv, Mod, Pow, Eq, Ne, Lt, Le, Gt, Ge };
-enum class UnOp { Neg, Not };
-
 // Threaded through str() so containers can detect reference cycles (a value already being
 // stringified) and emit an ellipsis instead of recursing forever.
 struct StringifyCtx {

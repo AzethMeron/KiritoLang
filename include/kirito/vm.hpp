@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "arena.hpp"
 #include "builtins.hpp"
@@ -26,10 +27,18 @@ public:
     // Interned singleton — every None is this one slot.
     Handle none() const { return none_; }
 
+    // Value-construction helpers, also the embedding surface for C++ callers.
+    Handle makeInt(int64_t v) { return arena_.alloc(std::make_unique<IntVal>(v)); }
+    Handle makeFloat(double v) { return arena_.alloc(std::make_unique<FloatVal>(v)); }
+
     std::string stringify(Handle h) const {
         StringifyCtx ctx{arena_, {}};
         return arena_.deref(h).str(ctx);
     }
+
+    // Lex, parse, and evaluate a chunk of Kirito source; returns the handle of the last
+    // expression's value (or None). Defined in runtime.hpp once the front end is visible.
+    Handle runSource(std::string_view source, std::string_view chunkName = "<main>");
 
 private:
     ObjectArena arena_;

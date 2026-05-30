@@ -7,3 +7,5 @@ function(kirito_test name)
 endfunction()
 
 kirito_test(test_arena unit/test_arena.cpp)
+kirito_test(test_lexer unit/test_lexer.cpp)
+kirito_test(test_eval_arith unit/test_eval_arith.cpp)
