@@ -65,8 +65,8 @@ public:
     std::optional<std::vector<Handle>> iterate(KiritoVM&) override { return elems; }
     std::optional<int64_t> length(KiritoVM&) override { return static_cast<int64_t>(elems.size()); }
 
-    Handle getItem(KiritoVM&, Handle key) override;
-    void setItem(KiritoVM&, Handle key, Handle value) override;
+    Handle getItem(KiritoVM&, std::span<const Handle> keys) override;
+    void setItem(KiritoVM&, std::span<const Handle> keys, Handle value) override;
     Handle slice(KiritoVM&, Handle start, Handle stop, Handle step) override;
     bool contains(KiritoVM&, Handle value) override;
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
@@ -159,8 +159,8 @@ public:
         return false;
     }
 
-    Handle getItem(KiritoVM&, Handle key) override;
-    void setItem(KiritoVM&, Handle key, Handle value) override;
+    Handle getItem(KiritoVM&, std::span<const Handle> keys) override;
+    void setItem(KiritoVM&, std::span<const Handle> keys, Handle value) override;
     bool contains(KiritoVM&, Handle key) override;  // key membership
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };

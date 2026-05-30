@@ -1,5 +1,6 @@
 #ifndef KIRITO_BUILTINS_HPP
 #define KIRITO_BUILTINS_HPP
+#include <span>
 
 #include <cmath>
 #include <cstdio>
@@ -90,7 +91,7 @@ public:
     std::optional<int64_t> length(KiritoVM&) override { return static_cast<int64_t>(utf8Length(value_)); }
 
     Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;
-    Handle getItem(KiritoVM&, Handle key) override;
+    Handle getItem(KiritoVM&, std::span<const Handle> keys) override;
     Handle slice(KiritoVM&, Handle start, Handle stop, Handle step) override;
     std::optional<std::vector<Handle>> iterate(KiritoVM&) override;
     bool contains(KiritoVM&, Handle value) override;

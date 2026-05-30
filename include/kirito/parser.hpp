@@ -377,6 +377,7 @@ private:
                 SourceSpan span = advance().span;
                 ast::ExprPtr start, stop, step;
                 bool isSlice = false;
+                std::vector<ast::ExprPtr> extra;  // extra comma-separated indices: obj[a, b, c]
                 if (!at(TokenType::Colon) && !at(TokenType::RBracket)) start = parseExpr();
                 if (at(TokenType::Colon)) {
                     isSlice = true;
@@ -400,7 +401,8 @@ private:
                     auto node = std::make_unique<ast::IndexExpr>();
                     node->span = span;
                     node->object = std::move(expr);
-                    node->index = std::move(start);
+                    node->indices.push_back(std::move(start));
+                    for (auto& ex : extra) node->indices.push_back(std::move(ex));
                     expr = std::move(node);
                 }
             } else if (at(TokenType::Dot)) {

@@ -109,7 +109,7 @@ struct MemberExpr : Expr {
 
 struct IndexExpr : Expr {
     ExprPtr object;
-    ExprPtr index;
+    std::vector<ExprPtr> indices;  // obj[a, b, c] -> multiple keys
     ExprKind exprKind() const override { return ExprKind::Index; }
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };

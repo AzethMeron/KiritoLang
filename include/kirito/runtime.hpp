@@ -224,11 +224,11 @@ inline bool kiLessThan(KiritoVM& vm, Handle a, Handle b) {
     throw KiritoError("cannot order '" + x.typeName() + "' and '" + y.typeName() + "'");
 }
 
-inline Handle ListVal::getItem(KiritoVM& vm, Handle key) {
-    return elems[sequenceIndex(vm, elems.size(), key)];
+inline Handle ListVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
+    return elems[sequenceIndex(vm, elems.size(), singleKey(*this, keys))];
 }
-inline void ListVal::setItem(KiritoVM& vm, Handle key, Handle value) {
-    elems[sequenceIndex(vm, elems.size(), key)] = value;
+inline void ListVal::setItem(KiritoVM& vm, std::span<const Handle> keys, Handle value) {
+    elems[sequenceIndex(vm, elems.size(), singleKey(*this, keys))] = value;
 }
 inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
     if (name == "append")
@@ -316,12 +316,14 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
     return Object::getAttr(vm, self, name);
 }
 
-inline Handle DictVal::getItem(KiritoVM& vm, Handle key) {
+inline Handle DictVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
+    Handle key = singleKey(*this, keys);
     const Handle* v = find(vm.arena(), key);
     if (!v) throw KiritoError("key not found: " + vm.stringify(key));
     return *v;
 }
-inline void DictVal::setItem(KiritoVM& vm, Handle key, Handle value) {
+inline void DictVal::setItem(KiritoVM& vm, std::span<const Handle> keys, Handle value) {
+    Handle key = singleKey(*this, keys);
     set(vm.arena(), key, value);
 }
 inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
@@ -491,9 +493,9 @@ inline std::vector<int64_t> pythonSliceIndices(KiritoVM& vm, int64_t len,
 
 // --- String indexing / slicing / iteration (UTF-8 aware) -------------------------------------
 
-inline Handle StrVal::getItem(KiritoVM& vm, Handle key) {
+inline Handle StrVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
     auto starts = utf8Starts(value_);
-    std::size_t i = sequenceIndex(vm, starts.size(), key);
+    std::size_t i = sequenceIndex(vm, starts.size(), singleKey(*this, keys));
     std::size_t b = starts[i];
     std::size_t e = (i + 1 < starts.size()) ? starts[i + 1] : value_.size();
     return vm.makeString(value_.substr(b, e - b));

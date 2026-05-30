@@ -83,9 +83,10 @@ public:
             case ast::ExprKind::Index: {
                 const auto& idx = static_cast<const ast::IndexExpr&>(*s.target);
                 Handle obj = rs.add(eval(*idx.object));
-                Handle key = rs.add(eval(*idx.index));
+                std::vector<Handle> keys;
+                for (const auto& ix : idx.indices) keys.push_back(rs.add(eval(*ix)));
                 located(s.span, [&] {
-                    vm_.arena().deref(obj).setItem(vm_, key, value);
+                    vm_.arena().deref(obj).setItem(vm_, keys, value);
                     return vm_.none();
                 });
                 break;
@@ -333,8 +334,10 @@ public:
     void visit(const ast::IndexExpr& e) override {
         RootScope rs(vm_);
         Handle obj = rs.add(eval(*e.object));
-        Handle key = rs.add(eval(*e.index));
-        result_ = located(e.span, [&] { return vm_.arena().deref(obj).getItem(vm_, key); });
+        std::vector<Handle> keys;
+        keys.reserve(e.indices.size());
+        for (const auto& ix : e.indices) keys.push_back(rs.add(eval(*ix)));
+        result_ = located(e.span, [&] { return vm_.arena().deref(obj).getItem(vm_, keys); });
     }
 
     void visit(const ast::SliceExpr& e) override {
