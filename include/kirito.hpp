@@ -24,6 +24,7 @@
 #include "kirito/native.hpp"
 #include "kirito/stdlib_io.hpp"
 #include "kirito/stdlib_math.hpp"
+#include "kirito/stdlib_random.hpp"
 #include "kirito/evaluator.hpp"
 #include "kirito/runtime.hpp"
 
