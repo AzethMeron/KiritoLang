@@ -15,6 +15,11 @@
 #include <string>
 #include <vector>
 
+#ifdef KIRITO_ENABLE_TLS
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#endif
+
 #include "builtins.hpp"
 #include "collections.hpp"
 #include "native.hpp"
@@ -94,18 +99,23 @@ inline std::string recvAll(int fd) {
 struct Url {
     std::string host, path;
     int port = 80;
+    bool tls = false;
 };
 inline Url parseUrl(const std::string& url) {
-    const std::string scheme = "http://";
-    if (url.compare(0, scheme.size(), scheme) != 0) {
-        if (url.compare(0, 8, "https://") == 0)
-            throw KiritoError("https is not supported (no TLS); use http://");
-        throw KiritoError("URL must start with http://");
+    Url u;
+    std::string rest;
+    if (url.compare(0, 7, "http://") == 0) {
+        rest = url.substr(7);
+        u.port = 80;
+    } else if (url.compare(0, 8, "https://") == 0) {
+        rest = url.substr(8);
+        u.port = 443;
+        u.tls = true;
+    } else {
+        throw KiritoError("URL must start with http:// or https://");
     }
-    std::string rest = url.substr(scheme.size());
     std::size_t slash = rest.find('/');
     std::string hostport = slash == std::string::npos ? rest : rest.substr(0, slash);
-    Url u;
     u.path = slash == std::string::npos ? "/" : rest.substr(slash);
     std::size_t colon = hostport.find(':');
     if (colon == std::string::npos) {
@@ -117,32 +127,23 @@ inline Url parseUrl(const std::string& url) {
     return u;
 }
 
-// Send one HTTP/1.0 request and return {status, body, headers} as a Dict.
+// Perform the raw HTTP exchange (send request bytes, read the full response). Plain TCP by
+// default; over TLS when built with KIRITO_ENABLE_TLS (links OpenSSL). Defined below.
+std::string httpExchange(const Url& u, const std::string& request);
+
+// Send one HTTP/1.1 request and return {status, body, headers} as a Dict. We send Connection:
+// close so the server ends the body by closing the socket (no chunked-decoding needed), and a
+// User-Agent since some hosts (e.g. rule34) reject requests without one. HTTP/1.1 is required by
+// many modern servers (HTTP/1.0 gets a 426 Upgrade Required).
 inline Handle httpRequest(KiritoVM& vm, const std::string& method, const std::string& url,
                           const std::string& body, const std::string& contentType) {
     Url u = parseUrl(url);
-    sockaddr_in addr{};
-    if (!resolve(u.host, u.port, addr)) throw KiritoError("could not resolve host '" + u.host + "'");
-    int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) throw KiritoError("socket() failed");
-    if (::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
-        ::close(fd);
-        throw KiritoError("could not connect to " + u.host + ": " + std::strerror(errno));
-    }
-    std::string req = method + " " + u.path + " HTTP/1.0\r\nHost: " + u.host +
-                      "\r\nConnection: close\r\n";
+    std::string req = method + " " + u.path + " HTTP/1.1\r\nHost: " + u.host +
+                      "\r\nUser-Agent: kirito/1.0\r\nAccept: */*\r\nConnection: close\r\n";
     if (!body.empty())
         req += "Content-Type: " + contentType + "\r\nContent-Length: " + std::to_string(body.size()) + "\r\n";
     req += "\r\n" + body;
-    std::string raw;
-    try {
-        net::sendAll(fd, req);
-        raw = net::recvAll(fd);
-    } catch (...) {
-        ::close(fd);
-        throw;
-    }
-    ::close(fd);
+    std::string raw = httpExchange(u, req);
 
     // split status line / headers / body
     std::size_t headerEnd = raw.find("\r\n\r\n");
@@ -182,6 +183,73 @@ inline Handle httpRequest(KiritoVM& vm, const std::string& method, const std::st
     res.set(vm.arena(), rs.add(vm.makeString("headers")), headersH);
     return resultH;
 }
+
+// Open a connected TCP socket to the URL's host:port, or throw.
+inline int dialTcp(const Url& u) {
+    sockaddr_in addr{};
+    if (!resolve(u.host, u.port, addr)) throw KiritoError("could not resolve host '" + u.host + "'");
+    int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) throw KiritoError("socket() failed");
+    if (::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+        ::close(fd);
+        throw KiritoError("could not connect to " + u.host + ": " + std::strerror(errno));
+    }
+    return fd;
+}
+
+#ifdef KIRITO_ENABLE_TLS
+// TLS transport via OpenSSL (compiled in only when KIRITO_ENABLE_TLS is defined; links -lssl -lcrypto).
+inline std::string httpExchange(const Url& u, const std::string& request) {
+    int fd = dialTcp(u);
+    if (!u.tls) {
+        std::string raw;
+        try { net::sendAll(fd, request); raw = net::recvAll(fd); }
+        catch (...) { ::close(fd); throw; }
+        ::close(fd);
+        return raw;
+    }
+    static bool inited = [] { SSL_library_init(); SSL_load_error_strings(); return true; }();
+    (void)inited;
+    SSL_CTX* ctx = SSL_CTX_new(TLS_client_method());
+    if (!ctx) { ::close(fd); throw KiritoError("SSL_CTX_new failed"); }
+    SSL* ssl = SSL_new(ctx);
+    SSL_set_fd(ssl, fd);
+    SSL_set_tlsext_host_name(ssl, u.host.c_str());  // SNI
+    if (SSL_connect(ssl) != 1) {
+        SSL_free(ssl); SSL_CTX_free(ctx); ::close(fd);
+        throw KiritoError("TLS handshake with " + u.host + " failed");
+    }
+    std::string raw;
+    try {
+        std::size_t sent = 0;
+        while (sent < request.size()) {
+            int n = SSL_write(ssl, request.data() + sent, static_cast<int>(request.size() - sent));
+            if (n <= 0) throw KiritoError("SSL_write failed");
+            sent += static_cast<std::size_t>(n);
+        }
+        char buf[4096];
+        int n;
+        while ((n = SSL_read(ssl, buf, sizeof(buf))) > 0) raw.append(buf, static_cast<std::size_t>(n));
+    } catch (...) {
+        SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); ::close(fd);
+        throw;
+    }
+    SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); ::close(fd);
+    return raw;
+}
+#else
+// Default build: plain TCP only. https:// URLs are rejected with an actionable message.
+inline std::string httpExchange(const Url& u, const std::string& request) {
+    if (u.tls)
+        throw KiritoError("https requires building with KIRITO_ENABLE_TLS (OpenSSL); use http:// otherwise");
+    int fd = dialTcp(u);
+    std::string raw;
+    try { net::sendAll(fd, request); raw = net::recvAll(fd); }
+    catch (...) { ::close(fd); throw; }
+    ::close(fd);
+    return raw;
+}
+#endif
 
 }  // namespace net
 

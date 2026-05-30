@@ -12,9 +12,10 @@ var net = import("net")
 var json = import("json")
 
 # Build the API URL. Tags are space-separated; the API wants '+' between them.
+# rule34 requires HTTPS, so build ki with -DKIRITO_ENABLE_TLS=ON (links OpenSSL).
 var buildUrl = Function(tags, limit):
     var joined = "+".join(tags.split(" "))
-    return "http://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=" + String(limit) + "&tags=" + joined
+    return "https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=" + String(limit) + "&tags=" + joined
 
 # Fetch and parse the post list. Returns a List of Dicts (may be empty).
 var fetchPosts = Function(tags, limit):
@@ -68,5 +69,6 @@ try:
             io.print("  skip: " + e)
     io.print("Downloaded " + String(saved) + " / " + String(len(posts)) + " images")
 except as e:
-    # No network (or API down): report cleanly rather than crashing.
+    # No network / no TLS support / API down: report cleanly rather than crashing.
+    # (If you see an https error, rebuild ki with -DKIRITO_ENABLE_TLS=ON.)
     io.print("Could not reach rule34 API: " + e)
