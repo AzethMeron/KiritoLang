@@ -295,6 +295,14 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
                 for (Handle h : other.value()) e.push_back(h);
                 return vm.none();
             }, std::vector<Handle>{self}));
+    if (name == "copy")
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "copy", [self, self_list](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                // Shallow copy: a new List sharing the same element handles (aliasing preserved).
+                auto c = std::make_unique<ListVal>();
+                c->elems = self_list(vm, self).elems;
+                return vm.alloc(std::move(c));
+            }, std::vector<Handle>{self}));
     return Object::getAttr(vm, self, name);
 }
 
@@ -362,6 +370,13 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
             dict(vm, self).remove(vm.arena(), a[0]);
             return vm.none();
         });
+    if (name == "copy")
+        return bind("copy", [self, dict](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            auto c = std::make_unique<DictVal>();
+            c->buckets = dict(vm, self).buckets;
+            c->count = dict(vm, self).count;
+            return vm.alloc(std::move(c));
+        });
     return Object::getAttr(vm, self, name);
 }
 
@@ -383,6 +398,54 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
                 return vm.makeBool(static_cast<SetVal&>(vm.arena().deref(self)).contains(vm.arena(), args[0]));
             },
             std::vector<Handle>{self}));
+    auto set_of = [](KiritoVM& vm, Handle h) -> SetVal& { return static_cast<SetVal&>(vm.arena().deref(h)); };
+    auto bind = [&](const char* nm, NativeFn fn) {
+        return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+    };
+    if (name == "remove")
+        return bind("remove", [self, set_of](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            auto& s = set_of(vm, self);
+            const Object& v = vm.arena().deref(a[0]);
+            if (!v.hashable()) throw KiritoError("unhashable type");
+            auto it = s.buckets.find(v.hash());
+            if (it != s.buckets.end())
+                for (std::size_t i = 0; i < it->second.size(); ++i)
+                    if (vm.arena().deref(it->second[i]).equals(vm.arena(), v)) {
+                        it->second.erase(it->second.begin() + i);
+                        --s.count;
+                        return vm.none();
+                    }
+            throw KiritoError("remove: value not in Set");
+        });
+    if (name == "copy")
+        return bind("copy", [self, set_of](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            auto c = std::make_unique<SetVal>();
+            c->buckets = set_of(vm, self).buckets;
+            c->count = set_of(vm, self).count;
+            return vm.alloc(std::move(c));
+        });
+    if (name == "union" || name == "intersection" || name == "difference") {
+        std::string op(name);
+        return bind(op.c_str(), [self, set_of, op](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            RootScope rs(vm);
+            auto result = std::make_unique<SetVal>();
+            auto& s = set_of(vm, self);
+            auto other = vm.arena().deref(a[0]).iterate(vm);
+            if (op == "union") {
+                for (Handle e : s.items()) result->add(vm.arena(), e);
+                for (Handle e : other.value()) result->add(vm.arena(), e);
+            } else if (op == "intersection") {
+                SetVal otherSet;
+                for (Handle e : other.value()) otherSet.add(vm.arena(), e);
+                for (Handle e : s.items()) if (otherSet.contains(vm.arena(), e)) result->add(vm.arena(), e);
+            } else {  // difference
+                SetVal otherSet;
+                for (Handle e : other.value()) otherSet.add(vm.arena(), e);
+                for (Handle e : s.items()) if (!otherSet.contains(vm.arena(), e)) result->add(vm.arena(), e);
+            }
+            return vm.alloc(std::move(result));
+        });
+    }
     return Object::getAttr(vm, self, name);
 }
 

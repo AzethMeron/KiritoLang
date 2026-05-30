@@ -31,6 +31,24 @@ struct StringifyCtx {
     std::unordered_set<const Object*> active;
 };
 
+// Structural equality recurses through nested containers; without a bound, two distinct cyclic
+// structures would overflow the stack. This RAII guard caps the depth and raises a catchable
+// error instead. (A transient thread-local counter, always balanced — not VM state.)
+namespace detail {
+inline thread_local int g_equalsDepth = 0;
+}
+struct EqualsGuard {
+    EqualsGuard() {
+        if (++detail::g_equalsDepth > 8000) {
+            --detail::g_equalsDepth;
+            throw KiritoError("maximum equality recursion depth exceeded (cyclic structure?)");
+        }
+    }
+    ~EqualsGuard() { --detail::g_equalsDepth; }
+    EqualsGuard(const EqualsGuard&) = delete;
+    EqualsGuard& operator=(const EqualsGuard&) = delete;
+};
+
 // The one uniform protocol every value implements — built-in scalars, collections,
 // C++-authored types, and (later) Kirito `class` instances. The evaluator only ever talks
 // to this interface, so it cannot tell built-ins from user-defined objects apart.

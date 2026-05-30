@@ -50,9 +50,11 @@ public:
         });
     }
     bool equals(const ObjectArena& arena, const Object& other) const override {
+        if (this == &other) return true;  // identity (handles self-reference)
         if (other.kind() != ValueKind::List) return false;
         const auto& o = static_cast<const ListVal&>(other);
         if (o.elems.size() != elems.size()) return false;
+        EqualsGuard guard;
         for (std::size_t i = 0; i < elems.size(); ++i)
             if (!arena.deref(elems[i]).equals(arena, arena.deref(o.elems[i]))) return false;
         return true;
@@ -123,9 +125,11 @@ public:
         });
     }
     bool equals(const ObjectArena& arena, const Object& other) const override {
+        if (this == &other) return true;
         if (other.kind() != ValueKind::Dict) return false;
         const auto& o = static_cast<const DictVal&>(other);
         if (o.count != count) return false;
+        EqualsGuard guard;
         for (const auto& [h, bucket] : buckets)
             for (const auto& [k, v] : bucket) {
                 const Handle* ov = o.find(arena, k);
@@ -212,9 +216,11 @@ public:
         });
     }
     bool equals(const ObjectArena& arena, const Object& other) const override {
+        if (this == &other) return true;
         if (other.kind() != ValueKind::Set) return false;
         const auto& o = static_cast<const SetVal&>(other);
         if (o.count != count) return false;
+        EqualsGuard guard;
         for (const auto& [h, bucket] : buckets)
             for (Handle e : bucket)
                 if (!o.contains(arena, e)) return false;
