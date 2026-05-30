@@ -33,6 +33,7 @@
 #include "stdlib_serialize.hpp"
 #include "stdlib_sys.hpp"
 #include "stdlib_time.hpp"
+#include "stdlib_dump.hpp"
 #include "vm.hpp"
 
 // Definitions that need a complete KiritoVM (and the front end): they live here, included last,
@@ -1109,6 +1110,7 @@ inline void KiritoVM::installStandardLibrary() {
     install<SerializeModule>();
     install<SysModule>();
     install<TimeModule>();
+    install<DumpModule>();
 }
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {

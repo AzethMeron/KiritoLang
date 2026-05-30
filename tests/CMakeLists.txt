@@ -38,6 +38,7 @@ kirito_test(test_net unit/test_net.cpp)
 kirito_test(test_serialize unit/test_serialize.cpp)
 kirito_test(test_sys unit/test_sys.cpp)
 kirito_test(test_time unit/test_time.cpp)
+kirito_test(test_dump unit/test_dump.cpp)
 kirito_test(test_io unit/test_io.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)

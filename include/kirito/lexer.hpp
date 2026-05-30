@@ -203,6 +203,24 @@ private:
             if (c == '\\') {
                 advance();
                 char e = peek();
+                if (e == 'x') {
+                    // \xHH — a byte from two hex digits.
+                    advance();  // consume 'x'
+                    auto hex = [&](char d) -> int {
+                        if (d >= '0' && d <= '9') return d - '0';
+                        if (d >= 'a' && d <= 'f') return d - 'a' + 10;
+                        if (d >= 'A' && d <= 'F') return d - 'A' + 10;
+                        return -1;
+                    };
+                    int hi = hex(peek());
+                    if (hi < 0) throw KiritoError("invalid \\x escape (expected hex digit)", SourceSpan{line_, col_, 1});
+                    advance();
+                    int lo = hex(peek());
+                    if (lo < 0) throw KiritoError("invalid \\x escape (expected hex digit)", SourceSpan{line_, col_, 1});
+                    text += static_cast<char>(hi * 16 + lo);
+                    advance();
+                    continue;
+                }
                 switch (e) {
                     case 'n': text += '\n'; break;
                     case 't': text += '\t'; break;
