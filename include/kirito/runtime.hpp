@@ -816,6 +816,7 @@ inline std::string InstanceValue::str(StringifyCtx& ctx) const {
 // --- KiFunction call -------------------------------------------------------------------------
 
 inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
+    CallGuard depth(vm);  // bound native-stack recursion -> catchable error, not a crash
     const auto& params = def_->params;
     if (args.size() != params.size())
         throw KiritoError("function expected " + std::to_string(params.size()) +

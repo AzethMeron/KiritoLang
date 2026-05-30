@@ -96,6 +96,18 @@ public:
     void setGcEnabled(bool on) { gcEnabled_ = on; }
     std::size_t liveCount() const { return arena_.liveCount(); }
 
+    // Call-depth guard: the tree-walker recurses on the native C++ stack, so unbounded Kirito
+    // recursion would overflow it and crash the host. A RAII CallGuard caps the depth and raises a
+    // catchable error instead. The limit is well under what an 8 MB stack tolerates.
+    void enterCall() {
+        if (++callDepth_ > maxCallDepth_) {
+            --callDepth_;
+            throw KiritoError("maximum recursion depth exceeded");
+        }
+    }
+    void leaveCall() { --callDepth_; }
+    void setMaxCallDepth(std::size_t n) { maxCallDepth_ = n; }
+
     // Expose a C++ callable (or any value) as a Kirito global — the simplest extension point.
     void registerGlobal(const std::string& name, Handle value) {
         static_cast<EnvValue&>(arena_.deref(global_)).define(name, value);
@@ -157,6 +169,19 @@ private:
     std::size_t allocsSinceGc_ = 0;
     std::size_t gcThreshold_ = 100000;
     bool gcEnabled_ = true;
+    std::size_t callDepth_ = 0;
+    // Conservative default for an 8 MB stack with deep per-call expression nesting; embedders with
+    // a smaller stack can lower it via setMaxCallDepth().
+    std::size_t maxCallDepth_ = 3000;
+};
+
+// RAII call-depth guard: increments on entry, decrements on scope exit (even when unwinding).
+struct CallGuard {
+    KiritoVM& vm;
+    explicit CallGuard(KiritoVM& vm) : vm(vm) { vm.enterCall(); }
+    ~CallGuard() { vm.leaveCall(); }
+    CallGuard(const CallGuard&) = delete;
+    CallGuard& operator=(const CallGuard&) = delete;
 };
 
 // RAII protector: handles added here are GC roots until the scope ends. Use wherever the
