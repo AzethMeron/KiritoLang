@@ -1,130 +1,57 @@
-# Solve a system of linear equations with COMPLEX coefficients, A x = b, using Gauss-Jordan
-# elimination (which is exactly building the inverse of A applied to b). Complex arithmetic comes
-# from the pure-Kirito complex library; the matrix is a List of Lists of Complex.
+# Solve complex linear systems A x = b using the ComplexMatrix class and Gauss-Jordan solver,
+# demonstrating all three outcomes (unique / none / infinite). Idiomatic Kirito: for/range, the
+# ComplexMatrix class with operator overloads, and the linsolve library.
 #
 # Run:  ki --lib sample_projects/lib sample_projects/complex_linsolve.ki
 
 var io = import("io")
 var C = import("complex")
+var cm = import("cmatrix")
+var solver = import("linsolve")
 
-# Build an n x n identity-augmented copy [A | b] and reduce A to identity.
-# Returns the solution vector x (List of Complex) or raises if A is singular.
-var solve = Function(A, b):
-    var n = len(A)
-    # Work on copies so the caller's data is untouched (rows are fresh Lists of the same Complex).
-    var M = []
-    var x = []
-    var i = 0
-    while i < n:
-        var row = []
-        var j = 0
-        while j < n:
-            row.append(A[i][j])
-            j = j + 1
-        M.append(row)
-        x.append(b[i])
-        i = i + 1
+var report = Function(title, A, b):
+    io.print("=== " + title + " ===")
+    var result = solver.solve(A, b)
+    io.print("kind: " + result["kind"] + " (rank " + String(result["rank"]) + ")")
+    if result["kind"] != "none":
+        var parts = []
+        for v in result["x"]:
+            parts.append(String(v))
+        io.print("x = [" + ", ".join(parts) + "]")
+        io.print("verified: " + String(solver.verify(A, result["x"], b)))
 
-    # Forward elimination with partial pivoting by magnitude (norm2).
-    var col = 0
-    while col < n:
-        # find pivot
-        var pivot = col
-        var best = M[col][col].norm2()
-        var r = col + 1
-        while r < n:
-            var mag = M[r][col].norm2()
-            if mag > best:
-                best = mag
-                pivot = r
-            r = r + 1
-        if best == 0:
-            raise "matrix is singular"
-        # swap pivot row into place
-        if pivot != col:
-            var tmp = M[col]
-            M[col] = M[pivot]
-            M[pivot] = tmp
-            var tb = x[col]
-            x[col] = x[pivot]
-            x[pivot] = tb
-        # normalize pivot row so M[col][col] == 1
-        var inv = C.one / M[col][col]
-        var k = 0
-        while k < n:
-            M[col][k] = M[col][k] * inv
-            k = k + 1
-        x[col] = x[col] * inv
-        # eliminate this column from every other row
-        var rr = 0
-        while rr < n:
-            if rr != col:
-                var factor = M[rr][col]
-                var c2 = 0
-                while c2 < n:
-                    M[rr][c2] = M[rr][c2] - factor * M[col][c2]
-                    c2 = c2 + 1
-                x[rr] = x[rr] - factor * x[col]
-            rr = rr + 1
-        col = col + 1
-    return x
-
-# Multiply matrix A (List of List of Complex) by vector v, for verification.
-var matvec = Function(A, v):
-    var out = []
-    var i = 0
-    while i < len(A):
-        var acc = C.zero
-        var j = 0
-        while j < len(v):
-            acc = acc + A[i][j] * v[j]
-            j = j + 1
-        out.append(acc)
-        i = i + 1
-    return out
-
-# --- A concrete 2x2 complex system ---------------------------------------------------------
-#   (1+i) x0 + (2)   x1 = (3+i)
-#   (i)   x0 + (1-i) x1 = (2)
-var A = [
+# --- A 2x2 complex system with a unique solution ---------------------------------------------
+#   (1+i) x0 + 2 x1 = 3+i
+#   (i)   x0 + (1-i) x1 = 2
+var A1 = cm.ComplexMatrix([
     [C.of(1, 1), C.of(2, 0)],
     [C.of(0, 1), C.of(1, -1)]
-]
-var b = [C.of(3, 1), C.of(2, 0)]
+])
+var b1 = [C.of(3, 1), C.of(2, 0)]
+report("2x2 complex (unique)", A1, b1)
 
-var x = solve(A, b)
-io.print("Solution:")
-var i = 0
-while i < len(x):
-    io.print("  x" + String(i) + " = " + String(x[i]))
-    i = i + 1
-
-# Validate: A x should equal b (within complex equality).
-var check = matvec(A, x)
-var ok = True
-i = 0
-while i < len(b):
-    # compare with a small tolerance via norm2 of the difference
-    var diff = check[i] - b[i]
-    if diff.norm2() > 0.000001:
-        ok = False
-    i = i + 1
-io.print("Verification A*x == b: " + String(ok))
-
-# --- A 3x3 real-valued system (complex with zero imaginary parts) --------------------------
-var A2 = [
+# --- A 3x3 real-valued system with a unique solution -----------------------------------------
+var A2 = cm.ComplexMatrix([
     [C.real(2), C.real(1), C.real(-1)],
     [C.real(-3), C.real(-1), C.real(2)],
     [C.real(-2), C.real(1), C.real(2)]
-]
+])
 var b2 = [C.real(8), C.real(-11), C.real(-3)]
-var x2 = solve(A2, b2)
-io.print("3x3 real system solution: " + String(x2[0]) + ", " + String(x2[1]) + ", " + String(x2[2]))
-var chk2 = matvec(A2, x2)
-var ok2 = True
-i = 0
-while i < 3:
-    if (chk2[i] - b2[i]).norm2() > 0.000001:
-        ok2 = False
-    i = i + 1
-io.print("3x3 verification: " + String(ok2))
+report("3x3 real (unique)", A2, b2)
+
+# --- An inconsistent system (no solution) ----------------------------------------------------
+var A3 = cm.ComplexMatrix([
+    [C.real(1), C.real(1)],
+    [C.real(1), C.real(1)]
+])
+var b3 = [C.real(1), C.real(2)]
+report("2x2 inconsistent (none)", A3, b3)
+
+# --- An underdetermined system (infinitely many solutions) -----------------------------------
+var A4 = cm.ComplexMatrix([
+    [C.real(1), C.real(1), C.real(1)],
+    [C.real(1), C.real(-1), C.real(0)],
+    [C.real(2), C.real(0), C.real(1)]
+])
+var b4 = [C.real(6), C.real(0), C.real(6)]
+report("3x3 underdetermined (infinite)", A4, b4)

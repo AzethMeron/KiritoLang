@@ -23,8 +23,14 @@ class Complex:
     var norm2 = Function(self):
         return self.re * self.re + self.im * self.im
 
+    # True if this number is (numerically) zero, within a small tolerance.
+    var is_zero = Function(self):
+        return self.norm2() < 0.0000000001
+
     var _div_ = Function(self, o):
         var d = o.norm2()
+        if d == 0:
+            raise "complex division by zero"
         var n = self * o.conjugate()
         return Complex(n.re / d, n.im / d)
 
@@ -32,10 +38,14 @@ class Complex:
         return self.re == o.re and self.im == o.im
 
     var _str_ = Function(self):
+        # Normalize negative zero so we don't print "+-0.0i".
+        var im = self.im
+        if im == 0:
+            im = 0
         var s = String(self.re)
-        if self.im >= 0:
-            return s + "+" + String(self.im) + "i"
-        return s + String(self.im) + "i"
+        if im >= 0:
+            return s + "+" + String(im) + "i"
+        return s + String(im) + "i"
 
 # Convenience constructors.
 var of = Function(re, im):

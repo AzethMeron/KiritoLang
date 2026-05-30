@@ -1,0 +1,5 @@
+/tmp/kirito_systems_test/unique.txt: unique (rank 6)
+  verified: True
+/tmp/kirito_systems_test/none.txt: none (rank 2)
+/tmp/kirito_systems_test/infinite.txt: infinite (rank 2)
+  verified: True
