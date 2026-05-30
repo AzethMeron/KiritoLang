@@ -28,6 +28,7 @@
 #include "kirito/stdlib_matrix.hpp"
 #include "kirito/stdlib_json.hpp"
 #include "kirito/stdlib_net.hpp"
+#include "kirito/stdlib_serialize.hpp"
 #include "kirito/evaluator.hpp"
 #include "kirito/runtime.hpp"
 
