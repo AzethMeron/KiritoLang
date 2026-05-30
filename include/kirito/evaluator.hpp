@@ -140,6 +140,35 @@ public:
         throw KiritoThrow{eval(*s.value)};
     }
 
+    void visit(const ast::WithStmt& s) override {
+        RootScope rs(vm_);
+        Handle mgr = rs.add(eval(*s.context));
+        Handle value = rs.add(callMethod(s.span, mgr, "enter", {}));
+        if (!s.name.empty()) scope().define(s.name, value);
+
+        bool pendingThrow = false;
+        Handle excValue = vm_.none();
+        bool pendingError = false;
+        std::string errMsg;
+        Flow flowAfter = Flow::Normal;
+        try {
+            execBlock(s.body);
+            flowAfter = flow_;
+        } catch (const KiritoThrow& t) {
+            pendingThrow = true;
+            excValue = rs.add(t.value);
+        } catch (const KiritoError& e) {
+            pendingError = true;
+            errMsg = e.what();
+        }
+        flow_ = Flow::Normal;
+        callMethod(s.span, mgr, "exit", {});  // always run cleanup
+        if (pendingThrow) throw KiritoThrow{excValue};
+        if (pendingError) throw KiritoError(errMsg);
+        flow_ = flowAfter;
+        result_ = vm_.none();
+    }
+
     void visit(const ast::ClassStmt& s) override {
         RootScope rs(vm_);
         Handle base{};
@@ -313,6 +342,14 @@ public:
 private:
     EnvValue& scope() { return static_cast<EnvValue&>(vm_.arena().deref(env_)); }
     bool truthy(Handle h) { return vm_.arena().deref(h).truthy(); }
+
+    // Look up obj.name and call it (e.g. a context manager's enter/exit).
+    Handle callMethod(SourceSpan span, Handle obj, const char* name, std::vector<Handle> args) {
+        return located(span, [&] {
+            Handle method = vm_.arena().deref(obj).getAttr(vm_, obj, name);
+            return vm_.arena().deref(method).call(vm_, args);
+        });
+    }
 
     // Whether an except clause catches this exception. A clause with no type is a catch-all;
     // typed matching against user classes is wired up in the classes layer (isInstanceOf).

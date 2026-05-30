@@ -130,6 +130,7 @@ struct ReturnStmt;
 struct TryStmt;
 struct RaiseStmt;
 struct ClassStmt;
+struct WithStmt;
 
 struct StmtVisitor {
     virtual ~StmtVisitor() = default;
@@ -145,6 +146,7 @@ struct StmtVisitor {
     virtual void visit(const TryStmt&) = 0;
     virtual void visit(const RaiseStmt&) = 0;
     virtual void visit(const ClassStmt&) = 0;
+    virtual void visit(const WithStmt&) = 0;
 };
 
 struct Stmt {
@@ -237,6 +239,15 @@ struct RaiseStmt : Stmt {
 struct ClassStmt : Stmt {
     std::string name;
     ExprPtr base;  // optional base class
+    Block body;
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+// `with context [as name]: <body>` — calls context.enter() (bound to name), runs the body, and
+// always calls context.exit().
+struct WithStmt : Stmt {
+    ExprPtr context;
+    std::string name;  // empty for no binding
     Block body;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };

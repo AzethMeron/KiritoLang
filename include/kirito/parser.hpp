@@ -61,6 +61,7 @@ private:
             case TokenType::KwTry: return parseTry();
             case TokenType::KwRaise: return parseRaise();
             case TokenType::KwClass: return parseClass();
+            case TokenType::KwWith: return parseWith();
             case TokenType::KwReturn: return parseReturn();
             case TokenType::KwBreak: {
                 auto node = std::make_unique<ast::BreakStmt>();
@@ -129,6 +130,18 @@ private:
             advance();
             node->base = parseExpr();
             expect(TokenType::RParen, "')' after base class");
+        }
+        node->body = parseBlock();
+        return node;
+    }
+
+    ast::StmtPtr parseWith() {
+        auto node = std::make_unique<ast::WithStmt>();
+        node->span = advance().span;  // 'with'
+        node->context = parseExpr();
+        if (at(TokenType::KwAs)) {
+            advance();
+            node->name = expect(TokenType::Identifier, "a name after 'as'").text;
         }
         node->body = parseBlock();
         return node;
