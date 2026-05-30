@@ -41,6 +41,12 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   and collections `Array`, `List`, `Set`, `Dict`. Values are hashable where it makes
   sense. Numeric/math depth (complex `Number`, `Matrix`) is a *later* enrichment, not
   the starting goal — get the general scripting core right first.
+- **Classes** (planned): user-defined types in the Python spirit — `class` with
+  methods and instance attributes, instantiated by calling the class. A class is just
+  another first-class value, so it lives in the same value/object model as built-ins
+  and a C++-defined built-in type and a Kirito-defined `class` should look alike to the
+  evaluator. Like the numeric depth above, this is a *later* enrichment — get the
+  procedural/functional core (vars, functions, modules) solid first.
 
 Build the smallest thing that runs end-to-end first (lex+parse+eval an integer
 literal, then arithmetic, then `var`, then functions, then `io`), and grow outward.
