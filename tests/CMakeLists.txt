@@ -42,6 +42,7 @@ kirito_test(test_dump unit/test_dump.cpp)
 kirito_test(test_zlib unit/test_zlib.cpp)
 kirito_test(test_hash unit/test_hash.cpp)
 kirito_test(test_sort unit/test_sort.cpp)
+kirito_test(test_hostile_libs unit/test_hostile_libs.cpp)
 kirito_test(test_io unit/test_io.cpp)
 kirito_test(test_bytesio unit/test_bytesio.cpp)
 

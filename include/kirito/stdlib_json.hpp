@@ -1,6 +1,9 @@
 #ifndef KIRITO_STDLIB_JSON_HPP
 #define KIRITO_STDLIB_JSON_HPP
 
+#include <cmath>
+#include <cstdlib>
+#include <stdexcept>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -113,7 +116,15 @@ private:
                     case 'f': out += '\f'; break;
                     case 'u': {
                         if (pos_ + 4 > s_.size()) fail("bad \\u escape");
-                        unsigned cp = static_cast<unsigned>(std::stoul(s_.substr(pos_, 4), nullptr, 16));
+                        unsigned cp = 0;
+                        for (int k = 0; k < 4; ++k) {
+                            char d = s_[pos_ + k];
+                            int v = (d >= '0' && d <= '9') ? d - '0'
+                                  : (d >= 'a' && d <= 'f') ? d - 'a' + 10
+                                  : (d >= 'A' && d <= 'F') ? d - 'A' + 10 : -1;
+                            if (v < 0) fail("invalid \\u escape (expected hex digits)");
+                            cp = cp * 16 + static_cast<unsigned>(v);
+                        }
                         pos_ += 4;
                         encodeUtf8(cp, out);
                         break;
@@ -143,8 +154,20 @@ private:
         if (peek() == '.') { isFloat = true; ++pos_; while (pos_ < s_.size() && std::isdigit(static_cast<unsigned char>(s_[pos_]))) ++pos_; }
         if (peek() == 'e' || peek() == 'E') { isFloat = true; ++pos_; if (peek() == '+' || peek() == '-') ++pos_; while (pos_ < s_.size() && std::isdigit(static_cast<unsigned char>(s_[pos_]))) ++pos_; }
         std::string tok = s_.substr(start, pos_ - start);
-        if (isFloat) return roots_.add(vm_.makeFloat(std::stod(tok)));
-        return vm_.makeInt(static_cast<int64_t>(std::stoll(tok)));
+        if (tok.empty() || tok == "-") fail("invalid number");
+        try {
+            if (isFloat) return roots_.add(vm_.makeFloat(std::stod(tok)));
+            return vm_.makeInt(static_cast<int64_t>(std::stoll(tok)));
+        } catch (const std::out_of_range&) {
+            // An integer too large for int64 -> widen to Float (mirroring dynamic languages). If
+            // even the double overflows, represent it as infinity rather than throwing.
+            try { return roots_.add(vm_.makeFloat(std::stod(tok))); }
+            catch (const std::out_of_range&) {
+                return roots_.add(vm_.makeFloat(tok[0] == '-' ? -HUGE_VAL : HUGE_VAL));
+            }
+        } catch (const std::invalid_argument&) {
+            fail("invalid number");
+        }
     }
 
     KiritoVM& vm_;

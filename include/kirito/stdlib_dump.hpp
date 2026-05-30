@@ -169,6 +169,9 @@ inline Handle read(KiritoVM& vm, const std::string& data) {
     r.expect("KDMP", 4);
     if (r.u8() != 1) throw KiritoError("unsupported dump version");
     uint32_t n = r.u32();
+    // Each object record is at least one byte (its tag), so a claimed count exceeding the remaining
+    // input is corrupt — reject before allocating to avoid a huge/bad allocation.
+    if (n > data.size()) throw KiritoError("corrupt dump: object count exceeds data size");
     RootScope roots(vm);
     std::vector<Handle> objs(n);
     std::vector<uint8_t> tag(n);

@@ -702,7 +702,15 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
                     std::size_t close = tmpl.find('}', i);
                     if (close == std::string::npos) throw KiritoError("unmatched '{' in format string");
                     std::string spec = tmpl.substr(i + 1, close - i - 1);
-                    std::size_t idx = spec.empty() ? auto_i++ : static_cast<std::size_t>(std::stoll(spec));
+                    std::size_t idx;
+                    if (spec.empty()) {
+                        idx = auto_i++;
+                    } else {
+                        for (char ch : spec)
+                            if (ch < '0' || ch > '9') throw KiritoError("format field must be an index");
+                        try { idx = static_cast<std::size_t>(std::stoull(spec)); }
+                        catch (const std::out_of_range&) { throw KiritoError("format index out of range"); }
+                    }
                     if (idx >= a.size()) throw KiritoError("format index out of range");
                     out += vm.stringify(a[idx]);
                     i = close;

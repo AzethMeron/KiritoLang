@@ -102,8 +102,20 @@ public:
     Reader(KiritoVM& vm, const std::string& s) : vm_(vm), s_(s) {}
 
     Handle load() {
+        try {
+            return loadImpl();
+        } catch (const std::exception& e) {
+            // stoi/stod on a malformed token, etc. -> a clean Kirito error, never an escape.
+            throw KiritoError(std::string("corrupt serialized data: ") + e.what());
+        }
+    }
+
+private:
+    Handle loadImpl() {
         if (token() != "KSER1") throw KiritoError("bad serialization header");
-        int n = std::stoi(token());
+        long n = std::stol(token());
+        if (n < 0 || static_cast<std::size_t>(n) > s_.size())
+            throw KiritoError("corrupt serialized data: bad object count");
         RootScope roots(vm_);
         // Pass 1: create every object (scalars valued, containers empty) so refs/cycles resolve.
         std::vector<Handle> objs(static_cast<std::size_t>(n));
