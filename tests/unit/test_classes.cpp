@@ -15,7 +15,7 @@ int main() {
     // construction, attributes, and a method using self
     CHECK(evalStr(vm, R"(
 class Point:
-    var init = Function(self, x, y):
+    var _init_ = Function(self, x, y):
         self.x = x
         self.y = y
     var sum = Function(self):
@@ -27,7 +27,7 @@ p.sum()
     // attribute read and write
     CHECK(evalStr(vm, R"(
 class Box:
-    var init = Function(self, v):
+    var _init_ = Function(self, v):
         self.v = v
 var b = Box(10)
 b.v = b.v + 5
@@ -37,7 +37,7 @@ b.v
     // stateful methods mutating self across calls
     CHECK(evalStr(vm, R"(
 class Counter:
-    var init = Function(self):
+    var _init_ = Function(self):
         self.n = 0
     var inc = Function(self):
         self.n = self.n + 1
@@ -51,7 +51,7 @@ c.inc()
     // inheritance: Dog overrides speak but inherits Animal.init
     CHECK(evalStr(vm, R"(
 class Animal:
-    var init = Function(self, name):
+    var _init_ = Function(self, name):
         self.name = name
     var speak = Function(self):
         return "..."
@@ -65,7 +65,7 @@ d.name + " says " + d.speak()
     // str of an instance
     CHECK(evalStr(vm, R"(
 class Widget:
-    var init = Function(self):
+    var _init_ = Function(self):
         self.x = 1
 String(Widget())
 )") == "<Widget object>");
@@ -73,7 +73,7 @@ String(Widget())
     // typed except: catch by class, bind the instance, read its attribute
     CHECK(evalStr(vm, R"(
 class MyError:
-    var init = Function(self, msg):
+    var _init_ = Function(self, msg):
         self.msg = msg
 var r = ""
 try:
@@ -86,10 +86,10 @@ r
     // typed except selects the matching handler
     CHECK(evalStr(vm, R"(
 class A:
-    var init = Function(self):
+    var _init_ = Function(self):
         self.k = "a"
 class B:
-    var init = Function(self):
+    var _init_ = Function(self):
         self.k = "b"
 var caught = "none"
 try:
@@ -104,10 +104,10 @@ caught
     // typed except matches a base class for a derived instance
     CHECK(evalStr(vm, R"(
 class Base:
-    var init = Function(self):
+    var _init_ = Function(self):
         self.x = 1
 class Derived(Base):
-    var init = Function(self):
+    var _init_ = Function(self):
         self.x = 2
 var r = "none"
 try:
@@ -120,10 +120,10 @@ r
     // a wrong-type typed except does NOT catch (propagates)
     CHECK_THROWS(vm.runSource(R"(
 class A:
-    var init = Function(self):
+    var _init_ = Function(self):
         self.x = 1
 class B:
-    var init = Function(self):
+    var _init_ = Function(self):
         self.x = 2
 try:
     raise A()
@@ -137,7 +137,7 @@ except B as e:
         g.setGcThreshold(300);
         CHECK(g.stringify(g.runSource(R"(
 class Acc:
-    var init = Function(self):
+    var _init_ = Function(self):
         self.total = 0
     var add = Function(self, x):
         self.total = self.total + x

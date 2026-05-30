@@ -31,6 +31,10 @@ public:
     Evaluator(const Evaluator&) = delete;
     Evaluator& operator=(const Evaluator&) = delete;
 
+    // The class whose method this evaluator is running (for private-member access). Set by
+    // KiFunction::call for method bodies.
+    void setCurrentClass(Handle cls) { currentClass_ = cls; hasCurrentClass_ = true; }
+
     // Returns the value of the last statement's expression, or None.
     Handle run(const ast::Program& prog) {
         result_ = vm_.none();
@@ -94,6 +98,7 @@ public:
             case ast::ExprKind::Member: {
                 const auto& mem = static_cast<const ast::MemberExpr&>(*s.target);
                 Handle obj = rs.add(eval(*mem.object));
+                checkPrivateAccess(obj, mem.name, s.span);
                 located(s.span, [&] {
                     vm_.arena().deref(obj).setAttr(vm_, mem.name, value);
                     return vm_.none();
@@ -166,7 +171,7 @@ public:
     void visit(const ast::WithStmt& s) override {
         RootScope rs(vm_);
         Handle mgr = rs.add(eval(*s.context));
-        Handle value = rs.add(callMethod(s.span, mgr, "enter", {}));
+        Handle value = rs.add(callMethod(s.span, mgr, "_enter_", {}));
         if (!s.name.empty()) scope().define(s.name, value);
 
         bool pendingThrow = false;
@@ -185,7 +190,7 @@ public:
             errMsg = e.what();
         }
         flow_ = Flow::Normal;
-        callMethod(s.span, mgr, "exit", {});  // always run cleanup
+        callMethod(s.span, mgr, "_exit_", {});  // always run cleanup
         if (pendingThrow) throw KiritoThrow{excValue};
         if (pendingError) throw KiritoError(errMsg);
         flow_ = flowAfter;
@@ -206,7 +211,17 @@ public:
         cls->hasBase = hasBase;
         cls->methods = static_cast<EnvValue&>(vm_.arena().deref(classScope)).locals();
         Handle clsHandle = vm_.alloc(std::move(cls));
-        static_cast<ClassValue&>(vm_.arena().deref(clsHandle)).selfHandle = clsHandle;
+        auto& klass = static_cast<ClassValue&>(vm_.arena().deref(clsHandle));
+        klass.selfHandle = clsHandle;
+        // Tag each method with its owning class so its body may access private members.
+        for (const auto& [mname, mh] : klass.methods) {
+            Object& mo = vm_.arena().deref(mh);
+            if (mo.kind() == ValueKind::Function) {
+                auto& fn = static_cast<KiFunction&>(mo);
+                fn.ownerClass = clsHandle;
+                fn.hasOwner = true;
+            }
+        }
         scope().define(s.name, clsHandle);
         result_ = vm_.none();
     }
@@ -313,7 +328,16 @@ public:
         // Equality never raises on type mismatch (1 == "x" is False); it uses the value protocol's
         // structural equals. Ordering and arithmetic dispatch through binary().
         if (e.op == BinOp::Eq || e.op == BinOp::Ne) {
-            bool eq = vm_.arena().deref(lhs).equals(vm_.arena(), vm_.arena().deref(rhs));
+            // A user class may override equality via _eq_ / _ne_; otherwise use structural equals.
+            // (dynamic_cast distinguishes a user InstanceValue from C++ NativeClass instances,
+            // which also report ValueKind::Instance but have no method table.)
+            Object& l = vm_.arena().deref(lhs);
+            if (auto* inst = dynamic_cast<InstanceValue*>(&l);
+                inst && inst->findMethod(vm_.arena(), binOpMethod(e.op))) {
+                result_ = located(e.span, [&] { return l.binary(vm_, e.op, lhs, rhs); });
+                return;
+            }
+            bool eq = l.equals(vm_.arena(), vm_.arena().deref(rhs));
             result_ = vm_.makeBool(e.op == BinOp::Eq ? eq : !eq);
             return;
         }
@@ -328,6 +352,7 @@ public:
     void visit(const ast::MemberExpr& e) override {
         RootScope rs(vm_);
         Handle obj = rs.add(eval(*e.object));
+        checkPrivateAccess(obj, e.name, e.span);
         result_ = located(e.span, [&] { return vm_.arena().deref(obj).getAttr(vm_, obj, e.name); });
     }
 
@@ -408,18 +433,31 @@ private:
         return isInstanceOf(excValue, typeH);
     }
 
-    // True if `value` is an instance of class `typeH` (walking the base chain).
+    // True if `value` is an instance of class `typeH` (walking the base chain). Only user-defined
+    // InstanceValues carry a class handle; C++ NativeClass objects (Matrix/Socket/...) report
+    // ValueKind::Instance too, so use dynamic_cast to tell them apart.
     bool isInstanceOf(Handle value, Handle typeH) {
         if (vm_.arena().deref(typeH).kind() != ValueKind::Class) return false;
         const Object& v = vm_.arena().deref(value);
-        if (v.kind() != ValueKind::Instance) return false;
-        Handle cur = static_cast<const InstanceValue&>(v).cls;
+        const auto* inst = dynamic_cast<const InstanceValue*>(&v);
+        if (!inst) return false;
+        Handle cur = inst->cls;
         while (true) {
             if (cur == typeH) return true;
             const auto& c = static_cast<const ClassValue&>(vm_.arena().deref(cur));
             if (!c.hasBase) return false;
             cur = c.base;
         }
+    }
+
+    // A private member (_name, no trailing underscore) may only be touched from within a method
+    // whose class the receiver is an instance of (i.e. while running such a method).
+    void checkPrivateAccess(Handle obj, const std::string& name, SourceSpan span) {
+        if (!isPrivateName(name)) return;
+        if (!dynamic_cast<const InstanceValue*>(&vm_.arena().deref(obj))) return;  // user classes only
+        if (hasCurrentClass_ && isInstanceOf(obj, currentClass_)) return;
+        throw KiritoError("cannot access private member '" + name + "' of '" +
+                          vm_.arena().deref(obj).typeName() + "' outside its class", span);
     }
 
     // Run an operation, tagging any location-less runtime error with this node's span.
@@ -439,6 +477,8 @@ private:
     Handle result_{};
     Handle returnValue_{};
     Flow flow_ = Flow::Normal;
+    Handle currentClass_{};
+    bool hasCurrentClass_ = false;
 };
 
 }  // namespace kirito

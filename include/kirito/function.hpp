@@ -50,12 +50,20 @@ public:
     const ast::FunctionExpr& def() const { return *def_; }
     Handle closure() const { return closure_; }
 
+    // When this function is a class method, the class it belongs to (so its body may access
+    // private members of instances of that class). hasOwner is false for plain functions.
+    Handle ownerClass{};
+    bool hasOwner = false;
+
     ValueKind kind() const override { return ValueKind::Function; }
     std::string typeName() const override { return "Function"; }
     bool truthy() const override { return true; }
     std::string str(StringifyCtx&) const override { return "<function>"; }
     bool equals(const ObjectArena&, const Object& other) const override { return this == &other; }
-    void children(std::vector<Handle>& out) const override { out.push_back(closure_); }
+    void children(std::vector<Handle>& out) const override {
+        out.push_back(closure_);
+        if (hasOwner) out.push_back(ownerClass);
+    }
 
     Handle call(KiritoVM&, std::span<const Handle> args) override;
 

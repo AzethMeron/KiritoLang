@@ -63,7 +63,7 @@ public:
                 file(vm, self).stream << static_cast<const StrVal&>(o).value();
                 return vm.none();
             });
-        if (name == "close" || name == "exit")
+        if (name == "close" || name == "_exit_")
             return bind("close", [self, file](KiritoVM& vm, std::span<const Handle>) {
                 file(vm, self).stream.close();
                 return vm.none();
@@ -105,8 +105,8 @@ public:
                 s.seekp(pos);
                 return vm.none();
             });
-        if (name == "enter")
-            return bind("enter", [self](KiritoVM&, std::span<const Handle>) { return self; });
+        if (name == "_enter_")
+            return bind("_enter_", [self](KiritoVM&, std::span<const Handle>) { return self; });
         return Object::getAttr(vm, self, name);
     }
 };

@@ -246,13 +246,13 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return bind("recv_all", [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
             return vm.makeString(net::recvAll(sock(vm, self).fd));
         });
-    if (name == "close" || name == "exit")
+    if (name == "close" || name == "_exit_")
         return bind("close", [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
             sock(vm, self).closeFd();
             return vm.none();
         });
-    if (name == "enter")
-        return bind("enter", [self](KiritoVM&, std::span<const Handle>) { return self; });
+    if (name == "_enter_")
+        return bind("_enter_", [self](KiritoVM&, std::span<const Handle>) { return self; });
     return Object::getAttr(vm, self, name);
 }
 

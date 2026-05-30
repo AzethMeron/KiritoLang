@@ -1,6 +1,7 @@
 #ifndef KIRITO_CLASS_VALUE_HPP
 #define KIRITO_CLASS_VALUE_HPP
 
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -12,9 +13,39 @@
 
 namespace kirito {
 
+// Kirito's special (operator) methods use Python's dunder names with single underscores:
+// _init_, _str_, _add_, _eq_, _getitem_, _call_, ... These map an operator/protocol slot to the
+// method name a class may define.
+inline const char* binOpMethod(BinOp op) {
+    switch (op) {
+        case BinOp::Add: return "_add_";
+        case BinOp::Sub: return "_sub_";
+        case BinOp::Mul: return "_mul_";
+        case BinOp::Div: return "_div_";
+        case BinOp::FloorDiv: return "_floordiv_";
+        case BinOp::Mod: return "_mod_";
+        case BinOp::Pow: return "_pow_";
+        case BinOp::Eq: return "_eq_";
+        case BinOp::Ne: return "_ne_";
+        case BinOp::Lt: return "_lt_";
+        case BinOp::Le: return "_le_";
+        case BinOp::Gt: return "_gt_";
+        case BinOp::Ge: return "_ge_";
+        case BinOp::In: case BinOp::NotIn: break;  // handled via _contains_, not here
+    }
+    return "";
+}
+inline const char* unOpMethod(UnOp op) { return op == UnOp::Neg ? "_neg_" : "_not_"; }
+
+// A private member has a single leading underscore and no trailing underscore (e.g. _count).
+// Special methods are _name_ (underscores on both sides) and are NOT private.
+inline bool isPrivateName(std::string_view n) {
+    return n.size() >= 2 && n.front() == '_' && n.back() != '_';
+}
+
 // A user-defined class: a bag of methods (Functions whose first param is the receiver) plus an
-// optional base class. Calling it constructs an instance and runs its `init` method. A class is a
-// first-class value living in the same model as built-ins — exactly the unified-object goal.
+// optional base class. Calling it constructs an instance and runs its `_init_` method. A class is
+// a first-class value living in the same model as built-ins — the unified-object goal.
 class ClassValue : public Object {
 public:
     std::string name;
@@ -44,17 +75,20 @@ public:
     Handle call(KiritoVM&, std::span<const Handle> args) override;  // instantiate (runtime.hpp)
 };
 
-// An instance of a user class: its own attribute table plus a handle to its class for method lookup.
+// An instance of a user class: its own attribute table plus a handle to its class for method
+// lookup. Operator slots dispatch to the class's _op_ methods when defined.
 class InstanceValue : public Object {
 public:
     Handle cls{};
-    std::string className;  // copied from the class so typeName()/str() need no arena
+    Handle selfHandle{};     // this instance's own arena handle (for invoking its methods)
+    std::string className;   // copied from the class so typeName()/str() need no arena
+
     std::unordered_map<std::string, Handle> attrs;
 
     ValueKind kind() const override { return ValueKind::Instance; }
     std::string typeName() const override { return className; }
     bool truthy() const override { return true; }
-    std::string str(StringifyCtx&) const override { return "<" + className + " object>"; }
+    std::string str(StringifyCtx&) const override;  // invokes _str_ if defined (runtime.hpp)
     bool equals(const ObjectArena&, const Object& other) const override { return this == &other; }
     void children(std::vector<Handle>& out) const override {
         out.push_back(cls);
@@ -64,6 +98,19 @@ public:
         attrs[std::string(name)] = value;
     }
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;  // runtime.hpp
+
+    // Operator protocol -> _op_ method dispatch (defined in runtime.hpp).
+    Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;
+    Handle unary(KiritoVM&, UnOp, Handle self) override;
+    Handle call(KiritoVM&, std::span<const Handle> args) override;
+    Handle getItem(KiritoVM&, std::span<const Handle> keys) override;
+    void setItem(KiritoVM&, std::span<const Handle> keys, Handle value) override;
+    std::optional<int64_t> length(KiritoVM&) override;
+    bool contains(KiritoVM&, Handle value) override;
+
+    const Handle* findMethod(const ObjectArena& arena, const std::string& n) const {
+        return static_cast<const ClassValue&>(arena.deref(cls)).findMethod(arena, n);
+    }
 };
 
 }  // namespace kirito

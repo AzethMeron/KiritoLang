@@ -29,6 +29,7 @@ enum class ValueKind {
 struct StringifyCtx {
     const ObjectArena& arena;
     std::unordered_set<const Object*> active;
+    KiritoVM* vm = nullptr;  // set when a user-defined _str_ may need to be invoked
 };
 
 // Structural equality recurses through nested containers; without a bound, two distinct cyclic

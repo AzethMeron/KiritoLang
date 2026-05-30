@@ -11,12 +11,12 @@ static std::string evalStr(KiritoVM& vm, const std::string& src) {
 
 static const char* kResource = R"(
 class Resource:
-    var init = Function(self, log):
+    var _init_ = Function(self, log):
         self.log = log
-    var enter = Function(self):
+    var _enter_ = Function(self):
         self.log.append("enter")
         return self
-    var exit = Function(self):
+    var _exit_ = Function(self):
         self.log.append("exit")
 )";
 

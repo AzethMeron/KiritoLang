@@ -113,7 +113,7 @@ public:
     const std::vector<std::string>& libPaths() const { return libPaths_; }
 
     std::string stringify(Handle h) const {
-        StringifyCtx ctx{arena_, {}};
+        StringifyCtx ctx{arena_, {}, const_cast<KiritoVM*>(this)};
         return arena_.deref(h).str(ctx);
     }
 

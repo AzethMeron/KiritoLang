@@ -2,11 +2,11 @@
 var io = import("io")
 
 class TaskError:
-    var init = Function(self, msg):
+    var _init_ = Function(self, msg):
         self.msg = msg
 
 class TodoList:
-    var init = Function(self):
+    var _init_ = Function(self):
         self.tasks = []
         self.done = {}
 

@@ -2,20 +2,20 @@
 var io = import("io")
 
 class Shape:
-    var init = Function(self, name):
+    var _init_ = Function(self, name):
         self.name = name
     var describe = Function(self):
         return self.name + " with area " + String(self.area())
 
 class Circle(Shape):
-    var init = Function(self, r):
+    var _init_ = Function(self, r):
         self.name = "Circle"
         self.r = r
     var area = Function(self):
         return 3 * self.r * self.r
 
 class Square(Shape):
-    var init = Function(self, side):
+    var _init_ = Function(self, side):
         self.name = "Square"
         self.side = side
     var area = Function(self):

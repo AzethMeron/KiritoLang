@@ -713,7 +713,8 @@ inline Handle ClassValue::call(KiritoVM& vm, std::span<const Handle> args) {
     inst->cls = selfHandle;
     inst->className = name;
     Handle instH = vm.alloc(std::move(inst));
-    if (const Handle* init = findMethod(vm.arena(), "init")) {
+    static_cast<InstanceValue&>(vm.arena().deref(instH)).selfHandle = instH;
+    if (const Handle* init = findMethod(vm.arena(), "_init_")) {
         RootScope rs(vm);
         rs.add(instH);
         Handle initH = rs.add(*init);
@@ -747,6 +748,71 @@ inline Handle InstanceValue::getAttr(KiritoVM& vm, Handle self, std::string_view
         std::vector<Handle>{self, methodH}));
 }
 
+// Invoke a class method named `method` with [self, args...]; throws `notFound` if the class chain
+// lacks it. Used by the operator-protocol slots below.
+inline Handle invokeOp(KiritoVM& vm, InstanceValue& inst, const char* method,
+                       std::span<const Handle> args, const std::string& notFound) {
+    const Handle* m = inst.findMethod(vm.arena(), method);
+    if (!m) throw KiritoError(notFound);
+    RootScope rs(vm);
+    Handle mh = rs.add(*m);
+    std::vector<Handle> full;
+    full.reserve(args.size() + 1);
+    full.push_back(inst.selfHandle);
+    for (Handle a : args) full.push_back(rs.add(a));
+    return vm.arena().deref(mh).call(vm, full);
+}
+
+inline Handle InstanceValue::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
+    std::array<Handle, 1> a{rhs};
+    return invokeOp(vm, *this, binOpMethod(op), a,
+                    "'" + className + "' has no operator '" + binOpMethod(op) + "'");
+}
+inline Handle InstanceValue::unary(KiritoVM& vm, UnOp op, Handle) {
+    return invokeOp(vm, *this, unOpMethod(op), {},
+                    "'" + className + "' has no operator '" + unOpMethod(op) + "'");
+}
+inline Handle InstanceValue::call(KiritoVM& vm, std::span<const Handle> args) {
+    return invokeOp(vm, *this, "_call_", args, "'" + className + "' object is not callable");
+}
+inline Handle InstanceValue::getItem(KiritoVM& vm, std::span<const Handle> keys) {
+    return invokeOp(vm, *this, "_getitem_", keys, "'" + className + "' object is not indexable");
+}
+inline void InstanceValue::setItem(KiritoVM& vm, std::span<const Handle> keys, Handle value) {
+    std::vector<Handle> args(keys.begin(), keys.end());
+    args.push_back(value);
+    invokeOp(vm, *this, "_setitem_", args, "'" + className + "' does not support item assignment");
+}
+inline std::optional<int64_t> InstanceValue::length(KiritoVM& vm) {
+    Handle r = invokeOp(vm, *this, "_len_", {}, "'" + className + "' has no length");
+    const Object& o = vm.arena().deref(r);
+    if (o.kind() != ValueKind::Integer) throw KiritoError("_len_ must return an Integer");
+    return static_cast<const IntVal&>(o).value();
+}
+inline bool InstanceValue::contains(KiritoVM& vm, Handle value) {
+    std::array<Handle, 1> a{value};
+    Handle r = invokeOp(vm, *this, "_contains_", a, "'" + className + "' does not support 'in'");
+    return vm.arena().deref(r).truthy();
+}
+inline std::string InstanceValue::str(StringifyCtx& ctx) const {
+    if (ctx.vm) {
+        const Handle* m = findMethod(ctx.arena, "_str_");
+        if (m) {
+            if (ctx.active.count(this)) return "<" + className + " object>";  // cycle guard
+            RootScope rs(*ctx.vm);
+            std::array<Handle, 1> full{selfHandle};
+            Handle r = rs.add(ctx.vm->arena().deref(*m).call(*ctx.vm, full));
+            const Object& o = ctx.vm->arena().deref(r);
+            if (o.kind() == ValueKind::String) return static_cast<const StrVal&>(o).value();
+            ctx.active.insert(this);
+            std::string s = o.str(ctx);
+            ctx.active.erase(this);
+            return s;
+        }
+    }
+    return "<" + className + " object>";
+}
+
 // --- KiFunction call -------------------------------------------------------------------------
 
 inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
@@ -758,6 +824,7 @@ inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
     auto& env = static_cast<EnvValue&>(vm.arena().deref(scope));
     for (std::size_t i = 0; i < params.size(); ++i) env.define(params[i], args[i]);
     Evaluator ev(vm, scope);
+    if (hasOwner) ev.setCurrentClass(ownerClass);  // enables private-member access in the body
     return ev.callBody(def_->body);
 }
 

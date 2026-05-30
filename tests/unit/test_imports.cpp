@@ -17,7 +17,7 @@ int main() {
              "var add = Function(a, b):\n"
              "    return a + b\n"
              "class Greeter:\n"
-             "    var init = Function(self, who):\n"
+             "    var _init_ = Function(self, who):\n"
              "        self.who = who\n"
              "    var hello = Function(self):\n"
              "        return \"hi \" + self.who\n";
