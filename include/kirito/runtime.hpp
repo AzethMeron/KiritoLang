@@ -268,9 +268,37 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
             }, std::vector<Handle>{self}));
     if (name == "sort")
         return vm.alloc(std::make_unique<NativeFunction>(
-            "sort", [self, self_list](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            "sort", [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                // sort([key][, reverse]) — STABLE in-place sort. `key` is an optional callable
+                // mapping each element to a sort key; `reverse` (a truthy 2nd arg) descends.
+                Handle keyFn{};
+                bool hasKey = false, reverse = false;
+                if (!a.empty() && vm.arena().deref(a[0]).kind() != ValueKind::None) {
+                    keyFn = a[0];
+                    hasKey = true;
+                }
+                if (a.size() > 1) reverse = vm.arena().deref(a[1]).truthy();
                 auto& e = self_list(vm, self).elems;
-                std::sort(e.begin(), e.end(), [&](Handle a, Handle b) { return kiLessThan(vm, a, b); });
+                // Precompute keys once per element (Schwartzian transform): avoids re-invoking the
+                // key function O(n log n) times and keeps the comparator allocation-free. The keys
+                // are GC-rooted for the duration of the sort.
+                RootScope rs(vm);
+                std::vector<std::pair<Handle, Handle>> tagged;  // (key, element)
+                tagged.reserve(e.size());
+                for (Handle el : e) {
+                    Handle k = el;
+                    if (hasKey) {
+                        std::array<Handle, 1> args{el};
+                        k = rs.add(vm.arena().deref(keyFn).call(vm, args));
+                    }
+                    tagged.emplace_back(k, el);
+                }
+                std::stable_sort(tagged.begin(), tagged.end(),
+                                 [&](const std::pair<Handle, Handle>& x, const std::pair<Handle, Handle>& y) {
+                                     return reverse ? kiLessThan(vm, y.first, x.first)
+                                                    : kiLessThan(vm, x.first, y.first);
+                                 });
+                for (std::size_t i = 0; i < e.size(); ++i) e[i] = tagged[i].second;
                 return vm.none();
             }, std::vector<Handle>{self}));
     if (name == "insert")
@@ -1036,11 +1064,26 @@ inline void KiritoVM::installBuiltins() {
     def("min", [extremum](KiritoVM& vm, std::span<const Handle> a) { return extremum(vm, a, false); });
     def("max", [extremum](KiritoVM& vm, std::span<const Handle> a) { return extremum(vm, a, true); });
     def("sorted", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        // sorted(iterable[, key][, reverse]) -> a new STABLE-sorted List.
         RootScope rs(vm);
-        auto list = std::make_unique<ListVal>();
+        Handle keyFn{};
+        bool hasKey = false, reverse = false;
+        if (a.size() > 1 && vm.arena().deref(a[1]).kind() != ValueKind::None) { keyFn = a[1]; hasKey = true; }
+        if (a.size() > 2) reverse = vm.arena().deref(a[2]).truthy();
         auto items = vm.arena().deref(a[0]).iterate(vm);
-        for (Handle h : items.value()) list->elems.push_back(rs.add(h));
-        std::sort(list->elems.begin(), list->elems.end(), [&](Handle x, Handle y) { return kiLessThan(vm, x, y); });
+        std::vector<std::pair<Handle, Handle>> tagged;
+        for (Handle h : items.value()) {
+            rs.add(h);
+            Handle k = h;
+            if (hasKey) { std::array<Handle, 1> args{h}; k = rs.add(vm.arena().deref(keyFn).call(vm, args)); }
+            tagged.emplace_back(k, h);
+        }
+        std::stable_sort(tagged.begin(), tagged.end(),
+                         [&](const std::pair<Handle, Handle>& x, const std::pair<Handle, Handle>& y) {
+                             return reverse ? kiLessThan(vm, y.first, x.first) : kiLessThan(vm, x.first, y.first);
+                         });
+        auto list = std::make_unique<ListVal>();
+        for (auto& p : tagged) list->elems.push_back(p.second);
         return vm.alloc(std::move(list));
     });
     def("enumerate", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {

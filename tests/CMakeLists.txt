@@ -41,6 +41,7 @@ kirito_test(test_time unit/test_time.cpp)
 kirito_test(test_dump unit/test_dump.cpp)
 kirito_test(test_zlib unit/test_zlib.cpp)
 kirito_test(test_hash unit/test_hash.cpp)
+kirito_test(test_sort unit/test_sort.cpp)
 kirito_test(test_io unit/test_io.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
