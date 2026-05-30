@@ -79,6 +79,7 @@ public:
         for (Handle h : smallInts_) enqueue(h);
         if (replScopeReady_) enqueue(replScope_);
         for (const auto& [name, h] : moduleCache_) enqueue(h);
+        for (const auto& [p, h] : pathCache_) enqueue(h);
         for (Handle h : tempRoots_) enqueue(h);
         std::vector<Handle> childbuf;
         while (!work.empty()) {
@@ -158,7 +159,8 @@ private:
     std::vector<std::unique_ptr<ast::Program>> chunks_;
     std::vector<std::unique_ptr<NativeModule>> nativeModules_;
     std::unordered_map<std::string, ModuleFactory> moduleFactories_;
-    std::unordered_map<std::string, Handle> moduleCache_;
+    std::unordered_map<std::string, Handle> moduleCache_;   // keyed by module name
+    std::unordered_map<std::string, Handle> pathCache_;     // keyed by resolved absolute path
     std::vector<std::string> libPaths_;
     Handle replScope_{};
     bool replScopeReady_ = false;

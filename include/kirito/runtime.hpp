@@ -861,11 +861,19 @@ inline Handle KiritoVM::importModule(const std::string& name) {
         return h;
     }
     // Otherwise search the library paths for <name>.ki and load it as a module: the file's
-    // top-level bindings become the module's members.
+    // top-level bindings become the module's members. The file is lexed+parsed+evaluated at most
+    // once per VM — deduplicated by resolved absolute path, so the same file reached via different
+    // module names (or repeated imports) reuses the one already-built module.
     for (const auto& dir : libPaths_) {
         std::filesystem::path path = std::filesystem::path(dir) / (name + ".ki");
         std::error_code ec;
         if (!std::filesystem::exists(path, ec)) continue;
+        std::filesystem::path canon = std::filesystem::weakly_canonical(path, ec);
+        std::string key = ec ? path.string() : canon.string();
+        if (auto it = pathCache_.find(key); it != pathCache_.end()) {
+            moduleCache_[name] = it->second;  // same file already loaded under another name
+            return it->second;
+        }
         std::ifstream in(path);
         std::stringstream buf;
         buf << in.rdbuf();
@@ -884,6 +892,7 @@ inline Handle KiritoVM::importModule(const std::string& name) {
                 mod->members[k] = v;
             Handle h = alloc(std::move(mod));
             moduleCache_[name] = h;
+            pathCache_[key] = h;
             return h;
         }
     }

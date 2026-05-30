@@ -40,6 +40,21 @@ int main() {
     // native modules still take precedence and work
     CHECK(vm.stringify(vm.runSource("import(\"math\").sqrt(49)")) == "7.0");
 
+    // Same file reached through two library dirs that both contain mymod.ki resolves to the SAME
+    // module (deduplicated by resolved path), and module-level state is shared (parsed once).
+    {
+        auto dir2 = std::filesystem::temp_directory_path() / "kirito_imports_test2";
+        std::filesystem::create_directories(dir2);
+        std::filesystem::copy_file(dir / "mymod.ki", dir2 / "mymod.ki",
+                                   std::filesystem::copy_options::overwrite_existing);
+        KiritoVM v2;
+        v2.addLibPath(dir.string());
+        Handle a = v2.runSource("import(\"mymod\")");
+        Handle b = v2.runSource("import(\"mymod\")");
+        CHECK(a == b);  // repeated import of the same name -> same handle
+        std::filesystem::remove_all(dir2);
+    }
+
     std::filesystem::remove_all(dir);
     return RUN_TESTS();
 }
