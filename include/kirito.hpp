@@ -7,6 +7,7 @@
 
 #include "kirito/common.hpp"
 #include "kirito/control.hpp"
+#include "kirito/exceptions.hpp"
 #include "kirito/handle.hpp"
 #include "kirito/object.hpp"
 #include "kirito/arena.hpp"

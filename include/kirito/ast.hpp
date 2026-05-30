@@ -127,6 +127,8 @@ struct ForStmt;
 struct BreakStmt;
 struct ContinueStmt;
 struct ReturnStmt;
+struct TryStmt;
+struct RaiseStmt;
 
 struct StmtVisitor {
     virtual ~StmtVisitor() = default;
@@ -139,6 +141,8 @@ struct StmtVisitor {
     virtual void visit(const BreakStmt&) = 0;
     virtual void visit(const ContinueStmt&) = 0;
     virtual void visit(const ReturnStmt&) = 0;
+    virtual void visit(const TryStmt&) = 0;
+    virtual void visit(const RaiseStmt&) = 0;
 };
 
 struct Stmt {
@@ -202,6 +206,28 @@ struct ForStmt : Stmt {
     std::string var;
     ExprPtr iterable;
     Block body;
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+// One `except [type] [as name]:` arm. type is null for a catch-all; name is empty for no binding.
+struct ExceptClause {
+    ExprPtr type;
+    std::string name;
+    Block body;
+};
+
+// `try: ... except ...: ... [finally: ...]`.
+struct TryStmt : Stmt {
+    Block body;
+    std::vector<ExceptClause> handlers;
+    bool hasFinally = false;
+    Block finallyBody;
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+// `raise value`.
+struct RaiseStmt : Stmt {
+    ExprPtr value;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 

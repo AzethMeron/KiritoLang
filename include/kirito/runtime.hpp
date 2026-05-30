@@ -398,7 +398,11 @@ inline Handle KiritoVM::evalIn(std::string_view source, Handle scope) {
     const ast::Program& program = *prog;
     retainChunk(std::move(prog));  // keep the AST alive for the VM's lifetime (closures)
     Evaluator ev(*this, scope);
-    return ev.run(program);
+    try {
+        return ev.run(program);
+    } catch (const KiritoThrow& t) {
+        throw KiritoError("uncaught exception: " + stringify(t.value));
+    }
 }
 
 inline Handle KiritoVM::runSource(std::string_view source, std::string_view) {

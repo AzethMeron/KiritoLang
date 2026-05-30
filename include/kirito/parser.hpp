@@ -58,6 +58,8 @@ private:
             case TokenType::KwIf: return parseIf();
             case TokenType::KwWhile: return parseWhile();
             case TokenType::KwFor: return parseFor();
+            case TokenType::KwTry: return parseTry();
+            case TokenType::KwRaise: return parseRaise();
             case TokenType::KwReturn: return parseReturn();
             case TokenType::KwBreak: {
                 auto node = std::make_unique<ast::BreakStmt>();
@@ -90,6 +92,39 @@ private:
         auto node = std::make_unique<ast::ExprStmt>();
         node->span = span;
         node->expr = std::move(expr);
+        return node;
+    }
+
+    ast::StmtPtr parseTry() {
+        auto node = std::make_unique<ast::TryStmt>();
+        node->span = advance().span;  // 'try'
+        node->body = parseBlock();
+        while (at(TokenType::KwExcept)) {
+            advance();
+            ast::ExceptClause clause;
+            if (!at(TokenType::Colon) && !at(TokenType::KwAs)) clause.type = parseExpr();
+            if (at(TokenType::KwAs)) {
+                advance();
+                clause.name = expect(TokenType::Identifier, "a name after 'as'").text;
+            }
+            clause.body = parseBlock();
+            node->handlers.push_back(std::move(clause));
+        }
+        if (at(TokenType::KwFinally)) {
+            advance();
+            node->hasFinally = true;
+            node->finallyBody = parseBlock();
+        }
+        if (node->handlers.empty() && !node->hasFinally)
+            throw KiritoError("'try' needs at least one 'except' or a 'finally'", node->span);
+        return node;
+    }
+
+    ast::StmtPtr parseRaise() {
+        auto node = std::make_unique<ast::RaiseStmt>();
+        node->span = advance().span;  // 'raise'
+        node->value = parseExpr();
+        endSimpleStatement();
         return node;
     }
 

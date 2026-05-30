@@ -11,6 +11,7 @@
 #include "collections.hpp"
 #include "control.hpp"
 #include "environment.hpp"
+#include "exceptions.hpp"
 #include "function.hpp"
 #include "object.hpp"
 #include "vm.hpp"
@@ -128,6 +129,52 @@ public:
         result_ = returnValue_;
     }
 
+    void visit(const ast::RaiseStmt& s) override {
+        throw KiritoThrow{eval(*s.value)};
+    }
+
+    void visit(const ast::TryStmt& s) override {
+        RootScope rs(vm_);
+        bool pending = false;
+        Handle excValue = vm_.none();
+        try {
+            execBlock(s.body);
+        } catch (const KiritoThrow& t) {
+            pending = true;
+            excValue = rs.add(t.value);
+        } catch (const KiritoError& err) {
+            // Internal/runtime errors are surfaced to Kirito code as a (String) exception value.
+            flow_ = Flow::Normal;
+            pending = true;
+            excValue = rs.add(vm_.makeString(err.what()));
+        }
+        Flow flowAfter = flow_;  // control flow from the body (when no exception escaped)
+        if (pending) {
+            flow_ = Flow::Normal;
+            for (const auto& h : s.handlers) {
+                if (exceptionMatches(h, excValue)) {
+                    if (!h.name.empty()) scope().define(h.name, excValue);
+                    execBlock(h.body);
+                    pending = false;
+                    flowAfter = flow_;
+                    break;
+                }
+            }
+        }
+        if (s.hasFinally) {
+            RootScope frs(vm_);
+            Handle savedReturn = frs.add(returnValue_);
+            flow_ = Flow::Normal;
+            execBlock(s.finallyBody);
+            if (flow_ != Flow::Normal)  // a return/break/continue in finally overrides everything
+                return;
+            flow_ = flowAfter;
+            returnValue_ = savedReturn;
+        }
+        if (pending) throw KiritoThrow{excValue};
+        // result_ carries the value of the last expression in the executed body/handler.
+    }
+
     // --- expressions ---
     void visit(const ast::LiteralExpr& e) override {
         if (std::holds_alternative<int64_t>(e.value))
@@ -240,6 +287,17 @@ public:
 private:
     EnvValue& scope() { return static_cast<EnvValue&>(vm_.arena().deref(env_)); }
     bool truthy(Handle h) { return vm_.arena().deref(h).truthy(); }
+
+    // Whether an except clause catches this exception. A clause with no type is a catch-all;
+    // typed matching against user classes is wired up in the classes layer (isInstanceOf).
+    bool exceptionMatches(const ast::ExceptClause& clause, Handle excValue) {
+        if (!clause.type) return true;
+        Handle typeH = eval(*clause.type);
+        return isInstanceOf(excValue, typeH);
+    }
+
+    // Pre-classes placeholder: typed except behaves as a catch-all. Upgraded in the classes layer.
+    bool isInstanceOf(Handle, Handle) { return true; }
 
     // Run an operation, tagging any location-less runtime error with this node's span.
     template <typename F>
