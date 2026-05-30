@@ -31,6 +31,7 @@
 #include "stdlib_json.hpp"
 #include "stdlib_net.hpp"
 #include "stdlib_serialize.hpp"
+#include "stdlib_sys.hpp"
 #include "vm.hpp"
 
 // Definitions that need a complete KiritoVM (and the front end): they live here, included last,
@@ -1105,6 +1106,7 @@ inline void KiritoVM::installStandardLibrary() {
     install<JsonModule>();
     install<NetModule>();
     install<SerializeModule>();
+    install<SysModule>();
 }
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {
