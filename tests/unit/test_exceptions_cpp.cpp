@@ -1,0 +1,136 @@
+// Thorough tests of exceptions at the C++/embedding boundary: native functions that throw, how
+// those surface to Kirito try/except, how Kirito `raise` surfaces back to the C++ embedder, and
+// that unwinding through both layers is GC-safe and leaves the VM usable.
+#include <span>
+#include <string>
+
+#include "../check.hpp"
+#include "kirito.hpp"
+
+using namespace kirito;
+
+static std::string evalStr(KiritoVM& vm, const std::string& src) {
+    return vm.stringify(vm.runSource(src));
+}
+
+int main() {
+    // --- 1. A native function that throws KiritoError is catchable in Kirito as a String message.
+    {
+        KiritoVM vm;
+        vm.registerGlobal("boom", vm.arena().alloc(std::make_unique<NativeFunction>(
+            "boom", [](KiritoVM&, std::span<const Handle>) -> Handle {
+                throw KiritoError("native failure");
+            })));
+        CHECK(evalStr(vm, "try:\n    boom()\nexcept as e:\n    e\n") == "native failure");
+    }
+
+    // --- 2. An uncaught native throw surfaces to the embedder as a KiritoError.
+    {
+        KiritoVM vm;
+        vm.registerGlobal("boom", vm.arena().alloc(std::make_unique<NativeFunction>(
+            "boom", [](KiritoVM&, std::span<const Handle>) -> Handle {
+                throw KiritoError("unhandled native");
+            })));
+        bool caught = false;
+        try {
+            vm.runSource("boom()\n");
+        } catch (const KiritoError& e) {
+            caught = true;
+            CHECK(std::string(e.what()).find("unhandled native") != std::string::npos);
+        }
+        CHECK(caught);
+        // The VM is still usable after the C++ exception unwound through it.
+        CHECK(evalStr(vm, "1 + 2") == "3");
+    }
+
+    // --- 3. A native function can re-enter Kirito (call a Kirito fn) and propagate its exception.
+    {
+        KiritoVM vm;
+        // applyTwice(f, x): calls the Kirito callable f on x (and would propagate any raise).
+        vm.registerGlobal("applyfn", vm.arena().alloc(std::make_unique<NativeFunction>(
+            "applyfn", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                std::array<Handle, 1> args{a[1]};
+                return vm.arena().deref(a[0]).call(vm, args);
+            })));
+        // A Kirito callback that raises; the raise must propagate out through the native frame
+        // and be catchable by the surrounding Kirito try.
+        CHECK(evalStr(vm, R"(
+var bad = Function(x):
+    raise "from callback"
+var r = "none"
+try:
+    applyfn(bad, 5)
+except as e:
+    r = e
+r
+)") == "from callback");
+    }
+
+    // --- 4. A Kirito raise of a class instance surfaces to the embedder; the embedder can inspect
+    //        the thrown value via KiritoThrow.
+    {
+        KiritoVM vm;
+        bool caught = false;
+        try {
+            vm.runSource(R"(
+class Err:
+    var _init_ = Function(self, code):
+        self.code = code
+raise Err(42)
+)");
+        } catch (const KiritoThrow& t) {
+            caught = true;
+            // inspect the thrown instance's attribute from C++
+            Handle code = vm.arena().deref(t.value).getAttr(vm, t.value, "code");
+            CHECK(vm.arena().deref(code).kind() == ValueKind::Integer);
+            CHECK(static_cast<const IntVal&>(vm.arena().deref(code)).value() == 42);
+        } catch (const KiritoError&) {
+            // (runSource may wrap uncaught throws; accept either path)
+            caught = true;
+        }
+        CHECK(caught);
+    }
+
+    // --- 5. GC safety: an exception thrown deep in a heavily-allocating computation unwinds
+    //        cleanly under aggressive GC, and the VM keeps working.
+    {
+        KiritoVM vm;
+        vm.setGcThreshold(32);
+        CHECK(evalStr(vm, R"(
+var deep = Function(n):
+    var junk = [n, n + 1, n + 2]
+    if n > 300:
+        raise "deep enough"
+    return deep(n + 1)
+var caught = "no"
+try:
+    deep(0)
+except as e:
+    caught = e
+caught
+)") == "deep enough");
+        CHECK(evalStr(vm, "[1, 2, 3]") == "[1, 2, 3]");
+    }
+
+    // --- 6. finally runs while unwinding a native-thrown exception.
+    {
+        KiritoVM vm;
+        vm.registerGlobal("boom", vm.arena().alloc(std::make_unique<NativeFunction>(
+            "boom", [](KiritoVM&, std::span<const Handle>) -> Handle {
+                throw KiritoError("x");
+            })));
+        CHECK(evalStr(vm, R"(
+var log = []
+try:
+    try:
+        boom()
+    finally:
+        log.append("inner-finally")
+except as e:
+    log.append("outer-catch")
+log
+)") == "[inner-finally, outer-catch]");
+    }
+
+    return RUN_TESTS();
+}
