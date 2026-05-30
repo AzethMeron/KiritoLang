@@ -29,6 +29,9 @@ public:
         true_ = arena_.alloc(std::make_unique<BoolVal>(true));
         false_ = arena_.alloc(std::make_unique<BoolVal>(false));
         global_ = arena_.alloc(std::make_unique<EnvValue>());
+        smallInts_.reserve(kSmallIntHi - kSmallIntLo + 1);
+        for (int64_t v = kSmallIntLo; v <= kSmallIntHi; ++v)
+            smallInts_.push_back(arena_.alloc(std::make_unique<IntVal>(v)));
         installBuiltins();
     }
 
@@ -47,7 +50,10 @@ public:
     Handle makeBool(bool v) const { return v ? true_ : false_; }
 
     // Value-construction helpers — also the embedding surface for C++ callers.
-    Handle makeInt(int64_t v) { return alloc(std::make_unique<IntVal>(v)); }
+    Handle makeInt(int64_t v) {
+        if (v >= kSmallIntLo && v <= kSmallIntHi) return smallInts_[v - kSmallIntLo];  // interned
+        return alloc(std::make_unique<IntVal>(v));
+    }
     Handle makeFloat(double v) { return alloc(std::make_unique<FloatVal>(v)); }
     Handle makeString(std::string v) { return alloc(std::make_unique<StrVal>(std::move(v))); }
 
@@ -69,6 +75,7 @@ public:
         std::vector<Handle> work;
         auto enqueue = [&](Handle h) { if (arena_.markIfUnmarked(h)) work.push_back(h); };
         enqueue(none_); enqueue(true_); enqueue(false_); enqueue(global_);
+        for (Handle h : smallInts_) enqueue(h);
         if (replScopeReady_) enqueue(replScope_);
         for (const auto& [name, h] : moduleCache_) enqueue(h);
         for (Handle h : tempRoots_) enqueue(h);
@@ -137,6 +144,9 @@ private:
     Handle replScope_{};
     bool replScopeReady_ = false;
     std::vector<Handle> tempRoots_;
+    std::vector<Handle> smallInts_;
+    static constexpr int64_t kSmallIntLo = -256;
+    static constexpr int64_t kSmallIntHi = 256;
     std::size_t allocsSinceGc_ = 0;
     std::size_t gcThreshold_ = 100000;
     bool gcEnabled_ = true;

@@ -22,3 +22,23 @@ kirito_test(test_classes unit/test_classes.cpp)
 kirito_test(test_with unit/test_with.cpp)
 kirito_test(test_string_ops unit/test_string_ops.cpp)
 kirito_test(test_stdlib unit/test_stdlib.cpp)
+
+kirito_test(embed_demo integration/embed_demo.cpp)
+kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)
+kirito_test(bench bench/bench.cpp)
+
+# --- end-to-end .ki script tests (run through the `ki` interpreter, diff vs .expected) ---
+file(GLOB ki_scripts ${CMAKE_CURRENT_SOURCE_DIR}/scripts/*.ki)
+foreach(script ${ki_scripts})
+    get_filename_component(nm ${script} NAME_WE)
+    set(expected ${CMAKE_CURRENT_SOURCE_DIR}/scripts/${nm}.expected)
+    set(input ${CMAKE_CURRENT_SOURCE_DIR}/scripts/${nm}.in)
+    set(extra "")
+    if(EXISTS ${input})
+        set(extra -DINPUT=${input})
+    endif()
+    add_test(NAME script_${nm}
+             COMMAND ${CMAKE_COMMAND} -DKI=$<TARGET_FILE:ki> -DSCRIPT=${script}
+                     -DEXPECTED=${expected} ${extra}
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_script.cmake)
+endforeach()

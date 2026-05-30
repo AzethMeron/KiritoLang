@@ -73,24 +73,34 @@ public:
     void visit(const ast::AssignStmt& s) override {
         RootScope rs(vm_);
         Handle value = rs.add(eval(*s.value));
-        if (const auto* name = dynamic_cast<const ast::NameExpr*>(s.target.get())) {
-            if (!envAssign(vm_.arena(), env_, name->name, value))
-                throw KiritoError("name '" + name->name + "' is not defined", s.span);
-        } else if (const auto* idx = dynamic_cast<const ast::IndexExpr*>(s.target.get())) {
-            Handle obj = rs.add(eval(*idx->object));
-            Handle key = rs.add(eval(*idx->index));
-            located(s.span, [&] {
-                vm_.arena().deref(obj).setItem(vm_, key, value);
-                return vm_.none();
-            });
-        } else if (const auto* mem = dynamic_cast<const ast::MemberExpr*>(s.target.get())) {
-            Handle obj = rs.add(eval(*mem->object));
-            located(s.span, [&] {
-                vm_.arena().deref(obj).setAttr(vm_, mem->name, value);
-                return vm_.none();
-            });
-        } else {
-            throw KiritoError("invalid assignment target", s.span);
+        switch (s.target->exprKind()) {
+            case ast::ExprKind::Name: {
+                const auto& name = static_cast<const ast::NameExpr&>(*s.target);
+                if (!envAssign(vm_.arena(), env_, name.name, value))
+                    throw KiritoError("name '" + name.name + "' is not defined", s.span);
+                break;
+            }
+            case ast::ExprKind::Index: {
+                const auto& idx = static_cast<const ast::IndexExpr&>(*s.target);
+                Handle obj = rs.add(eval(*idx.object));
+                Handle key = rs.add(eval(*idx.index));
+                located(s.span, [&] {
+                    vm_.arena().deref(obj).setItem(vm_, key, value);
+                    return vm_.none();
+                });
+                break;
+            }
+            case ast::ExprKind::Member: {
+                const auto& mem = static_cast<const ast::MemberExpr&>(*s.target);
+                Handle obj = rs.add(eval(*mem.object));
+                located(s.span, [&] {
+                    vm_.arena().deref(obj).setAttr(vm_, mem.name, value);
+                    return vm_.none();
+                });
+                break;
+            }
+            default:
+                throw KiritoError("invalid assignment target", s.span);
         }
         result_ = vm_.none();
     }

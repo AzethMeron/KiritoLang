@@ -48,10 +48,14 @@ struct ExprVisitor {
     virtual void visit(const DictLiteral&) = 0;
 };
 
+// A cheap tag for assignment-target dispatch, avoiding dynamic_cast on the hot path.
+enum class ExprKind { Other, Name, Index, Member };
+
 struct Expr {
     SourceSpan span;
     virtual ~Expr() = default;
     virtual void accept(ExprVisitor&) const = 0;
+    virtual ExprKind exprKind() const { return ExprKind::Other; }
 };
 using ExprPtr = std::unique_ptr<Expr>;
 
@@ -63,6 +67,7 @@ struct LiteralExpr : Expr {
 
 struct NameExpr : Expr {
     std::string name;
+    ExprKind exprKind() const override { return ExprKind::Name; }
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 
@@ -96,12 +101,14 @@ struct CallExpr : Expr {
 struct MemberExpr : Expr {
     ExprPtr object;
     std::string name;
+    ExprKind exprKind() const override { return ExprKind::Member; }
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 
 struct IndexExpr : Expr {
     ExprPtr object;
     ExprPtr index;
+    ExprKind exprKind() const override { return ExprKind::Index; }
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 
