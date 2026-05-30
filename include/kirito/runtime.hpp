@@ -59,12 +59,27 @@ inline bool floatEqual(double l, double r) {
     if (diff <= absEps) return true;
     return diff <= relEps * std::max(std::fabs(l), std::fabs(r));
 }
+// Two's-complement wraparound for the int64 operators. Signed overflow is UB in C++, so we do the
+// arithmetic in uint64_t (where wraparound is defined) and reinterpret — giving consistent,
+// well-defined behavior on overflow instead of undefined behavior. (Kirito ints are fixed int64;
+// arbitrary-precision integers are a future enrichment.)
+inline int64_t wadd(int64_t a, int64_t b) {
+    return static_cast<int64_t>(static_cast<uint64_t>(a) + static_cast<uint64_t>(b));
+}
+inline int64_t wsub(int64_t a, int64_t b) {
+    return static_cast<int64_t>(static_cast<uint64_t>(a) - static_cast<uint64_t>(b));
+}
+inline int64_t wmul(int64_t a, int64_t b) {
+    return static_cast<int64_t>(static_cast<uint64_t>(a) * static_cast<uint64_t>(b));
+}
 inline int64_t ifloordiv(int64_t a, int64_t b) {
+    if (b == -1) return wsub(0, a);  // INT64_MIN / -1 would overflow; wrap instead of UB
     int64_t q = a / b, r = a % b;
     if (r != 0 && ((r < 0) != (b < 0))) --q;
     return q;
 }
 inline int64_t imod(int64_t a, int64_t b) {
+    if (b == -1) return 0;           // a % -1 is always 0 (avoids the INT64_MIN/-1 UB)
     int64_t r = a % b;
     if (r != 0 && ((r < 0) != (b < 0))) r += b;
     return r;
@@ -72,9 +87,9 @@ inline int64_t imod(int64_t a, int64_t b) {
 inline int64_t ipow(int64_t base, int64_t exp) {
     int64_t result = 1;
     while (exp > 0) {
-        if (exp & 1) result *= base;
+        if (exp & 1) result = wmul(result, base);
         exp >>= 1;
-        if (exp) base *= base;
+        if (exp) base = wmul(base, base);
     }
     return result;
 }
@@ -84,9 +99,11 @@ inline int64_t ipow(int64_t base, int64_t exp) {
 inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
     const Object& a = vm.arena().deref(aH);
     const Object& b = vm.arena().deref(bH);
-    if (!isNumeric(b))
-        throw KiritoError("unsupported operand type '" + b.typeName() +
-                          "' for arithmetic with '" + a.typeName() + "'");
+    if (!isNumeric(b)) {
+        bool cmp = op == BinOp::Lt || op == BinOp::Le || op == BinOp::Gt || op == BinOp::Ge;
+        throw KiritoError("unsupported operand type '" + b.typeName() + "' for " +
+                          (cmp ? "comparison" : "arithmetic") + " with '" + a.typeName() + "'");
+    }
 
     if (op == BinOp::Div) {
         double db = asDouble(b);
@@ -106,9 +123,9 @@ inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
         int64_t x = static_cast<const IntVal&>(a).value();
         int64_t y = static_cast<const IntVal&>(b).value();
         switch (op) {
-            case BinOp::Add: return vm.makeInt(x + y);
-            case BinOp::Sub: return vm.makeInt(x - y);
-            case BinOp::Mul: return vm.makeInt(x * y);
+            case BinOp::Add: return vm.makeInt(wadd(x, y));
+            case BinOp::Sub: return vm.makeInt(wsub(x, y));
+            case BinOp::Mul: return vm.makeInt(wmul(x, y));
             case BinOp::FloorDiv:
                 if (y == 0) throw KiritoError("integer division by zero");
                 return vm.makeInt(ifloordiv(x, y));
@@ -151,7 +168,7 @@ inline Handle IntVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
     return numericBinary(vm, op, self, rhs);
 }
 inline Handle IntVal::unary(KiritoVM& vm, UnOp op, Handle) {
-    if (op == UnOp::Neg) return vm.makeInt(-value_);
+    if (op == UnOp::Neg) return vm.makeInt(wsub(0, value_));  // wrap (-INT64_MIN would be UB)
     throw KiritoError("Integer does not support this unary operator");
 }
 

@@ -38,10 +38,19 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   is bound to it. Assignment binds names to values; it does not deep-copy. `var` declares in the
   current scope; bare `=` rebinds the nearest existing binding (a `NameError` if undefined).
 - **First-class functions**: `var main = Function():` followed by an indented block, called as `main()`.
+  Parameters take **keyword arguments** (`f(b = 2, a = 1)`, any order) and **default values**
+  (`Function(base, exp = 2):`). Parameters and the return value take optional **enforcing type
+  annotations** (`Function(d : Dict) -> Float:`): unlike Python hints these are *checked at runtime* —
+  the argument must be an instance of the named type (inheritance-aware: a subclass satisfies a base
+  annotation) and the function must return that type, else a clear error. `Any` / no annotation
+  accepts anything.
 - **Control flow**: explicit `return` (functions default to `None`), `if`/`elif`/`else`, `while`,
-  `for VAR in ITERABLE`, `break`, `continue`; logical keywords `and`/`or`/`not`.
+  `for VAR in ITERABLE`, `break`, `continue`; logical keywords `and`/`or`/`not`. `return` outside a
+  function and `break`/`continue` outside a loop are rejected at parse time.
 - **Numerics**: separate `Integer` (int64) and `Float` (double); **Python-3 division** — `/` always
-  yields `Float`, `//` is floor division, `%` modulo, `**` right-assoc exponentiation.
+  yields `Float`, `//` is floor division, `%` modulo, `**` right-assoc exponentiation. Integer
+  arithmetic is fixed-width int64 with **well-defined two's-complement wraparound** on overflow (no
+  UB); arbitrary-precision integers are a future enrichment.
 - **Modules** via `import("io")`; first stdlib module is `io` (`io.input`, `io.print`).
 - Built-in types, dynamically typed: `None`, `Bool`, `Integer`, `Float`, `String`,
   and collections `Array`, `List`, `Set`, `Dict`. Values are hashable where it makes
@@ -78,7 +87,8 @@ a stability fuzzer, and a benchmark). Working today:
   (upper/lower/strip/split/join/replace/startswith/endswith/find/count) and `.format()`.
 - **User-defined `class`es** with methods, attributes, inheritance, Python-style operator methods
   (`_add_`/`_str_`/`_getitem_`/...), and private `_members`.
-- **Exceptions**: `try`/`except [Type as e]`/`finally`/`raise` (typed matching via the class chain).
+- **Exceptions**: `try`/`catch [Type as e]`/`finally`/`throw` (typed matching via the class chain).
+  Python-style indented blocks, but **C++-style keyword names** (`catch`/`throw`, not `except`/`raise`).
 - **Context managers**: `with ... as ...` (enter/exit protocol).
 - **Garbage collection**: precise mark-sweep with rooted intermediates (AddressSanitizer-clean).
 - **f-strings** `f"{expr}"`; inline anonymous functions `Function(x): return x*x`.
@@ -117,10 +127,16 @@ a stability fuzzer, and a benchmark). Working today:
   word-frequency analyzer, RPN calculator) demonstrate non-trivial programs in pure Kirito.
 
 Tested under strict flags (`-O2 -Werror -Wall -Wextra -Wformat=2 -Wpointer-arith -Wpedantic
--fstack-protector`, preset `strict`) and AddressSanitizer/UBSan; an 11k-input fuzzer guards
-stability.
+-fstack-protector`, preset `strict`) and AddressSanitizer/UBSan (preset `asan`); an 11k-input fuzzer
+guards stability. Tests include an **error-message suite** (`tests/errors/*.ki` + `.experr`: programs
+that must fail, with the required diagnostic text) and an **adversarial suite**
+(`tests/unit/test_adversarial.cpp`: overflow, recursion, cyclic structures, Unicode, slicing edge
+cases). The **post-work routine** (`scripts/post_work_check.sh`, documented in
+`.claude/POST_WORK_CHECKLIST.md`) clean-builds every variant (debug/strict/asan, plus a Windows
+cross build where a toolchain exists) and runs the whole auto-discovered CTest suite — run it before
+calling a change done.
 
-Not yet done (future enrichment): comprehensions, default/variadic params, tuple unpacking,
+Not yet done (future enrichment): comprehensions, variadic params, tuple unpacking,
 `super()`, generators, complex numbers, and a bytecode VM behind the AST boundary.
 
 ## The Archive is reference only

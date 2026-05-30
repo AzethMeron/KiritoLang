@@ -83,12 +83,14 @@ private:
             case TokenType::KwBreak: {
                 auto node = std::make_unique<ast::BreakStmt>();
                 node->span = advance().span;
+                if (loopDepth_ == 0) throw KiritoError("'break' outside loop", node->span);
                 expectStatementEnd();
                 return node;
             }
             case TokenType::KwContinue: {
                 auto node = std::make_unique<ast::ContinueStmt>();
                 node->span = advance().span;
+                if (loopDepth_ == 0) throw KiritoError("'continue' outside loop", node->span);
                 expectStatementEnd();
                 return node;
             }
@@ -175,6 +177,7 @@ private:
     ast::StmtPtr parseReturn() {
         auto node = std::make_unique<ast::ReturnStmt>();
         node->span = advance().span;  // 'return'
+        if (funcDepth_ == 0) throw KiritoError("'return' outside function", node->span);
         if (!at(TokenType::Newline) && !at(TokenType::EndOfFile))
             node->value = parseExpr();
         endSimpleStatement();
@@ -238,7 +241,9 @@ private:
         auto node = std::make_unique<ast::WhileStmt>();
         node->span = advance().span;  // 'while'
         node->cond = parseExpr();
+        ++loopDepth_;
         node->body = parseBlock();
+        --loopDepth_;
         return node;
     }
 
@@ -248,7 +253,9 @@ private:
         node->var = expect(TokenType::Identifier, "a loop variable").text;
         expect(TokenType::KwIn, "'in'");
         node->iterable = parseExpr();
+        ++loopDepth_;
         node->body = parseBlock();
+        --loopDepth_;
         return node;
     }
 
@@ -474,6 +481,11 @@ private:
             node->returnAnnotation = expect(TokenType::Identifier, "a return type after '->'").text;
         }
         expect(TokenType::Colon, "':' after Function parameters");
+        // A function body is its own break/continue/return context: a loop outside the function
+        // does not extend into it, and return becomes valid.
+        int savedLoop = loopDepth_;
+        loopDepth_ = 0;
+        ++funcDepth_;
         if (at(TokenType::Newline)) {
             node->body = parseIndentedSuite();  // block body
         } else {
@@ -481,6 +493,8 @@ private:
             // It is a normal statement (uses explicit return) with no trailing-newline requirement.
             node->body.push_back(parseInlineStatement());
         }
+        --funcDepth_;
+        loopDepth_ = savedLoop;
         return node;
     }
 
@@ -711,6 +725,8 @@ private:
     std::vector<Token> toks_;
     size_t pos_ = 0;
     bool blockJustClosed_ = false;
+    int loopDepth_ = 0;   // > 0 inside a while/for body (for break/continue validity)
+    int funcDepth_ = 0;   // > 0 inside a function body (for return validity)
 };
 
 }  // namespace kirito

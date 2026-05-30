@@ -45,6 +45,7 @@ kirito_test(test_sort unit/test_sort.cpp)
 kirito_test(test_hostile_libs unit/test_hostile_libs.cpp)
 kirito_test(test_io unit/test_io.cpp)
 kirito_test(test_namedargs unit/test_namedargs.cpp)
+kirito_test(test_adversarial unit/test_adversarial.cpp)
 kirito_test(test_bytesio unit/test_bytesio.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)

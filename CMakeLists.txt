@@ -15,8 +15,14 @@ option(KIRITO_ENABLE_TLS "Enable HTTPS in the net module via OpenSSL" OFF)
 # static. Note: a fully static glibc link emits a harmless link-time warning about getaddrinfo
 # (glibc's NSS name resolution prefers shared modules) — plain DNS/hosts resolution still works.
 # When TLS is enabled, OpenSSL is usually shared-only, so we fall back to a static C++ runtime.
+# A fully static link is incompatible with the sanitizer runtimes (asan/ubsan), so when those flags
+# are present we drop static linking entirely (a dynamic build is fine for the test/diagnostic
+# variant the sanitizers run under).
+string(FIND "${CMAKE_CXX_FLAGS}" "sanitize" _kirito_san)
 if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+elseif(NOT _kirito_san EQUAL -1)
+    # sanitizer build: link dynamically
 elseif(KIRITO_ENABLE_TLS)
     add_link_options(-static-libgcc -static-libstdc++)
 else()
