@@ -13,6 +13,16 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "strict",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-strict",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "-O2 -pipe -Wall -Wextra -Wformat=2 -Wpointer-arith -Wpedantic -fstack-protector -Werror",
+        "CMAKE_EXE_LINKER_FLAGS": "-s"
+      }
     }
   ]
 }
