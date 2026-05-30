@@ -1048,6 +1048,103 @@ inline Handle KiritoVM::importModule(const std::string& name) {
     throw KiritoError("no module named '" + name + "'");
 }
 
+// --- introspection (`inspect` builtin) -------------------------------------------------------
+
+// Render a function's signature from its AST: name(p1: T1, p2 = default, ...) -> Ret. Annotations
+// and defaults are shown when present; `Any`/none are simply omitted.
+inline std::string inspectSignature(const std::string& name, const ast::FunctionExpr& def) {
+    std::string out = name + "(";
+    for (std::size_t i = 0; i < def.params.size(); ++i) {
+        if (i) out += ", ";
+        out += def.params[i].name;
+        if (!def.params[i].annotation.empty()) out += ": " + def.params[i].annotation;
+        if (def.params[i].defaultValue) out += " = ...";
+    }
+    out += ")";
+    if (!def.returnAnnotation.empty()) out += " -> " + def.returnAnnotation;
+    return out;
+}
+
+// Human-readable introspection of any value: lists public methods/attributes (with signatures and
+// type annotations where declared) for classes, instances, modules, and functions. Returns a String.
+inline std::string inspectValue(KiritoVM& vm, Handle h) {
+    const Object& o = vm.arena().deref(h);
+    auto sortedKeys = [](const std::unordered_map<std::string, Handle>& m) {
+        std::vector<std::string> keys;
+        for (const auto& [k, v] : m) keys.push_back(k);
+        std::sort(keys.begin(), keys.end());
+        return keys;
+    };
+    // Describe one member: a function shows its signature; anything else shows its type.
+    auto describe = [&](const std::string& key, Handle mh, const char* indent) -> std::string {
+        const Object& m = vm.arena().deref(mh);
+        if (m.kind() == ValueKind::Function)
+            return std::string(indent) + inspectSignature(key, static_cast<const KiFunction&>(m).def()) + "\n";
+        if (m.kind() == ValueKind::NativeFunction)
+            return std::string(indent) + key + "(...)  [native]\n";
+        return std::string(indent) + key + ": " + m.typeName() + "\n";
+    };
+
+    switch (o.kind()) {
+        case ValueKind::Class: {
+            const auto& c = static_cast<const ClassValue&>(o);
+            std::string out = "class " + c.name;
+            if (c.hasBase) out += "(" + vm.arena().deref(c.base).typeName() + ")";
+            out += ":\n";
+            // Walk the class + base chain, collecting the most-derived definition of each method.
+            std::vector<std::pair<std::string, Handle>> chain;
+            const ClassValue* cur = &c;
+            std::unordered_map<std::string, Handle> seen;
+            while (true) {
+                for (const auto& [k, v] : cur->methods)
+                    if (!isPrivateName(k) && seen.find(k) == seen.end()) seen[k] = v;
+                if (!cur->hasBase) break;
+                cur = &static_cast<const ClassValue&>(vm.arena().deref(cur->base));
+            }
+            if (seen.empty()) return out + "  (no public methods)";
+            std::string methods;
+            for (const std::string& k : sortedKeys(seen)) methods += describe(k, seen[k], "  ");
+            return out + methods.substr(0, methods.size() - 1);  // drop trailing newline
+        }
+        case ValueKind::Instance: {
+            const auto& inst = static_cast<const InstanceValue&>(o);
+            std::string out = inst.className + " instance:\n";
+            std::string attrs;
+            for (const std::string& k : sortedKeys(inst.attrs))
+                if (!isPrivateName(k)) attrs += describe(k, inst.attrs.at(k), "  attr ");
+            // methods come from the class
+            const auto& c = static_cast<const ClassValue&>(vm.arena().deref(inst.cls));
+            std::unordered_map<std::string, Handle> seen;
+            const ClassValue* cur = &c;
+            while (true) {
+                for (const auto& [k, v] : cur->methods)
+                    if (!isPrivateName(k) && seen.find(k) == seen.end()) seen[k] = v;
+                if (!cur->hasBase) break;
+                cur = &static_cast<const ClassValue&>(vm.arena().deref(cur->base));
+            }
+            std::string methods;
+            for (const std::string& k : sortedKeys(seen)) methods += describe(k, seen[k], "  ");
+            std::string body = attrs + methods;
+            if (body.empty()) return out + "  (no public members)";
+            return out + body.substr(0, body.size() - 1);
+        }
+        case ValueKind::Module: {
+            const auto& mod = static_cast<const ModuleValue&>(o);
+            std::string out = "module " + mod.name() + ":\n";
+            std::string body;
+            for (const std::string& k : sortedKeys(mod.members)) body += describe(k, mod.members.at(k), "  ");
+            if (body.empty()) return out + "  (empty)";
+            return out + body.substr(0, body.size() - 1);
+        }
+        case ValueKind::Function:
+            return inspectSignature("function", static_cast<const KiFunction&>(o).def());
+        case ValueKind::NativeFunction:
+            return "native function";
+        default:
+            return o.typeName() + " value";
+    }
+}
+
 // --- built-in globals ------------------------------------------------------------------------
 
 inline void KiritoVM::installBuiltins() {
@@ -1256,6 +1353,10 @@ inline void KiritoVM::installBuiltins() {
     });
     def("type", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         return vm.makeString(vm.arena().deref(a[0]).typeName());
+    });
+    def("inspect", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        if (a.size() != 1) throw KiritoError("inspect expected 1 argument");
+        return vm.makeString(inspectValue(vm, a[0]));
     });
 
     def("all", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {

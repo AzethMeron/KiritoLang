@@ -31,6 +31,7 @@ public:
             throw KiritoError("module '" + name_ + "' has no member '" + std::string(name) + "'");
         return it->second;
     }
+    const std::string& name() const { return name_; }
 
 private:
     std::string name_;
