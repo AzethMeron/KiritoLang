@@ -22,6 +22,8 @@ struct NameExpr;
 struct UnaryExpr;
 struct BinaryExpr;
 struct LogicalExpr;
+struct CallExpr;
+struct FunctionExpr;
 
 struct ExprVisitor {
     virtual ~ExprVisitor() = default;
@@ -30,6 +32,8 @@ struct ExprVisitor {
     virtual void visit(const UnaryExpr&) = 0;
     virtual void visit(const BinaryExpr&) = 0;
     virtual void visit(const LogicalExpr&) = 0;
+    virtual void visit(const CallExpr&) = 0;
+    virtual void visit(const FunctionExpr&) = 0;
 };
 
 struct Expr {
@@ -71,6 +75,12 @@ struct LogicalExpr : Expr {
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 
+struct CallExpr : Expr {
+    ExprPtr callee;
+    std::vector<ExprPtr> args;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
 struct ExprStmt;
 struct VarDeclStmt;
 struct AssignStmt;
@@ -78,6 +88,7 @@ struct IfStmt;
 struct WhileStmt;
 struct BreakStmt;
 struct ContinueStmt;
+struct ReturnStmt;
 
 struct StmtVisitor {
     virtual ~StmtVisitor() = default;
@@ -88,6 +99,7 @@ struct StmtVisitor {
     virtual void visit(const WhileStmt&) = 0;
     virtual void visit(const BreakStmt&) = 0;
     virtual void visit(const ContinueStmt&) = 0;
+    virtual void visit(const ReturnStmt&) = 0;
 };
 
 struct Stmt {
@@ -117,6 +129,21 @@ struct AssignStmt : Stmt {
 };
 
 using Block = std::vector<StmtPtr>;
+
+// First-class function literal: `Function(params): <indented block>`. The body is an owned block;
+// the evaluator captures the defining scope to make a closure. (Defined here, after Block, so its
+// StmtPtr members are complete.)
+struct FunctionExpr : Expr {
+    std::vector<std::string> params;
+    Block body;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
+// `return [value]` — value is null for a bare `return`.
+struct ReturnStmt : Stmt {
+    ExprPtr value;  // may be null
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
 
 // `if cond: ... [elif cond: ...] [else: ...]` — one entry per if/elif branch, plus optional else.
 struct IfStmt : Stmt {

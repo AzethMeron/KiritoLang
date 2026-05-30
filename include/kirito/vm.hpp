@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "arena.hpp"
 #include "builtins.hpp"
@@ -12,6 +13,8 @@
 #include "object.hpp"
 
 namespace kirito {
+
+namespace ast { struct Program; }
 
 // One KiritoVM == one fully-encapsulated Kirito process. It owns the whole process state by
 // composing its sub-objects: the value arena, the global (built-ins) environment, and interned
@@ -51,12 +54,19 @@ public:
     // handle of the last expression's value (or None). Defined in runtime.hpp.
     Handle runSource(std::string_view source, std::string_view chunkName = "<main>");
 
+    // Keep a parsed chunk alive for the VM's lifetime so function bodies (referenced by closures
+    // that may outlive the call) never dangle. Defined in runtime.hpp (needs a complete Program).
+    void retainChunk(std::unique_ptr<ast::Program> chunk);
+
+    ~KiritoVM();  // out-of-line so unique_ptr<ast::Program> sees a complete type
+
 private:
     ObjectArena arena_;
     Handle none_;
     Handle true_;
     Handle false_;
     Handle global_;
+    std::vector<std::unique_ptr<ast::Program>> chunks_;
 };
 
 }  // namespace kirito

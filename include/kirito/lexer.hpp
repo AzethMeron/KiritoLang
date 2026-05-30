@@ -14,10 +14,10 @@ enum class TokenType {
     Integer, Float, String, Identifier,
     KwVar, KwTrue, KwFalse, KwNone,
     KwIf, KwElif, KwElse, KwWhile, KwBreak, KwContinue,
-    KwAnd, KwOr, KwNot,
+    KwAnd, KwOr, KwNot, KwFunction, KwReturn,
     Plus, Minus, Star, Slash, SlashSlash, Percent, StarStar,
     Assign, EqEq, NotEq, Lt, Le, Gt, Ge,
-    LParen, RParen, Colon,
+    LParen, RParen, Colon, Comma,
     Newline, Indent, Dedent, EndOfFile,
 };
 
@@ -162,6 +162,8 @@ private:
         else if (text == "and") type = TokenType::KwAnd;
         else if (text == "or") type = TokenType::KwOr;
         else if (text == "not") type = TokenType::KwNot;
+        else if (text == "Function") type = TokenType::KwFunction;
+        else if (text == "return") type = TokenType::KwReturn;
         return make(type, line, col, std::move(text));
     }
 
@@ -213,6 +215,7 @@ private:
                 return make(TokenType::Slash, line, col);
             case '%': advance(); return make(TokenType::Percent, line, col);
             case ':': advance(); return make(TokenType::Colon, line, col);
+            case ',': advance(); return make(TokenType::Comma, line, col);
             case '(': advance(); ++parenDepth_; return make(TokenType::LParen, line, col);
             case ')':
                 advance();

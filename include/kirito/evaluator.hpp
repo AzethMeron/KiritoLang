@@ -4,9 +4,13 @@
 #include <string>
 #include <variant>
 
+#include <memory>
+#include <vector>
+
 #include "ast.hpp"
 #include "control.hpp"
 #include "environment.hpp"
+#include "function.hpp"
 #include "object.hpp"
 #include "vm.hpp"
 
@@ -32,6 +36,16 @@ public:
             stmt->accept(*this);
             if (flow_ != Flow::Normal) return;
         }
+    }
+
+    // Run a function body in this evaluator's scope; returns the explicit return value or None.
+    Handle callBody(const ast::Block& body) {
+        flow_ = Flow::Normal;
+        result_ = vm_.none();
+        execBlock(body);
+        Handle ret = (flow_ == Flow::Return) ? returnValue_ : vm_.none();
+        flow_ = Flow::Normal;
+        return ret;
     }
 
     Handle eval(const ast::Expr& e) {
@@ -78,6 +92,12 @@ public:
     void visit(const ast::BreakStmt&) override { flow_ = Flow::Break; result_ = vm_.none(); }
     void visit(const ast::ContinueStmt&) override { flow_ = Flow::Continue; result_ = vm_.none(); }
 
+    void visit(const ast::ReturnStmt& s) override {
+        returnValue_ = s.value ? eval(*s.value) : vm_.none();
+        flow_ = Flow::Return;
+        result_ = returnValue_;
+    }
+
     // --- expressions ---
     void visit(const ast::LiteralExpr& e) override {
         if (std::holds_alternative<int64_t>(e.value))
@@ -115,6 +135,19 @@ public:
         else result_ = lt ? lhs : eval(*e.rhs);
     }
 
+    void visit(const ast::FunctionExpr& e) override {
+        // Capture the current scope -> closure.
+        result_ = vm_.arena().alloc(std::make_unique<KiFunction>(&e, env_));
+    }
+
+    void visit(const ast::CallExpr& e) override {
+        Handle callee = eval(*e.callee);
+        std::vector<Handle> args;
+        args.reserve(e.args.size());
+        for (const auto& arg : e.args) args.push_back(eval(*arg));
+        result_ = located(e.span, [&] { return vm_.arena().deref(callee).call(vm_, args); });
+    }
+
     void visit(const ast::BinaryExpr& e) override {
         Handle lhs = eval(*e.lhs);
         Handle rhs = eval(*e.rhs);
@@ -146,6 +179,7 @@ private:
     KiritoVM& vm_;
     Handle env_;
     Handle result_{};
+    Handle returnValue_{};
     Flow flow_ = Flow::Normal;
 };
 

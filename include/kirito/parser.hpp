@@ -43,11 +43,21 @@ private:
         throw KiritoError("expected end of statement", peek().span);
     }
 
+    // A simple statement (var/assign/expr/return) is normally newline-terminated, but when its
+    // expression ended in an indented block (a Function literal), the closing dedent already
+    // terminated it — so no trailing newline is required.
+    void endSimpleStatement() {
+        if (blockJustClosed_) { blockJustClosed_ = false; return; }
+        expectStatementEnd();
+    }
+
     ast::StmtPtr parseStatement() {
+        blockJustClosed_ = false;
         switch (peek().type) {
             case TokenType::KwVar: return parseVarDecl();
             case TokenType::KwIf: return parseIf();
             case TokenType::KwWhile: return parseWhile();
+            case TokenType::KwReturn: return parseReturn();
             case TokenType::KwBreak: {
                 auto node = std::make_unique<ast::BreakStmt>();
                 node->span = advance().span;
@@ -68,17 +78,26 @@ private:
         if (at(TokenType::Assign)) {
             advance();
             auto value = parseExpr();
-            expectStatementEnd();
+            endSimpleStatement();
             auto node = std::make_unique<ast::AssignStmt>();
             node->span = span;
             node->target = std::move(expr);
             node->value = std::move(value);
             return node;
         }
-        expectStatementEnd();
+        endSimpleStatement();
         auto node = std::make_unique<ast::ExprStmt>();
         node->span = span;
         node->expr = std::move(expr);
+        return node;
+    }
+
+    ast::StmtPtr parseReturn() {
+        auto node = std::make_unique<ast::ReturnStmt>();
+        node->span = advance().span;  // 'return'
+        if (!at(TokenType::Newline) && !at(TokenType::EndOfFile))
+            node->value = parseExpr();
+        endSimpleStatement();
         return node;
     }
 
@@ -87,7 +106,7 @@ private:
         const Token& name = expect(TokenType::Identifier, "a name after 'var'");
         expect(TokenType::Assign, "'=' in var declaration");
         auto init = parseExpr();
-        expectStatementEnd();
+        endSimpleStatement();
         auto node = std::make_unique<ast::VarDeclStmt>();
         node->span = span;
         node->name = name.text;
@@ -105,6 +124,7 @@ private:
             body.push_back(parseStatement());
         }
         expect(TokenType::Dedent, "a dedent to close the block");
+        blockJustClosed_ = true;  // the dedent self-terminates an enclosing simple statement
         return body;
     }
 
@@ -224,13 +244,47 @@ private:
     }
 
     ast::ExprPtr parsePow() {
-        auto base = parsePrimary();
+        auto base = parsePostfix();
         if (at(TokenType::StarStar)) {
             SourceSpan span = advance().span;
             // Right-associative, and the exponent may itself be unary (2 ** -1).
             return binary(std::move(base), BinOp::Pow, parseUnary(), span);
         }
         return base;
+    }
+
+    // Call postfix binds tighter than **: f()**2 == (f())**2.
+    ast::ExprPtr parsePostfix() {
+        auto expr = parsePrimary();
+        while (at(TokenType::LParen)) {
+            SourceSpan span = advance().span;
+            auto call = std::make_unique<ast::CallExpr>();
+            call->span = span;
+            call->callee = std::move(expr);
+            if (!at(TokenType::RParen)) {
+                call->args.push_back(parseExpr());
+                while (at(TokenType::Comma)) { advance(); call->args.push_back(parseExpr()); }
+            }
+            expect(TokenType::RParen, "')' to close the call");
+            expr = std::move(call);
+        }
+        return expr;
+    }
+
+    ast::ExprPtr parseFunction() {
+        auto node = std::make_unique<ast::FunctionExpr>();
+        node->span = advance().span;  // 'Function'
+        expect(TokenType::LParen, "'(' after Function");
+        if (!at(TokenType::RParen)) {
+            node->params.push_back(expect(TokenType::Identifier, "a parameter name").text);
+            while (at(TokenType::Comma)) {
+                advance();
+                node->params.push_back(expect(TokenType::Identifier, "a parameter name").text);
+            }
+        }
+        expect(TokenType::RParen, "')' after parameters");
+        node->body = parseBlock();
+        return node;
     }
 
     ast::ExprPtr parsePrimary() {
@@ -251,6 +305,7 @@ private:
             case TokenType::KwTrue: advance(); return literal(true, t.span);
             case TokenType::KwFalse: advance(); return literal(false, t.span);
             case TokenType::KwNone: advance(); return literal(std::monostate{}, t.span);
+            case TokenType::KwFunction: return parseFunction();
             case TokenType::Identifier: {
                 advance();
                 auto node = std::make_unique<ast::NameExpr>();
@@ -297,6 +352,7 @@ private:
 
     std::vector<Token> toks_;
     size_t pos_ = 0;
+    bool blockJustClosed_ = false;
 };
 
 }  // namespace kirito

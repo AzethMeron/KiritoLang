@@ -4,9 +4,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <memory>
+#include <string>
 
+#include "ast.hpp"
 #include "builtins.hpp"
 #include "evaluator.hpp"
+#include "function.hpp"
 #include "lexer.hpp"
 #include "object.hpp"
 #include "parser.hpp"
@@ -171,15 +175,37 @@ inline Handle StrVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
     throw KiritoError("type 'String' does not support this operator");
 }
 
-// --- VM entry point --------------------------------------------------------------------------
+// --- KiFunction call -------------------------------------------------------------------------
+
+inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
+    const auto& params = def_->params;
+    if (args.size() != params.size())
+        throw KiritoError("function expected " + std::to_string(params.size()) +
+                          " argument(s), got " + std::to_string(args.size()));
+    Handle scope = vm.newScope(closure_);
+    auto& env = static_cast<EnvValue&>(vm.arena().deref(scope));
+    for (std::size_t i = 0; i < params.size(); ++i) env.define(params[i], args[i]);
+    Evaluator ev(vm, scope);
+    return ev.callBody(def_->body);
+}
+
+// --- VM entry point & lifetime ---------------------------------------------------------------
+
+inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {
+    chunks_.push_back(std::move(chunk));
+}
+
+inline KiritoVM::~KiritoVM() = default;
 
 inline Handle KiritoVM::runSource(std::string_view source, std::string_view) {
     Lexer lexer(source);
     Parser parser(lexer.tokenize());
-    ast::Program prog = parser.parseProgram();
+    auto prog = std::make_unique<ast::Program>(parser.parseProgram());
+    const ast::Program& program = *prog;
+    retainChunk(std::move(prog));  // keep the AST alive for the VM's lifetime (closures)
     Handle moduleScope = newModuleScope();
     Evaluator ev(*this, moduleScope);
-    return ev.run(prog);
+    return ev.run(program);
 }
 
 }  // namespace kirito
