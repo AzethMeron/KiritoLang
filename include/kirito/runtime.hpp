@@ -20,6 +20,7 @@
 #include "object.hpp"
 #include "parser.hpp"
 #include "stdlib_io.hpp"
+#include "stdlib_math.hpp"
 #include "vm.hpp"
 
 // Definitions that need a complete KiritoVM (and the front end): they live here, included last,
@@ -665,6 +666,7 @@ inline void KiritoVM::installBuiltins() {
     });
 
     install<IoModule>();
+    install<MathModule>();
 }
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {

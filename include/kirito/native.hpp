@@ -36,6 +36,7 @@ public:
         mod_.members[name] = h;
         return *this;
     }
+    KiritoVM& vm() { return vm_; }
 
 private:
     KiritoVM& vm_;
