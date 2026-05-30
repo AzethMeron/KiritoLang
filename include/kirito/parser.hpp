@@ -30,6 +30,9 @@ public:
 
 private:
     const Token& peek() const { return toks_[pos_]; }
+    const Token& peekAt(std::size_t k) const {
+        return toks_[std::min(pos_ + k, toks_.size() - 1)];
+    }
     bool at(TokenType t) const { return peek().type == t; }
     const Token& advance() { return toks_[pos_++]; }
 
@@ -266,16 +269,26 @@ private:
         auto left = parseAdd();
         while (true) {
             BinOp op;
-            switch (peek().type) {
-                case TokenType::EqEq: op = BinOp::Eq; break;
-                case TokenType::NotEq: op = BinOp::Ne; break;
-                case TokenType::Lt: op = BinOp::Lt; break;
-                case TokenType::Le: op = BinOp::Le; break;
-                case TokenType::Gt: op = BinOp::Gt; break;
-                case TokenType::Ge: op = BinOp::Ge; break;
-                default: return left;
+            SourceSpan span;
+            if (at(TokenType::KwIn)) {
+                op = BinOp::In;
+                span = advance().span;
+            } else if (at(TokenType::KwNot) && peekAt(1).type == TokenType::KwIn) {
+                op = BinOp::NotIn;
+                span = advance().span;
+                advance();
+            } else {
+                switch (peek().type) {
+                    case TokenType::EqEq: op = BinOp::Eq; break;
+                    case TokenType::NotEq: op = BinOp::Ne; break;
+                    case TokenType::Lt: op = BinOp::Lt; break;
+                    case TokenType::Le: op = BinOp::Le; break;
+                    case TokenType::Gt: op = BinOp::Gt; break;
+                    case TokenType::Ge: op = BinOp::Ge; break;
+                    default: return left;
+                }
+                span = advance().span;
             }
-            SourceSpan span = advance().span;
             left = binary(std::move(left), op, parseAdd(), span);
         }
     }
@@ -343,12 +356,34 @@ private:
                 expr = std::move(call);
             } else if (at(TokenType::LBracket)) {
                 SourceSpan span = advance().span;
-                auto node = std::make_unique<ast::IndexExpr>();
-                node->span = span;
-                node->object = std::move(expr);
-                node->index = parseExpr();
+                ast::ExprPtr start, stop, step;
+                bool isSlice = false;
+                if (!at(TokenType::Colon) && !at(TokenType::RBracket)) start = parseExpr();
+                if (at(TokenType::Colon)) {
+                    isSlice = true;
+                    advance();
+                    if (!at(TokenType::Colon) && !at(TokenType::RBracket)) stop = parseExpr();
+                    if (at(TokenType::Colon)) {
+                        advance();
+                        if (!at(TokenType::RBracket)) step = parseExpr();
+                    }
+                }
                 expect(TokenType::RBracket, "']' to close the index");
-                expr = std::move(node);
+                if (isSlice) {
+                    auto node = std::make_unique<ast::SliceExpr>();
+                    node->span = span;
+                    node->object = std::move(expr);
+                    node->start = std::move(start);
+                    node->stop = std::move(stop);
+                    node->step = std::move(step);
+                    expr = std::move(node);
+                } else {
+                    auto node = std::make_unique<ast::IndexExpr>();
+                    node->span = span;
+                    node->object = std::move(expr);
+                    node->index = std::move(start);
+                    expr = std::move(node);
+                }
             } else if (at(TokenType::Dot)) {
                 SourceSpan span = advance().span;
                 auto node = std::make_unique<ast::MemberExpr>();

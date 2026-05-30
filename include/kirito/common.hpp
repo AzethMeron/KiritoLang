@@ -16,7 +16,7 @@ struct SourceSpan {
 
 // Shared operator vocabulary used by the AST, the value protocol, and the evaluator alike, so
 // none of them needs to know the others' enums.
-enum class BinOp { Add, Sub, Mul, Div, FloorDiv, Mod, Pow, Eq, Ne, Lt, Le, Gt, Ge };
+enum class BinOp { Add, Sub, Mul, Div, FloorDiv, Mod, Pow, Eq, Ne, Lt, Le, Gt, Ge, In, NotIn };
 enum class UnOp { Neg, Not };
 
 // Every Kirito error (lexing, parsing, runtime) carries the span it occurred at so

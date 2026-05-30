@@ -117,6 +117,9 @@ public:
         RootScope rs(vm_);
         Handle iterable = rs.add(eval(*s.iterable));
         auto items = located(s.span, [&] { return vm_.arena().deref(iterable).iterate(vm_); });
+        // Iterables may yield freshly-allocated values (e.g. a String's characters) that aren't
+        // reachable from the iterable itself, so root them all for the loop's duration.
+        for (Handle it : items.value()) rs.add(it);
         for (Handle item : items.value()) {
             scope().define(s.var, item);
             execBlock(s.body);
@@ -294,6 +297,11 @@ public:
             result_ = vm_.makeBool(e.op == BinOp::Eq ? eq : !eq);
             return;
         }
+        if (e.op == BinOp::In || e.op == BinOp::NotIn) {
+            bool c = located(e.span, [&] { return vm_.arena().deref(rhs).contains(vm_, lhs); });
+            result_ = vm_.makeBool(e.op == BinOp::In ? c : !c);
+            return;
+        }
         result_ = located(e.span, [&] { return vm_.arena().deref(lhs).binary(vm_, e.op, lhs, rhs); });
     }
 
@@ -308,6 +316,15 @@ public:
         Handle obj = rs.add(eval(*e.object));
         Handle key = rs.add(eval(*e.index));
         result_ = located(e.span, [&] { return vm_.arena().deref(obj).getItem(vm_, key); });
+    }
+
+    void visit(const ast::SliceExpr& e) override {
+        RootScope rs(vm_);
+        Handle obj = rs.add(eval(*e.object));
+        Handle start = rs.add(e.start ? eval(*e.start) : vm_.none());
+        Handle stop = rs.add(e.stop ? eval(*e.stop) : vm_.none());
+        Handle step = rs.add(e.step ? eval(*e.step) : vm_.none());
+        result_ = located(e.span, [&] { return vm_.arena().deref(obj).slice(vm_, start, stop, step); });
     }
 
     void visit(const ast::ListLiteral& e) override {

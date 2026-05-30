@@ -26,6 +26,7 @@ struct CallExpr;
 struct FunctionExpr;
 struct MemberExpr;
 struct IndexExpr;
+struct SliceExpr;
 struct ListLiteral;
 struct SetLiteral;
 struct DictLiteral;
@@ -41,6 +42,7 @@ struct ExprVisitor {
     virtual void visit(const FunctionExpr&) = 0;
     virtual void visit(const MemberExpr&) = 0;
     virtual void visit(const IndexExpr&) = 0;
+    virtual void visit(const SliceExpr&) = 0;
     virtual void visit(const ListLiteral&) = 0;
     virtual void visit(const SetLiteral&) = 0;
     virtual void visit(const DictLiteral&) = 0;
@@ -100,6 +102,15 @@ struct MemberExpr : Expr {
 struct IndexExpr : Expr {
     ExprPtr object;
     ExprPtr index;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
+// obj[start:stop:step] — any of start/stop/step may be null (omitted).
+struct SliceExpr : Expr {
+    ExprPtr object;
+    ExprPtr start;
+    ExprPtr stop;
+    ExprPtr step;
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 

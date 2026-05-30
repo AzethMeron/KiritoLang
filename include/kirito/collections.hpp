@@ -65,6 +65,8 @@ public:
 
     Handle getItem(KiritoVM&, Handle key) override;
     void setItem(KiritoVM&, Handle key, Handle value) override;
+    Handle slice(KiritoVM&, Handle start, Handle stop, Handle step) override;
+    bool contains(KiritoVM&, Handle value) override;
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };
 
@@ -140,6 +142,7 @@ public:
 
     Handle getItem(KiritoVM&, Handle key) override;
     void setItem(KiritoVM&, Handle key, Handle value) override;
+    bool contains(KiritoVM&, Handle key) override;  // key membership
 };
 
 // Hash-bucketed set of unique values.
@@ -207,6 +210,7 @@ public:
     }
     std::optional<std::vector<Handle>> iterate(KiritoVM&) override { return items(); }
     std::optional<int64_t> length(KiritoVM&) override { return static_cast<int64_t>(count); }
+    bool contains(KiritoVM&, Handle value) override;
 
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };

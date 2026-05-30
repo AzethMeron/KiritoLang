@@ -2,6 +2,7 @@
 #define KIRITO_RUNTIME_HPP
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -167,6 +168,14 @@ inline Handle StrVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
             throw KiritoError("can only concatenate String to String, not '" + b.typeName() + "'");
         return vm.makeString(value_ + static_cast<const StrVal&>(b).value());
     }
+    if (op == BinOp::Mul) {
+        if (b.kind() != ValueKind::Integer)
+            throw KiritoError("can only repeat String by an Integer");
+        int64_t n = static_cast<const IntVal&>(b).value();
+        std::string out;
+        for (int64_t i = 0; i < n; ++i) out += value_;
+        return vm.makeString(std::move(out));
+    }
     if (b.kind() == ValueKind::String) {
         const std::string& r = static_cast<const StrVal&>(b).value();
         switch (op) {
@@ -254,18 +263,249 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
     return Object::getAttr(vm, self, name);
 }
 
-// --- String indexing / iteration (needs sequenceIndex, above) --------------------------------
+// --- slicing helper --------------------------------------------------------------------------
+
+// Concrete indices for a Python slice over [0,len). start/stop/step are Integer handles or None.
+// Mirrors CPython's PySlice_AdjustIndices (negative indices, clamping, negative step).
+inline std::vector<int64_t> pythonSliceIndices(KiritoVM& vm, int64_t len,
+                                               Handle sH, Handle eH, Handle stH) {
+    auto opt = [&](Handle h) -> std::optional<int64_t> {
+        const Object& o = vm.arena().deref(h);
+        if (o.kind() == ValueKind::None) return std::nullopt;
+        if (o.kind() != ValueKind::Integer) throw KiritoError("slice indices must be Integer or None");
+        return static_cast<const IntVal&>(o).value();
+    };
+    std::optional<int64_t> so = opt(sH), eo = opt(eH), sto = opt(stH);
+    int64_t step = sto.value_or(1);
+    if (step == 0) throw KiritoError("slice step cannot be zero");
+    int64_t lower = step < 0 ? -1 : 0;
+    int64_t upper = step < 0 ? len - 1 : len;
+    int64_t start, stop;
+    if (!so) start = step < 0 ? upper : lower;
+    else { start = *so; if (start < 0) { start += len; if (start < lower) start = lower; }
+           else if (start > upper) start = upper; }
+    if (!eo) stop = step < 0 ? lower : upper;
+    else { stop = *eo; if (stop < 0) { stop += len; if (stop < lower) stop = lower; }
+           else if (stop > upper) stop = upper; }
+    std::vector<int64_t> idx;
+    if (step > 0) for (int64_t i = start; i < stop; i += step) idx.push_back(i);
+    else for (int64_t i = start; i > stop; i += step) idx.push_back(i);
+    return idx;
+}
+
+// --- String indexing / slicing / iteration (UTF-8 aware) -------------------------------------
 
 inline Handle StrVal::getItem(KiritoVM& vm, Handle key) {
-    std::size_t i = sequenceIndex(vm, value_.size(), key);
-    return vm.makeString(std::string(1, value_[i]));
+    auto starts = utf8Starts(value_);
+    std::size_t i = sequenceIndex(vm, starts.size(), key);
+    std::size_t b = starts[i];
+    std::size_t e = (i + 1 < starts.size()) ? starts[i + 1] : value_.size();
+    return vm.makeString(value_.substr(b, e - b));
+}
+
+inline Handle StrVal::slice(KiritoVM& vm, Handle s, Handle e, Handle st) {
+    auto starts = utf8Starts(value_);
+    int64_t len = static_cast<int64_t>(starts.size());
+    std::string out;
+    for (int64_t i : pythonSliceIndices(vm, len, s, e, st)) {
+        std::size_t b = starts[i];
+        std::size_t en = (i + 1 < len) ? starts[i + 1] : value_.size();
+        out.append(value_, b, en - b);
+    }
+    return vm.makeString(std::move(out));
 }
 
 inline std::optional<std::vector<Handle>> StrVal::iterate(KiritoVM& vm) {
+    RootScope rs(vm);  // each character is a fresh String; protect them while building
+    auto starts = utf8Starts(value_);
     std::vector<Handle> out;
-    out.reserve(value_.size());
-    for (char c : value_) out.push_back(vm.makeString(std::string(1, c)));
+    out.reserve(starts.size());
+    for (std::size_t i = 0; i < starts.size(); ++i) {
+        std::size_t b = starts[i];
+        std::size_t e = (i + 1 < starts.size()) ? starts[i + 1] : value_.size();
+        out.push_back(rs.add(vm.makeString(value_.substr(b, e - b))));
+    }
     return out;
+}
+
+inline bool StrVal::contains(KiritoVM& vm, Handle value) {
+    const Object& o = vm.arena().deref(value);
+    if (o.kind() != ValueKind::String)
+        throw KiritoError("'in <String>' requires a String, not '" + o.typeName() + "'");
+    return value_.find(static_cast<const StrVal&>(o).value()) != std::string::npos;
+}
+
+// Read a String argument or raise.
+inline const std::string& asStr(KiritoVM& vm, Handle h, const char* what) {
+    const Object& o = vm.arena().deref(h);
+    if (o.kind() != ValueKind::String) throw KiritoError(std::string(what) + " requires a String");
+    return static_cast<const StrVal&>(o).value();
+}
+
+inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
+    auto bind = [&](const char* nm, NativeFn fn) {
+        return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+    };
+    auto recv = [](KiritoVM& vm, Handle self) -> const std::string& {
+        return static_cast<StrVal&>(vm.arena().deref(self)).value();
+    };
+
+    if (name == "upper")
+        return bind("upper", [self, recv](KiritoVM& vm, std::span<const Handle>) {
+            std::string s = recv(vm, self);
+            for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            return vm.makeString(std::move(s));
+        });
+    if (name == "lower")
+        return bind("lower", [self, recv](KiritoVM& vm, std::span<const Handle>) {
+            std::string s = recv(vm, self);
+            for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            return vm.makeString(std::move(s));
+        });
+    if (name == "strip" || name == "lstrip" || name == "rstrip") {
+        bool left = name != "rstrip", right = name != "lstrip";
+        return bind(std::string(name).c_str(), [self, recv, left, right](KiritoVM& vm, std::span<const Handle>) {
+            const std::string& s = recv(vm, self);
+            std::size_t b = 0, e = s.size();
+            if (left) while (b < e && std::isspace(static_cast<unsigned char>(s[b]))) ++b;
+            if (right) while (e > b && std::isspace(static_cast<unsigned char>(s[e - 1]))) --e;
+            return vm.makeString(s.substr(b, e - b));
+        });
+    }
+    if (name == "startswith")
+        return bind("startswith", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& s = recv(vm, self);
+            const std::string& p = asStr(vm, a[0], "startswith");
+            return vm.makeBool(s.size() >= p.size() && s.compare(0, p.size(), p) == 0);
+        });
+    if (name == "endswith")
+        return bind("endswith", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& s = recv(vm, self);
+            const std::string& p = asStr(vm, a[0], "endswith");
+            return vm.makeBool(s.size() >= p.size() && s.compare(s.size() - p.size(), p.size(), p) == 0);
+        });
+    if (name == "replace")
+        return bind("replace", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            std::string s = recv(vm, self);
+            const std::string& from = asStr(vm, a[0], "replace");
+            const std::string& to = asStr(vm, a[1], "replace");
+            if (!from.empty()) {
+                std::string out;
+                std::size_t pos = 0, prev = 0;
+                while ((pos = s.find(from, prev)) != std::string::npos) {
+                    out.append(s, prev, pos - prev);
+                    out += to;
+                    prev = pos + from.size();
+                }
+                out.append(s, prev, std::string::npos);
+                s = std::move(out);
+            }
+            return vm.makeString(std::move(s));
+        });
+    if (name == "count")
+        return bind("count", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& s = recv(vm, self);
+            const std::string& sub = asStr(vm, a[0], "count");
+            int64_t n = 0;
+            if (!sub.empty())
+                for (std::size_t pos = s.find(sub); pos != std::string::npos; pos = s.find(sub, pos + sub.size()))
+                    ++n;
+            return vm.makeInt(n);
+        });
+    if (name == "find")
+        return bind("find", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& s = recv(vm, self);
+            const std::string& sub = asStr(vm, a[0], "find");
+            std::size_t bp = s.find(sub);
+            if (bp == std::string::npos) return vm.makeInt(-1);
+            int64_t cp = 0;  // byte offset -> code point index
+            for (std::size_t st : utf8Starts(s)) { if (st >= bp) break; ++cp; }
+            return vm.makeInt(cp);
+        });
+    if (name == "split")
+        return bind("split", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& s = recv(vm, self);
+            RootScope rs(vm);
+            auto list = std::make_unique<ListVal>();
+            if (a.empty()) {
+                std::size_t i = 0, n = s.size();
+                while (i < n) {
+                    while (i < n && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
+                    std::size_t start = i;
+                    while (i < n && !std::isspace(static_cast<unsigned char>(s[i]))) ++i;
+                    if (i > start) list->elems.push_back(rs.add(vm.makeString(s.substr(start, i - start))));
+                }
+            } else {
+                const std::string& sep = asStr(vm, a[0], "split");
+                if (sep.empty()) throw KiritoError("empty separator");
+                std::size_t pos, prev = 0;
+                while ((pos = s.find(sep, prev)) != std::string::npos) {
+                    list->elems.push_back(rs.add(vm.makeString(s.substr(prev, pos - prev))));
+                    prev = pos + sep.size();
+                }
+                list->elems.push_back(rs.add(vm.makeString(s.substr(prev))));
+            }
+            return vm.alloc(std::move(list));
+        });
+    if (name == "join")
+        return bind("join", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& sep = recv(vm, self);
+            auto items = vm.arena().deref(a[0]).iterate(vm);
+            std::string out;
+            bool first = true;
+            for (Handle h : items.value()) {
+                if (!first) out += sep;
+                first = false;
+                out += asStr(vm, h, "join");
+            }
+            return vm.makeString(std::move(out));
+        });
+    if (name == "format")
+        return bind("format", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& tmpl = recv(vm, self);
+            std::string out;
+            std::size_t auto_i = 0;
+            for (std::size_t i = 0; i < tmpl.size(); ++i) {
+                if (tmpl[i] == '{') {
+                    if (i + 1 < tmpl.size() && tmpl[i + 1] == '{') { out += '{'; ++i; continue; }
+                    std::size_t close = tmpl.find('}', i);
+                    if (close == std::string::npos) throw KiritoError("unmatched '{' in format string");
+                    std::string spec = tmpl.substr(i + 1, close - i - 1);
+                    std::size_t idx = spec.empty() ? auto_i++ : static_cast<std::size_t>(std::stoll(spec));
+                    if (idx >= a.size()) throw KiritoError("format index out of range");
+                    out += vm.stringify(a[idx]);
+                    i = close;
+                } else if (tmpl[i] == '}' && i + 1 < tmpl.size() && tmpl[i + 1] == '}') {
+                    out += '}';
+                    ++i;
+                } else {
+                    out += tmpl[i];
+                }
+            }
+            return vm.makeString(std::move(out));
+        });
+    return Object::getAttr(vm, self, name);
+}
+
+// --- List slice / contains, Dict / Set contains ----------------------------------------------
+
+inline Handle ListVal::slice(KiritoVM& vm, Handle s, Handle e, Handle st) {
+    auto result = std::make_unique<ListVal>();
+    for (int64_t i : pythonSliceIndices(vm, static_cast<int64_t>(elems.size()), s, e, st))
+        result->elems.push_back(elems[i]);  // existing handles, reachable from this list
+    return vm.alloc(std::move(result));
+}
+inline bool ListVal::contains(KiritoVM& vm, Handle value) {
+    const Object& v = vm.arena().deref(value);
+    for (Handle e : elems)
+        if (vm.arena().deref(e).equals(vm.arena(), v)) return true;
+    return false;
+}
+inline bool DictVal::contains(KiritoVM& vm, Handle key) {
+    return find(vm.arena(), key) != nullptr;
+}
+inline bool SetVal::contains(KiritoVM& vm, Handle value) {
+    return contains(vm.arena(), value);
 }
 
 // --- Classes & instances ---------------------------------------------------------------------

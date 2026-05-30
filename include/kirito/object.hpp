@@ -63,8 +63,11 @@ public:
     virtual void setAttr(KiritoVM&, std::string_view name, Handle value);
     virtual Handle getItem(KiritoVM&, Handle key);
     virtual void setItem(KiritoVM&, Handle key, Handle value);
+    // start/stop/step are Integer handles or None for "omitted".
+    virtual Handle slice(KiritoVM&, Handle start, Handle stop, Handle step);
     virtual std::optional<std::vector<Handle>> iterate(KiritoVM&);
     virtual std::optional<int64_t> length(KiritoVM&);
+    virtual bool contains(KiritoVM&, Handle value);  // the `in` operator
 };
 
 inline Handle Object::binary(KiritoVM&, BinOp, Handle, Handle) {
@@ -88,11 +91,17 @@ inline Handle Object::getItem(KiritoVM&, Handle) {
 inline void Object::setItem(KiritoVM&, Handle, Handle) {
     throw KiritoError("type '" + typeName() + "' does not support item assignment");
 }
+inline Handle Object::slice(KiritoVM&, Handle, Handle, Handle) {
+    throw KiritoError("type '" + typeName() + "' does not support slicing");
+}
 inline std::optional<std::vector<Handle>> Object::iterate(KiritoVM&) {
     throw KiritoError("type '" + typeName() + "' is not iterable");
 }
 inline std::optional<int64_t> Object::length(KiritoVM&) {
     throw KiritoError("type '" + typeName() + "' has no length");
+}
+inline bool Object::contains(KiritoVM&, Handle) {
+    throw KiritoError("type '" + typeName() + "' does not support 'in'");
 }
 
 }  // namespace kirito
