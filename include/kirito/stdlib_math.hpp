@@ -85,11 +85,18 @@ public:
                 if (o.kind() != ValueKind::Integer) throw KiritoError("lcm expects Integers");
                 return static_cast<const IntVal&>(o).value();
             };
-            int64_t x = std::abs(get(a[0])), y = std::abs(get(a[1]));
+            // Work in unsigned magnitudes: std::abs(INT64_MIN) is UB, and the product can overflow.
+            auto mag = [](int64_t v) -> uint64_t {
+                return v < 0 ? 0ull - static_cast<uint64_t>(v) : static_cast<uint64_t>(v);
+            };
+            uint64_t x = mag(get(a[0])), y = mag(get(a[1]));
             if (x == 0 || y == 0) return vm.makeInt(0);
-            int64_t g = x, h2 = y;
-            while (h2) { int64_t t = g % h2; g = h2; h2 = t; }
-            return vm.makeInt(x / g * y);
+            uint64_t g = x, h2 = y;
+            while (h2) { uint64_t t = g % h2; g = h2; h2 = t; }
+            uint64_t prod;
+            if (__builtin_mul_overflow(x / g, y, &prod) || prod > static_cast<uint64_t>(INT64_MAX))
+                throw KiritoError("lcm result too large for Integer");
+            return vm.makeInt(static_cast<int64_t>(prod));
         });
 
         m.fn("log", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
@@ -130,7 +137,9 @@ public:
             int64_t n = static_cast<const IntVal&>(o).value();
             if (n < 0) throw KiritoError("factorial is not defined for negatives");
             int64_t r = 1;
-            for (int64_t i = 2; i <= n; ++i) r *= i;
+            for (int64_t i = 2; i <= n; ++i)
+                if (__builtin_mul_overflow(r, i, &r))  // 21! already exceeds int64
+                    throw KiritoError("factorial result too large for Integer");
             return vm.makeInt(r);
         });
         m.fn("gcd", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
@@ -139,9 +148,14 @@ public:
                 if (o.kind() != ValueKind::Integer) throw KiritoError("gcd expects Integers");
                 return static_cast<const IntVal&>(o).value();
             };
-            int64_t x = std::abs(get(a[0])), y = std::abs(get(a[1]));
-            while (y) { int64_t t = x % y; x = y; y = t; }
-            return vm.makeInt(x);
+            auto mag = [](int64_t v) -> uint64_t {  // avoid std::abs(INT64_MIN) UB
+                return v < 0 ? 0ull - static_cast<uint64_t>(v) : static_cast<uint64_t>(v);
+            };
+            uint64_t x = mag(get(a[0])), y = mag(get(a[1]));
+            while (y) { uint64_t t = x % y; x = y; y = t; }
+            if (x > static_cast<uint64_t>(INT64_MAX))
+                throw KiritoError("gcd result too large for Integer");
+            return vm.makeInt(static_cast<int64_t>(x));
         });
     }
 };

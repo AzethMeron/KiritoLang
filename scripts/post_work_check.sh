@@ -49,12 +49,15 @@ run_variant debug build cmake --preset debug
 # --- strict (-Werror, full warnings) ---
 run_variant strict build-strict cmake --preset strict
 
-# --- asan/ubsan (clang) ---
-if [ "$QUICK" -eq 0 ] && have clang++; then
-    ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 \
-        run_variant asan build-asan cmake --preset asan
-elif [ "$QUICK" -eq 0 ]; then
-    echo "SKIP[asan]: clang++ not found"
+# --- asan/ubsan ---
+# AddressSanitizer's instrumented frames are several times larger than a release build's, so the
+# recursion-depth guard (which fires at ~3000 Kirito frames — safe on a normal stack) can blow an
+# 8 MB stack before it trips. Give the sanitized run a generous stack so the guard, not the OS, wins.
+if [ "$QUICK" -eq 0 ]; then
+    ulimit -s 262144 2>/dev/null || true
+    export ASAN_OPTIONS=detect_leaks=1
+    export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
+    run_variant asan build-asan cmake --preset asan
 fi
 
 # --- windows cross build (mingw-w64), only if a toolchain is available ---
