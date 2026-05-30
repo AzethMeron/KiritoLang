@@ -60,6 +60,7 @@ private:
             case TokenType::KwFor: return parseFor();
             case TokenType::KwTry: return parseTry();
             case TokenType::KwRaise: return parseRaise();
+            case TokenType::KwClass: return parseClass();
             case TokenType::KwReturn: return parseReturn();
             case TokenType::KwBreak: {
                 auto node = std::make_unique<ast::BreakStmt>();
@@ -117,6 +118,19 @@ private:
         }
         if (node->handlers.empty() && !node->hasFinally)
             throw KiritoError("'try' needs at least one 'except' or a 'finally'", node->span);
+        return node;
+    }
+
+    ast::StmtPtr parseClass() {
+        auto node = std::make_unique<ast::ClassStmt>();
+        node->span = advance().span;  // 'class'
+        node->name = expect(TokenType::Identifier, "a class name").text;
+        if (at(TokenType::LParen)) {
+            advance();
+            node->base = parseExpr();
+            expect(TokenType::RParen, "')' after base class");
+        }
+        node->body = parseBlock();
         return node;
     }
 

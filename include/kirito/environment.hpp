@@ -44,6 +44,7 @@ public:
         auto it = vars_.find(name);
         return it == vars_.end() ? nullptr : &it->second;
     }
+    const std::unordered_map<std::string, Handle>& locals() const { return vars_; }
 
 private:
     std::unordered_map<std::string, Handle> vars_;

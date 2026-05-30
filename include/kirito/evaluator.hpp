@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ast.hpp"
+#include "class_value.hpp"
 #include "collections.hpp"
 #include "control.hpp"
 #include "environment.hpp"
@@ -82,6 +83,12 @@ public:
                 vm_.arena().deref(obj).setItem(vm_, key, value);
                 return vm_.none();
             });
+        } else if (const auto* mem = dynamic_cast<const ast::MemberExpr*>(s.target.get())) {
+            Handle obj = rs.add(eval(*mem->object));
+            located(s.span, [&] {
+                vm_.arena().deref(obj).setAttr(vm_, mem->name, value);
+                return vm_.none();
+            });
         } else {
             throw KiritoError("invalid assignment target", s.span);
         }
@@ -131,6 +138,25 @@ public:
 
     void visit(const ast::RaiseStmt& s) override {
         throw KiritoThrow{eval(*s.value)};
+    }
+
+    void visit(const ast::ClassStmt& s) override {
+        RootScope rs(vm_);
+        Handle base{};
+        bool hasBase = false;
+        if (s.base) { base = rs.add(eval(*s.base)); hasBase = true; }
+        // Run the class body in a fresh scope; the names it defines become the class's methods.
+        Handle classScope = rs.add(vm_.newScope(env_));
+        { Evaluator sub(vm_, classScope); sub.execBlock(s.body); }
+        auto cls = std::make_unique<ClassValue>();
+        cls->name = s.name;
+        cls->base = base;
+        cls->hasBase = hasBase;
+        cls->methods = static_cast<EnvValue&>(vm_.arena().deref(classScope)).locals();
+        Handle clsHandle = vm_.alloc(std::move(cls));
+        static_cast<ClassValue&>(vm_.arena().deref(clsHandle)).selfHandle = clsHandle;
+        scope().define(s.name, clsHandle);
+        result_ = vm_.none();
     }
 
     void visit(const ast::TryStmt& s) override {
@@ -296,8 +322,19 @@ private:
         return isInstanceOf(excValue, typeH);
     }
 
-    // Pre-classes placeholder: typed except behaves as a catch-all. Upgraded in the classes layer.
-    bool isInstanceOf(Handle, Handle) { return true; }
+    // True if `value` is an instance of class `typeH` (walking the base chain).
+    bool isInstanceOf(Handle value, Handle typeH) {
+        if (vm_.arena().deref(typeH).kind() != ValueKind::Class) return false;
+        const Object& v = vm_.arena().deref(value);
+        if (v.kind() != ValueKind::Instance) return false;
+        Handle cur = static_cast<const InstanceValue&>(v).cls;
+        while (true) {
+            if (cur == typeH) return true;
+            const auto& c = static_cast<const ClassValue&>(vm_.arena().deref(cur));
+            if (!c.hasBase) return false;
+            cur = c.base;
+        }
+    }
 
     // Run an operation, tagging any location-less runtime error with this node's span.
     template <typename F>

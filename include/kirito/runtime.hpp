@@ -9,6 +9,7 @@
 
 #include "ast.hpp"
 #include "builtins.hpp"
+#include "class_value.hpp"
 #include "collections.hpp"
 #include "evaluator.hpp"
 #include "function.hpp"
@@ -265,6 +266,47 @@ inline std::optional<std::vector<Handle>> StrVal::iterate(KiritoVM& vm) {
     out.reserve(value_.size());
     for (char c : value_) out.push_back(vm.makeString(std::string(1, c)));
     return out;
+}
+
+// --- Classes & instances ---------------------------------------------------------------------
+
+inline Handle ClassValue::call(KiritoVM& vm, std::span<const Handle> args) {
+    auto inst = std::make_unique<InstanceValue>();
+    inst->cls = selfHandle;
+    inst->className = name;
+    Handle instH = vm.alloc(std::move(inst));
+    if (const Handle* init = findMethod(vm.arena(), "init")) {
+        RootScope rs(vm);
+        rs.add(instH);
+        Handle initH = rs.add(*init);
+        std::vector<Handle> full;
+        full.reserve(args.size() + 1);
+        full.push_back(instH);
+        for (Handle a : args) full.push_back(a);
+        vm.arena().deref(initH).call(vm, full);
+    }
+    return instH;
+}
+
+inline Handle InstanceValue::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
+    auto it = attrs.find(std::string(name));
+    if (it != attrs.end()) return it->second;
+    const auto& klass = static_cast<const ClassValue&>(vm.arena().deref(cls));
+    const Handle* method = klass.findMethod(vm.arena(), std::string(name));
+    if (!method)
+        throw KiritoError("'" + className + "' object has no attribute '" + std::string(name) + "'");
+    // Return a bound method: a callable that prepends the receiver before invoking the function.
+    Handle methodH = *method;
+    return vm.alloc(std::make_unique<NativeFunction>(
+        std::string(name),
+        [self, methodH](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+            std::vector<Handle> full;
+            full.reserve(args.size() + 1);
+            full.push_back(self);
+            for (Handle a : args) full.push_back(a);
+            return vm.arena().deref(methodH).call(vm, full);
+        },
+        std::vector<Handle>{self, methodH}));
 }
 
 // --- KiFunction call -------------------------------------------------------------------------

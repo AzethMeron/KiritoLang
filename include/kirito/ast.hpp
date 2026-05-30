@@ -129,6 +129,7 @@ struct ContinueStmt;
 struct ReturnStmt;
 struct TryStmt;
 struct RaiseStmt;
+struct ClassStmt;
 
 struct StmtVisitor {
     virtual ~StmtVisitor() = default;
@@ -143,6 +144,7 @@ struct StmtVisitor {
     virtual void visit(const ReturnStmt&) = 0;
     virtual void visit(const TryStmt&) = 0;
     virtual void visit(const RaiseStmt&) = 0;
+    virtual void visit(const ClassStmt&) = 0;
 };
 
 struct Stmt {
@@ -228,6 +230,14 @@ struct TryStmt : Stmt {
 // `raise value`.
 struct RaiseStmt : Stmt {
     ExprPtr value;
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+// `class Name [(Base)]: <method defs>`.
+struct ClassStmt : Stmt {
+    std::string name;
+    ExprPtr base;  // optional base class
+    Block body;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 

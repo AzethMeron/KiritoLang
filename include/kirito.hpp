@@ -13,6 +13,7 @@
 #include "kirito/arena.hpp"
 #include "kirito/builtins.hpp"
 #include "kirito/collections.hpp"
+#include "kirito/class_value.hpp"
 #include "kirito/module.hpp"
 #include "kirito/ast.hpp"
 #include "kirito/lexer.hpp"
