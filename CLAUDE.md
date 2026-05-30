@@ -74,6 +74,14 @@ Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
 - Clear diagnostics: lexer/parser/runtime errors should carry line and column and a
   message a user can act on. Errors are part of the language, not an afterthought.
 - Prefer the standard library and plain data structures over cleverness.
+- C++: use STL and modern standard (C++20). Never expose raw pointers. Everywhere 
+  it is possible favor references, if reference can't be used, use smart pointers.
+  Favor std::unique_ptr over std::shared_ptr.
+- In general, objects shouldn't share attributes. If B belongs to A, then A "owns" B
+  and this gets messy when C that's not part of A has reference to A. Variables in
+  kirito code can get and use references like this, but it must not be ingrained in 
+  language internals, we want clean separation so in the end it's easy to save&load 
+  context. 
 
 ## Keep this file current
 
