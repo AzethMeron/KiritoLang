@@ -94,15 +94,22 @@ int main() {
         "var i = 0\nvar s = 0\nwhile i < %d %% 20:\n    s = s + i\n    i = i + 1\ns\n",
         "%d if %d > %d else %d\n",  // not valid Kirito (no ternary) -> exercises parse errors too
     };
+    // Fill a fragment's %d with random integers and %% with a literal % (no printf, to keep the
+    // format string out of -Wformat-nonliteral's way).
+    auto fill = [&](const char* t) {
+        std::string out;
+        for (const char* p = t; *p; ++p) {
+            if (p[0] == '%' && p[1] == 'd') { out += std::to_string(randi(-50, 50)); ++p; }
+            else if (p[0] == '%' && p[1] == '%') { out += '%'; ++p; }
+            else out += *p;
+        }
+        return out;
+    };
     for (int i = 0; i < 4000; ++i) {
         std::string prog;
         int lines = randi(1, 4);
-        for (int j = 0; j < lines; ++j) {
-            char buf[256];
-            std::snprintf(buf, sizeof(buf), frags[randi(0, static_cast<int>(std::size(frags)) - 1)],
-                          randi(-50, 50), randi(-50, 50), randi(-50, 50), randi(-50, 50), randi(-50, 50));
-            prog += buf;
-        }
+        for (int j = 0; j < lines; ++j)
+            prog += fill(frags[randi(0, static_cast<int>(std::size(frags)) - 1)]);
         runSafely(prog);
     }
 
