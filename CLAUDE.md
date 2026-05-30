@@ -71,7 +71,9 @@ a stability fuzzer, and a benchmark). Working today:
 - First-class functions with closures and `return`; `assert`. Recursion is bounded by a call-depth
   guard (configurable) that raises a catchable error instead of overflowing the native stack.
 - `List`/`Set`/`Dict` with literals, indexing, slicing, iteration, `in`, and methods (append/pop/
-  sort/reverse/insert/remove/index/extend; keys/values/items/get/pop; add/contains); `len`.
+  reverse/insert/remove/index/extend/copy; keys/values/items/get/pop; add/contains/union/...); `len`.
+  Ordered collections have an efficient in-place `sort([key][, reverse])` that is **stable** by
+  default (so is the `sorted()` builtin); keys are precomputed once per element.
 - **Unicode** `String` (code-point indexing/slicing/iteration), `*` repetition, and methods
   (upper/lower/strip/split/join/replace/startswith/endswith/find/count) and `.format()`.
 - **User-defined `class`es** with methods, attributes, inheritance, Python-style operator methods
@@ -85,8 +87,9 @@ a stability fuzzer, and a benchmark). Working today:
 - **Standard library** (each a one-liner `vm.install<T>()`; a third party adds their own the same
   way — `#include` a header, register on the VM, no global state):
   - `io` — print/input/write, `open` files & streams (read/readline/readlines/write/writelines/
-    seek/tell/flush, iterable line-by-line, usable as a `with` context manager), plus filesystem
-    helpers (exists/remove/rename/mkdir/getcwd/listdir).
+    seek/tell/flush, iterable line-by-line, usable as a `with` context manager), `BytesIO` (an
+    in-memory binary buffer like Python's), plus filesystem helpers (exists/remove/rename/mkdir/
+    getcwd/listdir).
   - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf, floor/ceil/
     trunc, gcd/lcm, factorial, isnan/isinf, ...).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
@@ -95,9 +98,17 @@ a stability fuzzer, and a benchmark). Working today:
     element access/assignment, transpose, determinant, inverse, trace, apply, factories
     (zeros/ones/identity).
   - `json` — parse (objects → Dict) / stringify.
-  - `serialize` — dumps/loads/save/load preserving shared references and cycles.
+  - `serialize` — text graph dumps/loads/save/load preserving shared references and cycles.
+  - `dump` — compact BINARY serialization (a `Dump` blob value) preserving references and cycles;
+    dumps/loads, Dump(bytes), save/load.
   - `net` — TCP sockets (connect/bind/listen/accept/send/recv) and an HTTP/1.1 client
     (http_get/http_post); HTTPS is optional (build with `-DKIRITO_ENABLE_TLS=ON`, links OpenSSL).
+  - `sys` — environment (getenv/setenv/unsetenv/environ), `platform`, `exit`.
+  - `time` — high-precision clocks (time/time_ns/monotonic/perf_counter_ns), sleep, and a
+    Python-like `datetime`/`now` with field access and strftime.
+  - `zlib` — compress/decompress (standard zlib streams), raw deflate/inflate, adler32 — a
+    self-contained DEFLATE/INFLATE, no external dependency, interoperable with real zlib.
+  - `hash` — md5/sha1/sha256 hex digests (self-contained, standard-conformant).
 - **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, and the
   script's directory), lexed+parsed+evaluated once per VM and cached by resolved path. The `ki` CLI
   is Python-like: REPL with no file, runs a file otherwise, with script `argv`. Small-integer
