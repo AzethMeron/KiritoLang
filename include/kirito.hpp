@@ -33,6 +33,7 @@
 #include "kirito/stdlib_time.hpp"
 #include "kirito/stdlib_dump.hpp"
 #include "kirito/stdlib_zlib.hpp"
+#include "kirito/stdlib_hash.hpp"
 #include "kirito/evaluator.hpp"
 #include "kirito/runtime.hpp"
 

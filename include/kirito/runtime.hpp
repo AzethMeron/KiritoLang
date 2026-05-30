@@ -35,6 +35,7 @@
 #include "stdlib_time.hpp"
 #include "stdlib_dump.hpp"
 #include "stdlib_zlib.hpp"
+#include "stdlib_hash.hpp"
 #include "vm.hpp"
 
 // Definitions that need a complete KiritoVM (and the front end): they live here, included last,
@@ -1113,6 +1114,7 @@ inline void KiritoVM::installStandardLibrary() {
     install<TimeModule>();
     install<DumpModule>();
     install<ZlibModule>();
+    install<HashModule>();
 }
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {
