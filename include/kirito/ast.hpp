@@ -24,6 +24,11 @@ struct BinaryExpr;
 struct LogicalExpr;
 struct CallExpr;
 struct FunctionExpr;
+struct MemberExpr;
+struct IndexExpr;
+struct ListLiteral;
+struct SetLiteral;
+struct DictLiteral;
 
 struct ExprVisitor {
     virtual ~ExprVisitor() = default;
@@ -34,6 +39,11 @@ struct ExprVisitor {
     virtual void visit(const LogicalExpr&) = 0;
     virtual void visit(const CallExpr&) = 0;
     virtual void visit(const FunctionExpr&) = 0;
+    virtual void visit(const MemberExpr&) = 0;
+    virtual void visit(const IndexExpr&) = 0;
+    virtual void visit(const ListLiteral&) = 0;
+    virtual void visit(const SetLiteral&) = 0;
+    virtual void visit(const DictLiteral&) = 0;
 };
 
 struct Expr {
@@ -81,11 +91,39 @@ struct CallExpr : Expr {
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 
+struct MemberExpr : Expr {
+    ExprPtr object;
+    std::string name;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
+struct IndexExpr : Expr {
+    ExprPtr object;
+    ExprPtr index;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
+struct ListLiteral : Expr {
+    std::vector<ExprPtr> elems;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
+struct SetLiteral : Expr {
+    std::vector<ExprPtr> elems;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
+struct DictLiteral : Expr {
+    std::vector<std::pair<ExprPtr, ExprPtr>> entries;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
 struct ExprStmt;
 struct VarDeclStmt;
 struct AssignStmt;
 struct IfStmt;
 struct WhileStmt;
+struct ForStmt;
 struct BreakStmt;
 struct ContinueStmt;
 struct ReturnStmt;
@@ -97,6 +135,7 @@ struct StmtVisitor {
     virtual void visit(const AssignStmt&) = 0;
     virtual void visit(const IfStmt&) = 0;
     virtual void visit(const WhileStmt&) = 0;
+    virtual void visit(const ForStmt&) = 0;
     virtual void visit(const BreakStmt&) = 0;
     virtual void visit(const ContinueStmt&) = 0;
     virtual void visit(const ReturnStmt&) = 0;
@@ -154,6 +193,14 @@ struct IfStmt : Stmt {
 
 struct WhileStmt : Stmt {
     ExprPtr cond;
+    Block body;
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+// `for var in iterable: <block>` — var is bound in the enclosing scope (Python semantics).
+struct ForStmt : Stmt {
+    std::string var;
+    ExprPtr iterable;
     Block body;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };

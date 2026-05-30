@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ast.hpp"
+#include "collections.hpp"
 #include "control.hpp"
 #include "environment.hpp"
 #include "function.hpp"
@@ -63,11 +64,20 @@ public:
     }
 
     void visit(const ast::AssignStmt& s) override {
-        const auto* target = dynamic_cast<const ast::NameExpr*>(s.target.get());
-        if (!target) throw KiritoError("invalid assignment target", s.span);
         Handle value = eval(*s.value);
-        if (!envAssign(vm_.arena(), env_, target->name, value))
-            throw KiritoError("name '" + target->name + "' is not defined", s.span);
+        if (const auto* name = dynamic_cast<const ast::NameExpr*>(s.target.get())) {
+            if (!envAssign(vm_.arena(), env_, name->name, value))
+                throw KiritoError("name '" + name->name + "' is not defined", s.span);
+        } else if (const auto* idx = dynamic_cast<const ast::IndexExpr*>(s.target.get())) {
+            Handle obj = eval(*idx->object);
+            Handle key = eval(*idx->index);
+            located(s.span, [&] {
+                vm_.arena().deref(obj).setItem(vm_, key, value);
+                return vm_.none();
+            });
+        } else {
+            throw KiritoError("invalid assignment target", s.span);
+        }
         result_ = vm_.none();
     }
 
@@ -85,6 +95,19 @@ public:
             if (flow_ == Flow::Break) { flow_ = Flow::Normal; break; }
             if (flow_ == Flow::Continue) { flow_ = Flow::Normal; continue; }
             if (flow_ == Flow::Return) break;  // propagate to the enclosing function
+        }
+        result_ = vm_.none();
+    }
+
+    void visit(const ast::ForStmt& s) override {
+        Handle iterable = eval(*s.iterable);
+        auto items = located(s.span, [&] { return vm_.arena().deref(iterable).iterate(vm_); });
+        for (Handle item : items.value()) {
+            scope().define(s.var, item);
+            execBlock(s.body);
+            if (flow_ == Flow::Break) { flow_ = Flow::Normal; break; }
+            if (flow_ == Flow::Continue) { flow_ = Flow::Normal; continue; }
+            if (flow_ == Flow::Return) break;
         }
         result_ = vm_.none();
     }
@@ -148,6 +171,43 @@ public:
         result_ = located(e.span, [&] { return vm_.arena().deref(callee).call(vm_, args); });
     }
 
+    void visit(const ast::MemberExpr& e) override {
+        Handle obj = eval(*e.object);
+        result_ = located(e.span, [&] { return vm_.arena().deref(obj).getAttr(vm_, e.name); });
+    }
+
+    void visit(const ast::IndexExpr& e) override {
+        Handle obj = eval(*e.object);
+        Handle key = eval(*e.index);
+        result_ = located(e.span, [&] { return vm_.arena().deref(obj).getItem(vm_, key); });
+    }
+
+    void visit(const ast::ListLiteral& e) override {
+        auto list = std::make_unique<ListVal>();
+        list->elems.reserve(e.elems.size());
+        for (const auto& elem : e.elems) list->elems.push_back(eval(*elem));
+        result_ = vm_.arena().alloc(std::move(list));
+    }
+
+    void visit(const ast::SetLiteral& e) override {
+        auto set = std::make_unique<SetVal>();
+        for (const auto& elem : e.elems) {
+            Handle h = eval(*elem);
+            located(e.span, [&] { set->add(vm_.arena(), h); return vm_.none(); });
+        }
+        result_ = vm_.arena().alloc(std::move(set));
+    }
+
+    void visit(const ast::DictLiteral& e) override {
+        auto dict = std::make_unique<DictVal>();
+        for (const auto& [key, value] : e.entries) {
+            Handle kh = eval(*key);
+            Handle vh = eval(*value);
+            located(e.span, [&] { dict->set(vm_.arena(), kh, vh); return vm_.none(); });
+        }
+        result_ = vm_.arena().alloc(std::move(dict));
+    }
+
     void visit(const ast::BinaryExpr& e) override {
         Handle lhs = eval(*e.lhs);
         Handle rhs = eval(*e.rhs);
@@ -167,7 +227,7 @@ private:
 
     // Run an operation, tagging any location-less runtime error with this node's span.
     template <typename F>
-    Handle located(SourceSpan span, F&& fn) {
+    auto located(SourceSpan span, F&& fn) -> decltype(fn()) {
         try {
             return fn();
         } catch (KiritoError& err) {

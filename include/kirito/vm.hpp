@@ -26,6 +26,7 @@ public:
         true_ = arena_.alloc(std::make_unique<BoolVal>(true));
         false_ = arena_.alloc(std::make_unique<BoolVal>(false));
         global_ = arena_.alloc(std::make_unique<EnvValue>());
+        installBuiltins();
     }
 
     ObjectArena& arena() { return arena_; }
@@ -57,6 +58,9 @@ public:
     // Keep a parsed chunk alive for the VM's lifetime so function bodies (referenced by closures
     // that may outlive the call) never dangle. Defined in runtime.hpp (needs a complete Program).
     void retainChunk(std::unique_ptr<ast::Program> chunk);
+
+    // Register built-in globals (len, ...). Defined in runtime.hpp; called from the constructor.
+    void installBuiltins();
 
     ~KiritoVM();  // out-of-line so unique_ptr<ast::Program> sees a complete type
 

@@ -57,6 +57,7 @@ private:
             case TokenType::KwVar: return parseVarDecl();
             case TokenType::KwIf: return parseIf();
             case TokenType::KwWhile: return parseWhile();
+            case TokenType::KwFor: return parseFor();
             case TokenType::KwReturn: return parseReturn();
             case TokenType::KwBreak: {
                 auto node = std::make_unique<ast::BreakStmt>();
@@ -157,6 +158,16 @@ private:
         return node;
     }
 
+    ast::StmtPtr parseFor() {
+        auto node = std::make_unique<ast::ForStmt>();
+        node->span = advance().span;  // 'for'
+        node->var = expect(TokenType::Identifier, "a loop variable").text;
+        expect(TokenType::KwIn, "'in'");
+        node->iterable = parseExpr();
+        node->body = parseBlock();
+        return node;
+    }
+
     ast::ExprPtr parseExpr() { return parseOr(); }
 
     ast::ExprPtr parseOr() {
@@ -253,20 +264,39 @@ private:
         return base;
     }
 
-    // Call postfix binds tighter than **: f()**2 == (f())**2.
+    // Postfix (call, index, member) binds tighter than **: f()**2 == (f())**2.
     ast::ExprPtr parsePostfix() {
         auto expr = parsePrimary();
-        while (at(TokenType::LParen)) {
-            SourceSpan span = advance().span;
-            auto call = std::make_unique<ast::CallExpr>();
-            call->span = span;
-            call->callee = std::move(expr);
-            if (!at(TokenType::RParen)) {
-                call->args.push_back(parseExpr());
-                while (at(TokenType::Comma)) { advance(); call->args.push_back(parseExpr()); }
+        while (true) {
+            if (at(TokenType::LParen)) {
+                SourceSpan span = advance().span;
+                auto call = std::make_unique<ast::CallExpr>();
+                call->span = span;
+                call->callee = std::move(expr);
+                if (!at(TokenType::RParen)) {
+                    call->args.push_back(parseExpr());
+                    while (at(TokenType::Comma)) { advance(); call->args.push_back(parseExpr()); }
+                }
+                expect(TokenType::RParen, "')' to close the call");
+                expr = std::move(call);
+            } else if (at(TokenType::LBracket)) {
+                SourceSpan span = advance().span;
+                auto node = std::make_unique<ast::IndexExpr>();
+                node->span = span;
+                node->object = std::move(expr);
+                node->index = parseExpr();
+                expect(TokenType::RBracket, "']' to close the index");
+                expr = std::move(node);
+            } else if (at(TokenType::Dot)) {
+                SourceSpan span = advance().span;
+                auto node = std::make_unique<ast::MemberExpr>();
+                node->span = span;
+                node->object = std::move(expr);
+                node->name = expect(TokenType::Identifier, "a member name after '.'").text;
+                expr = std::move(node);
+            } else {
+                break;
             }
-            expect(TokenType::RParen, "')' to close the call");
-            expr = std::move(call);
         }
         return expr;
     }
@@ -319,9 +349,60 @@ private:
                 expect(TokenType::RParen, "')'");
                 return e;
             }
+            case TokenType::LBracket: return parseListLiteral();
+            case TokenType::LBrace: return parseBraceLiteral();
             default:
                 throw KiritoError("expected an expression", t.span);
         }
+    }
+
+    ast::ExprPtr parseListLiteral() {
+        auto node = std::make_unique<ast::ListLiteral>();
+        node->span = advance().span;  // '['
+        while (!at(TokenType::RBracket)) {
+            node->elems.push_back(parseExpr());
+            if (!at(TokenType::Comma)) break;
+            advance();
+        }
+        expect(TokenType::RBracket, "']' to close the list");
+        return node;
+    }
+
+    // `{}` and `{k: v, ...}` are Dicts; `{a, b, ...}` is a Set.
+    ast::ExprPtr parseBraceLiteral() {
+        SourceSpan span = advance().span;  // '{'
+        if (at(TokenType::RBrace)) {
+            advance();
+            auto dict = std::make_unique<ast::DictLiteral>();
+            dict->span = span;
+            return dict;
+        }
+        auto first = parseExpr();
+        if (at(TokenType::Colon)) {
+            auto dict = std::make_unique<ast::DictLiteral>();
+            dict->span = span;
+            advance();
+            dict->entries.emplace_back(std::move(first), parseExpr());
+            while (at(TokenType::Comma)) {
+                advance();
+                if (at(TokenType::RBrace)) break;
+                auto key = parseExpr();
+                expect(TokenType::Colon, "':' in dict entry");
+                dict->entries.emplace_back(std::move(key), parseExpr());
+            }
+            expect(TokenType::RBrace, "'}' to close the dict");
+            return dict;
+        }
+        auto set = std::make_unique<ast::SetLiteral>();
+        set->span = span;
+        set->elems.push_back(std::move(first));
+        while (at(TokenType::Comma)) {
+            advance();
+            if (at(TokenType::RBrace)) break;
+            set->elems.push_back(parseExpr());
+        }
+        expect(TokenType::RBrace, "'}' to close the set");
+        return set;
     }
 
     template <typename T>

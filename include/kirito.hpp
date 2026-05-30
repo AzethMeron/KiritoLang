@@ -11,6 +11,7 @@
 #include "kirito/object.hpp"
 #include "kirito/arena.hpp"
 #include "kirito/builtins.hpp"
+#include "kirito/collections.hpp"
 #include "kirito/ast.hpp"
 #include "kirito/lexer.hpp"
 #include "kirito/parser.hpp"

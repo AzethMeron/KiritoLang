@@ -9,6 +9,7 @@
 
 #include "ast.hpp"
 #include "builtins.hpp"
+#include "collections.hpp"
 #include "evaluator.hpp"
 #include "function.hpp"
 #include "lexer.hpp"
@@ -175,6 +176,66 @@ inline Handle StrVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
     throw KiritoError("type 'String' does not support this operator");
 }
 
+// --- Collection out-of-line members ----------------------------------------------------------
+
+// Resolve an Integer key against a sequence length, supporting Python negative indices.
+inline std::size_t sequenceIndex(KiritoVM& vm, std::size_t size, Handle key) {
+    const Object& k = vm.arena().deref(key);
+    if (k.kind() != ValueKind::Integer)
+        throw KiritoError("index must be Integer, not '" + k.typeName() + "'");
+    int64_t i = static_cast<const IntVal&>(k).value();
+    int64_t n = static_cast<int64_t>(size);
+    if (i < 0) i += n;
+    if (i < 0 || i >= n) throw KiritoError("index out of range");
+    return static_cast<std::size_t>(i);
+}
+
+inline Handle ListVal::getItem(KiritoVM& vm, Handle key) {
+    return elems[sequenceIndex(vm, elems.size(), key)];
+}
+inline void ListVal::setItem(KiritoVM& vm, Handle key, Handle value) {
+    elems[sequenceIndex(vm, elems.size(), key)] = value;
+}
+inline Handle ListVal::getAttr(KiritoVM& vm, std::string_view name) {
+    if (name == "append") {
+        ListVal* self = this;
+        return vm.arena().alloc(std::make_unique<NativeFunction>(
+            "append", [self](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+                if (args.size() != 1) throw KiritoError("append expected 1 argument");
+                self->elems.push_back(args[0]);
+                return vm.none();
+            }));
+    }
+    return Object::getAttr(vm, name);
+}
+
+inline Handle DictVal::getItem(KiritoVM& vm, Handle key) {
+    const Handle* v = find(vm.arena(), key);
+    if (!v) throw KiritoError("key not found: " + vm.stringify(key));
+    return *v;
+}
+inline void DictVal::setItem(KiritoVM& vm, Handle key, Handle value) {
+    set(vm.arena(), key, value);
+}
+
+inline Handle SetVal::getAttr(KiritoVM& vm, std::string_view name) {
+    SetVal* self = this;
+    if (name == "add")
+        return vm.arena().alloc(std::make_unique<NativeFunction>(
+            "add", [self](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+                if (args.size() != 1) throw KiritoError("add expected 1 argument");
+                self->add(vm.arena(), args[0]);
+                return vm.none();
+            }));
+    if (name == "contains")
+        return vm.arena().alloc(std::make_unique<NativeFunction>(
+            "contains", [self](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+                if (args.size() != 1) throw KiritoError("contains expected 1 argument");
+                return vm.makeBool(self->contains(vm.arena(), args[0]));
+            }));
+    return Object::getAttr(vm, name);
+}
+
 // --- KiFunction call -------------------------------------------------------------------------
 
 inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
@@ -190,6 +251,15 @@ inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
 }
 
 // --- VM entry point & lifetime ---------------------------------------------------------------
+
+inline void KiritoVM::installBuiltins() {
+    auto& g = static_cast<EnvValue&>(arena_.deref(global_));
+    g.define("len", arena_.alloc(std::make_unique<NativeFunction>(
+                        "len", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+                            if (args.size() != 1) throw KiritoError("len expected 1 argument");
+                            return vm.makeInt(vm.arena().deref(args[0]).length(vm).value());
+                        })));
+}
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {
     chunks_.push_back(std::move(chunk));

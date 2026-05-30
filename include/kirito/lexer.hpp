@@ -14,10 +14,11 @@ enum class TokenType {
     Integer, Float, String, Identifier,
     KwVar, KwTrue, KwFalse, KwNone,
     KwIf, KwElif, KwElse, KwWhile, KwBreak, KwContinue,
-    KwAnd, KwOr, KwNot, KwFunction, KwReturn,
+    KwAnd, KwOr, KwNot, KwFunction, KwReturn, KwFor, KwIn,
     Plus, Minus, Star, Slash, SlashSlash, Percent, StarStar,
     Assign, EqEq, NotEq, Lt, Le, Gt, Ge,
-    LParen, RParen, Colon, Comma,
+    LParen, RParen, LBracket, RBracket, LBrace, RBrace,
+    Colon, Comma, Dot,
     Newline, Indent, Dedent, EndOfFile,
 };
 
@@ -164,6 +165,8 @@ private:
         else if (text == "not") type = TokenType::KwNot;
         else if (text == "Function") type = TokenType::KwFunction;
         else if (text == "return") type = TokenType::KwReturn;
+        else if (text == "for") type = TokenType::KwFor;
+        else if (text == "in") type = TokenType::KwIn;
         return make(type, line, col, std::move(text));
     }
 
@@ -216,11 +219,22 @@ private:
             case '%': advance(); return make(TokenType::Percent, line, col);
             case ':': advance(); return make(TokenType::Colon, line, col);
             case ',': advance(); return make(TokenType::Comma, line, col);
+            case '.': advance(); return make(TokenType::Dot, line, col);
             case '(': advance(); ++parenDepth_; return make(TokenType::LParen, line, col);
             case ')':
                 advance();
                 if (parenDepth_ > 0) --parenDepth_;
                 return make(TokenType::RParen, line, col);
+            case '[': advance(); ++parenDepth_; return make(TokenType::LBracket, line, col);
+            case ']':
+                advance();
+                if (parenDepth_ > 0) --parenDepth_;
+                return make(TokenType::RBracket, line, col);
+            case '{': advance(); ++parenDepth_; return make(TokenType::LBrace, line, col);
+            case '}':
+                advance();
+                if (parenDepth_ > 0) --parenDepth_;
+                return make(TokenType::RBrace, line, col);
             case '=':
                 advance();
                 if (peek() == '=') { advance(); return make(TokenType::EqEq, line, col); }

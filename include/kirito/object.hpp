@@ -15,6 +15,7 @@ namespace kirito {
 
 class ObjectArena;
 class KiritoVM;
+class Object;
 
 enum class ValueKind {
     None, Bool, Integer, Float, String,
@@ -24,10 +25,10 @@ enum class ValueKind {
 };
 
 // Threaded through str() so containers can detect reference cycles (a value already being
-// stringified) and emit an ellipsis instead of recursing forever.
+// stringified) and emit an ellipsis instead of recursing forever. Keyed by object identity.
 struct StringifyCtx {
     const ObjectArena& arena;
-    std::unordered_set<uint32_t> active;
+    std::unordered_set<const Object*> active;
 };
 
 // The one uniform protocol every value implements — built-in scalars, collections,
