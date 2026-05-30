@@ -1,7 +1,8 @@
 # One small executable per test file (one behavior-area each), linking the header-only core.
+find_package(Threads REQUIRED)
 function(kirito_test name)
     add_executable(${name} ${ARGN})
-    target_link_libraries(${name} PRIVATE kirito)
+    target_link_libraries(${name} PRIVATE kirito Threads::Threads)
     target_compile_options(${name} PRIVATE -Wall -Wextra -Wpedantic)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
@@ -30,6 +31,7 @@ kirito_test(test_builtins unit/test_builtins.cpp)
 kirito_test(test_random unit/test_random.cpp)
 kirito_test(test_matrix unit/test_matrix.cpp)
 kirito_test(test_json unit/test_json.cpp)
+kirito_test(test_net unit/test_net.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
 kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)
