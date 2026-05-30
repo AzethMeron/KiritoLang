@@ -1,0 +1,51 @@
+THESE NUTS (notes) are what language is supposed to be, not what's already implemented.
+
+Namespace: Kirito
+
+Built-In Types:
+Integer, Bool, Float, String
+Note: In C++ you should avoid storing data in Bool type, cause it is very space consuming for boolean. Use C++ bool and convert it to Bool if ever needed in Kirito.
+
+Integer:
+Underlying C++ type: int64_t
+64bit signed integer number.
+Minimal/Maximal values can be checked by using Integer::MinValue() and Integer::MaxValue()
+Hashable
+
+Float:
+Underlying C++ type: double
+Size, precision, range is implementation dependant.
+Minimal/Maximal values can be checked by using Float::MinValue() and Float::MaxValue()
+You can safely compare Float numbers with ==, != and .Compare(numer_to_compare_against, significant_figures)
+Comparison is done by comparing hashes of string representation with given number of significant figures. It's probably slow.
+By default, comparison and hashing uses 8 significant figures.
+By default, display of Float number uses 4 significant figures, you can use more/less with function DisplaySignificantFigures.
+Hashable
+
+Bool:
+Underlying C++ type: bool
+Don't use for storage. It takes like 16 bytes to store 1 bit of data, due to padding of C++ and my own framework.
+operator + allows to perform boolean "or" operation
+operator * boolean "and" operation
+operator == boolean "xnor" operation
+operator != boolean "xor" operation
+.Not() boolean "not" operation
+Hashable
+
+String:
+Underlying C++ type: std::string
+Hashable
+
+Copying vs referencing.
+In Kirito language, all assignments are done via reference. 
+A = B + C
+will generate new object on heap, store B+C in it, and then A will be attached to it.
+
+First Layer vs Second Layer:
+First layer types cannot contain Variables. As a consequence, there's no way for them to contain selfreferencing loop.
+Consider following:
+A = Integer()
+B = Array()
+B.Append(A); B.Append(A); B.Append(A); 
+will make array with multiple references which we want to display normally: [ 0,0,0 ]
+But lets do this now: B.Append(B), this creates self referencing loop that would break 

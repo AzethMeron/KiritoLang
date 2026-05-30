@@ -1,0 +1,11 @@
+
+# This is a comment
+var io = import("io") # Load standard library for input/output, including env vars
+
+var main = Function() {
+	var in = io.input() # get string from standard input
+	in = Number(in) # convert string into Number
+	io.print(String(in)+String(in*in)) # print
+}
+
+main() # Call main
