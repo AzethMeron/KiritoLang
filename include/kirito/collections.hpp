@@ -65,7 +65,7 @@ public:
 
     Handle getItem(KiritoVM&, Handle key) override;
     void setItem(KiritoVM&, Handle key, Handle value) override;
-    Handle getAttr(KiritoVM&, std::string_view name) override;
+    Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };
 
 // Hash-bucketed mapping. Keys must be hashable; lookup hashes then compares with the value
@@ -208,7 +208,7 @@ public:
     std::optional<std::vector<Handle>> iterate(KiritoVM&) override { return items(); }
     std::optional<int64_t> length(KiritoVM&) override { return static_cast<int64_t>(count); }
 
-    Handle getAttr(KiritoVM&, std::string_view name) override;
+    Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };
 
 }  // namespace kirito

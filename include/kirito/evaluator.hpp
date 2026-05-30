@@ -22,7 +22,12 @@ namespace kirito {
 // and read back by eval(). Statements run against the current scope handle (env_).
 class Evaluator : public ast::ExprVisitor, public ast::StmtVisitor {
 public:
-    Evaluator(KiritoVM& vm, Handle env) : vm_(vm), env_(env) {}
+    Evaluator(KiritoVM& vm, Handle env) : vm_(vm), env_(env), rootBase_(vm.tempMark()) {
+        vm_.pushTemp(env_);  // this frame's scope is a GC root for the evaluator's lifetime
+    }
+    ~Evaluator() override { vm_.popTempTo(rootBase_); }
+    Evaluator(const Evaluator&) = delete;
+    Evaluator& operator=(const Evaluator&) = delete;
 
     // Returns the value of the last statement's expression, or None.
     Handle run(const ast::Program& prog) {
@@ -64,13 +69,14 @@ public:
     }
 
     void visit(const ast::AssignStmt& s) override {
-        Handle value = eval(*s.value);
+        RootScope rs(vm_);
+        Handle value = rs.add(eval(*s.value));
         if (const auto* name = dynamic_cast<const ast::NameExpr*>(s.target.get())) {
             if (!envAssign(vm_.arena(), env_, name->name, value))
                 throw KiritoError("name '" + name->name + "' is not defined", s.span);
         } else if (const auto* idx = dynamic_cast<const ast::IndexExpr*>(s.target.get())) {
-            Handle obj = eval(*idx->object);
-            Handle key = eval(*idx->index);
+            Handle obj = rs.add(eval(*idx->object));
+            Handle key = rs.add(eval(*idx->index));
             located(s.span, [&] {
                 vm_.arena().deref(obj).setItem(vm_, key, value);
                 return vm_.none();
@@ -100,7 +106,8 @@ public:
     }
 
     void visit(const ast::ForStmt& s) override {
-        Handle iterable = eval(*s.iterable);
+        RootScope rs(vm_);
+        Handle iterable = rs.add(eval(*s.iterable));
         auto items = located(s.span, [&] { return vm_.arena().deref(iterable).iterate(vm_); });
         for (Handle item : items.value()) {
             scope().define(s.var, item);
@@ -146,13 +153,15 @@ public:
             result_ = vm_.makeBool(!truthy(eval(*e.operand)));
             return;
         }
-        Handle operand = eval(*e.operand);
+        RootScope rs(vm_);
+        Handle operand = rs.add(eval(*e.operand));
         result_ = located(e.span, [&] { return vm_.arena().deref(operand).unary(vm_, e.op, operand); });
     }
 
     void visit(const ast::LogicalExpr& e) override {
         // Short-circuit, Python-style: yield the operand that decides the result.
-        Handle lhs = eval(*e.lhs);
+        RootScope rs(vm_);
+        Handle lhs = rs.add(eval(*e.lhs));
         bool lt = truthy(lhs);
         if (e.isAnd) result_ = lt ? eval(*e.rhs) : lhs;
         else result_ = lt ? lhs : eval(*e.rhs);
@@ -160,57 +169,22 @@ public:
 
     void visit(const ast::FunctionExpr& e) override {
         // Capture the current scope -> closure.
-        result_ = vm_.arena().alloc(std::make_unique<KiFunction>(&e, env_));
+        result_ = vm_.alloc(std::make_unique<KiFunction>(&e, env_));
     }
 
     void visit(const ast::CallExpr& e) override {
-        Handle callee = eval(*e.callee);
+        RootScope rs(vm_);
+        Handle callee = rs.add(eval(*e.callee));
         std::vector<Handle> args;
         args.reserve(e.args.size());
-        for (const auto& arg : e.args) args.push_back(eval(*arg));
+        for (const auto& arg : e.args) args.push_back(rs.add(eval(*arg)));
         result_ = located(e.span, [&] { return vm_.arena().deref(callee).call(vm_, args); });
     }
 
-    void visit(const ast::MemberExpr& e) override {
-        Handle obj = eval(*e.object);
-        result_ = located(e.span, [&] { return vm_.arena().deref(obj).getAttr(vm_, e.name); });
-    }
-
-    void visit(const ast::IndexExpr& e) override {
-        Handle obj = eval(*e.object);
-        Handle key = eval(*e.index);
-        result_ = located(e.span, [&] { return vm_.arena().deref(obj).getItem(vm_, key); });
-    }
-
-    void visit(const ast::ListLiteral& e) override {
-        auto list = std::make_unique<ListVal>();
-        list->elems.reserve(e.elems.size());
-        for (const auto& elem : e.elems) list->elems.push_back(eval(*elem));
-        result_ = vm_.arena().alloc(std::move(list));
-    }
-
-    void visit(const ast::SetLiteral& e) override {
-        auto set = std::make_unique<SetVal>();
-        for (const auto& elem : e.elems) {
-            Handle h = eval(*elem);
-            located(e.span, [&] { set->add(vm_.arena(), h); return vm_.none(); });
-        }
-        result_ = vm_.arena().alloc(std::move(set));
-    }
-
-    void visit(const ast::DictLiteral& e) override {
-        auto dict = std::make_unique<DictVal>();
-        for (const auto& [key, value] : e.entries) {
-            Handle kh = eval(*key);
-            Handle vh = eval(*value);
-            located(e.span, [&] { dict->set(vm_.arena(), kh, vh); return vm_.none(); });
-        }
-        result_ = vm_.arena().alloc(std::move(dict));
-    }
-
     void visit(const ast::BinaryExpr& e) override {
-        Handle lhs = eval(*e.lhs);
-        Handle rhs = eval(*e.rhs);
+        RootScope rs(vm_);
+        Handle lhs = rs.add(eval(*e.lhs));
+        Handle rhs = rs.add(eval(*e.rhs));
         // Equality never raises on type mismatch (1 == "x" is False); it uses the value protocol's
         // structural equals. Ordering and arithmetic dispatch through binary().
         if (e.op == BinOp::Eq || e.op == BinOp::Ne) {
@@ -219,6 +193,48 @@ public:
             return;
         }
         result_ = located(e.span, [&] { return vm_.arena().deref(lhs).binary(vm_, e.op, lhs, rhs); });
+    }
+
+    void visit(const ast::MemberExpr& e) override {
+        RootScope rs(vm_);
+        Handle obj = rs.add(eval(*e.object));
+        result_ = located(e.span, [&] { return vm_.arena().deref(obj).getAttr(vm_, obj, e.name); });
+    }
+
+    void visit(const ast::IndexExpr& e) override {
+        RootScope rs(vm_);
+        Handle obj = rs.add(eval(*e.object));
+        Handle key = rs.add(eval(*e.index));
+        result_ = located(e.span, [&] { return vm_.arena().deref(obj).getItem(vm_, key); });
+    }
+
+    void visit(const ast::ListLiteral& e) override {
+        RootScope rs(vm_);
+        auto list = std::make_unique<ListVal>();
+        list->elems.reserve(e.elems.size());
+        for (const auto& elem : e.elems) list->elems.push_back(rs.add(eval(*elem)));
+        result_ = vm_.alloc(std::move(list));
+    }
+
+    void visit(const ast::SetLiteral& e) override {
+        RootScope rs(vm_);
+        auto set = std::make_unique<SetVal>();
+        for (const auto& elem : e.elems) {
+            Handle h = rs.add(eval(*elem));
+            located(e.span, [&] { set->add(vm_.arena(), h); return vm_.none(); });
+        }
+        result_ = vm_.alloc(std::move(set));
+    }
+
+    void visit(const ast::DictLiteral& e) override {
+        RootScope rs(vm_);
+        auto dict = std::make_unique<DictVal>();
+        for (const auto& [key, value] : e.entries) {
+            Handle kh = rs.add(eval(*key));
+            Handle vh = rs.add(eval(*value));
+            located(e.span, [&] { dict->set(vm_.arena(), kh, vh); return vm_.none(); });
+        }
+        result_ = vm_.alloc(std::move(dict));
     }
 
 private:
@@ -238,6 +254,7 @@ private:
 
     KiritoVM& vm_;
     Handle env_;
+    std::size_t rootBase_;
     Handle result_{};
     Handle returnValue_{};
     Flow flow_ = Flow::Normal;

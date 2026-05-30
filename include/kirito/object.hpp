@@ -58,7 +58,8 @@ public:
     virtual Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs);
     virtual Handle unary(KiritoVM&, UnOp, Handle self);
     virtual Handle call(KiritoVM&, std::span<const Handle> args);
-    virtual Handle getAttr(KiritoVM&, std::string_view name);
+    // getAttr receives the receiver's own handle so bound methods can capture (and GC-root) it.
+    virtual Handle getAttr(KiritoVM&, Handle self, std::string_view name);
     virtual void setAttr(KiritoVM&, std::string_view name, Handle value);
     virtual Handle getItem(KiritoVM&, Handle key);
     virtual void setItem(KiritoVM&, Handle key, Handle value);
@@ -75,7 +76,7 @@ inline Handle Object::unary(KiritoVM&, UnOp, Handle) {
 inline Handle Object::call(KiritoVM&, std::span<const Handle>) {
     throw KiritoError("type '" + typeName() + "' is not callable");
 }
-inline Handle Object::getAttr(KiritoVM&, std::string_view name) {
+inline Handle Object::getAttr(KiritoVM&, Handle, std::string_view name) {
     throw KiritoError("type '" + typeName() + "' has no attribute '" + std::string(name) + "'");
 }
 inline void Object::setAttr(KiritoVM&, std::string_view name, Handle) {

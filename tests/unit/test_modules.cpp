@@ -40,10 +40,10 @@ struct Point : NativeClass<Point> {
     static constexpr const char* kTypeName = "Point";
     int64_t x, y;
     Point(int64_t x, int64_t y) : x(x), y(y) {}
-    Handle getAttr(KiritoVM& vm, std::string_view name) override {
+    Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         if (name == "x") return vm.makeInt(x);
         if (name == "y") return vm.makeInt(y);
-        return Object::getAttr(vm, name);
+        return Object::getAttr(vm, self, name);
     }
 };
 

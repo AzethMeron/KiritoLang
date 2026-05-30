@@ -35,19 +35,58 @@ public:
     ObjectArena& arena() { return arena_; }
     const ObjectArena& arena() const { return arena_; }
 
+    // The GC-aware allocator: every Kirito value flows through here, so a collection can be
+    // triggered (before the new object exists) when allocation pressure crosses the threshold.
+    Handle alloc(std::unique_ptr<Object> obj) {
+        if (gcEnabled_ && ++allocsSinceGc_ >= gcThreshold_) collectGarbage();
+        return arena_.alloc(std::move(obj));
+    }
+
     // Interned singletons.
     Handle none() const { return none_; }
     Handle makeBool(bool v) const { return v ? true_ : false_; }
 
     // Value-construction helpers — also the embedding surface for C++ callers.
-    Handle makeInt(int64_t v) { return arena_.alloc(std::make_unique<IntVal>(v)); }
-    Handle makeFloat(double v) { return arena_.alloc(std::make_unique<FloatVal>(v)); }
-    Handle makeString(std::string v) { return arena_.alloc(std::make_unique<StrVal>(std::move(v))); }
+    Handle makeInt(int64_t v) { return alloc(std::make_unique<IntVal>(v)); }
+    Handle makeFloat(double v) { return alloc(std::make_unique<FloatVal>(v)); }
+    Handle makeString(std::string v) { return alloc(std::make_unique<StrVal>(std::move(v))); }
 
     Handle global() const { return global_; }
     // A fresh scope whose parent is the given one (defaults to a module scope under global).
-    Handle newScope(Handle parent) { return arena_.alloc(std::make_unique<EnvValue>(parent)); }
+    Handle newScope(Handle parent) { return alloc(std::make_unique<EnvValue>(parent)); }
     Handle newModuleScope() { return newScope(global_); }
+
+    // --- garbage collection ---
+    // Temporary roots: handles held in C++ locals across an allocation must be protected here
+    // (see RootScope below) so a mid-expression collection cannot reclaim them.
+    void pushTemp(Handle h) { tempRoots_.push_back(h); }
+    std::size_t tempMark() const { return tempRoots_.size(); }
+    void popTempTo(std::size_t mark) { tempRoots_.resize(mark); }
+
+    // Mark from every root (singletons, globals, module cache, REPL scope, temp roots), then sweep.
+    void collectGarbage() {
+        arena_.clearMarks();
+        std::vector<Handle> work;
+        auto enqueue = [&](Handle h) { if (arena_.markIfUnmarked(h)) work.push_back(h); };
+        enqueue(none_); enqueue(true_); enqueue(false_); enqueue(global_);
+        if (replScopeReady_) enqueue(replScope_);
+        for (const auto& [name, h] : moduleCache_) enqueue(h);
+        for (Handle h : tempRoots_) enqueue(h);
+        std::vector<Handle> childbuf;
+        while (!work.empty()) {
+            Handle h = work.back();
+            work.pop_back();
+            childbuf.clear();
+            arena_.deref(h).children(childbuf);
+            for (Handle c : childbuf) enqueue(c);
+        }
+        arena_.sweep();
+        allocsSinceGc_ = 0;
+    }
+
+    void setGcThreshold(std::size_t n) { gcThreshold_ = n; }
+    void setGcEnabled(bool on) { gcEnabled_ = on; }
+    std::size_t liveCount() const { return arena_.liveCount(); }
 
     // Expose a C++ callable (or any value) as a Kirito global — the simplest extension point.
     void registerGlobal(const std::string& name, Handle value) {
@@ -97,6 +136,25 @@ private:
     std::unordered_map<std::string, Handle> moduleCache_;
     Handle replScope_{};
     bool replScopeReady_ = false;
+    std::vector<Handle> tempRoots_;
+    std::size_t allocsSinceGc_ = 0;
+    std::size_t gcThreshold_ = 100000;
+    bool gcEnabled_ = true;
+};
+
+// RAII protector: handles added here are GC roots until the scope ends. Use wherever the
+// evaluator holds a handle in a C++ local while doing more work that may allocate.
+struct RootScope {
+    KiritoVM& vm;
+    std::size_t mark;
+    explicit RootScope(KiritoVM& vm) : vm(vm), mark(vm.tempMark()) {}
+    ~RootScope() { vm.popTempTo(mark); }
+    RootScope(const RootScope&) = delete;
+    RootScope& operator=(const RootScope&) = delete;
+    Handle add(Handle h) {
+        vm.pushTemp(h);
+        return h;
+    }
 };
 
 }  // namespace kirito

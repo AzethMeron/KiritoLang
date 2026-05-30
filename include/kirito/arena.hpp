@@ -32,12 +32,47 @@ public:
     Object& deref(Handle h) { return *at(h).obj; }
     const Object& deref(Handle h) const { return *at(h).obj; }
 
+    // --- mark-sweep GC primitives (driven by KiritoVM, which knows the roots) ---
+    void clearMarks() {
+        for (Slot& s : slots_) s.marked = false;
+    }
+    // Mark a slot if live and not yet marked; returns true exactly once per object per cycle so
+    // the caller knows to enqueue its children.
+    bool markIfUnmarked(Handle h) {
+        if (h.slot >= slots_.size()) return false;
+        Slot& s = slots_[h.slot];
+        if (!s.occupied || s.generation != h.generation || s.marked) return false;
+        s.marked = true;
+        return true;
+    }
+    // Free every occupied-but-unmarked slot; returns how many were reclaimed.
+    std::size_t sweep() {
+        std::size_t freed = 0;
+        for (uint32_t i = 0; i < slots_.size(); ++i) {
+            Slot& s = slots_[i];
+            if (s.occupied && !s.marked) {
+                s.obj.reset();
+                s.occupied = false;
+                ++s.generation;
+                free_.push_back(i);
+                ++freed;
+            }
+        }
+        return freed;
+    }
+    std::size_t liveCount() const {
+        std::size_t n = 0;
+        for (const Slot& s : slots_) if (s.occupied) ++n;
+        return n;
+    }
+    std::size_t capacity() const { return slots_.size(); }
+
 private:
     struct Slot {
         std::unique_ptr<Object> obj;
         uint32_t generation = 0;
         bool occupied = false;
-        bool marked = false;  // reserved for GC
+        bool marked = false;
     };
 
     const Slot& at(Handle h) const {

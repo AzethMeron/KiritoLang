@@ -29,7 +29,7 @@ public:
     ModuleBuilder(KiritoVM& vm, ModuleValue& mod) : vm_(vm), mod_(mod) {}
 
     ModuleBuilder& fn(std::string name, NativeFn impl) {
-        mod_.members[name] = vm_.arena().alloc(std::make_unique<NativeFunction>(name, std::move(impl)));
+        mod_.members[name] = vm_.alloc(std::make_unique<NativeFunction>(name, std::move(impl)));
         return *this;
     }
     ModuleBuilder& value(const std::string& name, Handle h) {

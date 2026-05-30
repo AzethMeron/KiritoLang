@@ -25,7 +25,7 @@ public:
     void children(std::vector<Handle>& out) const override {
         for (const auto& [k, h] : members) out.push_back(h);
     }
-    Handle getAttr(KiritoVM&, std::string_view name) override {
+    Handle getAttr(KiritoVM&, Handle, std::string_view name) override {
         auto it = members.find(std::string(name));
         if (it == members.end())
             throw KiritoError("module '" + name_ + "' has no member '" + std::string(name) + "'");

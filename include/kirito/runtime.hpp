@@ -199,17 +199,28 @@ inline Handle ListVal::getItem(KiritoVM& vm, Handle key) {
 inline void ListVal::setItem(KiritoVM& vm, Handle key, Handle value) {
     elems[sequenceIndex(vm, elems.size(), key)] = value;
 }
-inline Handle ListVal::getAttr(KiritoVM& vm, std::string_view name) {
-    if (name == "append") {
-        ListVal* self = this;
-        return vm.arena().alloc(std::make_unique<NativeFunction>(
-            "append", [self](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
+    if (name == "append")
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "append",
+            [self](KiritoVM& vm, std::span<const Handle> args) -> Handle {
                 if (args.size() != 1) throw KiritoError("append expected 1 argument");
-                self->elems.push_back(args[0]);
+                static_cast<ListVal&>(vm.arena().deref(self)).elems.push_back(args[0]);
                 return vm.none();
-            }));
-    }
-    return Object::getAttr(vm, name);
+            },
+            std::vector<Handle>{self}));
+    if (name == "pop")
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "pop",
+            [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                auto& list = static_cast<ListVal&>(vm.arena().deref(self));
+                if (list.elems.empty()) throw KiritoError("pop from empty List");
+                Handle last = list.elems.back();
+                list.elems.pop_back();
+                return last;
+            },
+            std::vector<Handle>{self}));
+    return Object::getAttr(vm, self, name);
 }
 
 inline Handle DictVal::getItem(KiritoVM& vm, Handle key) {
@@ -221,22 +232,25 @@ inline void DictVal::setItem(KiritoVM& vm, Handle key, Handle value) {
     set(vm.arena(), key, value);
 }
 
-inline Handle SetVal::getAttr(KiritoVM& vm, std::string_view name) {
-    SetVal* self = this;
+inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
     if (name == "add")
-        return vm.arena().alloc(std::make_unique<NativeFunction>(
-            "add", [self](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "add",
+            [self](KiritoVM& vm, std::span<const Handle> args) -> Handle {
                 if (args.size() != 1) throw KiritoError("add expected 1 argument");
-                self->add(vm.arena(), args[0]);
+                static_cast<SetVal&>(vm.arena().deref(self)).add(vm.arena(), args[0]);
                 return vm.none();
-            }));
+            },
+            std::vector<Handle>{self}));
     if (name == "contains")
-        return vm.arena().alloc(std::make_unique<NativeFunction>(
-            "contains", [self](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "contains",
+            [self](KiritoVM& vm, std::span<const Handle> args) -> Handle {
                 if (args.size() != 1) throw KiritoError("contains expected 1 argument");
-                return vm.makeBool(self->contains(vm.arena(), args[0]));
-            }));
-    return Object::getAttr(vm, name);
+                return vm.makeBool(static_cast<SetVal&>(vm.arena().deref(self)).contains(vm.arena(), args[0]));
+            },
+            std::vector<Handle>{self}));
+    return Object::getAttr(vm, self, name);
 }
 
 // --- String indexing / iteration (needs sequenceIndex, above) --------------------------------
@@ -280,7 +294,7 @@ void KiritoVM::install() {
     nativeModules_.push_back(std::make_unique<T>());
     NativeModule* mod = nativeModules_.back().get();
     registerModule(mod->name(), [mod](KiritoVM& vm) -> Handle {
-        Handle h = vm.arena().alloc(std::make_unique<ModuleValue>(mod->name()));
+        Handle h = vm.alloc(std::make_unique<ModuleValue>(mod->name()));
         ModuleBuilder builder(vm, static_cast<ModuleValue&>(vm.arena().deref(h)));
         mod->setup(builder);
         return h;
@@ -302,7 +316,7 @@ inline Handle KiritoVM::importModule(const std::string& name) {
 inline void KiritoVM::installBuiltins() {
     auto& g = static_cast<EnvValue&>(arena_.deref(global_));
     auto def = [&](const char* name, NativeFn fn) {
-        g.define(name, arena_.alloc(std::make_unique<NativeFunction>(name, std::move(fn))));
+        g.define(name, alloc(std::make_unique<NativeFunction>(name, std::move(fn))));
     };
 
     def("len", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
