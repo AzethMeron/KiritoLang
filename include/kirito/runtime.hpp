@@ -13,8 +13,11 @@
 #include "evaluator.hpp"
 #include "function.hpp"
 #include "lexer.hpp"
+#include "module.hpp"
+#include "native.hpp"
 #include "object.hpp"
 #include "parser.hpp"
+#include "stdlib_io.hpp"
 #include "vm.hpp"
 
 // Definitions that need a complete KiritoVM (and the front end): they live here, included last,
@@ -252,13 +255,106 @@ inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
 
 // --- VM entry point & lifetime ---------------------------------------------------------------
 
+// --- module / extension API ------------------------------------------------------------------
+
+inline void KiritoVM::registerModule(std::string name, ModuleFactory factory) {
+    moduleFactories_[std::move(name)] = std::move(factory);
+}
+
+template <class T>
+void KiritoVM::install() {
+    nativeModules_.push_back(std::make_unique<T>());
+    NativeModule* mod = nativeModules_.back().get();
+    registerModule(mod->name(), [mod](KiritoVM& vm) -> Handle {
+        Handle h = vm.arena().alloc(std::make_unique<ModuleValue>(mod->name()));
+        ModuleBuilder builder(vm, static_cast<ModuleValue&>(vm.arena().deref(h)));
+        mod->setup(builder);
+        return h;
+    });
+}
+
+inline Handle KiritoVM::importModule(const std::string& name) {
+    auto cached = moduleCache_.find(name);
+    if (cached != moduleCache_.end()) return cached->second;  // modules are per-VM singletons
+    auto factory = moduleFactories_.find(name);
+    if (factory == moduleFactories_.end()) throw KiritoError("no module named '" + name + "'");
+    Handle h = factory->second(*this);
+    moduleCache_[name] = h;
+    return h;
+}
+
+// --- built-in globals ------------------------------------------------------------------------
+
 inline void KiritoVM::installBuiltins() {
     auto& g = static_cast<EnvValue&>(arena_.deref(global_));
-    g.define("len", arena_.alloc(std::make_unique<NativeFunction>(
-                        "len", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
-                            if (args.size() != 1) throw KiritoError("len expected 1 argument");
-                            return vm.makeInt(vm.arena().deref(args[0]).length(vm).value());
-                        })));
+    auto def = [&](const char* name, NativeFn fn) {
+        g.define(name, arena_.alloc(std::make_unique<NativeFunction>(name, std::move(fn))));
+    };
+
+    def("len", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        if (args.size() != 1) throw KiritoError("len expected 1 argument");
+        return vm.makeInt(vm.arena().deref(args[0]).length(vm).value());
+    });
+
+    def("import", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        if (args.size() != 1) throw KiritoError("import expected 1 argument");
+        const Object& a = vm.arena().deref(args[0]);
+        if (a.kind() != ValueKind::String) throw KiritoError("import expects a String module name");
+        return vm.importModule(static_cast<const StrVal&>(a).value());
+    });
+
+    // Type constructors double as converters (Python style): Integer("42"), String(n), ...
+    def("Integer", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        if (args.size() != 1) throw KiritoError("Integer expected 1 argument");
+        const Object& o = vm.arena().deref(args[0]);
+        switch (o.kind()) {
+            case ValueKind::Integer: return args[0];
+            case ValueKind::Bool: return vm.makeInt(static_cast<const BoolVal&>(o).value() ? 1 : 0);
+            case ValueKind::Float:
+                return vm.makeInt(static_cast<int64_t>(static_cast<const FloatVal&>(o).value()));
+            case ValueKind::String: {
+                const std::string& s = static_cast<const StrVal&>(o).value();
+                try {
+                    return vm.makeInt(static_cast<int64_t>(std::stoll(s)));
+                } catch (...) {
+                    throw KiritoError("cannot convert String to Integer: '" + s + "'");
+                }
+            }
+            default: throw KiritoError("cannot convert '" + o.typeName() + "' to Integer");
+        }
+    });
+
+    def("Float", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        if (args.size() != 1) throw KiritoError("Float expected 1 argument");
+        const Object& o = vm.arena().deref(args[0]);
+        switch (o.kind()) {
+            case ValueKind::Float: return args[0];
+            case ValueKind::Integer:
+                return vm.makeFloat(static_cast<double>(static_cast<const IntVal&>(o).value()));
+            case ValueKind::Bool: return vm.makeFloat(static_cast<const BoolVal&>(o).value() ? 1.0 : 0.0);
+            case ValueKind::String: {
+                const std::string& s = static_cast<const StrVal&>(o).value();
+                try {
+                    return vm.makeFloat(std::stod(s));
+                } catch (...) {
+                    throw KiritoError("cannot convert String to Float: '" + s + "'");
+                }
+            }
+            default: throw KiritoError("cannot convert '" + o.typeName() + "' to Float");
+        }
+    });
+
+    def("String", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        if (args.size() != 1) throw KiritoError("String expected 1 argument");
+        return vm.makeString(vm.stringify(args[0]));
+    });
+
+    def("Bool", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        if (args.size() != 1) throw KiritoError("Bool expected 1 argument");
+        return vm.makeBool(vm.arena().deref(args[0]).truthy());
+    });
+
+    install<IoModule>();
 }
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {

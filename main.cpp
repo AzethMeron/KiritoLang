@@ -23,8 +23,7 @@ int main(int argc, char** argv) {
 
     kirito::KiritoVM vm;
     try {
-        kirito::Handle result = vm.runSource(buffer.str(), argv[1]);
-        std::cout << vm.stringify(result) << "\n";
+        vm.runSource(buffer.str(), argv[1]);  // a file runner discards the program's final value
     } catch (const kirito::KiritoError& e) {
         std::cerr << argv[1] << ":" << e.span.line << ":" << e.span.col << ": error: "
                   << e.what() << "\n";

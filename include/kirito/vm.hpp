@@ -1,9 +1,11 @@
 #ifndef KIRITO_VM_HPP
 #define KIRITO_VM_HPP
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "arena.hpp"
@@ -15,6 +17,7 @@
 namespace kirito {
 
 namespace ast { struct Program; }
+class NativeModule;
 
 // One KiritoVM == one fully-encapsulated Kirito process. It owns the whole process state by
 // composing its sub-objects: the value arena, the global (built-ins) environment, and interned
@@ -46,6 +49,17 @@ public:
     Handle newScope(Handle parent) { return arena_.alloc(std::make_unique<EnvValue>(parent)); }
     Handle newModuleScope() { return newScope(global_); }
 
+    // Expose a C++ callable (or any value) as a Kirito global — the simplest extension point.
+    void registerGlobal(const std::string& name, Handle value) {
+        static_cast<EnvValue&>(arena_.deref(global_)).define(name, value);
+    }
+
+    // --- extension / module API (defined in runtime.hpp) ---
+    using ModuleFactory = std::function<Handle(KiritoVM&)>;
+    void registerModule(std::string name, ModuleFactory factory);
+    template <class T> void install();              // install a NativeModule subclass
+    Handle importModule(const std::string& name);   // build-or-cache, per-VM singleton
+
     std::string stringify(Handle h) const {
         StringifyCtx ctx{arena_, {}};
         return arena_.deref(h).str(ctx);
@@ -71,6 +85,9 @@ private:
     Handle false_;
     Handle global_;
     std::vector<std::unique_ptr<ast::Program>> chunks_;
+    std::vector<std::unique_ptr<NativeModule>> nativeModules_;
+    std::unordered_map<std::string, ModuleFactory> moduleFactories_;
+    std::unordered_map<std::string, Handle> moduleCache_;
 };
 
 }  // namespace kirito
