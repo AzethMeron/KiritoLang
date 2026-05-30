@@ -1,15 +1,7 @@
 #ifndef KIRITO_STDLIB_NET_HPP
 #define KIRITO_STDLIB_NET_HPP
 
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
-#include <cerrno>
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <span>
 #include <string>
@@ -23,26 +15,29 @@
 #include "builtins.hpp"
 #include "collections.hpp"
 #include "native.hpp"
+#include "net_compat.hpp"
 
 namespace kirito {
 
-// A TCP socket. Wraps a POSIX file descriptor, closed automatically when the value is collected.
-// There is no global state; you create a Socket and operate on it.
+// A TCP socket. Wraps an OS socket handle (POSIX fd or Winsock SOCKET), closed automatically when
+// the value is collected. There is no global state; you create a Socket and operate on it.
 class SocketVal : public NativeClass<SocketVal> {
 public:
     static constexpr const char* kTypeName = "Socket";
-    int fd = -1;
+    netcompat::socket_t fd = netcompat::kInvalidSocket;
     bool closed = false;
 
     SocketVal() {
+        netcompat::startup();
         fd = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (fd < 0) throw KiritoError(std::string("socket() failed: ") + std::strerror(errno));
+        if (!netcompat::isValid(fd))
+            throw KiritoError("socket() failed: " + netcompat::lastError());
     }
-    explicit SocketVal(int existing) : fd(existing) {}
+    explicit SocketVal(netcompat::socket_t existing) : fd(existing) {}
     ~SocketVal() override { closeFd(); }
 
     void closeFd() {
-        if (fd >= 0 && !closed) { ::close(fd); closed = true; }
+        if (netcompat::isValid(fd) && !closed) { netcompat::closeSocket(fd); closed = true; }
     }
 
     static int64_t asInt(KiritoVM& vm, Handle h) {
@@ -63,6 +58,7 @@ namespace net {
 
 // Resolve host:port into a sockaddr (IPv4). Returns the first usable address.
 inline bool resolve(const std::string& host, int port, sockaddr_in& out) {
+    netcompat::startup();
     addrinfo hints{};
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -74,21 +70,21 @@ inline bool resolve(const std::string& host, int port, sockaddr_in& out) {
     return true;
 }
 
-inline void sendAll(int fd, const std::string& data) {
+inline void sendAll(netcompat::socket_t fd, const std::string& data) {
     std::size_t sent = 0;
     while (sent < data.size()) {
-        ssize_t n = ::send(fd, data.data() + sent, data.size() - sent, 0);
-        if (n <= 0) throw KiritoError(std::string("send failed: ") + std::strerror(errno));
+        long long n = netcompat::sendBytes(fd, data.data() + sent, data.size() - sent);
+        if (n <= 0) throw KiritoError("send failed: " + netcompat::lastError());
         sent += static_cast<std::size_t>(n);
     }
 }
 
-inline std::string recvAll(int fd) {
+inline std::string recvAll(netcompat::socket_t fd) {
     std::string out;
     char buf[4096];
     while (true) {
-        ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
-        if (n < 0) throw KiritoError(std::string("recv failed: ") + std::strerror(errno));
+        long long n = netcompat::recvBytes(fd, buf, sizeof(buf));
+        if (n < 0) throw KiritoError("recv failed: " + netcompat::lastError());
         if (n == 0) break;
         out.append(buf, static_cast<std::size_t>(n));
     }
@@ -185,14 +181,14 @@ inline Handle httpRequest(KiritoVM& vm, const std::string& method, const std::st
 }
 
 // Open a connected TCP socket to the URL's host:port, or throw.
-inline int dialTcp(const Url& u) {
+inline netcompat::socket_t dialTcp(const Url& u) {
     sockaddr_in addr{};
     if (!resolve(u.host, u.port, addr)) throw KiritoError("could not resolve host '" + u.host + "'");
-    int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) throw KiritoError("socket() failed");
+    netcompat::socket_t fd = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (!netcompat::isValid(fd)) throw KiritoError("socket() failed");
     if (::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
-        ::close(fd);
-        throw KiritoError("could not connect to " + u.host + ": " + std::strerror(errno));
+        netcompat::closeSocket(fd);
+        throw KiritoError("could not connect to " + u.host + ": " + netcompat::lastError());
     }
     return fd;
 }
@@ -200,23 +196,23 @@ inline int dialTcp(const Url& u) {
 #ifdef KIRITO_ENABLE_TLS
 // TLS transport via OpenSSL (compiled in only when KIRITO_ENABLE_TLS is defined; links -lssl -lcrypto).
 inline std::string httpExchange(const Url& u, const std::string& request) {
-    int fd = dialTcp(u);
+    netcompat::socket_t fd = dialTcp(u);
     if (!u.tls) {
         std::string raw;
         try { net::sendAll(fd, request); raw = net::recvAll(fd); }
-        catch (...) { ::close(fd); throw; }
-        ::close(fd);
+        catch (...) { netcompat::closeSocket(fd); throw; }
+        netcompat::closeSocket(fd);
         return raw;
     }
     static bool inited = [] { SSL_library_init(); SSL_load_error_strings(); return true; }();
     (void)inited;
     SSL_CTX* ctx = SSL_CTX_new(TLS_client_method());
-    if (!ctx) { ::close(fd); throw KiritoError("SSL_CTX_new failed"); }
+    if (!ctx) { netcompat::closeSocket(fd); throw KiritoError("SSL_CTX_new failed"); }
     SSL* ssl = SSL_new(ctx);
-    SSL_set_fd(ssl, fd);
+    SSL_set_fd(ssl, static_cast<int>(fd));
     SSL_set_tlsext_host_name(ssl, u.host.c_str());  // SNI
     if (SSL_connect(ssl) != 1) {
-        SSL_free(ssl); SSL_CTX_free(ctx); ::close(fd);
+        SSL_free(ssl); SSL_CTX_free(ctx); netcompat::closeSocket(fd);
         throw KiritoError("TLS handshake with " + u.host + " failed");
     }
     std::string raw;
@@ -231,10 +227,10 @@ inline std::string httpExchange(const Url& u, const std::string& request) {
         int n;
         while ((n = SSL_read(ssl, buf, sizeof(buf))) > 0) raw.append(buf, static_cast<std::size_t>(n));
     } catch (...) {
-        SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); ::close(fd);
+        SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); netcompat::closeSocket(fd);
         throw;
     }
-    SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); ::close(fd);
+    SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); netcompat::closeSocket(fd);
     return raw;
 }
 #else
@@ -242,11 +238,11 @@ inline std::string httpExchange(const Url& u, const std::string& request) {
 inline std::string httpExchange(const Url& u, const std::string& request) {
     if (u.tls)
         throw KiritoError("https requires building with KIRITO_ENABLE_TLS (OpenSSL); use http:// otherwise");
-    int fd = dialTcp(u);
+    netcompat::socket_t fd = dialTcp(u);
     std::string raw;
     try { net::sendAll(fd, request); raw = net::recvAll(fd); }
-    catch (...) { ::close(fd); throw; }
-    ::close(fd);
+    catch (...) { netcompat::closeSocket(fd); throw; }
+    netcompat::closeSocket(fd);
     return raw;
 }
 #endif
@@ -267,33 +263,34 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             if (!net::resolve(asStr(vm, a[0]), static_cast<int>(asInt(vm, a[1])), addr))
                 throw KiritoError("could not resolve host");
             if (::connect(s.fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0)
-                throw KiritoError(std::string("connect failed: ") + std::strerror(errno));
+                throw KiritoError("connect failed: " + netcompat::lastError());
             return vm.none();
         });
     if (name == "bind")
         return bind("bind", [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto& s = sock(vm, self);
             int yes = 1;
-            ::setsockopt(s.fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+            ::setsockopt(s.fd, SOL_SOCKET, SO_REUSEADDR,
+                         reinterpret_cast<const char*>(&yes), sizeof(yes));
             sockaddr_in addr{};
             addr.sin_family = AF_INET;
             addr.sin_port = htons(static_cast<uint16_t>(asInt(vm, a[1])));
             ::inet_pton(AF_INET, asStr(vm, a[0]).c_str(), &addr.sin_addr);
             if (::bind(s.fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0)
-                throw KiritoError(std::string("bind failed: ") + std::strerror(errno));
+                throw KiritoError("bind failed: " + netcompat::lastError());
             return vm.none();
         });
     if (name == "listen")
         return bind("listen", [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             int backlog = a.empty() ? 16 : static_cast<int>(asInt(vm, a[0]));
             if (::listen(sock(vm, self).fd, backlog) != 0)
-                throw KiritoError(std::string("listen failed: ") + std::strerror(errno));
+                throw KiritoError("listen failed: " + netcompat::lastError());
             return vm.none();
         });
     if (name == "accept")
         return bind("accept", [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
-            int c = ::accept(sock(vm, self).fd, nullptr, nullptr);
-            if (c < 0) throw KiritoError(std::string("accept failed: ") + std::strerror(errno));
+            netcompat::socket_t c = ::accept(sock(vm, self).fd, nullptr, nullptr);
+            if (!netcompat::isValid(c)) throw KiritoError("accept failed: " + netcompat::lastError());
             return vm.alloc(std::make_unique<SocketVal>(c));
         });
     if (name == "send")
@@ -306,8 +303,8 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return bind("recv", [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::size_t n = a.empty() ? 4096 : static_cast<std::size_t>(asInt(vm, a[0]));
             std::vector<char> buf(n);
-            ssize_t got = ::recv(sock(vm, self).fd, buf.data(), n, 0);
-            if (got < 0) throw KiritoError(std::string("recv failed: ") + std::strerror(errno));
+            long long got = netcompat::recvBytes(sock(vm, self).fd, buf.data(), n);
+            if (got < 0) throw KiritoError("recv failed: " + netcompat::lastError());
             return vm.makeString(std::string(buf.data(), static_cast<std::size_t>(got)));
         });
     if (name == "recv_all")
