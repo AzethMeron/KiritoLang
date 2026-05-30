@@ -36,6 +36,7 @@
 #include "stdlib_dump.hpp"
 #include "stdlib_zlib.hpp"
 #include "stdlib_hash.hpp"
+#include "stdlib_kimodules.hpp"
 #include "vm.hpp"
 
 // Definitions that need a complete KiritoVM (and the front end): they live here, included last,
@@ -265,12 +266,23 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
     if (name == "pop")
         return vm.alloc(std::make_unique<NativeFunction>(
             "pop",
-            [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 auto& list = static_cast<ListVal&>(vm.arena().deref(self));
                 if (list.elems.empty()) throw KiritoError("pop from empty List");
-                Handle last = list.elems.back();
-                list.elems.pop_back();
-                return last;
+                // pop() removes the last element; pop(i) removes (and returns) index i (negative
+                // counts from the end, like Python).
+                int64_t idx = static_cast<int64_t>(list.elems.size()) - 1;
+                if (!a.empty()) {
+                    const Object& o = vm.arena().deref(a[0]);
+                    if (o.kind() != ValueKind::Integer) throw KiritoError("pop index must be an Integer");
+                    idx = static_cast<const IntVal&>(o).value();
+                    if (idx < 0) idx += static_cast<int64_t>(list.elems.size());
+                    if (idx < 0 || idx >= static_cast<int64_t>(list.elems.size()))
+                        throw KiritoError("pop index out of range");
+                }
+                Handle v = list.elems[static_cast<std::size_t>(idx)];
+                list.elems.erase(list.elems.begin() + idx);
+                return v;
             },
             std::vector<Handle>{self}));
     auto self_list = [](KiritoVM& vm, Handle self) -> ListVal& {
@@ -852,6 +864,15 @@ inline bool InstanceValue::contains(KiritoVM& vm, Handle value) {
     Handle r = invokeOp(vm, *this, "_contains_", a, "'" + className + "' does not support 'in'");
     return vm.arena().deref(r).truthy();
 }
+
+inline std::optional<std::vector<Handle>> InstanceValue::iterate(KiritoVM& vm) {
+    // A class becomes iterable by defining _iter_(self) returning any iterable (commonly a List).
+    if (!findMethod(vm.arena(), "_iter_")) return std::nullopt;
+    Handle r = invokeOp(vm, *this, "_iter_", {}, "'" + className + "' is not iterable");
+    RootScope rs(vm);
+    rs.add(r);
+    return vm.arena().deref(r).iterate(vm);
+}
 inline std::string InstanceValue::str(StringifyCtx& ctx) const {
     if (ctx.vm) {
         const Handle* m = findMethod(ctx.arena, "_str_");
@@ -997,6 +1018,27 @@ void KiritoVM::install() {
         ModuleBuilder builder(vm, static_cast<ModuleValue&>(vm.arena().deref(h)));
         mod->setup(builder);
         return h;
+    });
+}
+
+inline void KiritoVM::registerSourceModule(std::string name, std::string_view source) {
+    // A frozen module: the Kirito `source` is compiled and run in a fresh module scope on first
+    // import, and its top-level bindings become the module's members. Cached like any module.
+    std::string src(source);
+    std::string modName = name;
+    registerModule(std::move(name), [src, modName](KiritoVM& vm) -> Handle {
+        Handle scope = vm.newModuleScope();
+        RootScope guard(vm);
+        guard.add(scope);
+        auto prog = std::make_unique<ast::Program>(Parser(Lexer(src).tokenize()).parseProgram());
+        const ast::Program& program = *prog;
+        vm.retainChunk(std::move(prog));
+        Evaluator ev(vm, scope);
+        ev.run(program);
+        auto mod = std::make_unique<ModuleValue>(modName);
+        for (const auto& [k, v] : static_cast<EnvValue&>(vm.arena().deref(scope)).locals())
+            if (!k.empty() && k.front() != '_') mod->members[k] = v;  // hide private top-level names
+        return vm.alloc(std::move(mod));
     });
 }
 
@@ -1214,6 +1256,51 @@ inline void KiritoVM::installBuiltins() {
     def("Bool", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         if (args.size() != 1) throw KiritoError("Bool expected 1 argument");
         return vm.makeBool(vm.arena().deref(args[0]).truthy());
+    });
+
+    // Collection constructors: List()/Set()/Dict() build an empty collection; List(iterable) and
+    // Set(iterable) build from any iterable. (Literals [] {} {,} remain the idiomatic shorthand.)
+    def("List", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        if (args.size() > 1) throw KiritoError("List expected at most 1 argument");
+        RootScope rs(vm);
+        auto list = std::make_unique<ListVal>();
+        if (args.size() == 1) {
+            auto items = vm.arena().deref(args[0]).iterate(vm);
+            if (!items) throw KiritoError("List() argument must be iterable");
+            for (Handle h : items.value()) rs.add(h);
+            list->elems = std::move(items.value());
+        }
+        return vm.alloc(std::move(list));
+    });
+    def("Set", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        if (args.size() > 1) throw KiritoError("Set expected at most 1 argument");
+        RootScope rs(vm);
+        Handle sh = rs.add(vm.alloc(std::make_unique<SetVal>()));
+        auto& s = static_cast<SetVal&>(vm.arena().deref(sh));
+        if (args.size() == 1) {
+            auto items = vm.arena().deref(args[0]).iterate(vm);
+            if (!items) throw KiritoError("Set() argument must be iterable");
+            for (Handle h : items.value()) s.add(vm.arena(), h);
+        }
+        return sh;
+    });
+    def("Dict", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        if (args.size() > 1) throw KiritoError("Dict expected at most 1 argument");
+        RootScope rs(vm);
+        Handle dh = rs.add(vm.alloc(std::make_unique<DictVal>()));
+        auto& d = static_cast<DictVal&>(vm.arena().deref(dh));
+        if (args.size() == 1) {
+            // Dict(pairs): each item is an iterable [key, value].
+            auto items = vm.arena().deref(args[0]).iterate(vm);
+            if (!items) throw KiritoError("Dict() argument must be iterable of pairs");
+            for (Handle h : items.value()) {
+                auto pair = vm.arena().deref(h).iterate(vm);
+                if (!pair || pair.value().size() != 2)
+                    throw KiritoError("Dict() items must be [key, value] pairs");
+                d.set(vm.arena(), pair.value()[0], pair.value()[1]);
+            }
+        }
+        return dh;
     });
 
     def("abs", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
@@ -1481,6 +1568,20 @@ inline void KiritoVM::installStandardLibrary() {
     install<DumpModule>();
     install<ZlibModule>();
     install<HashModule>();
+
+    // Modules authored in Kirito and frozen into the binary (see stdlib_kimodules.hpp).
+    registerSourceModule("itertools", kimod::itertools);
+    registerSourceModule("functools", kimod::functools);
+    registerSourceModule("collections", kimod::collections);
+    registerSourceModule("statistics", kimod::statistics);
+    registerSourceModule("string", kimod::string_mod);
+    registerSourceModule("textwrap", kimod::textwrap);
+    registerSourceModule("base64", kimod::base64);
+    registerSourceModule("csv", kimod::csv);
+    registerSourceModule("heapq", kimod::heapq);
+    registerSourceModule("bisect", kimod::bisect);
+    registerSourceModule("copy", kimod::copy_mod);
+    registerSourceModule("enum", kimod::enum_mod);
 }
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {

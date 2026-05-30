@@ -120,6 +120,9 @@ public:
     void registerModule(std::string name, ModuleFactory factory);
     template <class T> void install();              // install a NativeModule subclass (one-liner)
     void installStandardLibrary();                  // register the bundled stdlib modules
+    // Register a module whose body is Kirito source compiled into the binary (a "frozen" module):
+    // its top-level bindings become the module's members, evaluated once per VM on first import.
+    void registerSourceModule(std::string name, std::string_view source);
     Handle importModule(const std::string& name);   // native module, then <name>.ki on the lib path
 
     // Directories searched (in order) when importing a `.ki` module file.
