@@ -2,7 +2,7 @@
 # Showcases: strings (split/lower/strip), Dict accumulation, sorting with a custom key via a
 # list of [count, word] pairs, and f-strings.
 #
-# Run:  ki sample_projects/wordcount.ki
+# Run:  ki examples/wordcount.ki
 
 var io = import("io")
 

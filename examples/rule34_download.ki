@@ -4,7 +4,7 @@
 #   https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=<tags>&limit=<n>
 # Each post has a "file_url" we can fetch and save.
 #
-# Run:  ki --lib sample_projects/lib sample_projects/rule34_download.ki <tags> <count>
+# Run:  ki --lib examples/lib examples/rule34_download.ki <tags> <count>
 # (Requires outbound network; in sandboxes without it, the request raises and we report cleanly.)
 
 var io = import("io")

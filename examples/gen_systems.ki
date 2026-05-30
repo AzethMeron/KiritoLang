@@ -6,7 +6,7 @@
 # i.e. each row is the coefficients of one equation followed by the right-hand side, every number
 # written as a "real imag" pair separated by spaces.
 #
-# Run:  ki sample_projects/gen_systems.ki
+# Run:  ki examples/gen_systems.ki
 # Writes three files into /tmp: a unique-solution 6x6, an inconsistent (no-solution) system, and an
 # underdetermined (infinitely-many-solutions) system.
 

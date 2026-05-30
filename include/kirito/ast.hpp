@@ -31,6 +31,8 @@ struct ListLiteral;
 struct SetLiteral;
 struct DictLiteral;
 struct FStringExpr;
+struct TupleExpr;
+struct StarExpr;
 
 struct ExprVisitor {
     virtual ~ExprVisitor() = default;
@@ -48,10 +50,12 @@ struct ExprVisitor {
     virtual void visit(const SetLiteral&) = 0;
     virtual void visit(const DictLiteral&) = 0;
     virtual void visit(const FStringExpr&) = 0;
+    virtual void visit(const TupleExpr&) = 0;
+    virtual void visit(const StarExpr&) = 0;
 };
 
 // A cheap tag for assignment-target dispatch, avoiding dynamic_cast on the hot path.
-enum class ExprKind { Other, Name, Index, Member };
+enum class ExprKind { Other, Name, Index, Member, Tuple, Star };
 
 struct Expr {
     SourceSpan span;
@@ -133,6 +137,22 @@ struct ListLiteral : Expr {
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 
+// A comma sequence with no surrounding brackets: `a, b` / `return a, b` / `a, b = ...`. As a value
+// (packing) it evaluates to a List; as an assignment target (its elements being Name/Index/Member,
+// or a StarExpr) it drives unpacking.
+struct TupleExpr : Expr {
+    std::vector<ExprPtr> elems;
+    ExprKind exprKind() const override { return ExprKind::Tuple; }
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
+// `*target` — a starred unpack target that absorbs the remaining items as a List.
+struct StarExpr : Expr {
+    ExprPtr inner;
+    ExprKind exprKind() const override { return ExprKind::Star; }
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
 struct SetLiteral : Expr {
     std::vector<ExprPtr> elems;
     void accept(ExprVisitor& v) const override { v.visit(*this); }
@@ -202,8 +222,12 @@ struct ExprStmt : Stmt {
 };
 
 // `var NAME = init` — declares NAME in the current scope.
+// `var a = e` or, with unpacking, `var a, b = e` / `var a, *rest = e`. `names` always holds the
+// declared name(s); `starIndex` is the position of a `*name` (or -1). Single-name decls keep one
+// entry and starIndex -1.
 struct VarDeclStmt : Stmt {
-    std::string name;
+    std::vector<std::string> names;
+    int starIndex = -1;
     ExprPtr init;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
@@ -256,8 +280,11 @@ struct WhileStmt : Stmt {
 };
 
 // `for var in iterable: <block>` — var is bound in the enclosing scope (Python semantics).
+// `for v in it` or, with unpacking, `for k, v in it` / `for a, *rest in it`. `vars` holds the loop
+// name(s); `starIndex` marks a `*name` (or -1). Single-variable loops keep one entry, starIndex -1.
 struct ForStmt : Stmt {
-    std::string var;
+    std::vector<std::string> vars;
+    int starIndex = -1;
     ExprPtr iterable;
     Block body;
     void accept(StmtVisitor& v) const override { v.visit(*this); }

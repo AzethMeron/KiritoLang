@@ -2,7 +2,7 @@
 # demonstrating all three outcomes (unique / none / infinite). Idiomatic Kirito: for/range, the
 # ComplexMatrix class with operator overloads, and the linsolve library.
 #
-# Run:  ki --lib sample_projects/lib sample_projects/complex_linsolve.ki
+# Run:  ki --lib examples/lib examples/complex_linsolve.ki
 
 var io = import("io")
 var C = import("complex")

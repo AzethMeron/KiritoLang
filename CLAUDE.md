@@ -47,6 +47,11 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
 - **Control flow**: explicit `return` (functions default to `None`), `if`/`elif`/`else`, `while`,
   `for VAR in ITERABLE`, `break`, `continue`; logical keywords `and`/`or`/`not`. `return` outside a
   function and `break`/`continue` outside a loop are rejected at parse time.
+- **Packing & unpacking**: a bare comma sequence packs into a List (`var t = 1, 2, 3`; `return a, b`
+  returns `[a, b]`). The left side of `=`, `var`, and `for` unpacks any iterable — `var a, b = pair`,
+  `a, b = b, a` (swap), `for k, v in d.items()` — with a single **starred** target absorbing the
+  surplus (`var first, *rest = xs`, `var *init, last = xs`). Counts are checked (a clear error on
+  mismatch); unpack targets may be names, indices, or members (`a[0], a[1] = x, y`).
 - **Numerics**: separate `Integer` (int64) and `Float` (double); **Python-3 division** — `/` always
   yields `Float`, `//` is floor division, `%` modulo, `**` right-assoc exponentiation. Integer
   arithmetic is fixed-width int64 with **well-defined two's-complement wraparound** on overflow (no
@@ -123,7 +128,7 @@ a stability fuzzer, and a benchmark). Working today:
   script's directory), lexed+parsed+evaluated once per VM and cached by resolved path. The `ki` CLI
   is Python-like: REPL with no file, runs a file otherwise, with script `argv`. Small-integer
   interning and other non-invasive perf wins.
-- **Sample projects** in `sample_projects/` (complex linear-system solver, rule34 image downloader,
+- **Sample projects** in `examples/` (complex linear-system solver, rule34 image downloader,
   word-frequency analyzer, RPN calculator) demonstrate non-trivial programs in pure Kirito.
 
 Tested under strict flags (`-O2 -Werror -Wall -Wextra -Wformat=2 -Wpointer-arith -Wpedantic
@@ -136,7 +141,7 @@ cases). The **post-work routine** (`scripts/post_work_check.sh`, documented in
 cross build where a toolchain exists) and runs the whole auto-discovered CTest suite — run it before
 calling a change done.
 
-Not yet done (future enrichment): comprehensions, variadic params, tuple unpacking,
+Not yet done (future enrichment): comprehensions, variadic params,
 `super()`, generators, complex numbers, and a bytecode VM behind the AST boundary.
 
 ## The Archive is reference only

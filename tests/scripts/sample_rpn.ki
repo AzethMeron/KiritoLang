@@ -1,7 +1,7 @@
 # A Reverse-Polish-Notation calculator as a class with a private stack.
 # Showcases: classes, private members (_stack), exceptions, string parsing, the in-operator.
 #
-# Run:  ki sample_projects/rpn_calculator.ki
+# Run:  ki examples/rpn_calculator.ki
 
 var io = import("io")
 

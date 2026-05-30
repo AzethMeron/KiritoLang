@@ -69,44 +69,39 @@ public:
     void visit(const ast::ExprStmt& s) override { result_ = eval(*s.expr); }
 
     void visit(const ast::VarDeclStmt& s) override {
-        Handle value = eval(*s.init);
-        scope().define(s.name, value);
+        RootScope rs(vm_);
+        Handle value = rs.add(eval(*s.init));
+        if (s.names.size() == 1 && s.starIndex == -1) {
+            scope().define(s.names[0], value);
+        } else {
+            std::vector<Handle> slots = spreadValues(value, s.names.size(), s.starIndex, s.span);
+            for (Handle h : slots) rs.add(h);
+            for (std::size_t i = 0; i < s.names.size(); ++i) scope().define(s.names[i], slots[i]);
+        }
         result_ = vm_.none();
     }
 
     void visit(const ast::AssignStmt& s) override {
         RootScope rs(vm_);
         Handle value = rs.add(eval(*s.value));
-        switch (s.target->exprKind()) {
-            case ast::ExprKind::Name: {
-                const auto& name = static_cast<const ast::NameExpr&>(*s.target);
-                if (!envAssign(vm_.arena(), env_, name.name, value))
-                    throw KiritoError("name '" + name.name + "' is not defined", s.span);
-                break;
+        if (s.target->exprKind() == ast::ExprKind::Tuple) {
+            const auto& tup = static_cast<const ast::TupleExpr&>(*s.target);
+            int starIndex = -1;
+            for (std::size_t i = 0; i < tup.elems.size(); ++i)
+                if (tup.elems[i]->exprKind() == ast::ExprKind::Star) {
+                    if (starIndex != -1) throw KiritoError("two starred targets in assignment", s.span);
+                    starIndex = static_cast<int>(i);
+                }
+            std::vector<Handle> slots = spreadValues(value, tup.elems.size(), starIndex, s.span);
+            for (Handle h : slots) rs.add(h);
+            for (std::size_t i = 0; i < tup.elems.size(); ++i) {
+                const ast::Expr* tgt = tup.elems[i].get();
+                if (tgt->exprKind() == ast::ExprKind::Star)
+                    tgt = static_cast<const ast::StarExpr&>(*tgt).inner.get();
+                assignSingle(*tgt, slots[i], rs, s.span);
             }
-            case ast::ExprKind::Index: {
-                const auto& idx = static_cast<const ast::IndexExpr&>(*s.target);
-                Handle obj = rs.add(eval(*idx.object));
-                std::vector<Handle> keys;
-                for (const auto& ix : idx.indices) keys.push_back(rs.add(eval(*ix)));
-                located(s.span, [&] {
-                    vm_.arena().deref(obj).setItem(vm_, keys, value);
-                    return vm_.none();
-                });
-                break;
-            }
-            case ast::ExprKind::Member: {
-                const auto& mem = static_cast<const ast::MemberExpr&>(*s.target);
-                Handle obj = rs.add(eval(*mem.object));
-                checkPrivateAccess(obj, mem.name, s.span);
-                located(s.span, [&] {
-                    vm_.arena().deref(obj).setAttr(vm_, mem.name, value);
-                    return vm_.none();
-                });
-                break;
-            }
-            default:
-                throw KiritoError("invalid assignment target", s.span);
+        } else {
+            assignSingle(*s.target, value, rs, s.span);
         }
         result_ = vm_.none();
     }
@@ -136,8 +131,16 @@ public:
         // Iterables may yield freshly-allocated values (e.g. a String's characters) that aren't
         // reachable from the iterable itself, so root them all for the loop's duration.
         for (Handle it : items.value()) rs.add(it);
+        bool single = s.vars.size() == 1 && s.starIndex == -1;
         for (Handle item : items.value()) {
-            scope().define(s.var, item);
+            if (single) {
+                scope().define(s.vars[0], item);
+            } else {
+                RootScope itemRoots(vm_);
+                std::vector<Handle> slots = spreadValues(item, s.vars.size(), s.starIndex, s.span);
+                for (Handle h : slots) itemRoots.add(h);
+                for (std::size_t i = 0; i < s.vars.size(); ++i) scope().define(s.vars[i], slots[i]);
+            }
             execBlock(s.body);
             if (flow_ == Flow::Break) { flow_ = Flow::Normal; break; }
             if (flow_ == Flow::Continue) { flow_ = Flow::Normal; continue; }
@@ -397,6 +400,81 @@ public:
         list->elems.reserve(e.elems.size());
         for (const auto& elem : e.elems) list->elems.push_back(rs.add(eval(*elem)));
         result_ = vm_.alloc(std::move(list));
+    }
+
+    // Packing: a bare comma sequence `a, b` evaluates to a List.
+    void visit(const ast::TupleExpr& e) override {
+        RootScope rs(vm_);
+        auto list = std::make_unique<ListVal>();
+        list->elems.reserve(e.elems.size());
+        for (const auto& elem : e.elems) {
+            if (elem->exprKind() == ast::ExprKind::Star)
+                throw KiritoError("starred expression is only valid as an assignment target", elem->span);
+            list->elems.push_back(rs.add(eval(*elem)));
+        }
+        result_ = vm_.alloc(std::move(list));
+    }
+
+    void visit(const ast::StarExpr& e) override {
+        throw KiritoError("starred expression is only valid as an assignment target", e.span);
+    }
+
+    // Bind one (non-tuple) target — a name, an index, or a member — to `value`.
+    void assignSingle(const ast::Expr& target, Handle value, RootScope& rs, SourceSpan span) {
+        switch (target.exprKind()) {
+            case ast::ExprKind::Name: {
+                const auto& name = static_cast<const ast::NameExpr&>(target);
+                if (!envAssign(vm_.arena(), env_, name.name, value))
+                    throw KiritoError("name '" + name.name + "' is not defined", span);
+                break;
+            }
+            case ast::ExprKind::Index: {
+                const auto& idx = static_cast<const ast::IndexExpr&>(target);
+                Handle obj = rs.add(eval(*idx.object));
+                std::vector<Handle> keys;
+                for (const auto& ix : idx.indices) keys.push_back(rs.add(eval(*ix)));
+                located(span, [&] { vm_.arena().deref(obj).setItem(vm_, keys, value); return vm_.none(); });
+                break;
+            }
+            case ast::ExprKind::Member: {
+                const auto& mem = static_cast<const ast::MemberExpr&>(target);
+                Handle obj = rs.add(eval(*mem.object));
+                checkPrivateAccess(obj, mem.name, span);
+                located(span, [&] { vm_.arena().deref(obj).setAttr(vm_, mem.name, value); return vm_.none(); });
+                break;
+            }
+            default:
+                throw KiritoError("invalid assignment target", span);
+        }
+    }
+
+    // Spread an iterable `value` across `n` unpack slots, with an optional starred slot at
+    // `starIndex` (-1 if none) that absorbs the surplus into a List. Returns the n slot values.
+    std::vector<Handle> spreadValues(Handle value, std::size_t n, int starIndex, SourceSpan span) {
+        auto items = located(span, [&] { return vm_.arena().deref(value).iterate(vm_); });
+        if (!items)
+            throw KiritoError("cannot unpack non-iterable '" + vm_.arena().deref(value).typeName() + "'", span);
+        RootScope rs(vm_);  // keep iterated (possibly freshly-allocated) items alive during alloc below
+        for (Handle it : items.value()) rs.add(it);
+        std::vector<Handle>& v = items.value();
+        std::vector<Handle> slots(n);
+        if (starIndex == -1) {
+            if (v.size() != n)
+                throw KiritoError("expected " + std::to_string(n) + " values to unpack, got " +
+                                  std::to_string(v.size()), span);
+            for (std::size_t i = 0; i < n; ++i) slots[i] = v[i];
+        } else {
+            std::size_t before = static_cast<std::size_t>(starIndex), after = n - 1 - before;
+            if (v.size() < before + after)
+                throw KiritoError("expected at least " + std::to_string(before + after) +
+                                  " values to unpack, got " + std::to_string(v.size()), span);
+            for (std::size_t i = 0; i < before; ++i) slots[i] = v[i];
+            auto mid = std::make_unique<ListVal>();
+            for (std::size_t i = before; i < v.size() - after; ++i) mid->elems.push_back(v[i]);
+            slots[before] = vm_.alloc(std::move(mid));
+            for (std::size_t j = 0; j < after; ++j) slots[n - 1 - j] = v[v.size() - 1 - j];
+        }
+        return slots;
     }
 
     void visit(const ast::SetLiteral& e) override {

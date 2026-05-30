@@ -2,7 +2,7 @@
 # the solution (unique / none / infinite), and validate. Exercises the io module (reading files),
 # the ComplexMatrix class, and the Gauss-Jordan solver — all idiomatic Kirito (for / range).
 #
-# Run:  ki --lib sample_projects/lib sample_projects/solve_systems.ki [file1 file2 ...]
+# Run:  ki --lib examples/lib examples/solve_systems.ki [file1 file2 ...]
 # With no arguments it reads the three files gen_systems.ki produces in /tmp.
 
 var io = import("io")

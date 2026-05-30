@@ -98,10 +98,23 @@ private:
         }
 
         SourceSpan span = peek().span;
-        auto expr = parseExpr();
+        auto expr = parseTargetElement();
+        if (at(TokenType::Comma)) {
+            // A comma sequence at statement level: unpack targets (`a, b = ...`) or a bare tuple.
+            auto tup = std::make_unique<ast::TupleExpr>();
+            tup->span = span;
+            tup->elems.push_back(std::move(expr));
+            while (at(TokenType::Comma)) {
+                advance();
+                if (at(TokenType::Assign) || at(TokenType::Newline) ||
+                    at(TokenType::EndOfFile) || at(TokenType::Dedent)) break;  // trailing comma
+                tup->elems.push_back(parseTargetElement());
+            }
+            expr = std::move(tup);
+        }
         if (at(TokenType::Assign)) {
             advance();
-            auto value = parseExpr();
+            auto value = parseValueSeq();
             endSimpleStatement();
             auto node = std::make_unique<ast::AssignStmt>();
             node->span = span;
@@ -114,6 +127,17 @@ private:
         node->span = span;
         node->expr = std::move(expr);
         return node;
+    }
+
+    // One element of a statement-level target list: a normal expression or a `*target`.
+    ast::ExprPtr parseTargetElement() {
+        if (at(TokenType::Star)) {
+            auto star = std::make_unique<ast::StarExpr>();
+            star->span = advance().span;
+            star->inner = parseExpr();
+            return star;
+        }
+        return parseExpr();
     }
 
     ast::StmtPtr parseTry() {
@@ -179,22 +203,51 @@ private:
         node->span = advance().span;  // 'return'
         if (funcDepth_ == 0) throw KiritoError("'return' outside function", node->span);
         if (!at(TokenType::Newline) && !at(TokenType::EndOfFile))
-            node->value = parseExpr();
+            node->value = parseValueSeq();  // `return a, b` packs into a List
         endSimpleStatement();
         return node;
     }
 
     ast::StmtPtr parseVarDecl() {
         SourceSpan span = advance().span;  // 'var'
-        const Token& name = expect(TokenType::Identifier, "a name after 'var'");
-        expect(TokenType::Assign, "'=' in var declaration");
-        auto init = parseExpr();
-        endSimpleStatement();
         auto node = std::make_unique<ast::VarDeclStmt>();
         node->span = span;
-        node->name = name.text;
-        node->init = std::move(init);
+        parseTargetNameList(node->names, node->starIndex, "a name after 'var'");
+        expect(TokenType::Assign, "'=' in var declaration");
+        node->init = parseValueSeq();
+        endSimpleStatement();
         return node;
+    }
+
+    // Parse a comma-separated list of (optionally one starred) names, used by `var` and `for`.
+    void parseTargetNameList(std::vector<std::string>& names, int& starIndex, const char* what) {
+        while (true) {
+            if (at(TokenType::Star)) {
+                if (starIndex != -1) throw KiritoError("two starred targets in assignment", peek().span);
+                advance();
+                starIndex = static_cast<int>(names.size());
+            }
+            names.push_back(expect(TokenType::Identifier, what).text);
+            if (!at(TokenType::Comma)) break;
+            advance();
+            if (at(TokenType::Assign) || at(TokenType::KwIn)) break;  // trailing comma
+        }
+    }
+
+    // Parse a value position that may pack: `e` or `e, e, ...` (a tuple, evaluated to a List).
+    ast::ExprPtr parseValueSeq() {
+        SourceSpan span = peek().span;
+        auto first = parseExpr();
+        if (!at(TokenType::Comma)) return first;
+        auto tup = std::make_unique<ast::TupleExpr>();
+        tup->span = span;
+        tup->elems.push_back(std::move(first));
+        while (at(TokenType::Comma)) {
+            advance();
+            if (at(TokenType::Newline) || at(TokenType::EndOfFile) || at(TokenType::Dedent)) break;
+            tup->elems.push_back(parseExpr());
+        }
+        return tup;
     }
 
     ast::Block parseBlock() {
@@ -250,7 +303,7 @@ private:
     ast::StmtPtr parseFor() {
         auto node = std::make_unique<ast::ForStmt>();
         node->span = advance().span;  // 'for'
-        node->var = expect(TokenType::Identifier, "a loop variable").text;
+        parseTargetNameList(node->vars, node->starIndex, "a loop variable");
         expect(TokenType::KwIn, "'in'");
         node->iterable = parseExpr();
         ++loopDepth_;
