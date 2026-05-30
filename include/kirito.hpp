@@ -30,6 +30,7 @@
 #include "kirito/stdlib_net.hpp"
 #include "kirito/stdlib_serialize.hpp"
 #include "kirito/stdlib_sys.hpp"
+#include "kirito/stdlib_time.hpp"
 #include "kirito/evaluator.hpp"
 #include "kirito/runtime.hpp"
 
