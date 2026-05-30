@@ -47,12 +47,15 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   and collections `Array`, `List`, `Set`, `Dict`. Values are hashable where it makes
   sense. Numeric/math depth (complex `Number`, `Matrix`) is a *later* enrichment, not
   the starting goal — get the general scripting core right first.
-- **Classes** (planned): user-defined types in the Python spirit — `class` with
-  methods and instance attributes, instantiated by calling the class. A class is just
-  another first-class value, so it lives in the same value/object model as built-ins
-  and a C++-defined built-in type and a Kirito-defined `class` should look alike to the
-  evaluator. Like the numeric depth above, this is a *later* enrichment — get the
-  procedural/functional core (vars, functions, modules) solid first.
+- **Classes**: user-defined types in the Python spirit — `class` with methods and instance
+  attributes, instantiated by calling the class. A class is just another first-class value, in the
+  same value/object model as built-ins, so a C++-defined type and a Kirito `class` look alike to
+  the evaluator. Special methods use Python's dunder names with **single** underscores:
+  `_init_`, `_str_`, `_add_`/`_sub_`/`_mul_`/`_div_`/`_floordiv_`/`_mod_`/`_pow_`,
+  `_eq_`/`_ne_`/`_lt_`/`_le_`/`_gt_`/`_ge_`, `_neg_`/`_not_`, `_call_`, `_getitem_`/`_setitem_`
+  (variadic keys: `m[i, j] = v`), `_len_`, `_contains_`, `_enter_`/`_exit_`. Members whose name has
+  a **single leading underscore and no trailing underscore** (e.g. `_count`) are **private** —
+  accessible only from within a method of the same class.
 
 Build the smallest thing that runs end-to-end first (lex+parse+eval an integer
 literal, then arithmetic, then `var`, then functions, then `io`), and grow outward.
@@ -63,12 +66,16 @@ Every step must keep `main.ki`-style programs as the north star.
 a stability fuzzer, and a benchmark). Working today:
 - Arithmetic (Python-3 division), `var`/reference-assignment, comparisons, `in`/`not in`.
 - Indentation blocks with `if/elif/else`/`while`/`for`/`break`/`continue`/`pass`, `and`/`or`/`not`.
-- First-class functions with closures and `return`; `assert`.
+  Tabs and spaces both work but ambiguous mixing is rejected (Python-3 rule: measured with tab=8
+  and tab=1, both must agree).
+- First-class functions with closures and `return`; `assert`. Recursion is bounded by a call-depth
+  guard (configurable) that raises a catchable error instead of overflowing the native stack.
 - `List`/`Set`/`Dict` with literals, indexing, slicing, iteration, `in`, and methods (append/pop/
   sort/reverse/insert/remove/index/extend; keys/values/items/get/pop; add/contains); `len`.
 - **Unicode** `String` (code-point indexing/slicing/iteration), `*` repetition, and methods
   (upper/lower/strip/split/join/replace/startswith/endswith/find/count) and `.format()`.
-- **User-defined `class`es** with methods, attributes, inheritance, and instance `str`.
+- **User-defined `class`es** with methods, attributes, inheritance, Python-style operator methods
+  (`_add_`/`_str_`/`_getitem_`/...), and private `_members`.
 - **Exceptions**: `try`/`except [Type as e]`/`finally`/`raise` (typed matching via the class chain).
 - **Context managers**: `with ... as ...` (enter/exit protocol).
 - **Garbage collection**: precise mark-sweep with rooted intermediates (AddressSanitizer-clean).
@@ -84,14 +91,19 @@ a stability fuzzer, and a benchmark). Working today:
     trunc, gcd/lcm, factorial, isnan/isinf, ...).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
     randrange/choice/shuffle/sample.
-  - `matrix` — dense real matrices (no complex, no concurrency): +,-,* (matrix/scalar), transpose,
-    determinant, inverse, trace, apply, factories (zeros/ones/identity).
+  - `matrix` — dense real matrices (no complex, no concurrency): +,-,* (matrix/scalar), `m[i, j]`
+    element access/assignment, transpose, determinant, inverse, trace, apply, factories
+    (zeros/ones/identity).
   - `json` — parse (objects → Dict) / stringify.
   - `serialize` — dumps/loads/save/load preserving shared references and cycles.
-  - `net` — TCP sockets (connect/bind/listen/accept/send/recv) and an HTTP client (http_get/http_post).
+  - `net` — TCP sockets (connect/bind/listen/accept/send/recv) and an HTTP/1.1 client
+    (http_get/http_post); HTTPS is optional (build with `-DKIRITO_ENABLE_TLS=ON`, links OpenSSL).
 - **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, and the
-  script's directory). The `ki` CLI is Python-like: REPL with no file, runs a file otherwise, with
-  script `argv`. Small-integer interning and other non-invasive perf wins.
+  script's directory), lexed+parsed+evaluated once per VM and cached by resolved path. The `ki` CLI
+  is Python-like: REPL with no file, runs a file otherwise, with script `argv`. Small-integer
+  interning and other non-invasive perf wins.
+- **Sample projects** in `sample_projects/` (complex linear-system solver, rule34 image downloader,
+  word-frequency analyzer, RPN calculator) demonstrate non-trivial programs in pure Kirito.
 
 Tested under strict flags (`-O2 -Werror -Wall -Wextra -Wformat=2 -Wpointer-arith -Wpedantic
 -fstack-protector`, preset `strict`) and AddressSanitizer/UBSan; an 11k-input fuzzer guards
