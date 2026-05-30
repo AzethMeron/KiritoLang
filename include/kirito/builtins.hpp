@@ -27,6 +27,41 @@ inline std::vector<std::size_t> utf8Starts(const std::string& s) {
 }
 inline std::size_t utf8Length(const std::string& s) { return utf8Starts(s).size(); }
 
+// Decode the single code point starting at byte `i` (caller guarantees a valid start). Returns the
+// code point; advances nothing (the byte width is recoverable from the lead byte).
+inline unsigned utf8DecodeAt(const std::string& s, std::size_t i) {
+    unsigned char c = static_cast<unsigned char>(s[i]);
+    if (c < 0x80) return c;
+    if ((c >> 5) == 0x6 && i + 1 < s.size())
+        return ((c & 0x1F) << 6) | (static_cast<unsigned char>(s[i + 1]) & 0x3F);
+    if ((c >> 4) == 0xE && i + 2 < s.size())
+        return ((c & 0x0F) << 12) | ((static_cast<unsigned char>(s[i + 1]) & 0x3F) << 6) |
+               (static_cast<unsigned char>(s[i + 2]) & 0x3F);
+    if ((c >> 3) == 0x1E && i + 3 < s.size())
+        return ((c & 0x07) << 18) | ((static_cast<unsigned char>(s[i + 1]) & 0x3F) << 12) |
+               ((static_cast<unsigned char>(s[i + 2]) & 0x3F) << 6) |
+               (static_cast<unsigned char>(s[i + 3]) & 0x3F);
+    return c;
+}
+
+// Append code point `cp` to `out` as UTF-8.
+inline void utf8Encode(unsigned cp, std::string& out) {
+    if (cp < 0x80) out += static_cast<char>(cp);
+    else if (cp < 0x800) {
+        out += static_cast<char>(0xC0 | (cp >> 6));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+        out += static_cast<char>(0xE0 | (cp >> 12));
+        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else {
+        out += static_cast<char>(0xF0 | (cp >> 18));
+        out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+    }
+}
+
 // Render a double the Python way: shortest sensible form, always with a decimal point
 // (so 2.0 prints "2.0", not "2"), while non-finite values pass through.
 inline std::string floatToString(double d) {

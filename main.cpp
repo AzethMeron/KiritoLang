@@ -36,8 +36,38 @@ int repl(kirito::KiritoVM& vm) {
     std::string line;
     while (std::cout << ">>> " && std::getline(std::cin, line)) {
         if (line.empty()) continue;
+
+        // Multiline blocks: if a line opens an indented suite (ends with ':', ignoring trailing
+        // spaces and a trailing comment), keep reading with a continuation prompt until a blank
+        // line, then evaluate the whole buffer. This lets `Function():`, `if`, `for`, `class`, etc.
+        // be typed interactively instead of erroring on the missing indented block.
+        auto opensBlock = [](const std::string& s) {
+            std::size_t end = s.size();
+            bool inStr = false;
+            char q = 0;
+            std::size_t comment = std::string::npos;
+            for (std::size_t i = 0; i < s.size(); ++i) {  // find an unquoted '#'
+                char c = s[i];
+                if (inStr) { if (c == q && s[i - 1] != '\\') inStr = false; }
+                else if (c == '"' || c == '\'') { inStr = true; q = c; }
+                else if (c == '#') { comment = i; break; }
+            }
+            if (comment != std::string::npos) end = comment;
+            while (end > 0 && (s[end - 1] == ' ' || s[end - 1] == '\t')) --end;
+            return end > 0 && s[end - 1] == ':';
+        };
+
+        std::string source = line;
+        if (opensBlock(line)) {
+            std::string more;
+            while (std::cout << "... " && std::getline(std::cin, more)) {
+                if (more.empty()) break;  // a blank line ends the block
+                source += "\n" + more;
+            }
+        }
+
         try {
-            kirito::Handle result = vm.runRepl(line);
+            kirito::Handle result = vm.runRepl(source);
             if (vm.arena().deref(result).kind() != kirito::ValueKind::None)
                 std::cout << vm.stringify(result) << "\n";
         } catch (const kirito::KiritoError& e) {

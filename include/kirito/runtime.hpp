@@ -1257,6 +1257,112 @@ inline void KiritoVM::installBuiltins() {
     def("type", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         return vm.makeString(vm.arena().deref(a[0]).typeName());
     });
+
+    def("all", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        if (a.size() != 1) throw KiritoError("all expected 1 argument");
+        auto items = vm.arena().deref(a[0]).iterate(vm);
+        if (!items) throw KiritoError("all expects an iterable");
+        for (Handle h : items.value())
+            if (!vm.arena().deref(h).truthy()) return vm.makeBool(false);
+        return vm.makeBool(true);
+    });
+    def("any", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        if (a.size() != 1) throw KiritoError("any expected 1 argument");
+        auto items = vm.arena().deref(a[0]).iterate(vm);
+        if (!items) throw KiritoError("any expects an iterable");
+        for (Handle h : items.value())
+            if (vm.arena().deref(h).truthy()) return vm.makeBool(true);
+        return vm.makeBool(false);
+    });
+    def("reversed", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        if (a.size() != 1) throw KiritoError("reversed expected 1 argument");
+        auto items = vm.arena().deref(a[0]).iterate(vm);
+        if (!items) throw KiritoError("reversed expects an iterable");
+        RootScope rs(vm);
+        for (Handle h : items.value()) rs.add(h);
+        auto out = std::make_unique<ListVal>();
+        out->elems.assign(items.value().rbegin(), items.value().rend());
+        return vm.alloc(std::move(out));
+    });
+    def("divmod", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        if (a.size() != 2) throw KiritoError("divmod expected 2 arguments");
+        RootScope rs(vm);
+        Handle q = rs.add(numericBinary(vm, BinOp::FloorDiv, a[0], a[1]));
+        Handle r = rs.add(numericBinary(vm, BinOp::Mod, a[0], a[1]));
+        auto pair = std::make_unique<ListVal>();
+        pair->elems.push_back(q);
+        pair->elems.push_back(r);
+        return vm.alloc(std::move(pair));
+    });
+    def("isinstance", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        if (a.size() != 2) throw KiritoError("isinstance expected 2 arguments");
+        // Second arg is a type: either a class value or a String type-name. Either resolves to a
+        // name we match through typeMatches (kind names + inheritance-aware class chain).
+        const Object& t = vm.arena().deref(a[1]);
+        std::string typeName;
+        if (t.kind() == ValueKind::String) typeName = static_cast<const StrVal&>(t).value();
+        else if (t.kind() == ValueKind::Class) typeName = static_cast<const ClassValue&>(t).name;
+        else typeName = t.typeName();
+        return vm.makeBool(typeMatches(vm, a[0], typeName));
+    });
+    def("ord", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        if (a.size() != 1) throw KiritoError("ord expected 1 argument");
+        const Object& o = vm.arena().deref(a[0]);
+        if (o.kind() != ValueKind::String) throw KiritoError("ord expects a String");
+        const std::string& s = static_cast<const StrVal&>(o).value();
+        if (utf8Length(s) != 1) throw KiritoError("ord expects a single character");
+        return vm.makeInt(static_cast<int64_t>(utf8DecodeAt(s, 0)));
+    });
+    def("chr", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        if (a.size() != 1) throw KiritoError("chr expected 1 argument");
+        const Object& o = vm.arena().deref(a[0]);
+        if (o.kind() != ValueKind::Integer) throw KiritoError("chr expects an Integer");
+        int64_t cp = static_cast<const IntVal&>(o).value();
+        if (cp < 0 || cp > 0x10FFFF) throw KiritoError("chr argument out of Unicode range");
+        std::string s;
+        utf8Encode(static_cast<unsigned>(cp), s);
+        return vm.makeString(s);
+    });
+    auto radix = [](KiritoVM& vm, std::span<const Handle> a, int base, const char* prefix,
+                    const char* name) -> Handle {
+        if (a.size() != 1) throw KiritoError(std::string(name) + " expected 1 argument");
+        const Object& o = vm.arena().deref(a[0]);
+        if (o.kind() != ValueKind::Integer) throw KiritoError(std::string(name) + " expects an Integer");
+        int64_t v = static_cast<const IntVal&>(o).value();
+        bool neg = v < 0;
+        uint64_t u = neg ? 0ull - static_cast<uint64_t>(v) : static_cast<uint64_t>(v);
+        std::string digits;
+        const char* alpha = "0123456789abcdef";
+        if (u == 0) digits = "0";
+        while (u) { digits += alpha[u % base]; u /= base; }
+        std::reverse(digits.begin(), digits.end());
+        return vm.makeString((neg ? "-" : "") + std::string(prefix) + digits);
+    };
+    def("bin", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 2, "0b", "bin"); });
+    def("oct", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 8, "0o", "oct"); });
+    def("hex", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 16, "0x", "hex"); });
+    def("pow", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        if (a.size() == 2) return numericBinary(vm, BinOp::Pow, a[0], a[1]);
+        if (a.size() == 3) {
+            // pow(base, exp, mod): modular exponentiation over non-negative Integers.
+            auto geti = [&](Handle h, const char* w) {
+                const Object& o = vm.arena().deref(h);
+                if (o.kind() != ValueKind::Integer) throw KiritoError(std::string("pow ") + w + " must be Integer with 3 args");
+                return static_cast<const IntVal&>(o).value();
+            };
+            int64_t base = geti(a[0], "base"), exp = geti(a[1], "exp"), mod = geti(a[2], "mod");
+            if (exp < 0) throw KiritoError("pow exponent must be non-negative with a modulus");
+            if (mod == 0) throw KiritoError("pow modulus must be non-zero");
+            __int128 result = 1 % mod, b = ((base % mod) + mod) % mod;
+            while (exp > 0) {
+                if (exp & 1) result = (result * b) % mod;
+                b = (b * b) % mod;
+                exp >>= 1;
+            }
+            return vm.makeInt(static_cast<int64_t>(result));
+        }
+        throw KiritoError("pow expected 2 or 3 arguments");
+    });
 }
 
 // Register the bundled standard-library modules. Each line is a one-liner; a third party adds
