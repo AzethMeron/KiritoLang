@@ -1,6 +1,6 @@
 #include <cstdio>
 // Adversarial / edge-case probing of the EXISTING libraries (json, strings, collections, io,
-// serialize, math, random). Every probe must either produce a defined result or raise a clean
+// serialize, math, random). Every probe must either produce a defined result or throw a clean
 // KiritoError — never crash, hang, or corrupt memory. Run under ASan for memory safety too.
 #include <string>
 

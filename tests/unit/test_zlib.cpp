@@ -75,7 +75,7 @@ var c = z.compress(doc)
 len(c) < len(doc) and z.decompress(c) == doc
 )") == "True");
 
-    // hostile / corrupt inputs raise cleanly, never crash
+    // hostile / corrupt inputs throw cleanly, never crash
     CHECK_THROWS(vm.runSource("import(\"zlib\").decompress(\"not zlib data\")"));
     CHECK_THROWS(vm.runSource("import(\"zlib\").decompress(\"\")"));
     CHECK_THROWS(vm.runSource("import(\"zlib\").decompress(\"\\x78\\x9c\\xff\\xff\\xff\\xff\")"));  // bad body
@@ -91,7 +91,7 @@ var corrupted = c[0:len(c) - 1] + "\x00"
 var ok = "no"
 try:
     z.decompress(corrupted)
-except as e:
+catch as e:
     ok = "caught"
 ok
 )") == "caught");

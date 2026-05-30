@@ -1,4 +1,4 @@
-# Adversarial probes: each should either work or raise a clean error — never crash the VM.
+# Adversarial probes: each should either work or throw a clean error — never crash the VM.
 var io = import("io")
 var matrix = import("matrix")
 var json = import("json")
@@ -11,7 +11,7 @@ var probe = Function(f):
     try:
         f()
         passed = passed + 1
-    except as e:
+    catch as e:
         passed = passed + 1   # a clean Kirito error also counts as "survived"
 
 # --- self-referential containers ---

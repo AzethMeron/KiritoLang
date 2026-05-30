@@ -22,7 +22,7 @@ int main() {
     CHECK(evalStr(vm, R"(
 try:
     assert False, "custom message"
-except as e:
+catch as e:
     e
 )") == "custom message");
 

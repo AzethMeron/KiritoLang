@@ -23,7 +23,7 @@ var fetchPosts = Function(tags, limit):
     io.print("GET " + url)
     var resp = net.http_get(url)
     if resp["status"] != 200:
-        raise "API returned status " + String(resp["status"])
+        throw "API returned status " + String(resp["status"])
     var body = resp["body"]
     if len(body) == 0:
         return []
@@ -40,7 +40,7 @@ var downloadPost = Function(post, dir):
     var path = dir + "/" + String(post["id"]) + "." + ext
     var resp = net.http_get(url)
     if resp["status"] != 200:
-        raise "download failed: status " + String(resp["status"])
+        throw "download failed: status " + String(resp["status"])
     with io.open(path, "w") as f:
         f.write(resp["body"])
     return path
@@ -65,10 +65,10 @@ try:
             var path = downloadPost(post, outDir)
             io.print("  saved " + path)
             saved = saved + 1
-        except as e:
+        catch as e:
             io.print("  skip: " + e)
     io.print("Downloaded " + String(saved) + " / " + String(len(posts)) + " images")
-except as e:
+catch as e:
     # No network / no TLS support / API down: report cleanly rather than crashing.
     # (If you see an https error, rebuild ki with -DKIRITO_ENABLE_TLS=ON.)
     io.print("Could not reach rule34 API: " + e)

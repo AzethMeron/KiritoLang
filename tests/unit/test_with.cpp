@@ -37,8 +37,8 @@ var log = []
 try:
     with Resource(log) as r:
         log.append("body")
-        raise "boom"
-except as e:
+        throw "boom"
+catch as e:
     log.append("caught " + e)
 log
 )") == "[enter, body, exit, caught boom]");

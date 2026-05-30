@@ -30,7 +30,7 @@ class Complex:
     var _div_ = Function(self, o):
         var d = o.norm2()
         if d == 0:
-            raise "complex division by zero"
+            throw "complex division by zero"
         var n = self * o.conjugate()
         return Complex(n.re / d, n.im / d)
 

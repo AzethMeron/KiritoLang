@@ -164,7 +164,7 @@ public:
         result_ = returnValue_;
     }
 
-    void visit(const ast::RaiseStmt& s) override {
+    void visit(const ast::ThrowStmt& s) override {
         throw KiritoThrow{eval(*s.value)};
     }
 
@@ -315,10 +315,27 @@ public:
     void visit(const ast::CallExpr& e) override {
         RootScope rs(vm_);
         Handle callee = rs.add(eval(*e.callee));
-        std::vector<Handle> args;
-        args.reserve(e.args.size());
-        for (const auto& arg : e.args) args.push_back(rs.add(eval(*arg)));
-        result_ = located(e.span, [&] { return vm_.arena().deref(callee).call(vm_, args); });
+        std::vector<Handle> positional;
+        std::vector<KiFunction::NamedArg> named;
+        for (const auto& arg : e.args) {
+            Handle v = rs.add(eval(*arg.value));
+            if (arg.name.empty()) {
+                if (!named.empty())
+                    throw KiritoError("positional argument follows keyword argument", e.span);
+                positional.push_back(v);
+            } else {
+                named.push_back({arg.name, v});
+            }
+        }
+        // Kirito functions support named args, defaults, and annotation enforcement; other callables
+        // (native functions, classes) accept positional only.
+        if (auto* fn = dynamic_cast<KiFunction*>(&vm_.arena().deref(callee))) {
+            result_ = located(e.span, [&] { return fn->callFull(vm_, positional, named); });
+        } else {
+            if (!named.empty())
+                throw KiritoError("this callable does not accept keyword arguments", e.span);
+            result_ = located(e.span, [&] { return vm_.arena().deref(callee).call(vm_, positional); });
+        }
     }
 
     void visit(const ast::BinaryExpr& e) override {
@@ -425,9 +442,9 @@ private:
         });
     }
 
-    // Whether an except clause catches this exception. A clause with no type is a catch-all;
+    // Whether a catch clause catches this exception. A clause with no type is a catch-all;
     // typed matching against user classes is wired up in the classes layer (isInstanceOf).
-    bool exceptionMatches(const ast::ExceptClause& clause, Handle excValue) {
+    bool exceptionMatches(const ast::CatchClause& clause, Handle excValue) {
         if (!clause.type) return true;
         Handle typeH = eval(*clause.type);
         return isInstanceOf(excValue, typeH);

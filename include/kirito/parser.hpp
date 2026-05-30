@@ -62,7 +62,7 @@ private:
             case TokenType::KwWhile: return parseWhile();
             case TokenType::KwFor: return parseFor();
             case TokenType::KwTry: return parseTry();
-            case TokenType::KwRaise: return parseRaise();
+            case TokenType::KwThrow: return parseThrow();
             case TokenType::KwClass: return parseClass();
             case TokenType::KwWith: return parseWith();
             case TokenType::KwReturn: return parseReturn();
@@ -118,9 +118,9 @@ private:
         auto node = std::make_unique<ast::TryStmt>();
         node->span = advance().span;  // 'try'
         node->body = parseBlock();
-        while (at(TokenType::KwExcept)) {
+        while (at(TokenType::KwCatch)) {
             advance();
-            ast::ExceptClause clause;
+            ast::CatchClause clause;
             if (!at(TokenType::Colon) && !at(TokenType::KwAs)) clause.type = parseExpr();
             if (at(TokenType::KwAs)) {
                 advance();
@@ -135,7 +135,7 @@ private:
             node->finallyBody = parseBlock();
         }
         if (node->handlers.empty() && !node->hasFinally)
-            throw KiritoError("'try' needs at least one 'except' or a 'finally'", node->span);
+            throw KiritoError("'try' needs at least one 'catch' or a 'finally'", node->span);
         return node;
     }
 
@@ -164,8 +164,8 @@ private:
         return node;
     }
 
-    ast::StmtPtr parseRaise() {
-        auto node = std::make_unique<ast::RaiseStmt>();
+    ast::StmtPtr parseThrow() {
+        auto node = std::make_unique<ast::ThrowStmt>();
         node->span = advance().span;  // 'raise'
         node->value = parseExpr();
         endSimpleStatement();
@@ -368,8 +368,8 @@ private:
                 call->span = span;
                 call->callee = std::move(expr);
                 if (!at(TokenType::RParen)) {
-                    call->args.push_back(parseExpr());
-                    while (at(TokenType::Comma)) { advance(); call->args.push_back(parseExpr()); }
+                    call->args.push_back(parseArg());
+                    while (at(TokenType::Comma)) { advance(); call->args.push_back(parseArg()); }
                 }
                 expect(TokenType::RParen, "')' to close the call");
                 expr = std::move(call);
@@ -425,18 +425,54 @@ private:
         return expr;
     }
 
+    // One call argument: `name = value` (named) or a bare expression (positional).
+    ast::Arg parseArg() {
+        ast::Arg arg;
+        if (peek().type == TokenType::Identifier && peekAt(1).type == TokenType::Assign) {
+            arg.name = advance().text;  // the name
+            advance();                  // '='
+        }
+        arg.value = parseExpr();
+        return arg;
+    }
+
+    // One parameter: name [: Type] [= default].
+    ast::Param parseParam() {
+        ast::Param p;
+        p.name = expect(TokenType::Identifier, "a parameter name").text;
+        if (at(TokenType::Colon)) {
+            advance();
+            p.annotation = expect(TokenType::Identifier, "a type name after ':'").text;
+        }
+        if (at(TokenType::Assign)) {
+            advance();
+            p.defaultValue = parseExpr();
+        }
+        return p;
+    }
+
     ast::ExprPtr parseFunction() {
         auto node = std::make_unique<ast::FunctionExpr>();
         node->span = advance().span;  // 'Function'
         expect(TokenType::LParen, "'(' after Function");
+        bool seenDefault = false;
         if (!at(TokenType::RParen)) {
-            node->params.push_back(expect(TokenType::Identifier, "a parameter name").text);
-            while (at(TokenType::Comma)) {
+            while (true) {
+                ast::Param p = parseParam();
+                if (p.defaultValue) seenDefault = true;
+                else if (seenDefault)
+                    throw KiritoError("non-default parameter '" + p.name +
+                                      "' follows a default parameter", peek().span);
+                node->params.push_back(std::move(p));
+                if (!at(TokenType::Comma)) break;
                 advance();
-                node->params.push_back(expect(TokenType::Identifier, "a parameter name").text);
             }
         }
         expect(TokenType::RParen, "')' after parameters");
+        if (at(TokenType::Arrow)) {
+            advance();
+            node->returnAnnotation = expect(TokenType::Identifier, "a return type after '->'").text;
+        }
         expect(TokenType::Colon, "':' after Function parameters");
         if (at(TokenType::Newline)) {
             node->body = parseIndentedSuite();  // block body
@@ -465,8 +501,8 @@ private:
                 node->span = advance().span;
                 return node;
             }
-            case TokenType::KwRaise: {
-                auto node = std::make_unique<ast::RaiseStmt>();
+            case TokenType::KwThrow: {
+                auto node = std::make_unique<ast::ThrowStmt>();
                 node->span = advance().span;
                 node->value = parseExpr();
                 return node;

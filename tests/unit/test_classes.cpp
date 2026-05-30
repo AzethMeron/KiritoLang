@@ -70,20 +70,20 @@ class Widget:
 String(Widget())
 )") == "<Widget object>");
 
-    // typed except: catch by class, bind the instance, read its attribute
+    // typed catch: catch by class, bind the instance, read its attribute
     CHECK(evalStr(vm, R"(
 class MyError:
     var _init_ = Function(self, msg):
         self.msg = msg
 var r = ""
 try:
-    raise MyError("oops")
-except MyError as e:
+    throw MyError("oops")
+catch MyError as e:
     r = e.msg
 r
 )") == "oops");
 
-    // typed except selects the matching handler
+    // typed catch selects the matching handler
     CHECK(evalStr(vm, R"(
 class A:
     var _init_ = Function(self):
@@ -93,15 +93,15 @@ class B:
         self.k = "b"
 var caught = "none"
 try:
-    raise A()
-except B as e:
+    throw A()
+catch B as e:
     caught = "B"
-except A as e:
+catch A as e:
     caught = "A"
 caught
 )") == "A");
 
-    // typed except matches a base class for a derived instance
+    // typed catch matches a base class for a derived instance
     CHECK(evalStr(vm, R"(
 class Base:
     var _init_ = Function(self):
@@ -111,13 +111,13 @@ class Derived(Base):
         self.x = 2
 var r = "none"
 try:
-    raise Derived()
-except Base as e:
+    throw Derived()
+catch Base as e:
     r = "base"
 r
 )") == "base");
 
-    // a wrong-type typed except does NOT catch (propagates)
+    // a wrong-type typed catch does NOT catch (propagates)
     CHECK_THROWS(vm.runSource(R"(
 class A:
     var _init_ = Function(self):
@@ -126,8 +126,8 @@ class B:
     var _init_ = Function(self):
         self.x = 2
 try:
-    raise A()
-except B as e:
+    throw A()
+catch B as e:
     var ignore = 1
 )"));
 

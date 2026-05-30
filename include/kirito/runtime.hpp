@@ -856,18 +856,109 @@ inline std::string InstanceValue::str(StringifyCtx& ctx) const {
 
 // --- KiFunction call -------------------------------------------------------------------------
 
+// The canonical type-name a value matches for annotation checks. Built-ins map to their kind;
+// user instances report their class name (and inheritance is handled separately by typeMatches).
+inline std::string annotationTypeName(ValueKind k) {
+    switch (k) {
+        case ValueKind::None: return "None";
+        case ValueKind::Bool: return "Bool";
+        case ValueKind::Integer: return "Integer";
+        case ValueKind::Float: return "Float";
+        case ValueKind::String: return "String";
+        case ValueKind::List: return "List";
+        case ValueKind::Dict: return "Dict";
+        case ValueKind::Set: return "Set";
+        case ValueKind::Function: case ValueKind::NativeFunction: return "Function";
+        case ValueKind::Module: return "Module";
+        case ValueKind::Class: return "Class";
+        default: return "";
+    }
+}
+
+// Does `value` satisfy the type annotation `typeName`? Built-in type names match by kind; "Any"
+// always matches; otherwise treat it as a class name and check the instance's class chain (so
+// subclasses pass) — and also accept a NativeClass whose typeName equals the annotation.
+inline bool typeMatches(KiritoVM& vm, Handle value, const std::string& typeName) {
+    if (typeName.empty() || typeName == "Any") return true;
+    const Object& o = vm.arena().deref(value);
+    // built-in kind names
+    if (annotationTypeName(o.kind()) == typeName) return true;
+    // a user instance: walk its class chain by name (inheritance-aware)
+    if (o.kind() == ValueKind::Instance) {
+        const auto* inst = dynamic_cast<const InstanceValue*>(&o);
+        if (inst) {
+            Handle cur = inst->cls;
+            while (true) {
+                const auto& c = static_cast<const ClassValue&>(vm.arena().deref(cur));
+                if (c.name == typeName) return true;
+                if (!c.hasBase) break;
+                cur = c.base;
+            }
+        }
+        // a C++ NativeClass instance (Matrix, Socket, ...): match its own type name
+        if (o.typeName() == typeName) return true;
+    }
+    return false;
+}
+
 inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
+    return callFull(vm, args, {});
+}
+
+inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positional,
+                                   std::span<const NamedArg> named) {
     CallGuard depth(vm);  // bound native-stack recursion -> catchable error, not a crash
     const auto& params = def_->params;
-    if (args.size() != params.size())
-        throw KiritoError("function expected " + std::to_string(params.size()) +
-                          " argument(s), got " + std::to_string(args.size()));
-    Handle scope = vm.newScope(closure_);
+    RootScope rs(vm);
+    Handle scope = rs.add(vm.newScope(closure_));
     auto& env = static_cast<EnvValue&>(vm.arena().deref(scope));
-    for (std::size_t i = 0; i < params.size(); ++i) env.define(params[i], args[i]);
+
+    std::vector<bool> bound(params.size(), false);
+    std::vector<Handle> values(params.size());
+
+    if (positional.size() > params.size())
+        throw KiritoError("function takes " + std::to_string(params.size()) + " positional argument(s) but " +
+                          std::to_string(positional.size()) + " were given");
+    for (std::size_t i = 0; i < positional.size(); ++i) { values[i] = positional[i]; bound[i] = true; }
+
+    // named args: match each to a parameter by name
+    for (const auto& na : named) {
+        std::size_t idx = params.size();
+        for (std::size_t i = 0; i < params.size(); ++i)
+            if (params[i].name == na.name) { idx = i; break; }
+        if (idx == params.size())
+            throw KiritoError("function got an unexpected keyword argument '" + na.name + "'");
+        if (bound[idx])
+            throw KiritoError("function got multiple values for argument '" + na.name + "'");
+        values[idx] = na.value;
+        bound[idx] = true;
+    }
+
+    // fill defaults / report missing, then enforce annotations
+    for (std::size_t i = 0; i < params.size(); ++i) {
+        if (!bound[i]) {
+            if (params[i].defaultValue) {
+                Evaluator dev(vm, scope);  // defaults evaluate in the call scope (closure-visible)
+                values[i] = rs.add(dev.eval(*params[i].defaultValue));
+            } else {
+                throw KiritoError("function missing required argument '" + params[i].name + "'");
+            }
+        }
+        if (!params[i].annotation.empty() && !typeMatches(vm, values[i], params[i].annotation))
+            throw KiritoError("argument '" + params[i].name + "' must be " + params[i].annotation +
+                              ", got " + vm.arena().deref(values[i]).typeName());
+        env.define(params[i].name, values[i]);
+    }
+
     Evaluator ev(vm, scope);
     if (hasOwner) ev.setCurrentClass(ownerClass);  // enables private-member access in the body
-    return ev.callBody(def_->body);
+    Handle result = ev.callBody(def_->body);
+
+    // enforce the return annotation
+    if (!def_->returnAnnotation.empty() && !typeMatches(vm, result, def_->returnAnnotation))
+        throw KiritoError("function must return " + def_->returnAnnotation + ", got " +
+                          vm.arena().deref(result).typeName());
+    return result;
 }
 
 // --- VM entry point & lifetime ---------------------------------------------------------------

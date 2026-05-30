@@ -16,7 +16,7 @@ class TodoList:
 
     var complete = Function(self, name):
         if name not in self.done:
-            raise TaskError(f"no such task: {name}")
+            throw TaskError(f"no such task: {name}")
         self.done[name] = True
 
     var summary = Function(self):
@@ -38,7 +38,7 @@ io.print(list.summary())             # 2/3 tasks done
 
 try:
     list.complete("nonexistent")
-except TaskError as e:
+catch TaskError as e:
     io.print(f"error: {e.msg}")       # error: no such task: nonexistent
 
 for name in list.tasks:

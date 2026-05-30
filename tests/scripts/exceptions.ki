@@ -1,4 +1,4 @@
-# Exceptions: raise, try/except/finally, typed handlers, error catching.
+# Exceptions: raise, try/catch/finally, typed handlers, error catching.
 var io = import("io")
 
 class ValueError:
@@ -8,7 +8,7 @@ class ValueError:
 var safeDivide = Function(a, b):
     try:
         return a / b
-    except as e:
+    catch as e:
         return "error: " + e
 
 io.print(safeDivide(10, 2))      # 5.0
@@ -16,20 +16,20 @@ io.print(safeDivide(10, 0))      # error: division by zero
 
 var validate = Function(age):
     if age < 0:
-        raise ValueError("age cannot be negative")
+        throw ValueError("age cannot be negative")
     return age
 
 try:
     validate(-5)
-except ValueError as e:
+catch ValueError as e:
     io.print("caught: " + e.msg)  # caught: age cannot be negative
 
 var log = []
 try:
     log.append("try")
-    raise "boom"
-except:
-    log.append("except")
+    throw "boom"
+catch:
+    log.append("catch")
 finally:
     log.append("finally")
-io.print(log)                    # [try, except, finally]
+io.print(log)                    # [try, catch, finally]

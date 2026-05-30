@@ -93,7 +93,7 @@ ok
     // mixed int/float sorts numerically
     CHECK(evalStr(vm, "var a = [3, 1.5, 2, 0.5]\na.sort()\na") == "[0.5, 1.5, 2, 3]");
 
-    // hostile: un-orderable elements raise cleanly
+    // hostile: un-orderable elements throw cleanly
     CHECK_THROWS(vm.runSource("var a = [1, \"two\", 3]\na.sort()\n"));
     CHECK_THROWS(vm.runSource("var a = [[1], [2]]\na.sort()\n"));  // lists aren't orderable
     // key returning un-orderable values raises

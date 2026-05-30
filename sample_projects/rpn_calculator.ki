@@ -14,7 +14,7 @@ class RPN:
 
     var _pop = Function(self):
         if len(self._stack) == 0:
-            raise "stack underflow"
+            throw "stack underflow"
         return self._stack.pop()
 
     var evaluate = Function(self, expr):
@@ -37,7 +37,7 @@ class RPN:
             else:
                 self._push(Float(t))
         if len(self._stack) != 1:
-            raise "malformed expression"
+            throw "malformed expression"
         return self._pop()
 
 var calc = RPN()
@@ -50,7 +50,7 @@ io.print(String(calc.evaluate("10 2 /")))            # 5.0
 var safe = Function(e):
     try:
         return String(calc.evaluate(e))
-    except as err:
+    catch as err:
         return "error: " + err
 io.print(safe("1 +"))           # underflow
 io.print(safe("1 2 3"))         # malformed

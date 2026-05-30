@@ -94,9 +94,14 @@ struct LogicalExpr : Expr {
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 
+// A call argument: positional (name empty) or named (name set, for `f(key=value)`).
+struct Arg {
+    std::string name;  // "" for positional
+    ExprPtr value;
+};
 struct CallExpr : Expr {
     ExprPtr callee;
-    std::vector<ExprPtr> args;
+    std::vector<Arg> args;
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 
@@ -159,7 +164,7 @@ struct BreakStmt;
 struct ContinueStmt;
 struct ReturnStmt;
 struct TryStmt;
-struct RaiseStmt;
+struct ThrowStmt;
 struct ClassStmt;
 struct WithStmt;
 struct PassStmt;
@@ -177,7 +182,7 @@ struct StmtVisitor {
     virtual void visit(const ContinueStmt&) = 0;
     virtual void visit(const ReturnStmt&) = 0;
     virtual void visit(const TryStmt&) = 0;
-    virtual void visit(const RaiseStmt&) = 0;
+    virtual void visit(const ThrowStmt&) = 0;
     virtual void visit(const ClassStmt&) = 0;
     virtual void visit(const WithStmt&) = 0;
     virtual void visit(const PassStmt&) = 0;
@@ -212,11 +217,21 @@ struct AssignStmt : Stmt {
 
 using Block = std::vector<StmtPtr>;
 
-// First-class function literal: `Function(params): <indented block>`. The body is an owned block;
-// the evaluator captures the defining scope to make a closure. (Defined here, after Block, so its
-// StmtPtr members are complete.)
+// One function parameter: a name, an optional type annotation, and an optional default value.
+//   Function(a, b: Dict, c = 5, d: Float = 1.0):
+// The annotation is the bare type/class name (empty if none); enforcement is done at call time.
+struct Param {
+    std::string name;
+    std::string annotation;  // "" if unannotated
+    ExprPtr defaultValue;    // null if no default
+};
+
+// First-class function literal: `Function(params) [-> RetType]: <indented block>`. The body is an
+// owned block; the evaluator captures the defining scope to make a closure. (Defined here, after
+// Block, so its members are complete.)
 struct FunctionExpr : Expr {
-    std::vector<std::string> params;
+    std::vector<Param> params;
+    std::string returnAnnotation;  // "" if no `-> Type`
     Block body;
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
@@ -248,24 +263,24 @@ struct ForStmt : Stmt {
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 
-// One `except [type] [as name]:` arm. type is null for a catch-all; name is empty for no binding.
-struct ExceptClause {
+// One `catch [type] [as name]:` arm. type is null for a catch-all; name is empty for no binding.
+struct CatchClause {
     ExprPtr type;
     std::string name;
     Block body;
 };
 
-// `try: ... except ...: ... [finally: ...]`.
+// `try: ... catch ...: ... [finally: ...]`.
 struct TryStmt : Stmt {
     Block body;
-    std::vector<ExceptClause> handlers;
+    std::vector<CatchClause> handlers;
     bool hasFinally = false;
     Block finallyBody;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 
-// `raise value`.
-struct RaiseStmt : Stmt {
+// `throw value`.
+struct ThrowStmt : Stmt {
     ExprPtr value;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };

@@ -101,7 +101,7 @@ var r = d.loads(d.dumps(big))
 len(r) == 1000 and r[999][1] == 998001
 )") == "True");
 
-    // hostile / corrupt inputs raise cleanly, never crash
+    // hostile / corrupt inputs throw cleanly, never crash
     CHECK_THROWS(vm.runSource("import(\"dump\").loads(\"not a dump\")"));
     CHECK_THROWS(vm.runSource("import(\"dump\").loads(\"\")"));
     CHECK_THROWS(vm.runSource("import(\"dump\").loads(\"KDMP\")"));  // header only, truncated

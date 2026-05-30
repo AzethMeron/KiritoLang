@@ -52,7 +52,7 @@ e["KIRITO_ENV_CHECK"]
 )") == "yes");
     CHECK(evalStr(vm, "type(import(\"sys\").environ())") == "Dict");
 
-    // hostile: wrong argument types raise cleanly, not crash
+    // hostile: wrong argument types throw cleanly, not crash
     CHECK_THROWS(vm.runSource("import(\"sys\").getenv(42)"));
     CHECK_THROWS(vm.runSource("import(\"sys\").setenv(\"X\", 5)"));
     CHECK_THROWS(vm.runSource("import(\"sys\").setenv(1, 2)"));

@@ -91,7 +91,7 @@ int main() {
         "var m = import(\"matrix\").Matrix([[%d, %d], [%d, %d]])\nm.determinant()\n",
         "var sr = import(\"serialize\")\nsr.loads(sr.dumps([%d, [%d], %d]))\n",
         "class C:\n    var _init_ = Function(self, v):\n        self.v = v\nC(%d).v\n",
-        "try:\n    raise %d\nexcept as e:\n    e + %d\n",
+        "try:\n    throw %d\ncatch as e:\n    e + %d\n",
         "var i = 0\nvar s = 0\nwhile i < %d %% 20:\n    s = s + i\n    i = i + 1\ns\n",
         "%d if %d > %d else %d\n",  // not valid Kirito (no ternary) -> exercises parse errors too
     };

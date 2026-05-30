@@ -67,6 +67,11 @@ public:
 
     Handle call(KiritoVM&, std::span<const Handle> args) override;
 
+    // A named argument passed at a call site.
+    struct NamedArg { std::string name; Handle value; };
+    // Full call path supporting positional + named args, defaults, and annotation enforcement.
+    Handle callFull(KiritoVM&, std::span<const Handle> positional, std::span<const NamedArg> named);
+
 private:
     const ast::FunctionExpr* def_;
     Handle closure_;

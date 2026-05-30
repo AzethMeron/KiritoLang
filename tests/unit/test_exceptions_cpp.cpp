@@ -1,5 +1,5 @@
 // Thorough tests of exceptions at the C++/embedding boundary: native functions that throw, how
-// those surface to Kirito try/except, how Kirito `raise` surfaces back to the C++ embedder, and
+// those surface to Kirito try/catch, how Kirito `raise` surfaces back to the C++ embedder, and
 // that unwinding through both layers is GC-safe and leaves the VM usable.
 #include <span>
 #include <string>
@@ -21,7 +21,7 @@ int main() {
             "boom", [](KiritoVM&, std::span<const Handle>) -> Handle {
                 throw KiritoError("native failure");
             })));
-        CHECK(evalStr(vm, "try:\n    boom()\nexcept as e:\n    e\n") == "native failure");
+        CHECK(evalStr(vm, "try:\n    boom()\ncatch as e:\n    e\n") == "native failure");
     }
 
     // --- 2. An uncaught native throw surfaces to the embedder as a KiritoError.
@@ -52,21 +52,21 @@ int main() {
                 std::array<Handle, 1> args{a[1]};
                 return vm.arena().deref(a[0]).call(vm, args);
             })));
-        // A Kirito callback that raises; the raise must propagate out through the native frame
+        // A Kirito callback that raises; the throw must propagate out through the native frame
         // and be catchable by the surrounding Kirito try.
         CHECK(evalStr(vm, R"(
 var bad = Function(x):
-    raise "from callback"
+    throw "from callback"
 var r = "none"
 try:
     applyfn(bad, 5)
-except as e:
+catch as e:
     r = e
 r
 )") == "from callback");
     }
 
-    // --- 4. A Kirito raise of a class instance surfaces to the embedder; the embedder can inspect
+    // --- 4. A Kirito throw of a class instance surfaces to the embedder; the embedder can inspect
     //        the thrown value via KiritoThrow.
     {
         KiritoVM vm;
@@ -76,7 +76,7 @@ r
 class Err:
     var _init_ = Function(self, code):
         self.code = code
-raise Err(42)
+throw Err(42)
 )");
         } catch (const KiritoThrow& t) {
             caught = true;
@@ -100,12 +100,12 @@ raise Err(42)
 var deep = Function(n):
     var junk = [n, n + 1, n + 2]
     if n > 300:
-        raise "deep enough"
+        throw "deep enough"
     return deep(n + 1)
 var caught = "no"
 try:
     deep(0)
-except as e:
+catch as e:
     caught = e
 caught
 )") == "deep enough");
@@ -126,7 +126,7 @@ try:
         boom()
     finally:
         log.append("inner-finally")
-except as e:
+catch as e:
     log.append("outer-catch")
 log
 )") == "[inner-finally, outer-catch]");

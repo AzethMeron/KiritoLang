@@ -15,8 +15,8 @@ enum class TokenType {
     KwVar, KwTrue, KwFalse, KwNone,
     KwIf, KwElif, KwElse, KwWhile, KwBreak, KwContinue,
     KwAnd, KwOr, KwNot, KwFunction, KwReturn, KwFor, KwIn,
-    KwTry, KwExcept, KwFinally, KwRaise, KwAs, KwClass, KwWith, KwPass, KwAssert,
-    Plus, Minus, Star, Slash, SlashSlash, Percent, StarStar,
+    KwTry, KwCatch, KwFinally, KwThrow, KwAs, KwClass, KwWith, KwPass, KwAssert,
+    Plus, Minus, Star, Slash, SlashSlash, Percent, StarStar, Arrow,
     Assign, EqEq, NotEq, Lt, Le, Gt, Ge,
     LParen, RParen, LBracket, RBracket, LBrace, RBrace,
     Colon, Comma, Dot,
@@ -181,9 +181,9 @@ private:
         else if (text == "for") type = TokenType::KwFor;
         else if (text == "in") type = TokenType::KwIn;
         else if (text == "try") type = TokenType::KwTry;
-        else if (text == "except") type = TokenType::KwExcept;
+        else if (text == "catch") type = TokenType::KwCatch;
         else if (text == "finally") type = TokenType::KwFinally;
-        else if (text == "raise") type = TokenType::KwRaise;
+        else if (text == "throw") type = TokenType::KwThrow;
         else if (text == "as") type = TokenType::KwAs;
         else if (text == "class") type = TokenType::KwClass;
         else if (text == "with") type = TokenType::KwWith;
@@ -265,7 +265,10 @@ private:
         char c = peek();
         switch (c) {
             case '+': advance(); return make(TokenType::Plus, line, col);
-            case '-': advance(); return make(TokenType::Minus, line, col);
+            case '-':
+                advance();
+                if (peek() == '>') { advance(); return make(TokenType::Arrow, line, col); }
+                return make(TokenType::Minus, line, col);
             case '*':
                 advance();
                 if (peek() == '*') { advance(); return make(TokenType::StarStar, line, col); }
