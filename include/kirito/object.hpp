@@ -79,8 +79,9 @@ public:
     // getAttr receives the receiver's own handle so bound methods can capture (and GC-root) it.
     virtual Handle getAttr(KiritoVM&, Handle self, std::string_view name);
     virtual void setAttr(KiritoVM&, std::string_view name, Handle value);
-    virtual Handle getItem(KiritoVM&, Handle key);
-    virtual void setItem(KiritoVM&, Handle key, Handle value);
+    // Indexing supports any number of keys, so obj[x, y, z] works (e.g. matrices).
+    virtual Handle getItem(KiritoVM&, std::span<const Handle> keys);
+    virtual void setItem(KiritoVM&, std::span<const Handle> keys, Handle value);
     // start/stop/step are Integer handles or None for "omitted".
     virtual Handle slice(KiritoVM&, Handle start, Handle stop, Handle step);
     virtual std::optional<std::vector<Handle>> iterate(KiritoVM&);
@@ -103,11 +104,17 @@ inline Handle Object::getAttr(KiritoVM&, Handle, std::string_view name) {
 inline void Object::setAttr(KiritoVM&, std::string_view name, Handle) {
     throw KiritoError("type '" + typeName() + "' has no attribute '" + std::string(name) + "'");
 }
-inline Handle Object::getItem(KiritoVM&, Handle) {
+inline Handle Object::getItem(KiritoVM&, std::span<const Handle>) {
     throw KiritoError("type '" + typeName() + "' is not indexable");
 }
-inline void Object::setItem(KiritoVM&, Handle, Handle) {
+inline void Object::setItem(KiritoVM&, std::span<const Handle>, Handle) {
     throw KiritoError("type '" + typeName() + "' does not support item assignment");
+}
+// Containers that take exactly one index validate arity and unwrap the single key here.
+inline Handle singleKey(const Object& self, std::span<const Handle> keys) {
+    if (keys.size() != 1)
+        throw KiritoError("type '" + self.typeName() + "' takes exactly one index");
+    return keys[0];
 }
 inline Handle Object::slice(KiritoVM&, Handle, Handle, Handle) {
     throw KiritoError("type '" + typeName() + "' does not support slicing");

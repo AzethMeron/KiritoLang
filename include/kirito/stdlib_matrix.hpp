@@ -52,6 +52,17 @@ public:
 
     Handle binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) override;
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override;
+    // m[i] -> a row (List); m[i, j] -> an element; m[i, j] = v -> set element.
+    Handle getItem(KiritoVM& vm, std::span<const Handle> keys) override;
+    void setItem(KiritoVM& vm, std::span<const Handle> keys, Handle value) override;
+
+    static std::size_t indexOf(KiritoVM& vm, Handle h) {
+        const Object& o = vm.arena().deref(h);
+        if (o.kind() != ValueKind::Integer) throw KiritoError("Matrix index must be Integer");
+        int64_t v = static_cast<const IntVal&>(o).value();
+        if (v < 0) throw KiritoError("Matrix index out of range");
+        return static_cast<std::size_t>(v);
+    }
 };
 
 namespace mat {
@@ -146,6 +157,30 @@ inline Handle MatrixVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
         return vm.alloc(std::move(r));
     }
     throw KiritoError("Matrix does not support this operator");
+}
+
+inline Handle MatrixVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
+    if (keys.size() == 1) {  // a whole row, as a List
+        std::size_t r = indexOf(vm, keys[0]);
+        if (r >= rows) throw KiritoError("Matrix row index out of range");
+        RootScope rs(vm);
+        auto list = std::make_unique<ListVal>();
+        for (std::size_t c = 0; c < cols; ++c) list->elems.push_back(rs.add(vm.makeFloat(at(r, c))));
+        return vm.alloc(std::move(list));
+    }
+    if (keys.size() == 2) {  // a single element
+        std::size_t r = indexOf(vm, keys[0]), c = indexOf(vm, keys[1]);
+        if (r >= rows || c >= cols) throw KiritoError("Matrix index out of range");
+        return vm.makeFloat(at(r, c));
+    }
+    throw KiritoError("Matrix index needs 1 (row) or 2 (element) indices");
+}
+
+inline void MatrixVal::setItem(KiritoVM& vm, std::span<const Handle> keys, Handle value) {
+    if (keys.size() != 2) throw KiritoError("Matrix element assignment needs two indices: m[i, j] = v");
+    std::size_t r = indexOf(vm, keys[0]), c = indexOf(vm, keys[1]);
+    if (r >= rows || c >= cols) throw KiritoError("Matrix index out of range");
+    at(r, c) = mat::numOf(vm, value);
 }
 
 inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {

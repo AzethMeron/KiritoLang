@@ -387,6 +387,12 @@ private:
                         advance();
                         if (!at(TokenType::RBracket)) step = parseExpr();
                     }
+                } else {
+                    // Comma-separated extra indices: obj[a, b, c]
+                    while (at(TokenType::Comma)) {
+                        advance();
+                        extra.push_back(parseExpr());
+                    }
                 }
                 expect(TokenType::RBracket, "']' to close the index");
                 if (isSlice) {
