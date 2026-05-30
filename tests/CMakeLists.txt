@@ -33,6 +33,7 @@ kirito_test(test_matrix unit/test_matrix.cpp)
 kirito_test(test_json unit/test_json.cpp)
 kirito_test(test_net unit/test_net.cpp)
 kirito_test(test_serialize unit/test_serialize.cpp)
+kirito_test(test_io unit/test_io.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
 kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)

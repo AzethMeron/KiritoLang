@@ -1,15 +1,19 @@
 #ifndef KIRITO_STDLIB_IO_HPP
 #define KIRITO_STDLIB_IO_HPP
 
+#include <filesystem>
 #include <fstream>
 #include <ios>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <span>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "builtins.hpp"
+#include "collections.hpp"
 #include "native.hpp"
 
 namespace kirito {
@@ -23,6 +27,15 @@ public:
     std::string path;
 
     FileVal(const std::string& p, std::ios::openmode mode) : path(p) { stream.open(p, mode); }
+
+    // Iterating a file yields its remaining lines (so `for line in f:` works).
+    std::optional<std::vector<Handle>> iterate(KiritoVM& vm) override {
+        RootScope rs(vm);
+        std::vector<Handle> lines;
+        std::string line;
+        while (std::getline(stream, line)) lines.push_back(rs.add(vm.makeString(line)));
+        return lines;
+    }
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         auto bind = [&](const char* nm, NativeFn fn) {
@@ -53,6 +66,43 @@ public:
         if (name == "close" || name == "exit")
             return bind("close", [self, file](KiritoVM& vm, std::span<const Handle>) {
                 file(vm, self).stream.close();
+                return vm.none();
+            });
+        if (name == "readlines")
+            return bind("readlines", [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                RootScope rs(vm);
+                auto list = std::make_unique<ListVal>();
+                std::string line;
+                while (std::getline(file(vm, self).stream, line)) list->elems.push_back(rs.add(vm.makeString(line)));
+                return vm.alloc(std::move(list));
+            });
+        if (name == "writelines")
+            return bind("writelines", [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                auto items = vm.arena().deref(a[0]).iterate(vm);
+                auto& f = file(vm, self);
+                for (Handle h : items.value()) {
+                    const Object& o = vm.arena().deref(h);
+                    if (o.kind() != ValueKind::String) throw KiritoError("writelines expects Strings");
+                    f.stream << static_cast<const StrVal&>(o).value();
+                }
+                return vm.none();
+            });
+        if (name == "flush")
+            return bind("flush", [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                file(vm, self).stream.flush();
+                return vm.none();
+            });
+        if (name == "tell")
+            return bind("tell", [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                return vm.makeInt(static_cast<int64_t>(file(vm, self).stream.tellg()));
+            });
+        if (name == "seek")
+            return bind("seek", [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                int64_t pos = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
+                auto& s = file(vm, self).stream;
+                s.clear();
+                s.seekg(pos);
+                s.seekp(pos);
                 return vm.none();
             });
         if (name == "enter")
@@ -104,6 +154,44 @@ public:
             auto f = std::make_unique<FileVal>(path, flags);
             if (!f->stream.is_open()) throw KiritoError("could not open file '" + path + "'");
             return vm.alloc(std::move(f));
+        });
+
+        auto pathArg = [](KiritoVM& vm, Handle h) -> std::string {
+            const Object& o = vm.arena().deref(h);
+            if (o.kind() != ValueKind::String) throw KiritoError("expected a path String");
+            return static_cast<const StrVal&>(o).value();
+        };
+        m.fn("exists", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::error_code ec;
+            return vm.makeBool(std::filesystem::exists(pathArg(vm, a[0]), ec));
+        });
+        m.fn("remove", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::error_code ec;
+            std::filesystem::remove(pathArg(vm, a[0]), ec);
+            return vm.makeBool(!ec);
+        });
+        m.fn("rename", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::error_code ec;
+            std::filesystem::rename(pathArg(vm, a[0]), pathArg(vm, a[1]), ec);
+            if (ec) throw KiritoError("rename failed: " + ec.message());
+            return vm.none();
+        });
+        m.fn("mkdir", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::error_code ec;
+            std::filesystem::create_directories(pathArg(vm, a[0]), ec);
+            return vm.makeBool(!ec);
+        });
+        m.fn("getcwd", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            std::error_code ec;
+            return vm.makeString(std::filesystem::current_path(ec).string());
+        });
+        m.fn("listdir", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            RootScope rs(vm);
+            auto list = std::make_unique<ListVal>();
+            std::error_code ec;
+            for (const auto& entry : std::filesystem::directory_iterator(pathArg(vm, a[0]), ec))
+                list->elems.push_back(rs.add(vm.makeString(entry.path().filename().string())));
+            return vm.alloc(std::move(list));
         });
     }
 };
