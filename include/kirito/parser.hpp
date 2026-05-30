@@ -66,6 +66,20 @@ private:
             case TokenType::KwClass: return parseClass();
             case TokenType::KwWith: return parseWith();
             case TokenType::KwReturn: return parseReturn();
+            case TokenType::KwPass: {
+                auto node = std::make_unique<ast::PassStmt>();
+                node->span = advance().span;
+                expectStatementEnd();
+                return node;
+            }
+            case TokenType::KwAssert: {
+                auto node = std::make_unique<ast::AssertStmt>();
+                node->span = advance().span;
+                node->cond = parseExpr();
+                if (at(TokenType::Comma)) { advance(); node->message = parseExpr(); }
+                endSimpleStatement();
+                return node;
+            }
             case TokenType::KwBreak: {
                 auto node = std::make_unique<ast::BreakStmt>();
                 node->span = advance().span;

@@ -58,16 +58,27 @@ Build the smallest thing that runs end-to-end first (lex+parse+eval an integer
 literal, then arithmetic, then `var`, then functions, then `io`), and grow outward.
 Every step must keep `main.ki`-style programs as the north star.
 
-**Status:** the core is implemented and tested end-to-end (`include/kirito/*.hpp`, the `ki`
-runner, CTest suite). Working today: arithmetic (Python-3 division), `var`/reference-assignment,
-comparisons, indentation blocks with `if/elif/else`/`while`/`for`/`break`/`continue`,
-`and`/`or`/`not`, first-class functions with closures and `return`, `List`/`Set`/`Dict` with
-literals/indexing/iteration/methods and `len`, `String` indexing/iteration, native modules +
-`import` (the `io` stdlib), the `Integer`/`Float`/`String`/`Bool` converters, the C++ extension
-API (`NativeModule`/`NativeClass`/`registerGlobal`), and a line REPL. The north-star
-`tests/lang/main.ki` runs. Not yet done: garbage collection (values accumulate until the VM dies),
-user-defined `class`es, `in`/membership operator, string slicing, multi-line REPL input, and the
-numeric enrichment (`Number`/`Matrix`).
+**Status:** the language is broadly implemented and tested end-to-end (`include/kirito/*.hpp`, the
+`ki` runner, an extensive CTest suite incl. golden `.ki` scripts, an embedding integration test,
+a stability fuzzer, and a benchmark). Working today:
+- Arithmetic (Python-3 division), `var`/reference-assignment, comparisons, `in`/`not in`.
+- Indentation blocks with `if/elif/else`/`while`/`for`/`break`/`continue`/`pass`, `and`/`or`/`not`.
+- First-class functions with closures and `return`; `assert`.
+- `List`/`Set`/`Dict` with literals, indexing, slicing, iteration, `in`, and methods (append/pop/
+  sort/reverse/insert/remove/index/extend; keys/values/items/get/pop; add/contains); `len`.
+- **Unicode** `String` (code-point indexing/slicing/iteration), `*` repetition, and methods
+  (upper/lower/strip/split/join/replace/startswith/endswith/find/count) and `.format()`.
+- **User-defined `class`es** with methods, attributes, inheritance, and instance `str`.
+- **Exceptions**: `try`/`except [Type as e]`/`finally`/`raise` (typed matching via the class chain).
+- **Context managers**: `with ... as ...` (enter/exit protocol).
+- **Garbage collection**: precise mark-sweep with rooted intermediates (AddressSanitizer-clean).
+- Modules + `import`: `io` (print/input/write/open files & streams) and `math`; `Integer`/`Float`/
+  `String`/`Bool` converters; the C++ extension API (`NativeModule`/`NativeClass`/`registerGlobal`).
+- Small-integer interning and other non-invasive perf wins; a line REPL.
+
+Not yet done (future enrichment): comprehensions, f-strings, default/variadic params, tuple
+unpacking, `super()`, generators/iterators protocol, the numeric depth (`Number`/`Matrix`/stats),
+and a bytecode VM behind the AST boundary.
 
 ## The Archive is reference only
 

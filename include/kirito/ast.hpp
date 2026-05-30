@@ -149,6 +149,8 @@ struct TryStmt;
 struct RaiseStmt;
 struct ClassStmt;
 struct WithStmt;
+struct PassStmt;
+struct AssertStmt;
 
 struct StmtVisitor {
     virtual ~StmtVisitor() = default;
@@ -165,6 +167,8 @@ struct StmtVisitor {
     virtual void visit(const RaiseStmt&) = 0;
     virtual void visit(const ClassStmt&) = 0;
     virtual void visit(const WithStmt&) = 0;
+    virtual void visit(const PassStmt&) = 0;
+    virtual void visit(const AssertStmt&) = 0;
 };
 
 struct Stmt {
@@ -275,6 +279,17 @@ struct BreakStmt : Stmt {
 };
 
 struct ContinueStmt : Stmt {
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+struct PassStmt : Stmt {
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+// `assert cond [, message]` — raises if cond is falsy.
+struct AssertStmt : Stmt {
+    ExprPtr cond;
+    ExprPtr message;  // optional
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 

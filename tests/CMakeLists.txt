@@ -22,6 +22,7 @@ kirito_test(test_classes unit/test_classes.cpp)
 kirito_test(test_with unit/test_with.cpp)
 kirito_test(test_string_ops unit/test_string_ops.cpp)
 kirito_test(test_stdlib unit/test_stdlib.cpp)
+kirito_test(test_extras unit/test_extras.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
 kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)

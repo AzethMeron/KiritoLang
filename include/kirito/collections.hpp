@@ -140,9 +140,25 @@ public:
     std::optional<std::vector<Handle>> iterate(KiritoVM&) override { return keys(); }
     std::optional<int64_t> length(KiritoVM&) override { return static_cast<int64_t>(count); }
 
+    bool remove(ObjectArena& arena, Handle key) {
+        const Object& k = arena.deref(key);
+        if (!k.hashable()) return false;
+        auto it = buckets.find(k.hash());
+        if (it == buckets.end()) return false;
+        auto& bucket = it->second;
+        for (std::size_t i = 0; i < bucket.size(); ++i)
+            if (arena.deref(bucket[i].first).equals(arena, k)) {
+                bucket.erase(bucket.begin() + i);
+                --count;
+                return true;
+            }
+        return false;
+    }
+
     Handle getItem(KiritoVM&, Handle key) override;
     void setItem(KiritoVM&, Handle key, Handle value) override;
     bool contains(KiritoVM&, Handle key) override;  // key membership
+    Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };
 
 // Hash-bucketed set of unique values.

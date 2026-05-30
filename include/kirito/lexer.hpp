@@ -15,7 +15,7 @@ enum class TokenType {
     KwVar, KwTrue, KwFalse, KwNone,
     KwIf, KwElif, KwElse, KwWhile, KwBreak, KwContinue,
     KwAnd, KwOr, KwNot, KwFunction, KwReturn, KwFor, KwIn,
-    KwTry, KwExcept, KwFinally, KwRaise, KwAs, KwClass, KwWith,
+    KwTry, KwExcept, KwFinally, KwRaise, KwAs, KwClass, KwWith, KwPass, KwAssert,
     Plus, Minus, Star, Slash, SlashSlash, Percent, StarStar,
     Assign, EqEq, NotEq, Lt, Le, Gt, Ge,
     LParen, RParen, LBracket, RBracket, LBrace, RBrace,
@@ -175,6 +175,8 @@ private:
         else if (text == "as") type = TokenType::KwAs;
         else if (text == "class") type = TokenType::KwClass;
         else if (text == "with") type = TokenType::KwWith;
+        else if (text == "pass") type = TokenType::KwPass;
+        else if (text == "assert") type = TokenType::KwAssert;
         return make(type, line, col, std::move(text));
     }
 

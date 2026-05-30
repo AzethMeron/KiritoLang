@@ -142,6 +142,15 @@ public:
 
     void visit(const ast::BreakStmt&) override { flow_ = Flow::Break; result_ = vm_.none(); }
     void visit(const ast::ContinueStmt&) override { flow_ = Flow::Continue; result_ = vm_.none(); }
+    void visit(const ast::PassStmt&) override { result_ = vm_.none(); }
+
+    void visit(const ast::AssertStmt& s) override {
+        if (!truthy(eval(*s.cond))) {
+            Handle msg = s.message ? eval(*s.message) : vm_.makeString("assertion failed");
+            throw KiritoThrow{msg};
+        }
+        result_ = vm_.none();
+    }
 
     void visit(const ast::ReturnStmt& s) override {
         returnValue_ = s.value ? eval(*s.value) : vm_.none();
