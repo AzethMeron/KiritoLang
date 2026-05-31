@@ -97,8 +97,17 @@ a stability fuzzer, and a benchmark). Working today:
 - **Context managers**: `with ... as ...` (enter/exit protocol).
 - **Garbage collection**: precise mark-sweep with rooted intermediates (AddressSanitizer-clean).
 - **f-strings** `f"{expr}"`; inline anonymous functions `Function(x): return x*x`.
+- **Static warnings + `discard`**: a non-fatal analysis pass (`analyzer.hpp`) run before execution
+  flags function-local variables assigned-but-never-used and bare expression statements whose
+  non-`None` value is dropped; `discard EXPR` evaluates and intentionally drops a value (suppressing
+  the latter). Warnings print `file:line:col: warning: ...` to stderr; the `ki` flag `-w`/`--no-warn`
+  disables them. Module-level names (exports) and class members are never flagged.
 - **Builtins**: `range`, `sum`, `min`, `max`, `abs`, `round`, `sorted`, `enumerate`, `zip`, `map`,
-  `filter`, `len`, `type`, `import`, and the `Integer`/`Float`/`String`/`Bool` converters.
+  `filter`, `len`, `type`, `import`, `inspect`, `all`, `any`, `reversed`, `divmod`, `isinstance`,
+  `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), and the
+  `Integer`/`Float`/`String`/`Bool`/`List`/`Set`/`Dict` constructors/converters. `inspect(x)` returns
+  a String describing the public methods/attributes (with signatures + annotations) of a class,
+  instance, module, or function.
 - **Standard library** (each a one-liner `vm.install<T>()`; a third party adds their own the same
   way — `#include` a header, register on the VM, no global state):
   - `io` — print/input/write, `open` files & streams (read/readline/readlines/write/writelines/
@@ -124,10 +133,17 @@ a stability fuzzer, and a benchmark). Working today:
   - `zlib` — compress/decompress (standard zlib streams), raw deflate/inflate, adler32 — a
     self-contained DEFLATE/INFLATE, no external dependency, interoperable with real zlib.
   - `hash` — md5/sha1/sha256 hex digests (self-contained, standard-conformant).
+  - **Kirito-authored, frozen-source modules** (registered via `vm.registerSourceModule(name, src)`;
+    bodies live in `stdlib_kimodules.hpp`, compiled once per VM on first import): `itertools`
+    (chain/repeat/cycle/islice/accumulate/product/permutations/combinations/count), `functools`
+    (reduce/partial), `collections` (deque/Counter/defaultdict), `statistics`
+    (mean/median/mode/variance/stdev/...), `string` (constants + capwords), `textwrap`
+    (wrap/fill/indent/dedent), `base64`, `csv`, `heapq`, `bisect`, `copy` (copy/deepcopy), `enum`.
 - **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, and the
   script's directory), lexed+parsed+evaluated once per VM and cached by resolved path. The `ki` CLI
-  is Python-like: REPL with no file, runs a file otherwise, with script `argv`. Small-integer
-  interning and other non-invasive perf wins.
+  is Python-like: REPL with no file (multi-line blocks via a `...` continuation prompt until a blank
+  line), runs a file otherwise, with script `argv`. Small-integer interning, flat-vector scopes, a
+  no-temporaries fast call path, and other non-invasive perf wins.
 - **Sample projects** in `examples/` (complex linear-system solver, rule34 image downloader,
   word-frequency analyzer, RPN calculator) demonstrate non-trivial programs in pure Kirito.
 
@@ -141,8 +157,14 @@ cases). The **post-work routine** (`scripts/post_work_check.sh`, documented in
 cross build where a toolchain exists) and runs the whole auto-discovered CTest suite — run it before
 calling a change done.
 
+**Docs:** an expandable HTML site (`docs/`) — hand-authored Markdown in `docs/pages/` rendered by
+the dependency-free `docs/build_docs.py` into `docs/site/` (intro, build, embedding, extending,
+language guide, recipes, builtins/stdlib reference, and a 3-part course with worked sample projects).
+Documentation is authored in those `.md` files, NOT scraped from code comments.
+
 Not yet done (future enrichment): comprehensions, variadic params,
-`super()`, generators, complex numbers, and a bytecode VM behind the AST boundary.
+`super()`, generators, complex numbers, full-Unicode case folding (current `upper`/`lower` cover
+ASCII + Latin-1 + Latin Extended-A), and a bytecode VM behind the AST boundary.
 
 ## The Archive is reference only
 
