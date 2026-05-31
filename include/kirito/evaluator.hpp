@@ -129,6 +129,8 @@ public:
         RootScope rs(vm_);
         Handle iterable = rs.add(eval(*s.iterable));
         auto items = located(s.span, [&] { return vm_.arena().deref(iterable).iterate(vm_); });
+        if (!items)
+            throw KiritoError("type '" + vm_.arena().deref(iterable).typeName() + "' is not iterable", s.span);
         // Iterables may yield freshly-allocated values (e.g. a String's characters) that aren't
         // reachable from the iterable itself, so root them all for the loop's duration.
         for (Handle it : items.value()) rs.add(it);
