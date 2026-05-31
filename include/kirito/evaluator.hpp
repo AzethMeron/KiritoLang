@@ -213,7 +213,8 @@ public:
         cls->name = s.name;
         cls->base = base;
         cls->hasBase = hasBase;
-        cls->methods = static_cast<EnvValue&>(vm_.arena().deref(classScope)).locals();
+        for (const auto& [k, v] : static_cast<EnvValue&>(vm_.arena().deref(classScope)).locals())
+            cls->methods[k] = v;
         Handle clsHandle = vm_.alloc(std::move(cls));
         auto& klass = static_cast<ClassValue&>(vm_.arena().deref(clsHandle));
         klass.selfHandle = clsHandle;
@@ -350,13 +351,15 @@ public:
         // structural equals. Ordering and arithmetic dispatch through binary().
         if (e.op == BinOp::Eq || e.op == BinOp::Ne) {
             // A user class may override equality via _eq_ / _ne_; otherwise use structural equals.
-            // (dynamic_cast distinguishes a user InstanceValue from C++ NativeClass instances,
-            // which also report ValueKind::Instance but have no method table.)
+            // Only an Instance can carry an _eq_ method, so the (relatively costly) dynamic_cast is
+            // guarded by a kind() check — the scalar fast path never pays for it.
             Object& l = vm_.arena().deref(lhs);
-            if (auto* inst = dynamic_cast<InstanceValue*>(&l);
-                inst && inst->findMethod(vm_.arena(), binOpMethod(e.op))) {
-                result_ = located(e.span, [&] { return l.binary(vm_, e.op, lhs, rhs); });
-                return;
+            if (l.kind() == ValueKind::Instance) {
+                if (auto* inst = dynamic_cast<InstanceValue*>(&l);
+                    inst && inst->findMethod(vm_.arena(), binOpMethod(e.op))) {
+                    result_ = located(e.span, [&] { return l.binary(vm_, e.op, lhs, rhs); });
+                    return;
+                }
             }
             bool eq = l.equals(vm_.arena(), vm_.arena().deref(rhs));
             result_ = vm_.makeBool(e.op == BinOp::Eq ? eq : !eq);

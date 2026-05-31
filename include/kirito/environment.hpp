@@ -3,7 +3,7 @@
 
 #include <optional>
 #include <string>
-#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "arena.hpp"
@@ -15,6 +15,11 @@ namespace kirito {
 // objects (addressed by handle) so a closure can capture and outlive the frame that made it, and
 // so the whole scope chain stays GC-traceable and serializable. The chain is global -> module ->
 // (later) function-local.
+//
+// Bindings live in a flat vector rather than a hash map: function-call scopes are tiny (a handful
+// of names), so a linear scan with no per-binding heap allocation is markedly faster than an
+// unordered_map (which mallocs a control block + nodes on every call). This is the single hottest
+// data structure in the tree-walker — see the call-heavy benchmark profile.
 class EnvValue : public Object {
 public:
     EnvValue() : hasParent_(false) {}
@@ -26,6 +31,7 @@ public:
     std::string str(StringifyCtx&) const override { return "<environment>"; }
     bool equals(const ObjectArena&, const Object& other) const override { return this == &other; }
     void children(std::vector<Handle>& out) const override {
+        out.reserve(out.size() + vars_.size() + (hasParent_ ? 1 : 0));
         for (const auto& [name, h] : vars_) out.push_back(h);
         if (hasParent_) out.push_back(parent_);
     }
@@ -33,21 +39,29 @@ public:
     bool hasParent() const { return hasParent_; }
     Handle parent() const { return parent_; }
 
-    void define(const std::string& name, Handle h) { vars_[name] = h; }
+    // Define (or overwrite) a binding in this scope.
+    void define(const std::string& name, Handle h) {
+        for (auto& [k, v] : vars_)
+            if (k == name) { v = h; return; }
+        vars_.emplace_back(name, h);
+    }
     bool assignLocal(const std::string& name, Handle h) {
-        auto it = vars_.find(name);
-        if (it == vars_.end()) return false;
-        it->second = h;
-        return true;
+        for (auto& [k, v] : vars_)
+            if (k == name) { v = h; return true; }
+        return false;
     }
     const Handle* findLocal(const std::string& name) const {
-        auto it = vars_.find(name);
-        return it == vars_.end() ? nullptr : &it->second;
+        for (const auto& [k, v] : vars_)
+            if (k == name) return &v;
+        return nullptr;
     }
-    const std::unordered_map<std::string, Handle>& locals() const { return vars_; }
+    // Iterable view of the bindings (used to snapshot class methods / module members).
+    const std::vector<std::pair<std::string, Handle>>& locals() const { return vars_; }
+
+    void reserve(std::size_t n) { vars_.reserve(n); }
 
 private:
-    std::unordered_map<std::string, Handle> vars_;
+    std::vector<std::pair<std::string, Handle>> vars_;
     Handle parent_{};
     bool hasParent_;
 };

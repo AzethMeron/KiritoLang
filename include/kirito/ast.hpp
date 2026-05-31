@@ -266,6 +266,9 @@ struct FunctionExpr : Expr {
     std::vector<Param> params;
     std::string returnAnnotation;  // "" if no `-> Type`
     Block body;
+    // Evaluator-side memo: true once we've determined this function has no param/return annotations,
+    // enabling a no-temporaries fast bind for positional, exact-arity calls. Computed lazily.
+    mutable std::optional<bool> fastBindable;
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 

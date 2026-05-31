@@ -950,6 +950,22 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
     RootScope rs(vm);
     Handle scope = rs.add(vm.newScope(closure_));
     auto& env = static_cast<EnvValue&>(vm.arena().deref(scope));
+    env.reserve(params.size());
+
+    // Fast path: the overwhelmingly common call shape — only positional args, exact arity, no
+    // type annotations to check. Bind straight into the scope with no temporaries.
+    if (!def_->fastBindable.has_value()) {
+        bool simple = def_->returnAnnotation.empty();
+        for (const auto& p : params)
+            if (!p.annotation.empty()) { simple = false; break; }
+        def_->fastBindable = simple;  // memoize the per-def annotation check (def_ field is mutable)
+    }
+    if (named.empty() && positional.size() == params.size() && *def_->fastBindable) {
+        for (std::size_t i = 0; i < params.size(); ++i) env.define(params[i].name, positional[i]);
+        Evaluator evf(vm, scope);
+        if (hasOwner) evf.setCurrentClass(ownerClass);
+        return evf.callBody(def_->body);
+    }
 
     std::vector<bool> bound(params.size(), false);
     std::vector<Handle> values(params.size());
