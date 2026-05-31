@@ -194,6 +194,10 @@ public:
         } catch (const KiritoError& e) {
             pendingError = true;
             errMsg = e.what();
+        } catch (const std::exception& ex) {
+            // Any other native exception still triggers _exit_, then propagates as a KiritoError.
+            pendingError = true;
+            errMsg = ex.what();
         }
         flow_ = Flow::Normal;
         callMethod(s.span, mgr, "_exit_", {});  // always run cleanup
@@ -247,6 +251,12 @@ public:
             flow_ = Flow::Normal;
             pending = true;
             excValue = rs.add(vm_.makeString(err.what()));
+        } catch (const std::exception& ex) {
+            // Any other std::exception from native code (a C++-authored module, std::bad_alloc, ...)
+            // is also catchable as a String, so `try`/`catch` can guard the whole boundary.
+            flow_ = Flow::Normal;
+            pending = true;
+            excValue = rs.add(vm_.makeString(ex.what()));
         }
         Flow flowAfter = flow_;  // control flow from the body (when no exception escaped)
         if (pending) {

@@ -26,6 +26,14 @@ The routine to run **after every change, before declaring it done**. The mechani
 3. **Commit and push to `main`.** (Branches are forbidden — see CLAUDE.md and the
    `block_new_branches` hook.) Commit only once the suite is green.
 
+4. **Update documentation and `CLAUDE.md` — always, in the same change.** After tests pass and the
+   work is pushed, the docs must reflect reality:
+   - Update `CLAUDE.md` whenever a change touches the language design, architecture, builtins,
+     stdlib, or workflow (it is the source of truth and must always describe Kirito as it *is*).
+   - Update the HTML docs: edit the relevant `docs/pages/*.md` (language guide, builtins, stdlib,
+     recipes, course) and regenerate with `python3 docs/build_docs.py`.
+   A feature without matching doc + CLAUDE.md updates is **not done**.
+
 ## Run it
 
 ```sh

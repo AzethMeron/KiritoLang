@@ -2,6 +2,7 @@
 // those surface to Kirito try/catch, how Kirito `raise` surfaces back to the C++ embedder, and
 // that unwinding through both layers is GC-safe and leaves the VM usable.
 #include <span>
+#include <stdexcept>
 #include <string>
 
 #include "../check.hpp"
@@ -22,6 +23,26 @@ int main() {
                 throw KiritoError("native failure");
             })));
         CHECK(evalStr(vm, "try:\n    boom()\ncatch as e:\n    e\n") == "native failure");
+    }
+
+    // --- 1b. A native function that throws a PLAIN std::exception (not KiritoError) is also
+    //         catchable in Kirito as a String message, and the VM stays usable.
+    {
+        KiritoVM vm;
+        vm.registerGlobal("stdboom", vm.arena().alloc(std::make_unique<NativeFunction>(
+            "stdboom", [](KiritoVM&, std::span<const Handle>) -> Handle {
+                throw std::out_of_range("index 5 out of bounds");
+            })));
+        CHECK(evalStr(vm, "try:\n    stdboom()\ncatch as e:\n    e\n") == "index 5 out of bounds");
+        CHECK(evalStr(vm, "1 + 1") == "2");  // VM still works after unwinding a std::exception
+        // a different std exception type, surfaced via with/finally too
+        vm.registerGlobal("rtboom", vm.arena().alloc(std::make_unique<NativeFunction>(
+            "rtboom", [](KiritoVM&, std::span<const Handle>) -> Handle {
+                throw std::runtime_error("plain runtime error");
+            })));
+        CHECK(evalStr(vm,
+            "var log = []\ntry:\n    rtboom()\ncatch as e:\n    log.append(e)\nfinally:\n    log.append(\"fin\")\n"
+            "\", \".join(log)") == "plain runtime error, fin");
     }
 
     // --- 2. An uncaught native throw surfaces to the embedder as a KiritoError.
