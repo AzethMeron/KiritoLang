@@ -38,9 +38,27 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Import a module with <code>import(&quot;name&quot;)</code>. Modules load once per VM.</p>
 <h2 id="io">io</h2>
 <p>Console, files, in-memory buffers, and filesystem helpers.</p>
-<ul><li><code>print(*args)</code> — print arguments separated by spaces, then a newline.</li><li><code>input([prompt])</code> — read a line from stdin (prompt optional).</li><li><code>write(s)</code> — write without a trailing newline.</li><li><code>open(path, mode)</code> — open a file; modes <code>&quot;r&quot;</code>/<code>&quot;w&quot;</code>/<code>&quot;a&quot;</code> (add <code>&quot;b&quot;</code> for binary). Returns a file</li></ul>
-<p>  object supporting <code>read</code>, <code>readline</code>, <code>readlines</code>, <code>write</code>, <code>writelines</code>, <code>seek</code>, <code>tell</code>, <code>flush</code>,   line-by-line iteration, and use as a <code>with</code> context manager.</p>
-<ul><li><code>BytesIO([bytes])</code> — an in-memory binary buffer like Python&#x27;s.</li><li>Filesystem: <code>exists(path)</code>, <code>remove(path)</code>, <code>rename(a, b)</code>, <code>mkdir(path)</code>, <code>getcwd()</code>,</li></ul>
+<ul><li><code>print(*args)</code> — write the arguments (space-separated, newline-terminated, flushed) to <code>stdout</code>.</li><li><code>eprint(*args)</code> — like <code>print</code>, but to <code>stderr</code>.</li><li><code>write(*args)</code> — write the arguments to <code>stdout</code> with no separator and no trailing newline.</li><li><code>input([prompt])</code> — optionally write <code>prompt</code> to <code>stdout</code>, then read one line from <code>stdin</code>.</li><li><code>read([n])</code> — read <code>n</code> characters (or everything) from <code>stdin</code>.</li><li><code>open(path, mode)</code> — open a file; modes <code>&quot;r&quot;</code>/<code>&quot;w&quot;</code>/<code>&quot;a&quot;</code>/<code>&quot;r+&quot;</code>. Returns a file object supporting</li></ul>
+<p>  <code>read([n])</code>, <code>readline</code>, <code>readlines</code>, <code>write</code>, <code>writelines</code>, <code>seek</code>, <code>tell</code>, <code>flush</code>, line-by-line   iteration, and use as a <code>with</code> context manager.</p>
+<ul><li><code>BytesIO([bytes])</code> — an in-memory binary buffer like Python&#x27;s.</li></ul>
+<h3 id="interchangeable-streams">Interchangeable streams</h3>
+<p><code>io.stdout</code>, <code>io.stderr</code>, and <code>io.stdin</code> are ordinary, <strong>rebindable</strong> stream objects, and <code>print</code> / <code>write</code> / <code>input</code> / <code>read</code> always act on whatever is currently bound there. So redirecting I/O is just an assignment — to a file, a <code>BytesIO</code>, another standard stream, or <em>any</em> object that exposes the matching <code>write</code> / <code>readline</code> / <code>read</code> methods (duck typing). The originals are kept as <code>io.__stdout__</code> / <code>io.__stderr__</code> / <code>io.__stdin__</code>, so you can always switch back.</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+io.eprint(<span class="str">&quot;a diagnostic on stderr&quot;</span>)
+
+<span class="com"># capture everything print() emits, then restore the terminal</span>
+<span class="kw">var</span> buf = io.BytesIO()
+io.stdout = buf
+io.<span class="builtin">print</span>(<span class="str">&quot;captured, not shown&quot;</span>)
+io.stdout = io.__stdout__
+io.<span class="builtin">print</span>(<span class="str">&quot;captured: &quot;</span> + buf.getvalue().strip())
+
+<span class="com"># send a block of output straight to a file</span>
+<span class="kw">with</span> io.open(<span class="str">&quot;log.txt&quot;</span>, <span class="str">&quot;w&quot;</span>) <span class="kw">as</span> f:
+    io.stdout = f
+    io.<span class="builtin">print</span>(<span class="str">&quot;this line lands in log.txt&quot;</span>)
+io.stdout = io.__stdout__</code></pre>
+<ul><li>Filesystem: <code>exists(path)</code>, <code>remove(path)</code>, <code>rename(a, b)</code>, <code>mkdir(path)</code>, <code>getcwd()</code>,</li></ul>
 <p>  <code>listdir(path)</code>, <code>isfile(path)</code>, <code>isdir(path)</code>, <code>getsize(path)</code>, <code>walk(dir)</code> (all files under   <code>dir</code>, recursively).</p>
 <ul><li>Path helpers (os.path style): <code>dirname(p)</code>, <code>basename(p)</code>, <code>splitext(p)</code> → <code>[root, ext]</code>,</li></ul>
 <p>  <code>join(parts...)</code>.</p>

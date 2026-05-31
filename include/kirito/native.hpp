@@ -41,7 +41,11 @@ inline int64_t argInt(KiritoVM& vm, Handle h, const char* who) {
 // Fluent helper passed to NativeModule::setup() to register a module's members with no boilerplate.
 class ModuleBuilder {
 public:
-    ModuleBuilder(KiritoVM& vm, ModuleValue& mod) : vm_(vm), mod_(mod) {}
+    ModuleBuilder(KiritoVM& vm, Handle module, ModuleValue& mod) : vm_(vm), module_(module), mod_(mod) {}
+
+    // The module's own value handle, so members can capture it to reach *sibling* members at call
+    // time (e.g. io.print resolving the current io.stdout, which the user may have reassigned).
+    Handle moduleHandle() const { return module_; }
 
     ModuleBuilder& fn(std::string name, NativeFn impl) {
         mod_.members[name] = vm_.alloc(std::make_unique<NativeFunction>(name, std::move(impl)));
@@ -62,6 +66,7 @@ public:
 
 private:
     KiritoVM& vm_;
+    Handle module_;
     ModuleValue& mod_;
 };
 

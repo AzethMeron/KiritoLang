@@ -130,11 +130,16 @@ a stability fuzzer, and a benchmark). Working today:
   instance, module, or function.
 - **Standard library** (each a one-liner `vm.install<T>()`; a third party adds their own the same
   way — `#include` a header, register on the VM, no global state):
-  - `io` — print/input/write, `open` files & streams (read/readline/readlines/write/writelines/
-    seek/tell/flush, iterable line-by-line, usable as a `with` context manager), `BytesIO` (an
-    in-memory binary buffer like Python's), plus filesystem helpers (exists/remove/rename/mkdir/
-    getcwd/listdir/isfile/isdir/getsize/walk) and os.path-style path helpers (dirname/basename/
-    splitext/join).
+  - `io` — print/eprint/write/input/read acting on **rebindable, interchangeable streams**: the
+    module-level `stdout`/`stderr`/`stdin` (with originals kept as `__stdout__`/`__stderr__`/
+    `__stdin__`) can be reassigned to a file, a `BytesIO`, another std stream, or any object exposing
+    `write`/`readline`/`read` (duck-typed) — so I/O redirection is just an assignment. A common
+    stream protocol (`IoStream`: streamWrite/streamRead/streamReadLine/streamFlush) is implemented by
+    `File`, `BytesIO`, and the std streams. `open` files & streams (read([n])/readline/readlines/
+    write/writelines/seek/tell/flush, iterable line-by-line, usable as a `with` context manager),
+    `BytesIO` (an in-memory binary buffer like Python's), plus filesystem helpers (exists/remove/
+    rename/mkdir/getcwd/listdir/isfile/isdir/getsize/walk) and os.path-style path helpers
+    (dirname/basename/splitext/join). Module members are rebindable (`ModuleValue::setAttr`).
   - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf, floor/ceil/
     trunc, gcd/lcm, factorial, isnan/isinf, prod/comb/perm, ...).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/

@@ -31,6 +31,11 @@ public:
             throw KiritoError("module '" + name_ + "' has no member '" + std::string(name) + "'");
         return it->second;
     }
+    // Rebinding a module member is allowed (Python-style), so e.g. `io.stdout = io.open(...)`
+    // redirects every subsequent io.print. The module is a per-VM singleton, so this is global.
+    void setAttr(KiritoVM&, std::string_view name, Handle value) override {
+        members[std::string(name)] = value;
+    }
     const std::string& name() const { return name_; }
 
 private:

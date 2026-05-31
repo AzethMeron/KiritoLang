@@ -6,13 +6,41 @@ Import a module with `import("name")`. Modules load once per VM.
 
 Console, files, in-memory buffers, and filesystem helpers.
 
-- `print(*args)` — print arguments separated by spaces, then a newline.
-- `input([prompt])` — read a line from stdin (prompt optional).
-- `write(s)` — write without a trailing newline.
-- `open(path, mode)` — open a file; modes `"r"`/`"w"`/`"a"` (add `"b"` for binary). Returns a file
-  object supporting `read`, `readline`, `readlines`, `write`, `writelines`, `seek`, `tell`, `flush`,
-  line-by-line iteration, and use as a `with` context manager.
+- `print(*args)` — write the arguments (space-separated, newline-terminated, flushed) to `stdout`.
+- `eprint(*args)` — like `print`, but to `stderr`.
+- `write(*args)` — write the arguments to `stdout` with no separator and no trailing newline.
+- `input([prompt])` — optionally write `prompt` to `stdout`, then read one line from `stdin`.
+- `read([n])` — read `n` characters (or everything) from `stdin`.
+- `open(path, mode)` — open a file; modes `"r"`/`"w"`/`"a"`/`"r+"`. Returns a file object supporting
+  `read([n])`, `readline`, `readlines`, `write`, `writelines`, `seek`, `tell`, `flush`, line-by-line
+  iteration, and use as a `with` context manager.
 - `BytesIO([bytes])` — an in-memory binary buffer like Python's.
+
+### Interchangeable streams
+
+`io.stdout`, `io.stderr`, and `io.stdin` are ordinary, **rebindable** stream objects, and `print` /
+`write` / `input` / `read` always act on whatever is currently bound there. So redirecting I/O is
+just an assignment — to a file, a `BytesIO`, another standard stream, or *any* object that exposes
+the matching `write` / `readline` / `read` methods (duck typing). The originals are kept as
+`io.__stdout__` / `io.__stderr__` / `io.__stdin__`, so you can always switch back.
+
+```kirito
+var io = import("io")
+io.eprint("a diagnostic on stderr")
+
+# capture everything print() emits, then restore the terminal
+var buf = io.BytesIO()
+io.stdout = buf
+io.print("captured, not shown")
+io.stdout = io.__stdout__
+io.print("captured: " + buf.getvalue().strip())
+
+# send a block of output straight to a file
+with io.open("log.txt", "w") as f:
+    io.stdout = f
+    io.print("this line lands in log.txt")
+io.stdout = io.__stdout__
+```
 - Filesystem: `exists(path)`, `remove(path)`, `rename(a, b)`, `mkdir(path)`, `getcwd()`,
   `listdir(path)`, `isfile(path)`, `isdir(path)`, `getsize(path)`, `walk(dir)` (all files under
   `dir`, recursively).

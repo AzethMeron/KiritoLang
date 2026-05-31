@@ -2,6 +2,7 @@
 #define KIRITO_STDLIB_IO_HPP
 
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -19,15 +20,40 @@
 
 namespace kirito {
 
+// A uniform byte/character-stream interface implemented by every stream value (File, BytesIO, and
+// the standard streams). It is what makes streams *interchangeable*: io.print/write/input/read act
+// on whatever object is currently bound to io.stdout / io.stdin, dispatching through this interface
+// — so redirecting output to a file (or a BytesIO, or back to the terminal) is just a rebinding.
+// A value that is not an IoStream can still serve as stdout/stdin via its `write`/`readline` methods
+// (duck typing); this interface is the fast, built-in path.
+struct IoStream {
+    virtual ~IoStream() = default;
+    virtual void streamWrite(const std::string&) { throw KiritoError("stream is not writable"); }
+    virtual std::string streamRead(std::optional<std::size_t>) { throw KiritoError("stream is not readable"); }
+    virtual std::string streamReadLine() { throw KiritoError("stream is not readable"); }
+    virtual void streamFlush() {}
+};
+
 // A file/stream object. Holds an fstream (closed automatically when the value is collected) and
 // exposes read/readline/write/close plus enter/exit so it works as a `with` context manager.
-class FileVal : public NativeClass<FileVal> {
+class FileVal : public NativeClass<FileVal>, public IoStream {
 public:
     static constexpr const char* kTypeName = "File";
     std::fstream stream;
     std::string path;
 
     FileVal(const std::string& p, std::ios::openmode mode) : path(p) { stream.open(p, mode); }
+
+    void streamWrite(const std::string& s) override { stream << s; }
+    std::string streamRead(std::optional<std::size_t> n) override {
+        if (!n) { std::stringstream ss; ss << stream.rdbuf(); return ss.str(); }
+        std::string buf(*n, '\0');
+        stream.read(buf.data(), static_cast<std::streamsize>(*n));
+        buf.resize(static_cast<std::size_t>(stream.gcount()));
+        return buf;
+    }
+    std::string streamReadLine() override { std::string line; std::getline(stream, line); return line; }
+    void streamFlush() override { stream.flush(); }
 
     // Iterating a file yields its remaining lines (so `for line in f:` works).
     std::optional<std::vector<Handle>> iterate(KiritoVM& vm) override {
@@ -46,22 +72,21 @@ public:
             return static_cast<FileVal&>(vm.arena().deref(self));
         };
         if (name == "read")
-            return bind("read", [self, file](KiritoVM& vm, std::span<const Handle>) {
-                std::stringstream ss;
-                ss << file(vm, self).stream.rdbuf();
-                return vm.makeString(ss.str());
+            return bind("read", [self, file](KiritoVM& vm, std::span<const Handle> a) {
+                std::optional<std::size_t> n;
+                if (!a.empty()) {
+                    int64_t want = argInt(vm, a[0], "read");
+                    if (want >= 0) n = static_cast<std::size_t>(want);
+                }
+                return vm.makeString(file(vm, self).streamRead(n));
             });
         if (name == "readline")
             return bind("readline", [self, file](KiritoVM& vm, std::span<const Handle>) {
-                std::string line;
-                std::getline(file(vm, self).stream, line);
-                return vm.makeString(std::move(line));
+                return vm.makeString(file(vm, self).streamReadLine());
             });
         if (name == "write")
             return bind("write", [self, file](KiritoVM& vm, std::span<const Handle> a) {
-                const Object& o = vm.arena().deref(a[0]);
-                if (o.kind() != ValueKind::String) throw KiritoError("write expects a String");
-                file(vm, self).stream << static_cast<const StrVal&>(o).value();
+                file(vm, self).streamWrite(argString(vm, a[0], "write"));
                 return vm.none();
             });
         if (name == "close" || name == "_exit_")
@@ -116,7 +141,7 @@ public:
 // read/write cursor. write() appends/overwrites at the cursor; read() consumes from it; getvalue()
 // returns the whole contents as a byte String. Useful as a sink for code that "writes a file"
 // (e.g. encoding an image) without touching disk.
-class BytesIO : public NativeClass<BytesIO> {
+class BytesIO : public NativeClass<BytesIO>, public IoStream {
 public:
     static constexpr const char* kTypeName = "BytesIO";
     std::string buf;
@@ -129,6 +154,27 @@ public:
         return "BytesIO(" + std::to_string(buf.size()) + " bytes)";
     }
 
+    void streamWrite(const std::string& data) override {
+        if (pos + data.size() > buf.size()) buf.resize(pos + data.size());  // overwrite-at-cursor
+        std::copy(data.begin(), data.end(), buf.begin() + static_cast<std::ptrdiff_t>(pos));
+        pos += data.size();
+    }
+    std::string streamRead(std::optional<std::size_t> n) override {
+        std::size_t avail = buf.size() - pos;
+        std::size_t take = n ? std::min(avail, *n) : avail;
+        std::string out = buf.substr(pos, take);
+        pos += out.size();
+        return out;
+    }
+    std::string streamReadLine() override {
+        std::size_t nl = buf.find('\n', pos);
+        std::size_t end = (nl == std::string::npos) ? buf.size() : nl + 1;  // include the newline
+        std::string out = buf.substr(pos, end - pos);
+        pos = end;
+        if (!out.empty() && out.back() == '\n') out.pop_back();  // strip trailing newline, like getline
+        return out;
+    }
+
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         auto bind = [&](const char* nm, NativeFn fn) {
             return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
@@ -138,31 +184,28 @@ public:
         };
         if (name == "write")
             return bind("write", [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                const Object& o = vm.arena().deref(a[0]);
-                if (o.kind() != ValueKind::String) throw KiritoError("BytesIO.write expects a byte String");
-                const std::string& data = static_cast<const StrVal&>(o).value();
-                auto& b = io(vm, self);
-                // overwrite at the cursor, extending the buffer as needed (Python semantics)
-                if (b.pos + data.size() > b.buf.size()) b.buf.resize(b.pos + data.size());
-                std::copy(data.begin(), data.end(), b.buf.begin() + static_cast<std::ptrdiff_t>(b.pos));
-                b.pos += data.size();
+                const std::string& data = argString(vm, a[0], "BytesIO.write");
+                io(vm, self).streamWrite(data);
                 return vm.makeInt(static_cast<int64_t>(data.size()));
             });
         if (name == "read")
             return bind("read", [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                auto& b = io(vm, self);
-                std::size_t n = b.buf.size() - b.pos;  // read all remaining by default
+                std::optional<std::size_t> n;
                 if (!a.empty()) {
                     const Object& o = vm.arena().deref(a[0]);
                     if (o.kind() == ValueKind::Integer) {
                         int64_t want = static_cast<const IntVal&>(o).value();
-                        if (want >= 0) n = std::min<std::size_t>(n, static_cast<std::size_t>(want));
+                        if (want >= 0) n = static_cast<std::size_t>(want);
                     }
                 }
-                std::string out = b.buf.substr(b.pos, n);
-                b.pos += out.size();
-                return vm.makeString(std::move(out));
+                return vm.makeString(io(vm, self).streamRead(n));
             });
+        if (name == "readline")
+            return bind("readline", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                return vm.makeString(io(vm, self).streamReadLine());
+            });
+        if (name == "flush")
+            return bind("flush", [](KiritoVM& vm, std::span<const Handle>) -> Handle { return vm.none(); });
         if (name == "getvalue")
             return bind("getvalue", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 return vm.makeString(io(vm, self).buf);
@@ -201,12 +244,138 @@ public:
     }
 };
 
+// A handle to one of the process's standard streams (stdout/stderr/stdin), wearing the same stream
+// protocol as File and BytesIO so the three are interchangeable as io.print/input targets. Closing
+// is a no-op — we never close the real cout/cin. Output streams reject reads and vice-versa.
+class StdStream : public NativeClass<StdStream>, public IoStream {
+public:
+    static constexpr const char* kTypeName = "StdStream";
+    enum class Dir { Out, Err, In };
+    Dir dir;
+    explicit StdStream(Dir d) : dir(d) {}
+
+    std::string str(StringifyCtx&) const override {
+        return dir == Dir::Out ? "<stdout>" : dir == Dir::Err ? "<stderr>" : "<stdin>";
+    }
+    void streamWrite(const std::string& s) override {
+        if (dir == Dir::In) throw KiritoError("stdin is not writable");
+        (dir == Dir::Err ? std::cerr : std::cout) << s;
+    }
+    void streamFlush() override {
+        if (dir == Dir::Err) std::cerr.flush();
+        else if (dir == Dir::Out) std::cout.flush();
+    }
+    std::string streamRead(std::optional<std::size_t> n) override {
+        if (dir != Dir::In) throw KiritoError("a write stream is not readable");
+        if (!n) { std::stringstream ss; ss << std::cin.rdbuf(); return ss.str(); }
+        std::string buf(*n, '\0');
+        std::cin.read(buf.data(), static_cast<std::streamsize>(*n));
+        buf.resize(static_cast<std::size_t>(std::cin.gcount()));
+        return buf;
+    }
+    std::string streamReadLine() override {
+        if (dir != Dir::In) throw KiritoError("a write stream is not readable");
+        std::string line; std::getline(std::cin, line); return line;
+    }
+
+    // `for line in io.stdin:` reads stdin line-by-line.
+    std::optional<std::vector<Handle>> iterate(KiritoVM& vm) override {
+        if (dir != Dir::In) return std::nullopt;
+        RootScope rs(vm);
+        std::vector<Handle> lines; std::string line;
+        while (std::getline(std::cin, line)) lines.push_back(rs.add(vm.makeString(line)));
+        return lines;
+    }
+
+    Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
+        auto bind = [&](const char* nm, NativeFn fn) {
+            return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+        };
+        auto me = [](KiritoVM& vm, Handle self) -> StdStream& { return static_cast<StdStream&>(vm.arena().deref(self)); };
+        if (name == "write")
+            return bind("write", [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                me(vm, self).streamWrite(argString(vm, a[0], "write"));
+                return vm.none();
+            });
+        if (name == "read")
+            return bind("read", [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                std::optional<std::size_t> n;
+                if (!a.empty()) { int64_t w = argInt(vm, a[0], "read"); if (w >= 0) n = static_cast<std::size_t>(w); }
+                return vm.makeString(me(vm, self).streamRead(n));
+            });
+        if (name == "readline")
+            return bind("readline", [self, me](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                return vm.makeString(me(vm, self).streamReadLine());
+            });
+        if (name == "flush")
+            return bind("flush", [self, me](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                me(vm, self).streamFlush(); return vm.none();
+            });
+        if (name == "_enter_")
+            return bind("_enter_", [self](KiritoVM&, std::span<const Handle>) { return self; });
+        if (name == "_exit_" || name == "close")
+            return bind("close", [](KiritoVM& vm, std::span<const Handle>) { return vm.none(); });
+        return Object::getAttr(vm, self, name);
+    }
+};
+
+// Route output/input through whatever value is currently bound to a stream slot. The built-in stream
+// types take the fast IoStream path; anything else (e.g. a user class) is duck-typed via its
+// write / readline / read methods, so it can serve as stdout/stdin too.
+inline void streamWriteTo(KiritoVM& vm, Handle target, const std::string& s, bool flush) {
+    Object& o = vm.arena().deref(target);
+    if (auto* st = dynamic_cast<IoStream*>(&o)) {
+        st->streamWrite(s);
+        if (flush) st->streamFlush();
+        return;
+    }
+    RootScope rs(vm);
+    Handle wf = rs.add(o.getAttr(vm, target, "write"));
+    std::array<Handle, 1> args{rs.add(vm.makeString(s))};
+    vm.arena().deref(wf).call(vm, args);
+}
+inline std::string streamReadLineFrom(KiritoVM& vm, Handle target) {
+    Object& o = vm.arena().deref(target);
+    if (auto* st = dynamic_cast<IoStream*>(&o)) return st->streamReadLine();
+    RootScope rs(vm);
+    Handle rf = rs.add(o.getAttr(vm, target, "readline"));
+    return argString(vm, vm.arena().deref(rf).call(vm, {}), "readline");
+}
+inline std::string streamReadFrom(KiritoVM& vm, Handle target, std::optional<std::size_t> n) {
+    Object& o = vm.arena().deref(target);
+    if (auto* st = dynamic_cast<IoStream*>(&o)) return st->streamRead(n);
+    RootScope rs(vm);
+    Handle rf = rs.add(o.getAttr(vm, target, "read"));
+    if (n) { std::array<Handle, 1> a{rs.add(vm.makeInt(static_cast<int64_t>(*n)))};
+             return argString(vm, vm.arena().deref(rf).call(vm, a), "read"); }
+    return argString(vm, vm.arena().deref(rf).call(vm, {}), "read");
+}
+
 // The `io` standard module, authored via the extension API exactly as a third party would.
 class IoModule : public NativeModule {
 public:
     std::string name() const override { return "io"; }
 
     void setup(ModuleBuilder& m) override {
+        KiritoVM& vm = m.vm();
+        // The three standard streams, as rebindable module members. io.print / write / input / read
+        // act on whatever io.stdout / io.stdin currently hold, so `io.stdout = io.open("log","w")`
+        // redirects output to a file (and rebinding back, or to io.stderr, restores it).
+        // __stdout__/__stderr__/__stdin__ keep the originals (like Python) so you can always rebind
+        // back to the terminal: `io.stdout = io.__stdout__`.
+        Handle out = vm.alloc(std::make_unique<StdStream>(StdStream::Dir::Out));
+        Handle err = vm.alloc(std::make_unique<StdStream>(StdStream::Dir::Err));
+        Handle in = vm.alloc(std::make_unique<StdStream>(StdStream::Dir::In));
+        m.value("stdout", out).value("__stdout__", out);
+        m.value("stderr", err).value("__stderr__", err);
+        m.value("stdin", in).value("__stdin__", in);
+        Handle modH = m.moduleHandle();
+        // Resolve a stream slot's *current* binding (looked up fresh each call, so reassignment is
+        // honoured). The three slots are always present, so .at() can't miss.
+        auto slot = [modH](KiritoVM& vm, const char* name) -> Handle {
+            return static_cast<ModuleValue&>(vm.arena().deref(modH)).members.at(name);
+        };
+
         // BytesIO([initial]) -> an in-memory binary buffer.
         m.fn("BytesIO", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.empty()) return vm.alloc(std::make_unique<BytesIO>());
@@ -214,23 +383,46 @@ public:
             if (o.kind() != ValueKind::String) throw KiritoError("BytesIO expects a byte String");
             return vm.alloc(std::make_unique<BytesIO>(static_cast<const StrVal&>(o).value()));
         });
-        m.fn("print", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        // print(*args): space-separated, newline-terminated, flushed — to the current stdout.
+        m.fn("print", [slot](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+            std::string line;
             for (std::size_t i = 0; i < args.size(); ++i) {
-                if (i) std::cout << ' ';
-                std::cout << vm.stringify(args[i]);
+                if (i) line += ' ';
+                line += vm.stringify(args[i]);
             }
-            // Flush each line so output is visible immediately when stdout is a pipe/file (a server's
-            // readiness banner, progress logs) — not stuck in a fully-buffered block until exit.
-            std::cout << '\n' << std::flush;
+            line += '\n';
+            // Flush so output is visible immediately on a pipe/file (a server's readiness banner,
+            // progress logs) — not stuck in a fully-buffered block until exit.
+            streamWriteTo(vm, slot(vm, "stdout"), line, /*flush=*/true);
             return vm.none();
         });
-        m.fn("input", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        // eprint(*args): like print, but to the current stderr (unbuffered by convention).
+        m.fn("eprint", [slot](KiritoVM& vm, std::span<const Handle> args) -> Handle {
             std::string line;
-            std::getline(std::cin, line);
-            return vm.makeString(std::move(line));
+            for (std::size_t i = 0; i < args.size(); ++i) {
+                if (i) line += ' ';
+                line += vm.stringify(args[i]);
+            }
+            line += '\n';
+            streamWriteTo(vm, slot(vm, "stderr"), line, /*flush=*/true);
+            return vm.none();
         });
-        m.fn("write", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
-            for (Handle h : args) std::cout << vm.stringify(h);
+        // input([prompt]): optionally write a prompt to stdout, then read one line from stdin.
+        m.fn("input", [slot](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (!a.empty()) streamWriteTo(vm, slot(vm, "stdout"), vm.stringify(a[0]), /*flush=*/true);
+            return vm.makeString(streamReadLineFrom(vm, slot(vm, "stdin")));
+        });
+        // read([n]): read n characters (or everything) from the current stdin.
+        m.fn("read", [slot](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::optional<std::size_t> n;
+            if (!a.empty()) { int64_t w = argInt(vm, a[0], "read"); if (w >= 0) n = static_cast<std::size_t>(w); }
+            return vm.makeString(streamReadFrom(vm, slot(vm, "stdin"), n));
+        });
+        // write(*args): raw, no separator, no newline — to the current stdout.
+        m.fn("write", [slot](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+            std::string out;
+            for (Handle h : args) out += vm.stringify(h);
+            streamWriteTo(vm, slot(vm, "stdout"), out, /*flush=*/false);
             return vm.none();
         });
         m.fn("open", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
