@@ -1,0 +1,101 @@
+# A networked SQL server written in pure Kirito. It speaks a tiny newline-framed text protocol:
+#   - the client sends one request line: a JSON object {"sql": "..."} terminated by '\n'
+#   - the server replies with one JSON object line:
+#       {"ok": true, "type": "...", ...}   on success
+#       {"ok": false, "error": "..."}      on any SQL/parse/lex error
+# One shared in-memory Database persists for the server's lifetime, so connections see each other's
+# writes (a single-process, sequential server — no threads, matching Kirito's model).
+#
+# Run:  ki --lib lib server.ki [host] [port]
+#   default host 127.0.0.1, port 5433. Prints "LISTENING <host> <port>" once ready (the test
+#   harness waits for that line), then serves until it receives {"sql": "__shutdown__"}.
+
+var net = import("net")
+var io = import("io")
+var json = import("json")
+var eng = import("sql_engine")
+
+var host = "127.0.0.1"
+var port = 5433
+if len(argv) >= 1:
+    host = argv[0]
+if len(argv) >= 2:
+    port = Integer(argv[1])
+
+var db = eng.Database()
+
+# A buffered line reader over a connection: recv in chunks and hand back one '\n'-terminated line
+# at a time (leftover bytes are retained for the next call). Reading a byte at a time would make a
+# large request thousands of syscalls; this keeps it proportional to the data. Returns None at EOF.
+class LineReader:
+    var _init_ = Function(self, conn):
+        self._conn = conn
+        self._buf = ""
+    var read_line = Function(self):
+        while True:
+            var nl = self._buf.find("\n")
+            if nl >= 0:
+                var line = self._buf[0:nl]
+                self._buf = self._buf[nl + 1:]
+                return line
+            var chunk = self._conn.recv(8192)
+            if len(chunk) == 0:
+                if len(self._buf) == 0:
+                    return None
+                var rest = self._buf
+                self._buf = ""
+                return rest
+            self._buf = self._buf + chunk
+
+# Turn a result Dict from the engine into a plain JSON-serializable Dict (it already is — engine
+# results use only Dicts/Lists/Strings/Integers/Bools/None), so this is a passthrough with a guard.
+var handle_sql = Function(sql : String):
+    try:
+        var result = db.run(sql)
+        return result
+    catch as e:
+        return {"ok": False, "error": String(e)}
+
+var srv = net.Socket()
+srv.bind(host, port)
+srv.listen(16)
+io.print("LISTENING " + host + " " + String(port))
+
+var running = True
+while running:
+    var conn = srv.accept()
+    # Serve every request on this connection until the client disconnects.
+    var reader = LineReader(conn)
+    var open = True
+    while open:
+        var line = reader.read_line()
+        if line == None:
+            open = False
+        else:
+            var reply = None
+            var stripped = line.strip()
+            if len(stripped) == 0:
+                reply = {"ok": False, "error": "empty request"}
+            else:
+                # Parse the request envelope. A malformed envelope is reported, never crashes.
+                var req = None
+                var bad = False
+                try:
+                    req = json.parse(stripped)
+                catch as e:
+                    bad = True
+                    reply = {"ok": False, "error": "bad request JSON: " + String(e)}
+                if not bad:
+                    if type(req) != "Dict" or "sql" not in req:
+                        reply = {"ok": False, "error": "request must be a JSON object with a 'sql' field"}
+                    elif req["sql"] == "__shutdown__":
+                        reply = {"ok": True, "type": "shutdown"}
+                        running = False
+                        open = False
+                    else:
+                        reply = handle_sql(req["sql"])
+            discard conn.send(json.dumps(reply) + "\n")
+    conn.close()
+
+srv.close()
+io.print("STOPPED")

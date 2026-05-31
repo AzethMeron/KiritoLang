@@ -56,6 +56,7 @@ kirito_test(test_hardening2 unit/test_hardening2.cpp)
 kirito_test(test_stdlib_extra unit/test_stdlib_extra.cpp)
 kirito_test(test_super unit/test_super.cpp)
 kirito_test(test_stdlib_gaps unit/test_stdlib_gaps.cpp)
+kirito_test(test_list_ops unit/test_list_ops.cpp)
 kirito_test(test_bytesio unit/test_bytesio.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)

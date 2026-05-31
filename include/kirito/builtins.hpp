@@ -6,7 +6,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "arena.hpp"
 #include "object.hpp"
@@ -140,8 +142,22 @@ private:
 // Immutable text. Hash is computed once and cached.
 class StrVal : public Object {
 public:
-    explicit StrVal(std::string v) : value_(std::move(v)), hash_(std::hash<std::string>{}(value_)) {}
+    explicit StrVal(std::string v) : value_(std::move(v)), hash_(std::hash<std::string>{}(value_)) {
+        ascii_ = true;
+        for (unsigned char c : value_) if (c >= 0x80) { ascii_ = false; break; }
+    }
     const std::string& value() const { return value_; }
+
+    // A pure-ASCII string maps code-point index == byte index, so indexing/slicing/length are O(1)
+    // with no scan. Computed once at construction (the value is immutable).
+    bool isAscii() const { return ascii_; }
+    // The byte offset of each code point. For non-ASCII strings this is built once and cached, so
+    // repeated indexing (e.g. a lexer scanning char by char) is not O(n) per access. ASCII strings
+    // never need it (use the byte index directly).
+    const std::vector<std::size_t>& codePointStarts() const {
+        if (!starts_.has_value()) starts_ = utf8Starts(value_);
+        return *starts_;
+    }
 
     ValueKind kind() const override { return ValueKind::String; }
     std::string typeName() const override { return "String"; }
@@ -153,7 +169,9 @@ public:
     }
     bool hashable() const override { return true; }
     std::size_t hash() const override { return hash_; }
-    std::optional<int64_t> length(KiritoVM&) override { return static_cast<int64_t>(utf8Length(value_)); }
+    std::optional<int64_t> length(KiritoVM&) override {
+        return static_cast<int64_t>(ascii_ ? value_.size() : codePointStarts().size());
+    }
 
     Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;
     Handle getItem(KiritoVM&, std::span<const Handle> keys) override;
@@ -165,6 +183,8 @@ public:
 private:
     std::string value_;
     std::size_t hash_;
+    bool ascii_;
+    mutable std::optional<std::vector<std::size_t>> starts_;  // lazily built code-point offsets (non-ASCII)
 };
 
 // 64-bit signed integer.

@@ -93,7 +93,9 @@ a stability fuzzer, and a benchmark). Working today:
 - `List`/`Set`/`Dict` with literals, indexing, slicing, iteration, `in`, and methods (append/pop/
   reverse/insert/remove/index/extend/copy/clear/count; keys/values/items/get/pop/update/setdefault/
   popitem/clear; add/discard/contains/union/intersection/difference/symmetric_difference/issubset/
-  issuperset/isdisjoint/pop/clear/...); `len`. Ordered collections have an efficient in-place
+  issuperset/isdisjoint/pop/clear/...); `len`. Lists support lexicographic ordering (`<`/`<=`/`>`/`>=`,
+  element-by-element then by length, like Python) and `+` concatenation, enabling multi-key sorts via
+  a list-returning `key`. Ordered collections have an efficient in-place
   `sort([key][, reverse])` that is **stable** by default (so is the `sorted()` builtin); keys are
   precomputed once per element.
 - **Unicode** `String` (code-point indexing/slicing/iteration), `*` repetition, and methods

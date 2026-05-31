@@ -93,11 +93,14 @@ ok
     // mixed int/float sorts numerically
     CHECK(evalStr(vm, "var a = [3, 1.5, 2, 0.5]\na.sort()\na") == "[0.5, 1.5, 2, 3]");
 
-    // hostile: un-orderable elements throw cleanly
+    // hostile: genuinely un-orderable elements (mixing types) throw cleanly
     CHECK_THROWS(vm.runSource("var a = [1, \"two\", 3]\na.sort()\n"));
-    CHECK_THROWS(vm.runSource("var a = [[1], [2]]\na.sort()\n"));  // lists aren't orderable
-    // key returning un-orderable values raises
-    CHECK_THROWS(vm.runSource("var a = [1, 2]\na.sort(Function(x): return [x])\n"));
+
+    // Lists ARE orderable (lexicographic, like Python): sorting and list-keyed sort both work.
+    CHECK(evalStr(vm, "var a = [[2], [1], [1, 0]]\na.sort()\na") == "[[1], [1, 0], [2]]");
+    CHECK(evalStr(vm, "var a = [3, 1, 2]\na.sort(Function(x): return [x % 2, x])\na") == "[2, 1, 3]");
+    // but ordering a List against a non-List still raises
+    CHECK_THROWS(vm.runSource("var a = [[1], 2]\na.sort()\n"));
 
     return RUN_TESTS();
 }

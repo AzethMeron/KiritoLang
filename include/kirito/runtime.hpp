@@ -257,13 +257,26 @@ inline std::size_t sequenceIndex(KiritoVM& vm, std::size_t size, Handle key) {
     return static_cast<std::size_t>(i);
 }
 
-// Ordering for sort(): numeric or lexicographic, else a type error.
+// Ordering for sort()/comparisons: numbers numerically, Strings and Lists lexicographically, else a
+// type error. List ordering compares element-by-element (recursively) and breaks ties by length,
+// matching Python — enabling the common multi-key sort idiom (key returns a [k1, k2, ...] list).
 inline bool kiLessThan(KiritoVM& vm, Handle a, Handle b) {
     const Object& x = vm.arena().deref(a);
     const Object& y = vm.arena().deref(b);
     if (isNumeric(x) && isNumeric(y)) return asDouble(x) < asDouble(y);
     if (x.kind() == ValueKind::String && y.kind() == ValueKind::String)
         return static_cast<const StrVal&>(x).value() < static_cast<const StrVal&>(y).value();
+    if ((x.kind() == ValueKind::List || x.kind() == ValueKind::Array) &&
+        (y.kind() == ValueKind::List || y.kind() == ValueKind::Array)) {
+        const auto& xe = static_cast<const ListVal&>(x).elems;
+        const auto& ye = static_cast<const ListVal&>(y).elems;
+        std::size_t common = std::min(xe.size(), ye.size());
+        for (std::size_t i = 0; i < common; ++i) {
+            if (kiLessThan(vm, xe[i], ye[i])) return true;
+            if (kiLessThan(vm, ye[i], xe[i])) return false;
+        }
+        return xe.size() < ye.size();  // shared prefix equal: shorter list is "less"
+    }
     throw KiritoError("cannot order '" + x.typeName() + "' and '" + y.typeName() + "'");
 }
 
@@ -272,6 +285,35 @@ inline Handle ListVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
 }
 inline void ListVal::setItem(KiritoVM& vm, std::span<const Handle> keys, Handle value) {
     elems[sequenceIndex(vm, elems.size(), singleKey(*this, keys))] = value;
+}
+inline Handle ListVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
+    const Object& b = vm.arena().deref(rhs);
+    // `+` concatenates two Lists into a new List (Python-style).
+    if (op == BinOp::Add) {
+        if (b.kind() != ValueKind::List && b.kind() != ValueKind::Array)
+            throw KiritoError("can only concatenate List to List, not '" + b.typeName() + "'");
+        RootScope rs(vm);
+        auto out = std::make_unique<ListVal>();
+        out->elems = elems;
+        const auto& be = static_cast<const ListVal&>(b).elems;
+        out->elems.insert(out->elems.end(), be.begin(), be.end());
+        return vm.alloc(std::move(out));
+    }
+    // Ordering: lexicographic, element-by-element (via kiLessThan), only against another List.
+    if (op == BinOp::Lt || op == BinOp::Le || op == BinOp::Gt || op == BinOp::Ge) {
+        if (b.kind() != ValueKind::List && b.kind() != ValueKind::Array)
+            throw KiritoError("cannot order 'List' and '" + b.typeName() + "'");
+        bool lt = kiLessThan(vm, self, rhs);
+        bool gt = kiLessThan(vm, rhs, self);
+        switch (op) {
+            case BinOp::Lt: return vm.makeBool(lt);
+            case BinOp::Le: return vm.makeBool(!gt);
+            case BinOp::Gt: return vm.makeBool(gt);
+            case BinOp::Ge: return vm.makeBool(!lt);
+            default: break;
+        }
+    }
+    return Object::binary(vm, op, self, rhs);
 }
 inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
     if (name == "append")
@@ -695,7 +737,11 @@ inline std::vector<int64_t> pythonSliceIndices(KiritoVM& vm, int64_t len,
 // --- String indexing / slicing / iteration (UTF-8 aware) -------------------------------------
 
 inline Handle StrVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
-    auto starts = utf8Starts(value_);
+    if (isAscii()) {  // O(1): code-point index == byte index
+        std::size_t i = sequenceIndex(vm, value_.size(), singleKey(*this, keys));
+        return vm.makeString(value_.substr(i, 1));
+    }
+    const auto& starts = codePointStarts();  // cached
     std::size_t i = sequenceIndex(vm, starts.size(), singleKey(*this, keys));
     std::size_t b = starts[i];
     std::size_t e = (i + 1 < starts.size()) ? starts[i + 1] : value_.size();
@@ -703,7 +749,13 @@ inline Handle StrVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
 }
 
 inline Handle StrVal::slice(KiritoVM& vm, Handle s, Handle e, Handle st) {
-    auto starts = utf8Starts(value_);
+    if (isAscii()) {  // byte slice == code-point slice
+        int64_t len = static_cast<int64_t>(value_.size());
+        std::string out;
+        for (int64_t i : pythonSliceIndices(vm, len, s, e, st)) out += value_[static_cast<std::size_t>(i)];
+        return vm.makeString(std::move(out));
+    }
+    const auto& starts = codePointStarts();
     int64_t len = static_cast<int64_t>(starts.size());
     std::string out;
     for (int64_t i : pythonSliceIndices(vm, len, s, e, st)) {
@@ -716,8 +768,13 @@ inline Handle StrVal::slice(KiritoVM& vm, Handle s, Handle e, Handle st) {
 
 inline std::optional<std::vector<Handle>> StrVal::iterate(KiritoVM& vm) {
     RootScope rs(vm);  // each character is a fresh String; protect them while building
-    auto starts = utf8Starts(value_);
     std::vector<Handle> out;
+    if (isAscii()) {
+        out.reserve(value_.size());
+        for (char c : value_) out.push_back(rs.add(vm.makeString(std::string(1, c))));
+        return out;
+    }
+    const auto& starts = codePointStarts();
     out.reserve(starts.size());
     for (std::size_t i = 0; i < starts.size(); ++i) {
         std::size_t b = starts[i];

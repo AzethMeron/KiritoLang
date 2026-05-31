@@ -72,6 +72,7 @@ public:
     Handle getItem(KiritoVM&, std::span<const Handle> keys) override;
     void setItem(KiritoVM&, std::span<const Handle> keys, Handle value) override;
     Handle slice(KiritoVM&, Handle start, Handle stop, Handle step) override;
+    Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;  // ordering + concatenation (runtime.hpp)
     bool contains(KiritoVM&, Handle value) override;
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };

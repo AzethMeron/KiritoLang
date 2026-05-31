@@ -219,7 +219,9 @@ public:
                 if (i) std::cout << ' ';
                 std::cout << vm.stringify(args[i]);
             }
-            std::cout << '\n';
+            // Flush each line so output is visible immediately when stdout is a pipe/file (a server's
+            // readiness banner, progress logs) — not stuck in a fully-buffered block until exit.
+            std::cout << '\n' << std::flush;
             return vm.none();
         });
         m.fn("input", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
