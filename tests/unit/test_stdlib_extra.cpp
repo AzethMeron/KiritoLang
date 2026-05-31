@@ -70,7 +70,7 @@ int main() {
         CHECK(run(vm, "format(42, \" d\")") == " 42");
         CHECK(run(vm, "format(\"hello\", \".3\")") == "hel");
         CHECK(run(vm, "format(42)") == "42");                 // no spec
-        CHECK(run(vm, "format(255, \"#x\")") == "ff");        // alt form accepted
+        CHECK(run(vm, "format(255, \"#x\")") == "0xff");      // # alternate form adds the base prefix
         // a malformed spec raises
         try { vm.runSource("format(5, \"qq\")"); CHECK(false); } catch (const KiritoError&) {}
     }

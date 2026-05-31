@@ -101,13 +101,17 @@ a stability fuzzer, and a benchmark). Working today:
   reverse/insert/remove/index/extend/copy/clear/count; keys/values/items/get/pop/update/setdefault/
   popitem/clear; add/discard/contains/union/intersection/difference/symmetric_difference/issubset/
   issuperset/isdisjoint/pop/clear/...); `len`. Lists support lexicographic ordering (`<`/`<=`/`>`/`>=`,
-  element-by-element then by length, like Python) and `+` concatenation, enabling multi-key sorts via
+  element-by-element then by length, like Python) and `+` concatenation (and `*` Integer repetition,
+  guarded against huge counts), enabling multi-key sorts via
   a list-returning `key`. Ordered collections have an efficient in-place
   `sort([key][, reverse])` that is **stable** by default (so is the `sorted()` builtin); keys are
   precomputed once per element.
 - **Unicode** `String` (code-point indexing/slicing/iteration), `*` repetition, and methods
   (upper/lower [Unicode-aware]/strip/split/join/replace/startswith/endswith/find/rfind/index/count/
   is{digit,alpha,alnum,space,lower,upper}/removeprefix/removesuffix/ljust/rjust/center/zfill/
+  — search/replace methods honor Python's optional args (strip(chars), split(sep, maxsplit),
+  replace(old, new, count), find/index/rfind/rindex/count/startswith/endswith with code-point
+  [start[, end]]) — and the format mini-spec's `#` alternate form adds the 0b/0o/0x base prefix —
   partition/rpartition) and `.format()`.
 - **User-defined `class`es** with methods, attributes, inheritance, Python-style operator methods
   (`_add_`/`_str_`/`_getitem_`/...), and private `_members`.

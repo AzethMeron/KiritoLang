@@ -26,6 +26,10 @@ cd "$(dirname "$0")/.."
 QUICK=0
 [ "${1:-}" = "--quick" ] && QUICK=1
 
+# Parallelism for ctest: use the available cores (never fewer than 2).
+JOBS="$( { nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2; } )"
+[ "$JOBS" -lt 2 ] 2>/dev/null && JOBS=2
+
 have() { command -v "$1" >/dev/null 2>&1; }
 
 rc=0
@@ -38,7 +42,8 @@ run_variant() {  # name  build_dir  configure-cmd...
     rm -rf "$dir"
     if ! "$@"; then echo "FAIL[$name]: configure"; rc=1; return; fi
     if ! cmake --build "$dir"; then echo "FAIL[$name]: build"; rc=1; return; fi
-    if ! ctest --test-dir "$dir" --output-on-failure; then echo "FAIL[$name]: tests"; rc=1; return; fi
+    # Run the suite in parallel (at least 2 jobs) to keep the routine fast.
+    if ! ctest --test-dir "$dir" --output-on-failure -j "$JOBS"; then echo "FAIL[$name]: tests"; rc=1; return; fi
     ran+=("$name")
     echo "OK[$name]"
 }

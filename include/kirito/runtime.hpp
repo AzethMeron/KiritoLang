@@ -180,6 +180,9 @@ inline bool IntVal::equals(const ObjectArena&, const Object& other) const {
     return false;
 }
 inline Handle IntVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
+    // `Integer * List` is sequence repetition (Python allows either order) — defer to the List.
+    if (op == BinOp::Mul && vm.arena().deref(rhs).kind() == ValueKind::List)
+        return vm.arena().deref(rhs).binary(vm, BinOp::Mul, rhs, self);
     return numericBinary(vm, op, self, rhs);
 }
 inline Handle IntVal::unary(KiritoVM& vm, UnOp op, Handle) {
@@ -297,6 +300,23 @@ inline Handle ListVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
         out->elems = elems;
         const auto& be = static_cast<const ListVal&>(b).elems;
         out->elems.insert(out->elems.end(), be.begin(), be.end());
+        return vm.alloc(std::move(out));
+    }
+    // `*` repeats a List by an Integer count (Python-style: element handles are shared, so
+    // `[[0]] * 3` is three references to the same inner list). Guarded against absurd counts.
+    if (op == BinOp::Mul) {
+        if (b.kind() != ValueKind::Integer)
+            throw KiritoError("can only repeat List by an Integer");
+        int64_t n = static_cast<const IntVal&>(b).value();
+        RootScope rs(vm);
+        auto out = std::make_unique<ListVal>();
+        if (n > 0 && !elems.empty()) {
+            if (static_cast<uint64_t>(n) > kMaxRepeat / elems.size())
+                throw KiritoError("repeated List too large");
+            out->elems.reserve(elems.size() * static_cast<std::size_t>(n));
+            for (int64_t i = 0; i < n; ++i)
+                out->elems.insert(out->elems.end(), elems.begin(), elems.end());
+        }
         return vm.alloc(std::move(out));
     }
     // Ordering: lexicographic, element-by-element (via kiLessThan), only against another List.
@@ -798,12 +818,41 @@ inline const std::string& asStr(KiritoVM& vm, Handle h, const char* what) {
     return static_cast<const StrVal&>(o).value();
 }
 
+// Map a Python-style code-point index (negative counts from the end, out-of-range clamps) to a byte
+// offset into a UTF-8 string — for the optional start/end of the search methods.
+inline std::size_t cpIndexToByte(const std::string& s, int64_t cp, bool isEnd) {
+    auto starts = utf8Starts(s);
+    int64_t n = static_cast<int64_t>(starts.size());
+    if (cp < 0) cp += n;
+    if (cp < 0) cp = 0;
+    if (cp >= n) return s.size();
+    return starts[static_cast<std::size_t>(cp)];
+    (void)isEnd;
+}
+
 inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
     auto bind = [&](const char* nm, NativeFn fn) {
         return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
     };
     auto recv = [](KiritoVM& vm, Handle self) -> const std::string& {
         return static_cast<StrVal&>(vm.arena().deref(self)).value();
+    };
+    // Resolve the optional [start[, end]] arguments (args[from] onward) to a byte [lo, hi) window.
+    auto window = [&](KiritoVM& vm, std::span<const Handle> a, std::size_t from, const std::string& s)
+        -> std::pair<std::size_t, std::size_t> {
+        std::size_t lo = 0, hi = s.size();
+        if (a.size() > from && vm.arena().deref(a[from]).kind() != ValueKind::None)
+            lo = cpIndexToByte(s, argInt(vm, a[from], "start"), false);
+        if (a.size() > from + 1 && vm.arena().deref(a[from + 1]).kind() != ValueKind::None)
+            hi = cpIndexToByte(s, argInt(vm, a[from + 1], "end"), true);
+        if (hi < lo) hi = lo;
+        return {lo, hi};
+    };
+    // Byte offset -> code-point index (for returning a position).
+    auto byteToCp = [](const std::string& s, std::size_t bp) -> int64_t {
+        int64_t cp = 0;
+        for (std::size_t st : utf8Starts(s)) { if (st >= bp) break; ++cp; }
+        return cp;
     };
 
     // Code-point-aware case conversion (handles ASCII + Latin-1 + Latin Extended-A, so Polish and
@@ -824,38 +873,53 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         });
     if (name == "strip" || name == "lstrip" || name == "rstrip") {
         bool left = name != "rstrip", right = name != "lstrip";
-        return bind(std::string(name).c_str(), [self, recv, left, right](KiritoVM& vm, std::span<const Handle>) {
+        return bind(std::string(name).c_str(), [self, recv, left, right](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
+            // With an optional `chars` argument, trim any of those characters; otherwise whitespace.
+            bool hasChars = !a.empty() && vm.arena().deref(a[0]).kind() != ValueKind::None;
+            std::string chars = hasChars ? asStr(vm, a[0], "strip") : std::string();
+            auto trimmed = [&](char c) {
+                return hasChars ? chars.find(c) != std::string::npos
+                                : std::isspace(static_cast<unsigned char>(c)) != 0;
+            };
             std::size_t b = 0, e = s.size();
-            if (left) while (b < e && std::isspace(static_cast<unsigned char>(s[b]))) ++b;
-            if (right) while (e > b && std::isspace(static_cast<unsigned char>(s[e - 1]))) --e;
+            if (left) while (b < e && trimmed(s[b])) ++b;
+            if (right) while (e > b && trimmed(s[e - 1])) --e;
             return vm.makeString(s.substr(b, e - b));
         });
     }
     if (name == "startswith")
-        return bind("startswith", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+        return bind("startswith", [self, recv, window](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& p = asStr(vm, a[0], "startswith");
-            return vm.makeBool(s.size() >= p.size() && s.compare(0, p.size(), p) == 0);
+            auto [lo, hi] = window(vm, a, 1, s);
+            return vm.makeBool(lo + p.size() <= hi && s.compare(lo, p.size(), p) == 0);
         });
     if (name == "endswith")
-        return bind("endswith", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+        return bind("endswith", [self, recv, window](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& p = asStr(vm, a[0], "endswith");
-            return vm.makeBool(s.size() >= p.size() && s.compare(s.size() - p.size(), p.size(), p) == 0);
+            auto [lo, hi] = window(vm, a, 1, s);
+            return vm.makeBool(hi >= p.size() && hi - p.size() >= lo && s.compare(hi - p.size(), p.size(), p) == 0);
         });
     if (name == "replace")
         return bind("replace", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
             std::string s = recv(vm, self);
             const std::string& from = asStr(vm, a[0], "replace");
             const std::string& to = asStr(vm, a[1], "replace");
-            if (!from.empty()) {
+            // Optional count: replace at most that many occurrences (a negative or None means all).
+            int64_t count = -1;
+            if (a.size() > 2 && vm.arena().deref(a[2]).kind() != ValueKind::None)
+                count = argInt(vm, a[2], "replace");
+            if (!from.empty() && count != 0) {
                 std::string out;
                 std::size_t pos = 0, prev = 0;
+                int64_t done = 0;
                 while ((pos = s.find(from, prev)) != std::string::npos) {
                     out.append(s, prev, pos - prev);
                     out += to;
                     prev = pos + from.size();
+                    if (count >= 0 && ++done >= count) break;
                 }
                 out.append(s, prev, std::string::npos);
                 s = std::move(out);
@@ -863,45 +927,65 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             return vm.makeString(std::move(s));
         });
     if (name == "count")
-        return bind("count", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+        return bind("count", [self, recv, window](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& sub = asStr(vm, a[0], "count");
+            auto [lo, hi] = window(vm, a, 1, s);
             int64_t n = 0;
             if (!sub.empty())
-                for (std::size_t pos = s.find(sub); pos != std::string::npos; pos = s.find(sub, pos + sub.size()))
+                for (std::size_t pos = s.find(sub, lo); pos != std::string::npos && pos + sub.size() <= hi;
+                     pos = s.find(sub, pos + sub.size()))
                     ++n;
             return vm.makeInt(n);
         });
     if (name == "find")
-        return bind("find", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+        return bind("find", [self, recv, window, byteToCp](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& sub = asStr(vm, a[0], "find");
-            std::size_t bp = s.find(sub);
-            if (bp == std::string::npos) return vm.makeInt(-1);
-            int64_t cp = 0;  // byte offset -> code point index
-            for (std::size_t st : utf8Starts(s)) { if (st >= bp) break; ++cp; }
-            return vm.makeInt(cp);
+            auto [lo, hi] = window(vm, a, 1, s);
+            std::size_t bp = s.find(sub, lo);
+            if (bp == std::string::npos || bp + sub.size() > hi) return vm.makeInt(-1);
+            return vm.makeInt(byteToCp(s, bp));
         });
     if (name == "split")
         return bind("split", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
+            // Optional maxsplit: at most that many splits (so at most maxsplit+1 fields); a None or
+            // negative value means unlimited. The separator may be the first or, with no separator,
+            // the second positional argument is the maxsplit.
+            bool noSep = a.empty() || vm.arena().deref(a[0]).kind() == ValueKind::None;
+            int64_t maxsplit = -1;
+            std::size_t maxIdx = noSep ? (a.empty() ? 0 : 1) : 1;
+            if (a.size() > maxIdx && vm.arena().deref(a[maxIdx]).kind() != ValueKind::None)
+                maxsplit = argInt(vm, a[maxIdx], "split");
             RootScope rs(vm);
             auto list = std::make_unique<ListVal>();
-            if (a.empty()) {
+            int64_t splits = 0;
+            auto reached = [&] { return maxsplit >= 0 && splits >= maxsplit; };
+            if (noSep) {
                 std::size_t i = 0, n = s.size();
                 while (i < n) {
                     while (i < n && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
+                    if (i >= n) break;
+                    if (reached()) {  // remaining text (minus trailing whitespace) is the final field
+                        std::size_t end = n;
+                        while (end > i && std::isspace(static_cast<unsigned char>(s[end - 1]))) --end;
+                        list->elems.push_back(rs.add(vm.makeString(s.substr(i, end - i))));
+                        break;
+                    }
                     std::size_t start = i;
                     while (i < n && !std::isspace(static_cast<unsigned char>(s[i]))) ++i;
-                    if (i > start) list->elems.push_back(rs.add(vm.makeString(s.substr(start, i - start))));
+                    list->elems.push_back(rs.add(vm.makeString(s.substr(start, i - start))));
+                    ++splits;
                 }
             } else {
                 const std::string& sep = asStr(vm, a[0], "split");
                 if (sep.empty()) throw KiritoError("empty separator");
                 std::size_t pos, prev = 0;
-                while ((pos = s.find(sep, prev)) != std::string::npos) {
+                while (!reached() && (pos = s.find(sep, prev)) != std::string::npos) {
                     list->elems.push_back(rs.add(vm.makeString(s.substr(prev, pos - prev))));
                     prev = pos + sep.size();
+                    ++splits;
                 }
                 list->elems.push_back(rs.add(vm.makeString(s.substr(prev))));
             }
@@ -952,30 +1036,28 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             }
             return vm.makeString(std::move(out));
         });
-    // index(sub): like find but raises if not found.
+    // index(sub[, start[, end]]): like find but raises if not found.
     if (name == "index")
-        return bind("index", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+        return bind("index", [self, recv, window, byteToCp](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& sub = asStr(vm, a[0], "index");
-            std::size_t bp = s.find(sub);
-            if (bp == std::string::npos) throw KiritoError("substring not found");
-            int64_t cp = 0;
-            for (std::size_t st : utf8Starts(s)) { if (st >= bp) break; ++cp; }
-            return vm.makeInt(cp);
+            auto [lo, hi] = window(vm, a, 1, s);
+            std::size_t bp = s.find(sub, lo);
+            if (bp == std::string::npos || bp + sub.size() > hi) throw KiritoError("substring not found");
+            return vm.makeInt(byteToCp(s, bp));
         });
     if (name == "rfind" || name == "rindex") {
         bool raise = name == "rindex";
-        return bind(std::string(name).c_str(), [self, recv, raise](KiritoVM& vm, std::span<const Handle> a) {
+        return bind(std::string(name).c_str(), [self, recv, raise, window, byteToCp](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& sub = asStr(vm, a[0], "rfind");
-            std::size_t bp = s.rfind(sub);
-            if (bp == std::string::npos) {
+            auto [lo, hi] = window(vm, a, 1, s);
+            std::size_t bp = (hi >= sub.size()) ? s.rfind(sub, hi - sub.size()) : std::string::npos;
+            if (bp == std::string::npos || bp < lo) {
                 if (raise) throw KiritoError("substring not found");
                 return vm.makeInt(-1);
             }
-            int64_t cp = 0;
-            for (std::size_t st : utf8Starts(s)) { if (st >= bp) break; ++cp; }
-            return vm.makeInt(cp);
+            return vm.makeInt(byteToCp(s, bp));
         });
     }
     // Character-class predicates (non-empty string, all code points satisfy the test).
@@ -1580,7 +1662,7 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
     const Object& o = vm.arena().deref(value);
     std::size_t i = 0;
     char fill = ' ', align = 0, sign = '-';
-    bool zero = false, comma = false;
+    bool zero = false, comma = false, alt = false;
     std::size_t width = 0;
     int precision = -1;
     char type = 0;
@@ -1589,7 +1671,7 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
     if (i + 1 < spec.size() && isAlign(spec[i + 1])) { fill = spec[i]; align = spec[i + 1]; i += 2; }
     else if (i < spec.size() && isAlign(spec[i])) { align = spec[i]; ++i; }
     if (i < spec.size() && (spec[i] == '+' || spec[i] == '-' || spec[i] == ' ')) { sign = spec[i]; ++i; }
-    if (i < spec.size() && spec[i] == '#') ++i;  // alternate form: accepted, no extra prefix added
+    if (i < spec.size() && spec[i] == '#') { alt = true; ++i; }  // alternate form (base prefix for b/o/x)
     if (i < spec.size() && spec[i] == '0') { zero = true; if (!align) { align = '='; fill = '0'; } ++i; }
     while (i < spec.size() && spec[i] >= '0' && spec[i] <= '9') {
         width = width * 10 + static_cast<std::size_t>(spec[i] - '0');
@@ -1640,6 +1722,10 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
         std::reverse(digits.begin(), digits.end());
         if (comma && base == 10) digits = groupThousands(digits);
         signStr = neg ? "-" : (sign == '+' ? "+" : sign == ' ' ? " " : "");
+        // `#` alternate form prepends the base prefix (after the sign, before any zero-padding, like
+        // Python: format(255, "#08x") -> "0x0000ff"). Uppercase 'X' uses an uppercase "0X".
+        if (alt && base != 10)
+            signStr += base == 2 ? "0b" : base == 8 ? "0o" : (type == 'X' ? "0X" : "0x");
         body = digits;
     } else if (type == 'f' || type == 'e' || type == 'g' || type == '%') {
         double d = o.kind() == ValueKind::Float ? static_cast<const FloatVal&>(o).value()
