@@ -112,18 +112,16 @@ inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
         return vm.makeFloat(asDouble(a) / db);
     }
 
-    switch (op) {
-        case BinOp::Lt: return vm.makeBool(asDouble(a) < asDouble(b));
-        case BinOp::Le: return vm.makeBool(asDouble(a) <= asDouble(b));
-        case BinOp::Gt: return vm.makeBool(asDouble(a) > asDouble(b));
-        case BinOp::Ge: return vm.makeBool(asDouble(a) >= asDouble(b));
-        default: break;
-    }
-
+    // Integer-vs-Integer is the common hot case: compare/arith directly in int64 (no double round-
+    // trip, so large magnitudes compare exactly and it's faster).
     if (a.kind() == ValueKind::Integer && b.kind() == ValueKind::Integer) {
         int64_t x = static_cast<const IntVal&>(a).value();
         int64_t y = static_cast<const IntVal&>(b).value();
         switch (op) {
+            case BinOp::Lt: return vm.makeBool(x < y);
+            case BinOp::Le: return vm.makeBool(x <= y);
+            case BinOp::Gt: return vm.makeBool(x > y);
+            case BinOp::Ge: return vm.makeBool(x >= y);
             case BinOp::Add: return vm.makeInt(wadd(x, y));
             case BinOp::Sub: return vm.makeInt(wsub(x, y));
             case BinOp::Mul: return vm.makeInt(wmul(x, y));
@@ -138,7 +136,18 @@ inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
                 return vm.makeInt(ipow(x, y));
             default: break;
         }
-    } else {
+    }
+
+    switch (op) {
+        case BinOp::Lt: return vm.makeBool(asDouble(a) < asDouble(b));
+        case BinOp::Le: return vm.makeBool(asDouble(a) <= asDouble(b));
+        case BinOp::Gt: return vm.makeBool(asDouble(a) > asDouble(b));
+        case BinOp::Ge: return vm.makeBool(asDouble(a) >= asDouble(b));
+        default: break;
+    }
+
+    {
+        // At least one operand is a Float (Integer×Integer was handled above): promote and compute.
         double x = asDouble(a), y = asDouble(b);
         switch (op) {
             case BinOp::Add: return vm.makeFloat(x + y);

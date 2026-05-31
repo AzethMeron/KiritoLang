@@ -43,7 +43,7 @@ public:
     void define(const std::string& name, Handle h) {
         for (auto& [k, v] : vars_)
             if (k == name) { v = h; return; }
-        vars_.emplace_back(name, h);
+        vars_.push_back(name, h);
     }
     bool assignLocal(const std::string& name, Handle h) {
         for (auto& [k, v] : vars_)
@@ -56,12 +56,70 @@ public:
         return nullptr;
     }
     // Iterable view of the bindings (used to snapshot class methods / module members).
-    const std::vector<std::pair<std::string, Handle>>& locals() const { return vars_; }
+    const auto& locals() const { return vars_; }
 
     void reserve(std::size_t n) { vars_.reserve(n); }
 
 private:
-    std::vector<std::pair<std::string, Handle>> vars_;
+    using Binding = std::pair<std::string, Handle>;
+    // A small-buffer vector: function-call scopes hold only a few bindings (params + a couple of
+    // locals), so we keep up to kInline of them inline and avoid the per-call heap allocation a
+    // std::vector would do on its first push. Spills to the heap only for larger scopes (module,
+    // class body, a big function). Eliminating this malloc roughly halves call-path allocations.
+    static constexpr std::size_t kInline = 4;
+    class SmallVec {
+    public:
+        SmallVec() = default;
+        SmallVec(const SmallVec& o) { for (std::size_t i = 0; i < o.size_; ++i) push(o[i].first, o[i].second); }
+        SmallVec& operator=(const SmallVec& o) {
+            if (this != &o) { clear(); for (std::size_t i = 0; i < o.size_; ++i) push(o[i].first, o[i].second); }
+            return *this;
+        }
+        ~SmallVec() { clear(); }
+
+        std::size_t size() const { return size_; }
+        Binding* data() { return heap_ ? heap_ : inlineSlot(); }
+        const Binding* data() const { return heap_ ? heap_ : inlineSlot(); }
+        Binding& operator[](std::size_t i) { return data()[i]; }
+        const Binding& operator[](std::size_t i) const { return data()[i]; }
+        Binding* begin() { return data(); }
+        Binding* end() { return data() + size_; }
+        const Binding* begin() const { return data(); }
+        const Binding* end() const { return data() + size_; }
+
+        void reserve(std::size_t n) { if (n > cap_) grow(n); }
+        void push(const std::string& k, Handle v) { push_back(k, v); }
+        void push_back(const std::string& k, Handle v) {
+            if (size_ == cap_) grow(cap_ * 2);
+            new (data() + size_) Binding(k, v);
+            ++size_;
+        }
+        void clear() {
+            for (std::size_t i = 0; i < size_; ++i) data()[i].~Binding();
+            size_ = 0;
+            if (heap_) { ::operator delete(heap_); heap_ = nullptr; cap_ = kInline; }
+        }
+
+    private:
+        Binding* inlineSlot() { return reinterpret_cast<Binding*>(&storage_); }
+        const Binding* inlineSlot() const { return reinterpret_cast<const Binding*>(&storage_); }
+        void grow(std::size_t want) {
+            std::size_t newCap = want < kInline ? kInline : want;
+            if (newCap <= cap_) return;
+            Binding* fresh = static_cast<Binding*>(::operator new(newCap * sizeof(Binding)));
+            Binding* old = data();
+            for (std::size_t i = 0; i < size_; ++i) { new (fresh + i) Binding(std::move(old[i])); old[i].~Binding(); }
+            if (heap_) ::operator delete(heap_);
+            heap_ = fresh;
+            cap_ = newCap;
+        }
+        alignas(Binding) unsigned char storage_[kInline * sizeof(Binding)];
+        Binding* heap_ = nullptr;
+        std::size_t size_ = 0;
+        std::size_t cap_ = kInline;
+    };
+
+    SmallVec vars_;
     Handle parent_{};
     bool hasParent_;
 };
