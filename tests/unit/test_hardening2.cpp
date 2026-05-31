@@ -80,6 +80,30 @@ int main() {
         CHECK(run(vm, "not not True") == "True");
     }
 
+    // --- abs(INT64_MIN) is well-defined (was UB via std::llabs) ---
+    {
+        KiritoVM vm;
+        CHECK(run(vm, "abs(-5)") == "5");
+        CHECK(run(vm, "abs(5)") == "5");
+        CHECK(run(vm, "String(abs(-2.5))") == "2.5");
+        // INT64_MIN wraps to itself (defined two's-complement), not UB
+        CHECK(run(vm, "abs(-9223372036854775807 - 1)") == "-9223372036854775808");
+    }
+
+    // --- comb/perm: results that fit int64 don't spuriously overflow (incremental division) ---
+    {
+        KiritoVM vm;
+        CHECK(run(vm, "import(\"math\").comb(30, 15)") == "155117520");
+        CHECK(run(vm, "import(\"math\").comb(20, 10)") == "184756");
+        CHECK(run(vm, "import(\"math\").comb(50, 25)") == "126410606437752");
+        CHECK(run(vm, "import(\"math\").comb(62, 31)") == "465428353255261088");
+        CHECK(run(vm, "import(\"math\").comb(10, 0)") == "1");
+        CHECK(run(vm, "import(\"math\").comb(10, 10)") == "1");
+        CHECK(run(vm, "import(\"math\").perm(10, 3)") == "720");
+        // a result that genuinely exceeds int64 still raises
+        CHECK(raises(vm, "import(\"math\").comb(70, 35)"));
+    }
+
     // --- Integer()/Float() reject trailing garbage (no silent prefix parse) ---
     {
         KiritoVM vm;

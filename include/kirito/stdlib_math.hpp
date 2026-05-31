@@ -192,19 +192,28 @@ public:
             if (n < 0 || k < 0) throw KiritoError("comb/perm require non-negative Integers");
             if (k > n) return vm.makeInt(0);
             if (comb && k > n - k) k = n - k;  // symmetry: fewer multiplications
-            // result = n*(n-1)*...*(n-k+1) [/ k!] — accumulate with overflow checking.
-            unsigned long long num = 1;
-            for (int64_t i = 0; i < k; ++i)
-                if (__builtin_mul_overflow(num, static_cast<unsigned long long>(n - i), &num))
+            if (!comb) {
+                // perm: n * (n-1) * ... * (n-k+1), with overflow checking.
+                unsigned long long r = 1;
+                for (int64_t i = 0; i < k; ++i)
+                    if (__builtin_mul_overflow(r, static_cast<unsigned long long>(n - i), &r))
+                        throw KiritoError("comb/perm result too large for Integer");
+                if (r > static_cast<unsigned long long>(INT64_MAX))
                     throw KiritoError("comb/perm result too large for Integer");
-            if (comb) {
-                unsigned long long den = 1;
-                for (int64_t i = 1; i <= k; ++i) den *= static_cast<unsigned long long>(i);
-                num /= den;
+                return vm.makeInt(static_cast<int64_t>(r));
             }
-            if (num > static_cast<unsigned long long>(INT64_MAX))
+            // comb: multiply then divide step-by-step so the running value stays the EXACT partial
+            // binomial coefficient (always an integer) — avoids overflowing on the full numerator
+            // for results that themselves fit in int64 (e.g. comb(30, 15) = 155117520).
+            unsigned long long r = 1;
+            for (int64_t i = 1; i <= k; ++i) {
+                if (__builtin_mul_overflow(r, static_cast<unsigned long long>(n - k + i), &r))
+                    throw KiritoError("comb/perm result too large for Integer");
+                r /= static_cast<unsigned long long>(i);  // exact: r is C(n-k+i, i) * (k! / i!)... integer
+            }
+            if (r > static_cast<unsigned long long>(INT64_MAX))
                 throw KiritoError("comb/perm result too large for Integer");
-            return vm.makeInt(static_cast<int64_t>(num));
+            return vm.makeInt(static_cast<int64_t>(r));
         };
         m.fn("comb", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, true); });
         m.fn("perm", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, false); });

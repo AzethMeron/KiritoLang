@@ -1715,7 +1715,12 @@ inline void KiritoVM::installBuiltins() {
 
     def("abs", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         const Object& o = vm.arena().deref(a[0]);
-        if (o.kind() == ValueKind::Integer) return vm.makeInt(std::llabs(static_cast<const IntVal&>(o).value()));
+        if (o.kind() == ValueKind::Integer) {
+            int64_t v = static_cast<const IntVal&>(o).value();
+            // std::llabs(INT64_MIN) is UB; negate via unsigned for defined two's-complement
+            // wraparound (abs(INT64_MIN) wraps to itself, consistent with Kirito's int64 semantics).
+            return vm.makeInt(v < 0 ? wsub(0, v) : v);
+        }
         if (o.kind() == ValueKind::Float) return vm.makeFloat(std::fabs(static_cast<const FloatVal&>(o).value()));
         throw KiritoError("abs expects a number");
     });
