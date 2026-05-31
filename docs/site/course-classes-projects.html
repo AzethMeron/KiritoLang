@@ -82,6 +82,12 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(v))   
 io.<span class="builtin">print</span>(f<span class="str">&quot;{c.name}: {c.area()}&quot;</span>)
 io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span class="builtin">isinstance</span>(c, <span class="str">&quot;Shape&quot;</span>)))   <span class="com"># True — inheritance-aware</span></code></pre>
 <p>Attributes/methods whose name has a single leading underscore (e.g. <code>_cache</code>) are <strong>private</strong>: reachable only from inside methods of the same class.</p>
+<p>To <em>extend</em> a parent method instead of fully replacing it, use <code>self._super_()</code> — a view of the instance whose lookup starts at the base class:</p>
+<pre><code><span class="kw">class</span> Circle(Shape):
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, r):
+        self._super_()._init_(<span class="str">&quot;circle&quot;</span>)    <span class="com"># reuse Shape&#x27;s constructor</span>
+        self.r = r</code></pre>
+<p><code>_super_()</code> only works when the class inherits (it throws otherwise) and climbs one level per call, so it composes through multi-level hierarchies.</p>
 <h2 id="lesson-3-4-errors">Lesson 3.4 — Errors</h2>
 <p>Signal a problem with <code>throw</code>; handle it with <code>try</code>/<code>catch</code>/<code>finally</code>:</p>
 <pre><code><span class="kw">class</span> RangeError:

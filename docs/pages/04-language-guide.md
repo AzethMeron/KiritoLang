@@ -175,6 +175,31 @@ Special methods use Python dunder names with **single** underscores: `_init_`, `
 `_add_`/`_sub_`/`_mul_`/..., `_eq_`/`_lt_`/..., `_neg_`, `_call_`, `_getitem_`/`_setitem_`, `_len_`,
 `_contains_`, `_iter_`, `_enter_`/`_exit_`.
 
+### `_super_()` — the parent view
+
+`self._super_()` returns a **parent view of `self`**: the same instance, but method/attribute lookup
+begins at the *base of the class whose method is currently running*. Use it to extend (rather than
+replace) an inherited method, including the constructor:
+
+```kirito
+class Dog(Animal):
+    var _init_ = Function(self, name, breed):
+        self._super_()._init_(name)        # run Animal's constructor
+        self.breed = breed
+    var describe = Function(self) -> String:
+        return self._super_().describe() + " (" + self.breed + ")"
+```
+
+Because resolution starts at the *current method's* class base, each `_super_()` climbs exactly one
+level, so multi-level chains (`Puppy → Dog → Animal`) compose correctly.
+
+`_super_()` is only meaningful when the class inherits — calling it from a class with no base raises
+`_super_() called in 'X', which does not inherit from any class`.
+
+It is technically a special method, so a class *can* define its own `_super_` and override the
+default behaviour — **don't.** Overriding it discards the parent view and breaks every `_super_()`
+call in that class's methods; there is no good reason to do it.
+
 ## Exceptions
 
 C++-style keywords, Python-style blocks. `throw` raises; `try`/`catch [Type as e]`/`finally` handles.

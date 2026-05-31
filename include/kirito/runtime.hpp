@@ -822,6 +822,27 @@ inline Handle InstanceValue::getAttr(KiritoVM& vm, Handle self, std::string_view
         std::vector<Handle>{self, methodH}));
 }
 
+inline Handle SuperValue::getAttr(KiritoVM& vm, Handle, std::string_view name) {
+    // Resolve the named method starting at startClass (the base of the current method's class), then
+    // bind it to the ORIGINAL instance so the inherited method runs against the real self.
+    const auto& base = static_cast<const ClassValue&>(vm.arena().deref(startClass));
+    const Handle* method = base.findMethod(vm.arena(), std::string(name));
+    if (!method)
+        throw KiritoError("'super' object has no attribute '" + std::string(name) + "'");
+    Handle methodH = *method;
+    Handle inst = instance;
+    return vm.alloc(std::make_unique<NativeFunction>(
+        std::string(name),
+        [inst, methodH](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+            std::vector<Handle> full;
+            full.reserve(args.size() + 1);
+            full.push_back(inst);
+            for (Handle a : args) full.push_back(a);
+            return vm.arena().deref(methodH).call(vm, full);
+        },
+        std::vector<Handle>{inst, methodH}));
+}
+
 // Invoke a class method named `method` with [self, args...]; throws `notFound` if the class chain
 // lacks it. Used by the operator-protocol slots below.
 inline Handle invokeOp(KiritoVM& vm, InstanceValue& inst, const char* method,

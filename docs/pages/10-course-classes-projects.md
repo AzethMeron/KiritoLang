@@ -67,6 +67,19 @@ io.print(String(isinstance(c, "Shape")))   # True — inheritance-aware
 Attributes/methods whose name has a single leading underscore (e.g. `_cache`) are **private**:
 reachable only from inside methods of the same class.
 
+To *extend* a parent method instead of fully replacing it, use `self._super_()` — a view of the
+instance whose lookup starts at the base class:
+
+```kirito
+class Circle(Shape):
+    var _init_ = Function(self, r):
+        self._super_()._init_("circle")    # reuse Shape's constructor
+        self.r = r
+```
+
+`_super_()` only works when the class inherits (it throws otherwise) and climbs one level per call,
+so it composes through multi-level hierarchies.
+
 ## Lesson 3.4 — Errors
 
 Signal a problem with `throw`; handle it with `try`/`catch`/`finally`:

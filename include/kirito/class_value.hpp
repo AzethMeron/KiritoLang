@@ -114,6 +114,26 @@ public:
     }
 };
 
+// The value returned by `self._super_()`: a proxy onto the same instance whose attribute/method
+// lookup begins at the BASE of the class whose method is currently running. Accessing `parent.foo`
+// finds `foo` from the base chain and binds it to the original instance, so an overriding method can
+// reuse the inherited behaviour. It is only meaningful for a class that inherits; constructing one
+// for a baseless class is an error (raised where `_super_()` is evaluated).
+class SuperValue : public Object {
+public:
+    Handle instance{};   // the real receiver (self)
+    Handle startClass{};  // the class to begin method resolution from (the base of the current class)
+
+    ValueKind kind() const override { return ValueKind::Instance; }  // behaves like an instance proxy
+    std::string typeName() const override { return "Super"; }
+    bool truthy() const override { return true; }
+    std::string str(StringifyCtx&) const override { return "<super>"; }
+    bool equals(const ObjectArena&, const Object& other) const override { return this == &other; }
+    void children(std::vector<Handle>& out) const override { out.push_back(instance); out.push_back(startClass); }
+
+    Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;  // runtime.hpp
+};
+
 }  // namespace kirito
 
 #endif

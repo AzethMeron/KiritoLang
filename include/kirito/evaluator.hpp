@@ -31,8 +31,8 @@ public:
     Evaluator(const Evaluator&) = delete;
     Evaluator& operator=(const Evaluator&) = delete;
 
-    // The class whose method this evaluator is running (for private-member access). Set by
-    // KiFunction::call for method bodies.
+    // The class whose method this evaluator is running (for private-member access) and the name of
+    // that method (for self._super_()). Set by KiFunction::callFull for method bodies.
     void setCurrentClass(Handle cls) { currentClass_ = cls; hasCurrentClass_ = true; }
 
     // Returns the value of the last statement's expression, or None.
@@ -388,6 +388,34 @@ public:
     void visit(const ast::MemberExpr& e) override {
         RootScope rs(vm_);
         Handle obj = rs.add(eval(*e.object));
+        // `self._super_()` (the super operator): unless a class explicitly defines `_super_`, accessing
+        // it yields a builder that returns a SuperValue — a parent view of `obj` whose method lookup
+        // starts at the base of the CURRENTLY-EXECUTING method's class (so multi-level chains walk up
+        // one level per call). Only meaningful inside a method; a baseless class raises when called.
+        if (e.name == "_super_" && hasCurrentClass_) {
+            Object& o = vm_.arena().deref(obj);
+            if (o.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&o)) {
+                const auto* inst = static_cast<InstanceValue*>(&o);
+                const auto& ownerCls = static_cast<const ClassValue&>(vm_.arena().deref(currentClass_));
+                if (!ownerCls.findMethod(vm_.arena(), "_super_")) {  // not overridden
+                    Handle objH = obj, ownerH = currentClass_;
+                    result_ = vm_.alloc(std::make_unique<NativeFunction>(
+                        "_super_",
+                        [objH, ownerH](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                            const auto& oc = static_cast<const ClassValue&>(vm.arena().deref(ownerH));
+                            if (!oc.hasBase)
+                                throw KiritoError("_super_() called in '" + oc.name +
+                                                  "', which does not inherit from any class");
+                            auto sup = std::make_unique<SuperValue>();
+                            sup->instance = objH;
+                            sup->startClass = oc.base;
+                            return vm.alloc(std::move(sup));
+                        },
+                        std::vector<Handle>{objH, ownerH}));
+                    return;
+                }
+            }
+        }
         checkPrivateAccess(obj, e.name, e.span);
         result_ = located(e.span, [&] { return vm_.arena().deref(obj).getAttr(vm_, obj, e.name); });
     }

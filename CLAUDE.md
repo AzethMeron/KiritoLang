@@ -67,9 +67,12 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   the evaluator. Special methods use Python's dunder names with **single** underscores:
   `_init_`, `_str_`, `_add_`/`_sub_`/`_mul_`/`_div_`/`_floordiv_`/`_mod_`/`_pow_`,
   `_eq_`/`_ne_`/`_lt_`/`_le_`/`_gt_`/`_ge_`, `_neg_`/`_not_`, `_call_`, `_getitem_`/`_setitem_`
-  (variadic keys: `m[i, j] = v`), `_len_`, `_contains_`, `_enter_`/`_exit_`. Members whose name has
-  a **single leading underscore and no trailing underscore** (e.g. `_count`) are **private** —
-  accessible only from within a method of the same class.
+  (variadic keys: `m[i, j] = v`), `_len_`, `_contains_`, `_iter_`, `_enter_`/`_exit_`. Members whose
+  name has a **single leading underscore and no trailing underscore** (e.g. `_count`) are **private**
+  — accessible only from within a method of the same class. `self._super_()` returns a *parent view*
+  of self (method lookup starts at the base of the currently-running method's class) — for extending
+  inherited methods/constructors; it climbs one level per call (so multi-level chains compose),
+  throws if the class has no base, and is overridable (but shouldn't be).
 
 Build the smallest thing that runs end-to-end first (lex+parse+eval an integer
 literal, then arithmetic, then `var`, then functions, then `io`), and grow outward.
@@ -94,6 +97,8 @@ a stability fuzzer, and a benchmark). Working today:
   (`_add_`/`_str_`/`_getitem_`/...), and private `_members`.
 - **Exceptions**: `try`/`catch [Type as e]`/`finally`/`throw` (typed matching via the class chain).
   Python-style indented blocks, but **C++-style keyword names** (`catch`/`throw`, not `except`/`raise`).
+  A bare `catch` also catches **any `std::exception`** crossing the native boundary (surfaced as a
+  catchable String), so a C++ module that throws can't escape a Kirito `try`.
 - **Context managers**: `with ... as ...` (enter/exit protocol).
 - **Garbage collection**: precise mark-sweep with rooted intermediates (AddressSanitizer-clean).
 - **f-strings** `f"{expr}"`; inline anonymous functions `Function(x): return x*x`.
@@ -166,7 +171,7 @@ language guide, recipes, builtins/stdlib reference, and a 3-part course with wor
 Documentation is authored in those `.md` files, NOT scraped from code comments.
 
 Not yet done (future enrichment): comprehensions, variadic params,
-`super()`, generators, complex numbers, full-Unicode case folding (current `upper`/`lower` cover
+generators, complex numbers, full-Unicode case folding (current `upper`/`lower` cover
 ASCII + Latin-1 + Latin Extended-A), and a bytecode VM behind the AST boundary.
 
 ## The Archive is reference only
