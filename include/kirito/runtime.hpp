@@ -610,17 +610,21 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         return static_cast<StrVal&>(vm.arena().deref(self)).value();
     };
 
+    // Code-point-aware case conversion (handles ASCII + Latin-1 + Latin Extended-A, so Polish and
+    // most European text map correctly, not just ASCII).
+    auto mapCase = [](const std::string& s, unsigned (*fn)(unsigned)) {
+        std::string out;
+        out.reserve(s.size());
+        for (std::size_t st : utf8Starts(s)) utf8Encode(fn(utf8DecodeAt(s, st)), out);
+        return out;
+    };
     if (name == "upper")
-        return bind("upper", [self, recv](KiritoVM& vm, std::span<const Handle>) {
-            std::string s = recv(vm, self);
-            for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-            return vm.makeString(std::move(s));
+        return bind("upper", [self, recv, mapCase](KiritoVM& vm, std::span<const Handle>) {
+            return vm.makeString(mapCase(recv(vm, self), utf8ToUpperCp));
         });
     if (name == "lower")
-        return bind("lower", [self, recv](KiritoVM& vm, std::span<const Handle>) {
-            std::string s = recv(vm, self);
-            for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            return vm.makeString(std::move(s));
+        return bind("lower", [self, recv, mapCase](KiritoVM& vm, std::span<const Handle>) {
+            return vm.makeString(mapCase(recv(vm, self), utf8ToLowerCp));
         });
     if (name == "strip" || name == "lstrip" || name == "rstrip") {
         bool left = name != "rstrip", right = name != "lstrip";

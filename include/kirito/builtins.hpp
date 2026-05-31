@@ -44,6 +44,36 @@ inline unsigned utf8DecodeAt(const std::string& s, std::size_t i) {
     return c;
 }
 
+// Unicode case mapping for the ranges that matter for European text: ASCII (U+0041..), Latin-1
+// Supplement (U+00C0..U+00FF), and Latin Extended-A (U+0100..U+017F, which covers all Polish
+// letters ąćęłńóśźż and friends). Outside these ranges the code point is returned unchanged. Full
+// Unicode case folding (Greek, Cyrillic, special cases) is a future enrichment.
+inline unsigned utf8ToUpperCp(unsigned cp) {
+    if (cp >= 'a' && cp <= 'z') return cp - 32;
+    if (cp >= 0x00E0 && cp <= 0x00FE && cp != 0x00F7) return cp - 32;  // à..þ (skip ÷)
+    if (cp == 0x00FF) return 0x0178;                                   // ÿ -> Ÿ
+    if (cp >= 0x0100 && cp <= 0x017F) {
+        if (cp == 0x0131) return 'I';                                  // ı -> I
+        if (cp == 0x017F) return 'S';                                  // ſ -> S
+        if (cp >= 0x0139 && cp <= 0x0148) return (cp % 2 == 0) ? cp - 1 : cp;  // Ĺ..ň: odd=upper
+        // U+0100..U+0137 and U+014A..U+0177 alternate upper(even)/lower(odd).
+        if ((cp <= 0x0137) || (cp >= 0x014A && cp <= 0x0177)) return (cp % 2 == 1) ? cp - 1 : cp;
+        if (cp >= 0x0179 && cp <= 0x017E) return (cp % 2 == 0) ? cp - 1 : cp;  // Ź..ž: even=upper
+    }
+    return cp;
+}
+inline unsigned utf8ToLowerCp(unsigned cp) {
+    if (cp >= 'A' && cp <= 'Z') return cp + 32;
+    if (cp >= 0x00C0 && cp <= 0x00DE && cp != 0x00D7) return cp + 32;  // À..Þ (skip ×)
+    if (cp == 0x0178) return 0x00FF;                                   // Ÿ -> ÿ
+    if (cp >= 0x0100 && cp <= 0x017F) {
+        if (cp >= 0x0139 && cp <= 0x0148) return (cp % 2 == 1) ? cp + 1 : cp;  // Ĺ..ň
+        if ((cp <= 0x0137) || (cp >= 0x014A && cp <= 0x0177)) return (cp % 2 == 0) ? cp + 1 : cp;
+        if (cp >= 0x0179 && cp <= 0x017E) return (cp % 2 == 1) ? cp + 1 : cp;  // Ź..ž
+    }
+    return cp;
+}
+
 // Append code point `cp` to `out` as UTF-8.
 inline void utf8Encode(unsigned cp, std::string& out) {
     if (cp < 0x80) out += static_cast<char>(cp);
