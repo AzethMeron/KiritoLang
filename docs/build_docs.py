@@ -53,6 +53,9 @@ blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
 background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
 .kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
 .builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
 hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
 """
@@ -98,6 +101,97 @@ def highlight_kirito(code):
             rendered += f'<span class="com">{html.escape(comment)}</span>'
         out.append(rendered)
     return "\n".join(out)
+
+
+# --- symbol cross-referencing -----------------------------------------------------------------
+# A documented symbol (a builtin, a type, a stdlib module or one of its functions) is auto-anchored
+# where it is defined and every later mention of it in `inline code` becomes a clickable link to
+# that definition. Definitions are detected from the existing authoring style with no extra syntax:
+#   * a heading whose text is a bare identifier            (e.g. `## io`)            -> the module
+#   * the first `code` token of a table row or list item   (e.g. `| `range(stop)` |`) -> that symbol
+# Names that would be ambiguous (defined in more than one place, e.g. a `pop` method on several
+# types) are still anchored but not auto-linked, so links never point at the wrong entry.
+SYMBOLS = {}          # name -> (html_file, anchor)
+_AMBIGUOUS = set()    # names defined in >1 place: anchored but not auto-linked
+_EMITTED = set()      # (file, anchor) already given an id this build, to avoid duplicates
+_CUR_FILE = ""        # html filename currently being rendered (for relative xref hrefs)
+
+
+def _lead_ident(code_text):
+    m = re.match(r"\s*`?([A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)*)", code_text)
+    return m.group(1) if m else None
+
+
+def _slug(text):
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def collect_symbols(pages):
+    # Phase 1 — headings are *canonical* definitions: a bare-identifier heading (e.g. `## io`,
+    # `### String`) owns that name, so a type/module links to its reference section rather than to,
+    # say, its constructor row. Heading-owned names are never ambiguous.
+    heading_syms = set()
+    for _, _, fn, text in pages:
+        for line in text.split("\n"):
+            h = re.match(r"^(#{1,4})\s+(.*)$", line)
+            if h:
+                title = h.group(2).strip().strip("`")
+                if re.fullmatch(r"[A-Za-z_][\w]*", title):
+                    SYMBOLS[title] = (fn, _slug(title))
+                    heading_syms.add(title)
+    # Phase 2 — the first `code` token of a table row or list item defines that symbol, unless a
+    # heading already owns the name. A name defined this way in two different places is ambiguous.
+    for _, _, fn, text in pages:
+        in_fence = False
+        for line in text.split("\n"):
+            if line.startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence or re.match(r"^#{1,4}\s", line):
+                continue
+            cell = None
+            if line.lstrip().startswith("|") and "|" in line.strip().strip("|"):
+                cell = line.strip().strip("|").split("|")[0].strip()
+            elif re.match(r"^\s*[-*]\s+", line):
+                cell = re.sub(r"^\s*[-*]\s+", "", line).lstrip("*").strip()
+            if cell and cell.startswith("`"):
+                name = _lead_ident(cell)
+                if not name or name in heading_syms:
+                    continue
+                target = (fn, "sym-" + name)
+                if name in SYMBOLS and SYMBOLS[name] != target:
+                    _AMBIGUOUS.add(name)
+                else:
+                    SYMBOLS[name] = target
+
+
+def _row_anchor(first_cell):
+    # Returns an ` id="..."` for a table row / list item that *defines* a symbol on the current page
+    # (first occurrence only), else "".
+    name = _lead_ident(first_cell) if first_cell.lstrip().startswith("`") else None
+    if not name or name not in SYMBOLS:
+        return ""
+    file, anchor = SYMBOLS[name]
+    # Heading-owned symbols (anchor is a plain slug) already carry their id on the heading itself.
+    if not anchor.startswith("sym-") or file != _CUR_FILE or (file, anchor) in _EMITTED:
+        return ""
+    _EMITTED.add((file, anchor))
+    return f' id="{anchor}"'
+
+
+def linkify(body):
+    # Turn inline <code>name…</code> spans into links to the symbol's definition. Skips fenced code
+    # blocks (<pre>…</pre>) and ambiguous names.
+    def repl(m):
+        name = _lead_ident(m.group(1))
+        if name and name in SYMBOLS and name not in _AMBIGUOUS:
+            file, anchor = SYMBOLS[name]
+            return f'<a class="xref" href="{file}#{anchor}"><code>{m.group(1)}</code></a>'
+        return m.group(0)
+    parts = re.split(r"(<pre>.*?</pre>)", body, flags=re.S)
+    for i in range(0, len(parts), 2):
+        parts[i] = re.sub(r"<code>([^<]+)</code>", repl, parts[i])
+    return "".join(parts)
 
 
 def render_inline(text):
@@ -151,7 +245,8 @@ def render_markdown(md):
                 i += 1
             t = "<table><thead><tr>" + "".join(f"<th>{render_inline(h)}</th>" for h in header) + "</tr></thead><tbody>"
             for r in rows:
-                t += "<tr>" + "".join(f"<td>{render_inline(c)}</td>" for c in r) + "</tr>"
+                rid = _row_anchor(r[0]) if r else ""
+                t += f"<tr{rid}>" + "".join(f"<td>{render_inline(c)}</td>" for c in r) + "</tr>"
             t += "</tbody></table>"
             out.append(t)
             continue
@@ -169,7 +264,11 @@ def render_markdown(md):
             while i < n and re.match(r"^\s*[-*]\s+", lines[i]):
                 buf.append(re.sub(r"^\s*[-*]\s+", "", lines[i]))
                 i += 1
-            out.append("<ul>" + "".join(f"<li>{render_inline(x)}</li>" for x in buf) + "</ul>")
+            items = []
+            for x in buf:
+                lid = _row_anchor(x.lstrip("*")) if x.lstrip("*").lstrip().startswith("`") else ""
+                items.append(f"<li{lid}>{render_inline(x)}</li>")
+            out.append("<ul>" + "".join(items) + "</ul>")
             continue
         if re.match(r"^\s*\d+\.\s+", line):
             buf = []
@@ -210,6 +309,8 @@ def main():
         slug = re.sub(r"^\d+-", "", f[:-3])
         pages.append((slug, title, slug + ".html", text))
 
+    collect_symbols(pages)
+
     def sidebar(active_html):
         items = ['<h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div>']
         for _, title, fn, _ in pages:
@@ -218,7 +319,9 @@ def main():
         return '<nav id="sidebar">' + "".join(items) + "</nav>"
 
     for slug, title, fn, text in pages:
-        body = render_markdown(text)
+        global _CUR_FILE
+        _CUR_FILE = fn
+        body = linkify(render_markdown(text))
         doc = f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)} — Kirito</title><style>{CSS}</style></head>

@@ -31,10 +31,13 @@ blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
 background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
 .kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
 .builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
 hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
 </style></head>
-<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html" class="active">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="course-2-data-and-functions">Course 2 — Data and Functions</h1>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html" class="active">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="course-2-data-and-functions">Course 2 — Data and Functions</h1>
 <h2 id="lesson-2-1-lists">Lesson 2.1 — Lists</h2>
 <p>Lists are ordered and mutable:</p>
 <pre><code><span class="kw">var</span> xs = [<span class="num">3</span>, <span class="num">1</span>, <span class="num">2</span>]
@@ -87,7 +90,7 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(half(<
 io.<span class="builtin">print</span>(f<span class="str">&quot;min={lo} max={hi} sum={total}&quot;</span>)</code></pre>
 <p>A starred target grabs the rest: <code>var first, *others = [1, 2, 3, 4]</code>.</p>
 <h2 id="lesson-2-6-higher-order-functions">Lesson 2.6 — Higher-order functions</h2>
-<p>Functions can take and return functions. <code>map</code>, <code>filter</code>, and <code>sorted</code> accept a function:</p>
+<p>Functions can take and return functions. <a class="xref" href="builtins.html#sym-map"><code>map</code></a>, <a class="xref" href="builtins.html#sym-filter"><code>filter</code></a>, and <a class="xref" href="builtins.html#sym-sorted"><code>sorted</code></a> accept a function:</p>
 <pre><code><span class="kw">var</span> nums = [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]
 <span class="kw">var</span> evens = <span class="builtin">filter</span>(<span class="kw">Function</span>(x): <span class="kw">return</span> x % <span class="num">2</span> == <span class="num">0</span>, nums)
 <span class="kw">var</span> doubled = <span class="builtin">map</span>(<span class="kw">Function</span>(x): <span class="kw">return</span> x * <span class="num">2</span>, nums)
@@ -118,9 +121,9 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span 
 <span class="kw">for</span> word, n <span class="kw">in</span> topN(counts, <span class="num">3</span>):
     io.<span class="builtin">print</span>(f<span class="str">&quot;{word}: {n}&quot;</span>)</code></pre>
 <p><strong>Why it works:</strong></p>
-<ul><li><code>countWords</code> normalizes each word (<code>strip</code>, <code>lower</code>) and uses <code>counts.get(word, 0) + 1</code> so the</li></ul>
+<ul><li id="sym-countWords"><a class="xref" href="course-data-functions.html#sym-countWords"><code>countWords</code></a> normalizes each word (<code>strip</code>, <code>lower</code>) and uses <code>counts.get(word, 0) + 1</code> so the</li></ul>
 <p>  first sighting starts from 0 — no special-casing the missing key.</p>
-<ul><li><code>topN</code> turns the dict into a list of <code>[word, count]</code> pairs with <code>.items()</code>, then <code>sorted(..., True)</code></li></ul>
+<ul><li id="sym-topN"><a class="xref" href="course-data-functions.html#sym-topN"><code>topN</code></a> turns the dict into a list of <code>[word, count]</code> pairs with <code>.items()</code>, then <a class="xref" href="builtins.html#sym-sorted"><code>sorted(..., True)</code></a></li></ul>
 <p>  sorts descending by the key function <code>p[1]</code> (the count). Slicing <code>[0:n]</code> keeps the top <code>n</code>.</p>
 <ul><li>The annotations (<code>: String</code>, <code>: Dict</code>, <code>: Integer</code>, <code>-&gt; Dict</code>) document and <em>enforce</em> the shapes,</li></ul>
 <p>  so calling these wrong fails fast with a clear message.</p>

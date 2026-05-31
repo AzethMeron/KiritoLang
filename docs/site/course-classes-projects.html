@@ -31,10 +31,13 @@ blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
 background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
 .kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
 .builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
 hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
 </style></head>
-<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html" class="active">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="course-3-classes-errors-and-a-capstone">Course 3 — Classes, Errors, and a Capstone</h1>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html" class="active">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="course-3-classes-errors-and-a-capstone">Course 3 — Classes, Errors, and a Capstone</h1>
 <h2 id="lesson-3-1-your-own-types">Lesson 3.1 — Your own types</h2>
 <p>A <code>class</code> bundles data (attributes) with behavior (methods). The first parameter of every method is the receiver, by convention <code>self</code>. <code>_init_</code> runs when you call the class to construct an instance:</p>
 <pre><code><span class="kw">class</span> Point:
@@ -163,12 +166,12 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span 
 <p><strong>Walkthrough:</strong></p>
 <ul><li>The <strong>stack</strong> is a private List <code>_stack</code>. Operands are pushed; operators pop two values, combine</li></ul>
 <p>  them, and push the result — the essence of RPN.</p>
-<ul><li><code>_binop</code> centralizes the four operators (DRY) and validates: too few operands or a divide-by-zero</li></ul>
+<ul><li id="sym-_binop"><a class="xref" href="course-classes-projects.html#sym-_binop"><code>_binop</code></a> centralizes the four operators (DRY) and validates: too few operands or a divide-by-zero</li></ul>
 <p>  becomes a <code>CalcError</code> with an actionable message rather than a crash.</p>
-<ul><li><code>eval</code> tokenizes on spaces, routing each token to either &quot;push a number&quot; or &quot;apply an operator&quot;.</li></ul>
+<ul><li id="sym-eval"><a class="xref" href="course-classes-projects.html#sym-eval"><code>eval</code></a> tokenizes on spaces, routing each token to either &quot;push a number&quot; or &quot;apply an operator&quot;.</li></ul>
 <p>  At the end a well-formed expression leaves exactly one value on the stack — anything else is a   malformed input.</p>
 <ul><li>The driver loop shows the payoff of exceptions: the happy path reads cleanly, and every failure</li></ul>
 <p>  mode (including <code>1 0 /</code>) is caught and reported uniformly, the VM continuing to the next case.</p>
-<p><strong>Where to go next:</strong> add support for <code><strong></code> (power) and a <code>swap</code> command; let <code>eval</code> accept negative numbers; or wrap it in a REPL using <code>io.input</code> so you can type expressions interactively. Then browse the </strong>Standard Library** page and the <code>examples/</code> directory for larger, real programs.</p>
+<p><strong>Where to go next:</strong> add support for <code><strong></code> (power) and a <code>swap</code> command; let <a class="xref" href="course-classes-projects.html#sym-eval"><code>eval</code></a> accept negative numbers; or wrap it in a REPL using <code>io.input</code> so you can type expressions interactively. Then browse the </strong>Standard Library** page and the <code>examples/</code> directory for larger, real programs.</p>
 <p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
 </main></div></body></html>

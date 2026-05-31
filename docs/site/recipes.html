@@ -31,10 +31,13 @@ blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
 background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
 .kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
 .builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
 hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
 </style></head>
-<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="stdlib.html">Standard Library</a><a href="recipes.html" class="active">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="recipes">Recipes</h1>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html" class="active">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="recipes">Recipes</h1>
 <p>Task-oriented snippets. All assume <code>var io = import(&quot;io&quot;)</code>.</p>
 <h2 id="read-a-file-line-by-line">Read a file line by line</h2>
 <pre><code><span class="kw">with</span> io.open(<span class="str">&quot;data.txt&quot;</span>, <span class="str">&quot;r&quot;</span>) <span class="kw">as</span> f:

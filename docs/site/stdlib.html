@@ -31,18 +31,21 @@ blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
 background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
 .kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
 .builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
 hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
 </style></head>
-<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="stdlib.html" class="active">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="standard-library">Standard Library</h1>
-<p>Import a module with <code>import(&quot;name&quot;)</code>. Modules load once per VM.</p>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html" class="active">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="standard-library">Standard Library</h1>
+<p>Import a module with <a class="xref" href="builtins.html#sym-import"><code>import(&quot;name&quot;)</code></a>. Modules load once per VM.</p>
 <h2 id="io">io</h2>
 <p>Console, files, in-memory buffers, and filesystem helpers.</p>
-<ul><li><code>print(*args)</code> — write the arguments (space-separated, newline-terminated, flushed) to <code>stdout</code>.</li><li><code>eprint(*args)</code> — like <code>print</code>, but to <code>stderr</code>.</li><li><code>write(*args)</code> — write the arguments to <code>stdout</code> with no separator and no trailing newline.</li><li><code>input([prompt])</code> — optionally write <code>prompt</code> to <code>stdout</code>, then read one line from <code>stdin</code>.</li><li><code>read([n])</code> — read <code>n</code> characters (or everything) from <code>stdin</code>.</li><li><code>open(path, mode)</code> — open a file; modes <code>&quot;r&quot;</code>/<code>&quot;w&quot;</code>/<code>&quot;a&quot;</code>/<code>&quot;r+&quot;</code>. Returns a file object supporting</li></ul>
-<p>  <code>read([n])</code>, <code>readline</code>, <code>readlines</code>, <code>write</code>, <code>writelines</code>, <code>seek</code>, <code>tell</code>, <code>flush</code>, line-by-line   iteration, and use as a <code>with</code> context manager.</p>
-<ul><li><code>BytesIO([bytes])</code> — an in-memory binary buffer like Python&#x27;s.</li></ul>
+<ul><li id="sym-print"><a class="xref" href="stdlib.html#sym-print"><code>print(*args)</code></a> — write the arguments (space-separated, newline-terminated, flushed) to <code>stdout</code>.</li><li id="sym-eprint"><a class="xref" href="stdlib.html#sym-eprint"><code>eprint(*args)</code></a> — like <a class="xref" href="stdlib.html#sym-print"><code>print</code></a>, but to <code>stderr</code>.</li><li id="sym-write"><a class="xref" href="stdlib.html#sym-write"><code>write(*args)</code></a> — write the arguments to <code>stdout</code> with no separator and no trailing newline.</li><li id="sym-input"><a class="xref" href="stdlib.html#sym-input"><code>input([prompt])</code></a> — optionally write <code>prompt</code> to <code>stdout</code>, then read one line from <code>stdin</code>.</li><li id="sym-read"><a class="xref" href="stdlib.html#sym-read"><code>read([n])</code></a> — read <code>n</code> characters (or everything) from <code>stdin</code>.</li><li id="sym-open"><a class="xref" href="stdlib.html#sym-open"><code>open(path, mode)</code></a> — open a file; modes <code>&quot;r&quot;</code>/<code>&quot;w&quot;</code>/<code>&quot;a&quot;</code>/<code>&quot;r+&quot;</code>. Returns a file object supporting</li></ul>
+<p>  <a class="xref" href="stdlib.html#sym-read"><code>read([n])</code></a>, <code>readline</code>, <code>readlines</code>, <a class="xref" href="stdlib.html#sym-write"><code>write</code></a>, <code>writelines</code>, <code>seek</code>, <code>tell</code>, <code>flush</code>, line-by-line   iteration, and use as a <code>with</code> context manager.</p>
+<ul><li id="sym-BytesIO"><a class="xref" href="stdlib.html#sym-BytesIO"><code>BytesIO([bytes])</code></a> — an in-memory binary buffer like Python&#x27;s.</li></ul>
 <h3 id="interchangeable-streams">Interchangeable streams</h3>
-<p><code>io.stdout</code>, <code>io.stderr</code>, and <code>io.stdin</code> are ordinary, <strong>rebindable</strong> stream objects, and <code>print</code> / <code>write</code> / <code>input</code> / <code>read</code> always act on whatever is currently bound there. So redirecting I/O is just an assignment — to a file, a <code>BytesIO</code>, another standard stream, or <em>any</em> object that exposes the matching <code>write</code> / <code>readline</code> / <code>read</code> methods (duck typing). The originals are kept as <code>io.__stdout__</code> / <code>io.__stderr__</code> / <code>io.__stdin__</code>, so you can always switch back.</p>
+<p><code>io.stdout</code>, <code>io.stderr</code>, and <code>io.stdin</code> are ordinary, <strong>rebindable</strong> stream objects, and <a class="xref" href="stdlib.html#sym-print"><code>print</code></a> / <a class="xref" href="stdlib.html#sym-write"><code>write</code></a> / <a class="xref" href="stdlib.html#sym-input"><code>input</code></a> / <a class="xref" href="stdlib.html#sym-read"><code>read</code></a> always act on whatever is currently bound there. So redirecting I/O is just an assignment — to a file, a <a class="xref" href="stdlib.html#sym-BytesIO"><code>BytesIO</code></a>, another standard stream, or <em>any</em> object that exposes the matching <a class="xref" href="stdlib.html#sym-write"><code>write</code></a> / <code>readline</code> / <a class="xref" href="stdlib.html#sym-read"><code>read</code></a> methods (duck typing). The originals are kept as <code>io.__stdout__</code> / <code>io.__stderr__</code> / <code>io.__stdin__</code>, so you can always switch back.</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
 io.eprint(<span class="str">&quot;a diagnostic on stderr&quot;</span>)
 
@@ -68,9 +71,9 @@ io.stdout = io.__stdout__</code></pre>
 <span class="kw">for</span> line <span class="kw">in</span> io.open(<span class="str">&quot;out.txt&quot;</span>, <span class="str">&quot;r&quot;</span>):
     io.<span class="builtin">print</span>(line.strip())</code></pre>
 <h2 id="math">math</h2>
-<p>Constants <code>pi</code>, <code>e</code>, <code>tau</code>, <code>inf</code>, <code>nan</code>; functions <code>sqrt</code>, <code>pow</code>, <code>exp</code>, <code>log</code> (1- or 2-arg), <code>log2</code>, <code>log10</code>, trig (<code>sin</code>/<code>cos</code>/<code>tan</code>/<code>asin</code>/...), hyperbolic, <code>floor</code>, <code>ceil</code>, <code>trunc</code>, <code>gcd</code>, <code>lcm</code>, <code>factorial</code>, <code>gamma</code>, <code>erf</code>, <code>isnan</code>, <code>isinf</code>, <code>prod(iter[, start])</code>, <code>comb(n, k)</code>, <code>perm(n[, k])</code>, and more.</p>
+<p>Constants <code>pi</code>, <code>e</code>, <code>tau</code>, <code>inf</code>, <code>nan</code>; functions <code>sqrt</code>, <a class="xref" href="builtins.html#sym-pow"><code>pow</code></a>, <code>exp</code>, <code>log</code> (1- or 2-arg), <code>log2</code>, <code>log10</code>, trig (<code>sin</code>/<code>cos</code>/<code>tan</code>/<code>asin</code>/...), hyperbolic, <code>floor</code>, <code>ceil</code>, <code>trunc</code>, <code>gcd</code>, <code>lcm</code>, <code>factorial</code>, <code>gamma</code>, <code>erf</code>, <code>isnan</code>, <code>isinf</code>, <code>prod(iter[, start])</code>, <code>comb(n, k)</code>, <code>perm(n[, k])</code>, and more.</p>
 <h2 id="random">random</h2>
-<p>Object-based RNG, no global state. <code>Random([seed])</code> then: <code>random()</code>, <code>uniform(a, b)</code>, <code>randint(a, b)</code>, <code>randrange(...)</code>, <code>choice(seq)</code>, <code>shuffle(list)</code>, <code>sample(seq, k)</code>, <code>gauss([mu, sigma])</code>, <code>expovariate([lambda])</code>.</p>
+<p>Object-based RNG, no global state. <code>Random([seed])</code> then: <a class="xref" href="stdlib.html#random"><code>random()</code></a>, <code>uniform(a, b)</code>, <code>randint(a, b)</code>, <code>randrange(...)</code>, <code>choice(seq)</code>, <code>shuffle(list)</code>, <code>sample(seq, k)</code>, <code>gauss([mu, sigma])</code>, <code>expovariate([lambda])</code>.</p>
 <pre><code><span class="kw">var</span> rng = <span class="kw">import</span>(<span class="str">&quot;random&quot;</span>).Random(<span class="num">42</span>)
 rng.randint(<span class="num">1</span>, <span class="num">6</span>)</code></pre>
 <h2 id="itertools">itertools</h2>
@@ -78,9 +81,9 @@ rng.randint(<span class="num">1</span>, <span class="num">6</span>)</code></pre>
 <h2 id="functools">functools</h2>
 <p><code>reduce(func, iter[, initial])</code>, <code>partial(func, bound_args_list)</code>, <code>cache(func)</code> (memoize a single-argument function).</p>
 <h2 id="collections">collections</h2>
-<ul><li><code>deque([items])</code> — double-ended queue: <code>append</code>, <code>appendleft</code>, <code>pop</code>, <code>popleft</code>, <code>len</code>, indexing,</li></ul>
+<ul><li id="sym-deque"><a class="xref" href="stdlib.html#sym-deque"><code>deque([items])</code></a> — double-ended queue: <code>append</code>, <code>appendleft</code>, <code>pop</code>, <code>popleft</code>, <a class="xref" href="builtins.html#sym-len"><code>len</code></a>, indexing,</li></ul>
 <p>  iteration.</p>
-<ul><li><code>Counter([items])</code> — multiset: <code>add</code>, <code>get</code>, <code>items</code>, <code>most_common</code>, <code>[]</code>.</li><li><code>defaultdict(factory)</code> — dict that auto-creates missing values via <code>factory()</code>.</li></ul>
+<ul><li id="sym-Counter"><a class="xref" href="stdlib.html#sym-Counter"><code>Counter([items])</code></a> — multiset: <code>add</code>, <code>get</code>, <code>items</code>, <code>most_common</code>, <code>[]</code>.</li><li id="sym-defaultdict"><a class="xref" href="stdlib.html#sym-defaultdict"><code>defaultdict(factory)</code></a> — dict that auto-creates missing values via <code>factory()</code>.</li></ul>
 <h2 id="statistics">statistics</h2>
 <p><code>mean</code>, <code>median</code>, <code>mode</code>, <code>variance</code>, <code>pvariance</code>, <code>stdev</code>, <code>pstdev</code>, <code>multimode</code>, <code>quantiles(data[, n])</code>.</p>
 <h2 id="string">string</h2>
@@ -90,23 +93,23 @@ rng.randint(<span class="num">1</span>, <span class="num">6</span>)</code></pre>
 <h2 id="base64">base64</h2>
 <p><code>encode(byte_list)</code> → String, <code>decode(string)</code> → byte List (standard alphabet); <code>urlsafe_encode</code>/ <code>urlsafe_decode</code> use the <code>-</code>/<code>_</code> URL-safe alphabet.</p>
 <h2 id="csv">csv</h2>
-<p><code>format_row(fields)</code>, <code>parse_row(line)</code>, <code>format(rows)</code>, <code>parse(text)</code> (RFC-style quoting).</p>
+<p><code>format_row(fields)</code>, <code>parse_row(line)</code>, <a class="xref" href="builtins.html#sym-format"><code>format(rows)</code></a>, <code>parse(text)</code> (RFC-style quoting).</p>
 <h2 id="heapq">heapq</h2>
 <p>Binary min-heap over a List: <code>heappush(heap, x)</code>, <code>heappop(heap)</code>, <code>heapreplace(heap, x)</code>, <code>heapify(items)</code>, <code>nsmallest(n, items)</code>, <code>nlargest(n, items)</code>, <code>merge(lists)</code>.</p>
 <h2 id="bisect">bisect</h2>
 <p><code>bisect_left(a, x)</code>, <code>bisect_right(a, x)</code>, <code>insort_left(a, x)</code>, <code>insort_right(a, x)</code> on a sorted List.</p>
 <h2 id="copy">copy</h2>
-<p><code>copy(obj)</code> (shallow), <code>deepcopy(obj)</code> (recursive, for List/Dict/Set).</p>
+<p><a class="xref" href="stdlib.html#copy"><code>copy(obj)</code></a> (shallow), <code>deepcopy(obj)</code> (recursive, for List/Dict/Set).</p>
 <h2 id="enum">enum</h2>
 <p><code>Enum(names)</code> — a class mapping names↔ordinals: <code>get(name)</code>, <code>name_of(value)</code>, <code>names()</code>, <code>values()</code>, <code>[name]</code>, <code>name in e</code>.</p>
 <h2 id="matrix">matrix</h2>
 <p>Dense real matrices: <code>Matrix(rows)</code>, <code>zeros</code>, <code>ones</code>, <code>identity</code>, element access <code>m[i, j]</code>, <code>+ - *</code> (matrix/scalar), <code>transpose</code>, <code>determinant</code>, <code>inverse</code>, <code>trace</code>, <code>apply</code>.</p>
 <h2 id="json">json</h2>
-<p><code>parse(text)</code> / <code>loads(text)</code> (objects → Dict; decodes <code>\u</code> escapes and surrogate pairs) and <code>stringify(value[, indent])</code> / <code>dumps(value[, indent])</code> (pretty-printed when <code>indent &gt; 0</code>).</p>
+<p><code>parse(text)</code> / <code>loads(text)</code> (objects → Dict; decodes <code>\u</code> escapes and surrogate pairs) and <a class="xref" href="embedding.html#sym-stringify"><code>stringify(value[, indent])</code></a> / <code>dumps(value[, indent])</code> (pretty-printed when <code>indent &gt; 0</code>).</p>
 <h2 id="serialize-dump">serialize / dump</h2>
-<ul><li><code>serialize</code> — text graph dump/load preserving shared references and cycles (<code>dumps</code>/<code>loads</code>/</li></ul>
+<ul><li id="sym-serialize"><a class="xref" href="stdlib.html#sym-serialize"><code>serialize</code></a> — text graph dump/load preserving shared references and cycles (<code>dumps</code>/<code>loads</code>/</li></ul>
 <p>  <code>save</code>/<code>load</code>).</p>
-<ul><li><code>dump</code> — compact <strong>binary</strong> serialization (a <code>Dump</code> blob) preserving references and cycles</li></ul>
+<ul><li id="sym-dump"><a class="xref" href="stdlib.html#sym-dump"><code>dump</code></a> — compact <strong>binary</strong> serialization (a <code>Dump</code> blob) preserving references and cycles</li></ul>
 <p>  (<code>dumps</code>/<code>loads</code>/<code>Dump(bytes)</code>/<code>save</code>/<code>load</code>, plus <code>.bytes()</code>/<code>.size()</code>/<code>.save()</code>).</p>
 <h2 id="zlib">zlib</h2>
 <p><code>compress</code>/<code>decompress</code> (zlib streams), <code>deflate</code>/<code>inflate</code> (raw), <code>adler32</code>. Self-contained, interoperable with real zlib.</p>
@@ -121,7 +124,7 @@ net.urlsplit(<span class="str">&quot;https://h:8080/p?x=1&quot;</span>)     # {<
 <h2 id="sys">sys</h2>
 <p><code>getenv</code>/<code>setenv</code>/<code>unsetenv</code>/<code>environ</code>, <code>platform</code>, <code>exit(code)</code>.</p>
 <h2 id="time">time</h2>
-<p><code>time()</code>, <code>time_ns()</code>, <code>monotonic()</code>, <code>perf_counter_ns()</code>, <code>sleep(seconds)</code>. Calendar time via <code>now()</code>, <code>datetime(timestamp)</code>, <code>make(year, month, day[, hour, minute, second])</code>, and <code>strptime(text, format)</code>. A <code>DateTime</code> exposes fields (<code>year</code>/<code>month</code>/<code>day</code>/<code>hour</code>/<code>minute</code>/<code>second</code>/ <code>weekday</code>/<code>yearday</code>), <code>iso()</code>/<code>isoformat()</code>, <code>format(strftime_string)</code>, <code>timestamp()</code>, and arithmetic: <code>add(seconds)</code>/<code>sub(seconds)</code> → new DateTime, <code>diff(other)</code> → seconds between.</p>
+<p><a class="xref" href="stdlib.html#time"><code>time()</code></a>, <code>time_ns()</code>, <code>monotonic()</code>, <code>perf_counter_ns()</code>, <code>sleep(seconds)</code>. Calendar time via <code>now()</code>, <code>datetime(timestamp)</code>, <code>make(year, month, day[, hour, minute, second])</code>, and <code>strptime(text, format)</code>. A <code>DateTime</code> exposes fields (<code>year</code>/<code>month</code>/<code>day</code>/<code>hour</code>/<code>minute</code>/<code>second</code>/ <code>weekday</code>/<code>yearday</code>), <code>iso()</code>/<code>isoformat()</code>, <a class="xref" href="builtins.html#sym-format"><code>format(strftime_string)</code></a>, <code>timestamp()</code>, and arithmetic: <code>add(seconds)</code>/<code>sub(seconds)</code> → new DateTime, <code>diff(other)</code> → seconds between.</p>
 <pre><code><span class="kw">var</span> t = <span class="kw">import</span>(<span class="str">&quot;time&quot;</span>)
 <span class="kw">var</span> d = t.make(<span class="num">2024</span>, <span class="num">2</span>, <span class="num">29</span>, <span class="num">12</span>, <span class="num">0</span>, <span class="num">0</span>)
 d.iso()                   # <span class="str">&quot;2024-02-29T12:00:00&quot;</span>

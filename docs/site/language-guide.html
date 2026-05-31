@@ -31,10 +31,13 @@ blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
 background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
 .kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
 .builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
 hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
 </style></head>
-<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html" class="active">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="language-guide">Language Guide</h1>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html" class="active">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="language-guide">Language Guide</h1>
 <p>A reference for Kirito&#x27;s syntax and semantics.</p>
 <h2 id="comments-and-layout">Comments and layout</h2>
 <p><code>#</code> starts a line comment. Blocks use <strong>Python-style significant indentation</strong>: a <code>:</code> then a newline then an indented suite. Tabs and spaces both work, but mixing them ambiguously is an error.</p>
@@ -48,10 +51,10 @@ a = a + <span class="num">1</span>          <span class="com"># rebinds a</span>
 <p>Reference semantics: <code>A = B</code> makes <code>A</code> refer to the same value as <code>B</code>; mutating a shared mutable value (List/Dict/Set/instance) is visible through every name bound to it.</p>
 <h2 id="types">Types</h2>
 <p>Dynamically typed, strongly typed. Built-in types:</p>
-<table><thead><tr><th>Type</th><th>Examples</th></tr></thead><tbody><tr><td><code>None</code></td><td><code>None</code></td></tr><tr><td><code>Bool</code></td><td><code>True</code>, <code>False</code></td></tr><tr><td><code>Integer</code></td><td><code>42</code>, <code>-7</code> (64-bit, two&#x27;s-complement wraparound on overflow)</td></tr><tr><td><code>Float</code></td><td><code>3.14</code>, <code>1.0</code></td></tr><tr><td><code>String</code></td><td><code>&quot;hi&quot;</code>, Unicode, code-point indexed</td></tr><tr><td><code>List</code></td><td><code>[1, 2, 3]</code> (ordered, mutable)</td></tr><tr><td><code>Set</code></td><td><code>{1, 2, 3}</code> (unique, unordered)</td></tr><tr><td><code>Dict</code></td><td><code>{&quot;a&quot;: 1}</code> (key→value)</td></tr></tbody></table>
-<p><code>type(x)</code> returns the type name as a String. Constructors double as converters: <code>Integer(&quot;42&quot;)</code>, <code>Float(3)</code>, <code>String(x)</code>, <code>Bool(x)</code>, and <code>List(iter)</code>, <code>Set(iter)</code>, <code>Dict(pairs)</code>.</p>
+<table><thead><tr><th>Type</th><th>Examples</th></tr></thead><tbody><tr><td><a class="xref" href="types.html#none"><code>None</code></a></td><td><a class="xref" href="types.html#none"><code>None</code></a></td></tr><tr><td><a class="xref" href="types.html#bool"><code>Bool</code></a></td><td><code>True</code>, <code>False</code></td></tr><tr><td><a class="xref" href="types.html#integer"><code>Integer</code></a></td><td><code>42</code>, <code>-7</code> (64-bit, two&#x27;s-complement wraparound on overflow)</td></tr><tr><td><a class="xref" href="types.html#float"><code>Float</code></a></td><td><code>3.14</code>, <code>1.0</code></td></tr><tr><td><a class="xref" href="types.html#string"><code>String</code></a></td><td><code>&quot;hi&quot;</code>, Unicode, code-point indexed</td></tr><tr><td><a class="xref" href="types.html#list"><code>List</code></a></td><td><code>[1, 2, 3]</code> (ordered, mutable)</td></tr><tr><td><a class="xref" href="types.html#set"><code>Set</code></a></td><td><code>{1, 2, 3}</code> (unique, unordered)</td></tr><tr><td><a class="xref" href="types.html#dict"><code>Dict</code></a></td><td><code>{&quot;a&quot;: 1}</code> (key→value)</td></tr></tbody></table>
+<p><a class="xref" href="builtins.html#sym-type"><code>type(x)</code></a> returns the type name as a String. Constructors double as converters: <a class="xref" href="types.html#integer"><code>Integer(&quot;42&quot;)</code></a>, <a class="xref" href="types.html#float"><code>Float(3)</code></a>, <a class="xref" href="types.html#string"><code>String(x)</code></a>, <a class="xref" href="types.html#bool"><code>Bool(x)</code></a>, and <a class="xref" href="types.html#list"><code>List(iter)</code></a>, <a class="xref" href="types.html#set"><code>Set(iter)</code></a>, <a class="xref" href="types.html#dict"><code>Dict(pairs)</code></a>.</p>
 <h2 id="numbers-and-arithmetic">Numbers and arithmetic</h2>
-<p>Python-3 division semantics: <code>/</code> always yields a <code>Float</code>; <code>//</code> is floor division; <code>%</code> modulo; <code>**</code> right-associative exponentiation.</p>
+<p>Python-3 division semantics: <code>/</code> always yields a <a class="xref" href="types.html#float"><code>Float</code></a>; <code>//</code> is floor division; <code>%</code> modulo; <code>**</code> right-associative exponentiation.</p>
 <pre><code><span class="num">7</span> / <span class="num">2</span>       <span class="com"># 3.5  (Float)</span>
 <span class="num">7</span> // <span class="num">2</span>      <span class="com"># 3</span>
 -<span class="num">7</span> // <span class="num">2</span>     <span class="com"># -4   (floors toward negative infinity)</span>
@@ -66,7 +69,7 @@ s[::-<span class="num">1</span>]             <span class="com"># reversed</span>
 <span class="str">&quot;ab&quot;</span> * <span class="num">3</span>            # <span class="str">&quot;ababab&quot;</span>
 <span class="kw">var</span> n = <span class="num">5</span>
 f<span class="str">&quot;n squared is {n * n}&quot;</span></code></pre>
-<p>Methods: <code>upper</code>, <code>lower</code> (Unicode-aware), <code>strip</code>/<code>lstrip</code>/<code>rstrip</code>, <code>split</code>, <code>join</code>, <code>replace</code>, <code>startswith</code>, <code>endswith</code>, <code>find</code>/<code>rfind</code>, <code>index</code>/<code>rindex</code>, <code>count</code>, <code>format</code>, the <code>is...</code> predicates (<code>isdigit</code>/<code>isalpha</code>/<code>isalnum</code>/<code>isspace</code>/<code>islower</code>/<code>isupper</code>), <code>removeprefix</code>/<code>removesuffix</code>, <code>ljust</code>/<code>rjust</code>/<code>center</code>/<code>zfill</code>, and <code>partition</code>/<code>rpartition</code>.</p>
+<p>Methods: <code>upper</code>, <code>lower</code> (Unicode-aware), <code>strip</code>/<code>lstrip</code>/<code>rstrip</code>, <code>split</code>, <code>join</code>, <code>replace</code>, <code>startswith</code>, <code>endswith</code>, <code>find</code>/<code>rfind</code>, <code>index</code>/<code>rindex</code>, <code>count</code>, <a class="xref" href="builtins.html#sym-format"><code>format</code></a>, the <code>is...</code> predicates (<code>isdigit</code>/<code>isalpha</code>/<code>isalnum</code>/<code>isspace</code>/<code>islower</code>/<code>isupper</code>), <code>removeprefix</code>/<code>removesuffix</code>, <code>ljust</code>/<code>rjust</code>/<code>center</code>/<code>zfill</code>, and <code>partition</code>/<code>rpartition</code>.</p>
 <h2 id="collections">Collections</h2>
 <pre><code><span class="kw">var</span> xs = [<span class="num">3</span>, <span class="num">1</span>, <span class="num">2</span>]
 xs.append(<span class="num">4</span>)
@@ -102,8 +105,8 @@ s.add(<span class="num">4</span>)
 <span class="kw">for</span> x <span class="kw">in</span> iterable:
     ...</code></pre>
 <p>Logical operators <code>and</code>/<code>or</code>/<code>not</code> short-circuit and yield an operand. <code>break</code>/<code>continue</code> outside a loop and <code>return</code> outside a function are rejected at parse time.</p>
-<h3 id="switch"><code>switch</code></h3>
-<p><code>switch</code> dispatches on a value against constant <code>case</code> labels — <strong>no fallthrough</strong>, so exactly one arm runs:</p>
+<h3 id="switch"><a class="xref" href="language-guide.html#switch"><code>switch</code></a></h3>
+<p><a class="xref" href="language-guide.html#switch"><code>switch</code></a> dispatches on a value against constant <code>case</code> labels — <strong>no fallthrough</strong>, so exactly one arm runs:</p>
 <pre><code>switch command:
     case <span class="str">&quot;start&quot;</span>:
         run()
@@ -113,7 +116,7 @@ s.add(<span class="num">4</span>)
         handle_number()
     default:                 <span class="com"># optional; runs when nothing matched</span>
         unknown()</code></pre>
-<p>Case labels must be constant scalars (<code>Integer</code>, <code>Float</code>, <code>String</code>, <code>Bool</code>, or <code>None</code>) and are matched <strong>exactly by type and value</strong> — <code>case 1</code> and <code>case 1.0</code> are distinct, and a non-scalar subject (e.g. a list) only ever reaches <code>default</code>. The labels are compiled once into a hash jump-table, so dispatch is O(1) regardless of how many arms there are. Duplicate case values, a second <code>default</code>, and an empty body are rejected at parse/first-run time. <code>break</code>/<code>continue</code>/<code>return</code> inside an arm propagate to the enclosing loop/function as usual; a <code>switch</code> with no matching case and no <code>default</code> is a no-op.</p>
+<p>Case labels must be constant scalars (<a class="xref" href="types.html#integer"><code>Integer</code></a>, <a class="xref" href="types.html#float"><code>Float</code></a>, <a class="xref" href="types.html#string"><code>String</code></a>, <a class="xref" href="types.html#bool"><code>Bool</code></a>, or <a class="xref" href="types.html#none"><code>None</code></a>) and are matched <strong>exactly by type and value</strong> — <code>case 1</code> and <code>case 1.0</code> are distinct, and a non-scalar subject (e.g. a list) only ever reaches <code>default</code>. The labels are compiled once into a hash jump-table, so dispatch is O(1) regardless of how many arms there are. Duplicate case values, a second <code>default</code>, and an empty body are rejected at parse/first-run time. <code>break</code>/<code>continue</code>/<code>return</code> inside an arm propagate to the enclosing loop/function as usual; a <a class="xref" href="language-guide.html#switch"><code>switch</code></a> with no matching case and no <code>default</code> is a no-op.</p>
 <h2 id="functions">Functions</h2>
 <p>First-class values created with <code>Function</code>. Parameters take <strong>keyword arguments</strong>, <strong>default values</strong>, and <strong>enforced type annotations</strong>; the return type can be annotated too.</p>
 <pre><code><span class="kw">var</span> power = <span class="kw">Function</span>(base, exp = <span class="num">2</span>) -&gt; <span class="builtin">Integer</span>:
@@ -176,11 +179,11 @@ a, b = b, a               <span class="com"># swap</span>
         io.<span class="builtin">print</span>(line)
 <span class="com"># f is closed automatically (enter/exit protocol)</span></code></pre>
 <h2 id="modules">Modules</h2>
-<p><code>import(&quot;name&quot;)</code> returns a module value; access members with <code>.</code>. Modules are resolved from the bundled stdlib, then from <code>.ki</code> files on the import path. Each module loads once per VM.</p>
+<p><a class="xref" href="builtins.html#sym-import"><code>import(&quot;name&quot;)</code></a> returns a module value; access members with <code>.</code>. Modules are resolved from the bundled stdlib, then from <code>.ki</code> files on the import path. Each module loads once per VM.</p>
 <pre><code><span class="kw">var</span> math = <span class="kw">import</span>(<span class="str">&quot;math&quot;</span>)
 math.sqrt(<span class="num">2</span>)</code></pre>
 <h2 id="the-discard-statement-and-warnings">The <code>discard</code> statement and warnings</h2>
-<p>A bare expression whose non-<code>None</code> value is dropped triggers a warning (it&#x27;s probably a mistake). Use <code>discard EXPR</code> to say &quot;I&#x27;m intentionally ignoring this result&quot;:</p>
+<p>A bare expression whose non-<a class="xref" href="types.html#none"><code>None</code></a> value is dropped triggers a warning (it&#x27;s probably a mistake). Use <code>discard EXPR</code> to say &quot;I&#x27;m intentionally ignoring this result&quot;:</p>
 <pre><code><span class="kw">discard</span> validate(x)    <span class="com"># called for its side effect / exception; result ignored on purpose</span></code></pre>
 <p>The interpreter also warns about local variables that are assigned but never used. Warnings go to stderr and never stop execution; <code>-w</code> disables them.</p>
 <p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
