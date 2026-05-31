@@ -208,7 +208,18 @@ inline void escapeString(const std::string& s, std::string& out) {
             case '\r': out += "\\r"; break;
             case '\b': out += "\\b"; break;
             case '\f': out += "\\f"; break;
-            default: out += c;
+            default:
+                // JSON requires control characters U+0000..U+001F to be \u-escaped; emitting them
+                // raw produces invalid JSON (a NUL/0x01/... in the output). Other bytes (incl. UTF-8
+                // continuation bytes) pass through unchanged.
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    static const char* hex = "0123456789abcdef";
+                    out += "\\u00";
+                    out += hex[(static_cast<unsigned char>(c) >> 4) & 0xF];
+                    out += hex[static_cast<unsigned char>(c) & 0xF];
+                } else {
+                    out += c;
+                }
         }
     }
     out += '"';

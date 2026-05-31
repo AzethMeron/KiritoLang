@@ -59,6 +59,13 @@ j.stringify(x["k"])
     // unicode \u escape
     CHECK(evalStr(vm, "import(\"json\").parse(\"\\\"caf\\\\u00e9\\\"\")") == "caf\xc3\xa9");
 
+    // control characters must be \u-escaped on output (else the JSON is invalid)
+    CHECK(evalStr(vm, "import(\"json\").stringify(chr(0))") == "\"\\u0000\"");
+    CHECK(evalStr(vm, "import(\"json\").stringify(chr(1) + chr(31))") == "\"\\u0001\\u001f\"");
+    CHECK(evalStr(vm, "import(\"json\").stringify(\"a\" + chr(0) + \"b\")") == "\"a\\u0000b\"");
+    // and round-trip back to the original bytes
+    CHECK(evalStr(vm, "var j = import(\"json\")\nlen(j.parse(j.stringify(chr(0) + chr(7) + chr(31))))") == "3");
+
     // error cases
     CHECK_THROWS(vm.runSource("import(\"json\").parse(\"{invalid}\")\n"));
     CHECK_THROWS(vm.runSource("import(\"json\").parse(\"[1, 2,\")\n"));
