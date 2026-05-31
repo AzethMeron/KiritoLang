@@ -99,7 +99,9 @@ private:
 inline std::string write(KiritoVM& vm, Handle root) {
     std::unordered_map<const Object*, uint32_t> ids;
     std::vector<Handle> order;
-    // assign ids by identity (id reserved before recursing -> cycles terminate)
+    // assign ids by identity (id reserved before recursing -> cycles terminate); a depth bound
+    // keeps a very deeply nested (acyclic) structure from overflowing the native stack.
+    int depth = 0;
     std::function<uint32_t(Handle)> assign = [&](Handle h) -> uint32_t {
         const Object* o = &vm.arena().deref(h);
         auto it = ids.find(o);
@@ -107,9 +109,11 @@ inline std::string write(KiritoVM& vm, Handle root) {
         uint32_t id = static_cast<uint32_t>(order.size());
         ids[o] = id;
         order.push_back(h);
+        if (++depth > 10000) throw KiritoError("structure too deeply nested to dump");
         std::vector<Handle> kids;
         o->children(kids);
         for (Handle k : kids) assign(k);
+        --depth;
         return id;
     };
     uint32_t rootId = assign(root);

@@ -45,9 +45,11 @@ private:
         int id = static_cast<int>(order_.size());
         ids_[o] = id;
         order_.push_back(h);  // id assigned before recursing -> cycles terminate
+        if (++depth_ > 10000) throw KiritoError("structure too deeply nested to serialize");
         std::vector<Handle> kids;
         o->children(kids);
         for (Handle k : kids) assign(k);
+        --depth_;
         return id;
     }
     int idOf(Handle h) { return ids_.at(&vm_.arena().deref(h)); }
@@ -95,6 +97,7 @@ private:
     KiritoVM& vm_;
     std::unordered_map<const Object*, int> ids_;
     std::vector<Handle> order_;
+    int depth_ = 0;
 };
 
 class Reader {

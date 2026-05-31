@@ -39,6 +39,27 @@ int main() {
         CHECK(run(vm, "\"ab\" * -5") == "");
     }
 
+    // --- deep nesting raises (does not overflow the C++ stack) across every recursive operation ---
+    {
+        KiritoVM vm;
+        // build a 50000-deep acyclic list: a = [a_prev]
+        const char* build =
+            "var a = [1]\nvar i = 0\nwhile i < 50000:\n    a = [a]\n    i = i + 1\n";
+        CHECK(raises(vm, std::string(build) + "String(a)\n"));                       // stringify
+        CHECK(raises(vm, std::string(build) + "import(\"json\").dumps(a)\n"));        // json write
+        CHECK(raises(vm, std::string(build) + "import(\"serialize\").dumps(a)\n"));   // text serialize
+        CHECK(raises(vm, std::string(build) + "import(\"dump\").dumps(a)\n"));        // binary dump
+        // deeply nested JSON text must not overflow the parser
+        std::string deep(20000, '[');
+        deep += std::string(20000, ']');
+        vm.registerGlobal("_deep", vm.makeString(deep));
+        CHECK(raises(vm, "import(\"json\").parse(_deep)"));
+        CHECK(errOf(vm, "import(\"json\").parse(_deep)").find("too deep") != std::string::npos);
+        // a reasonably nested structure still works
+        CHECK(run(vm, "String([[1, [2, [3]]]])") == "[[1, [2, [3]]]]");
+        CHECK(run(vm, "import(\"json\").parse(\"[[1],[2,[3]]]\")[1][1][0]") == "3");
+    }
+
     // --- uncaught throw/assert carry the correct source span ---
     {
         KiritoVM vm;

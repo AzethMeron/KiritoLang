@@ -43,6 +43,15 @@ private:
         return false;
     }
 
+    // Recursion-depth guard: deeply-nested JSON ([[[[...]]]]) must raise, not overflow the C++ stack.
+    struct DepthGuard {
+        int& d;
+        explicit DepthGuard(int& depth) : d(depth) {
+            if (++d > 1000) throw KiritoError("JSON parse error: nesting too deep");
+        }
+        ~DepthGuard() { --d; }
+    };
+
     Handle value() {
         skipWs();
         char c = peek();
@@ -57,6 +66,7 @@ private:
     }
 
     Handle object() {
+        DepthGuard g(depth_);
         ++pos_;  // {
         auto dict = std::make_unique<DictVal>();
         Handle h = roots_.add(vm_.alloc(std::move(dict)));
@@ -81,6 +91,7 @@ private:
     }
 
     Handle array() {
+        DepthGuard g(depth_);
         ++pos_;  // [
         auto list = std::make_unique<ListVal>();
         Handle h = roots_.add(vm_.alloc(std::move(list)));
@@ -183,6 +194,7 @@ private:
     const std::string& s_;
     RootScope& roots_;
     std::size_t pos_ = 0;
+    int depth_ = 0;
 };
 
 inline void escapeString(const std::string& s, std::string& out) {
@@ -213,6 +225,7 @@ inline void write(KiritoVM& vm, Handle h, std::string& out, std::unordered_set<c
         default: break;
     }
     if (active.count(&o)) throw KiritoError("cannot serialize a cyclic structure to JSON");
+    if (active.size() > 1000) throw KiritoError("structure too deeply nested to serialize to JSON");
     active.insert(&o);
     if (o.kind() == ValueKind::List || o.kind() == ValueKind::Array) {
         out += '[';
@@ -253,6 +266,7 @@ inline void writeIndented(KiritoVM& vm, Handle h, std::string& out,
         default: break;
     }
     if (active.count(&o)) throw KiritoError("cannot serialize a cyclic structure to JSON");
+    if (active.size() > 1000) throw KiritoError("structure too deeply nested to serialize to JSON");
     active.insert(&o);
     std::string pad((depth + 1) * indent, ' '), padEnd(depth * indent, ' ');
     if (o.kind() == ValueKind::List || o.kind() == ValueKind::Array) {

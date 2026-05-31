@@ -18,16 +18,20 @@ namespace kirito {
 // need the VM (getItem/setItem/getAttr) are declared here and defined in runtime.hpp once
 // KiritoVM is complete; everything else is inline.
 
-// Render a sequence/mapping with cycle guarding via the StringifyCtx active set (keyed on `this`).
+// Render a sequence/mapping with cycle guarding via the StringifyCtx active set (keyed on `this`),
+// plus a depth bound so a very deeply nested (acyclic) structure raises instead of overflowing the
+// native stack.
 template <typename F>
 inline std::string stringifyGuarded(const Object* self, StringifyCtx& ctx,
                                     const char* open, const char* close, F emit) {
     if (ctx.active.count(self)) return std::string(open) + "..." + close;
+    if (++ctx.depth > 1000) { --ctx.depth; throw KiritoError("structure too deeply nested to stringify"); }
     ctx.active.insert(self);
     std::string out = open;
     out += emit();
     out += close;
     ctx.active.erase(self);
+    --ctx.depth;
     return out;
 }
 
