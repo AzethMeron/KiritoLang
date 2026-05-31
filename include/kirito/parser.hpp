@@ -64,6 +64,7 @@ private:
             case TokenType::KwFor: return parseFor();
             case TokenType::KwTry: return parseTry();
             case TokenType::KwThrow: return parseThrow();
+            case TokenType::KwSwitch: return parseSwitch();
             case TokenType::KwClass: return parseClass();
             case TokenType::KwWith: return parseWith();
             case TokenType::KwReturn: return parseReturn();
@@ -146,6 +147,39 @@ private:
             return star;
         }
         return parseExpr();
+    }
+
+    ast::StmtPtr parseSwitch() {
+        auto node = std::make_unique<ast::SwitchStmt>();
+        node->span = advance().span;  // 'switch'
+        node->subject = parseExpr();
+        expect(TokenType::Colon, "':' after the switch subject");
+        expect(TokenType::Newline, "a newline before the switch body");
+        expect(TokenType::Indent, "an indented switch body");
+        // The body is a sequence of `case ...:` arms and an optional trailing `default:`.
+        while (!at(TokenType::Dedent) && !at(TokenType::EndOfFile)) {
+            if (at(TokenType::Newline)) { advance(); continue; }
+            if (at(TokenType::KwCase)) {
+                advance();
+                ast::CaseClause clause;
+                clause.values.push_back(parseExpr());
+                while (at(TokenType::Comma)) { advance(); clause.values.push_back(parseExpr()); }
+                clause.body = parseBlock();
+                node->cases.push_back(std::move(clause));
+            } else if (at(TokenType::KwDefault)) {
+                if (node->hasDefault) throw KiritoError("a switch can have only one 'default'", peek().span);
+                advance();
+                node->hasDefault = true;
+                node->defaultBody = parseBlock();
+            } else {
+                throw KiritoError("expected 'case' or 'default' in switch body", peek().span);
+            }
+        }
+        expect(TokenType::Dedent, "a dedent to close the switch body");
+        blockJustClosed_ = true;
+        if (node->cases.empty() && !node->hasDefault)
+            throw KiritoError("'switch' needs at least one 'case' or a 'default'", node->span);
+        return node;
     }
 
     ast::StmtPtr parseTry() {

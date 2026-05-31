@@ -1616,11 +1616,15 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
                  : (static_cast<const BoolVal&>(o).value() ? 1.0 : 0.0);
         if (type == '%') d *= 100.0;
         bool neg = std::signbit(d);
-        char fmtbuf[8];
+        char fmtbuf[16];
         char conv = type == '%' ? 'f' : type;
         std::snprintf(fmtbuf, sizeof(fmtbuf), "%%.%d%c", precision < 0 ? 6 : precision, conv);
         char out[64];
+        // fmtbuf is built above from a fixed pattern + validated conv char; the dynamic format is intentional.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
         std::snprintf(out, sizeof(out), fmtbuf, std::fabs(d));
+#pragma GCC diagnostic pop
         body = out;
         if (type == '%') body += "%";
         if (comma) {
@@ -2049,7 +2053,7 @@ inline void KiritoVM::installBuiltins() {
             int64_t base = geti(a[0], "base"), exp = geti(a[1], "exp"), mod = geti(a[2], "mod");
             if (exp < 0) throw KiritoError("pow exponent must be non-negative with a modulus");
             if (mod == 0) throw KiritoError("pow modulus must be non-zero");
-            __int128 result = 1 % mod, b = ((base % mod) + mod) % mod;
+            __extension__ __int128 result = 1 % mod, b = ((base % mod) + mod) % mod;
             while (exp > 0) {
                 if (exp & 1) result = (result * b) % mod;
                 b = (b * b) % mod;

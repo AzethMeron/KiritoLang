@@ -189,6 +189,36 @@ public:
         result_ = vm_.none();
     }
 
+    void visit(const ast::SwitchStmt& s) override {
+        RootScope rs(vm_);
+        Handle subject = rs.add(eval(*s.subject));
+        // Build the case-value -> arm-index jump table once (memoized on the AST node), so dispatch
+        // is O(1) regardless of how many cases there are. Case values are evaluated a single time
+        // here, on first execution — they are expected to be constant. Duplicates are rejected.
+        if (!s.tableBuilt) {
+            for (std::size_t ci = 0; ci < s.cases.size(); ++ci) {
+                for (const auto& valExpr : s.cases[ci].values) {
+                    Handle v = rs.add(eval(*valExpr));
+                    auto key = switchKey(v);
+                    if (!key)
+                        throw KiritoError("switch case value must be Integer, Float, String, Bool, or None",
+                                          valExpr->span);
+                    if (s.jump.count(*key))
+                        throw KiritoError("duplicate switch case value", valExpr->span);
+                    s.jump[*key] = ci;
+                }
+            }
+            s.tableBuilt = true;
+        }
+        // O(1) lookup of the subject; no-fallthrough — exactly one arm runs.
+        if (auto key = switchKey(subject)) {
+            auto it = s.jump.find(*key);
+            if (it != s.jump.end()) { execBlock(s.cases[it->second].body); return; }
+        }
+        if (s.hasDefault) execBlock(s.defaultBody);
+        result_ = vm_.none();
+    }
+
     void visit(const ast::ReturnStmt& s) override {
         returnValue_ = s.value ? eval(*s.value) : vm_.none();
         flow_ = Flow::Return;
@@ -439,7 +469,6 @@ public:
         if (e.name == "_super_" && hasCurrentClass_) {
             Object& o = vm_.arena().deref(obj);
             if (o.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&o)) {
-                const auto* inst = static_cast<InstanceValue*>(&o);
                 const auto& ownerCls = static_cast<const ClassValue&>(vm_.arena().deref(currentClass_));
                 if (!ownerCls.findMethod(vm_.arena(), "_super_")) {  // not overridden
                     Handle objH = obj, ownerH = currentClass_;
@@ -599,6 +628,21 @@ public:
 private:
     EnvValue& scope() { return static_cast<EnvValue&>(vm_.arena().deref(env_)); }
     bool truthy(Handle h) { return vm_.arena().deref(h).truthy(); }
+
+    // Canonical type+value key for switch dispatch. Only hashable scalar kinds can label a case or
+    // be matched; other types yield nullopt -> they only reach `default`. Matching is exact by type
+    // and value (so `case 1` and `case 1.0` differ), making the jump table a plain string hash map.
+    std::optional<std::string> switchKey(Handle h) {
+        const Object& o = vm_.arena().deref(h);
+        switch (o.kind()) {
+            case ValueKind::None: return std::string("N");
+            case ValueKind::Bool: return std::string("B") + (static_cast<const BoolVal&>(o).value() ? "1" : "0");
+            case ValueKind::Integer: return "I" + std::to_string(static_cast<const IntVal&>(o).value());
+            case ValueKind::Float: return "F" + std::to_string(static_cast<const FloatVal&>(o).value());
+            case ValueKind::String: return "S" + static_cast<const StrVal&>(o).value();
+            default: return std::nullopt;
+        }
+    }
 
     // Look up obj.name and call it (e.g. a context manager's enter/exit).
     Handle callMethod(SourceSpan span, Handle obj, const char* name, std::vector<Handle> args) {

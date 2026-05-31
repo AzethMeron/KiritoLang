@@ -88,6 +88,11 @@ a stability fuzzer, and a benchmark). Working today:
 - Indentation blocks with `if/elif/else`/`while`/`for`/`break`/`continue`/`pass`, `and`/`or`/`not`.
   Tabs and spaces both work but ambiguous mixing is rejected (Python-3 rule: measured with tab=8
   and tab=1, both must agree).
+- `switch SUBJECT:` with `case V[, V2...]:` arms and an optional `default:` — **no fallthrough**
+  (exactly one arm runs). Case labels are constant scalars (`Integer`/`Float`/`String`/`Bool`/`None`),
+  matched exactly by type+value (so `case 1` ≠ `case 1.0`); compiled once into a hash jump-table for
+  O(1) dispatch regardless of arm count. Non-scalar subjects only reach `default`; duplicate case
+  values, a second `default`, and an empty body are rejected.
 - First-class functions with closures and `return`; `assert`. Recursion is bounded by a call-depth
   guard (configurable) that raises a catchable error instead of overflowing the native stack.
 - `List`/`Set`/`Dict` with literals, indexing, slicing, iteration, `in`, and methods (append/pop/

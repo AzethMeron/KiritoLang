@@ -153,6 +153,13 @@ private:
         } else if (const auto* as = dynamic_cast<const ast::AssertStmt*>(&s)) {
             analyzeExpr(*as->cond);
             if (as->message) analyzeExpr(*as->message);
+        } else if (const auto* sw = dynamic_cast<const ast::SwitchStmt*>(&s)) {
+            analyzeExpr(*sw->subject);
+            for (const auto& cl : sw->cases) {
+                for (const auto& v : cl.values) analyzeExpr(*v);
+                analyzeBlock(cl.body);
+            }
+            if (sw->hasDefault) analyzeBlock(sw->defaultBody);
         }
         // Break/Continue/Pass have nothing to analyze.
     }

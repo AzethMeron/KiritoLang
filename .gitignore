@@ -69,3 +69,6 @@ Testing/
 .cache/
 build-strict/
 build-tls/
+
+# Python bytecode cache (docs/build_docs.py)
+__pycache__/

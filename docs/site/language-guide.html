@@ -102,6 +102,18 @@ s.add(<span <span class="kw">class</span>="num">4</span>)
 <span class="kw">for</span> x <span class="kw">in</span> iterable:
     ...</code></pre>
 <p>Logical operators <code>and</code>/<code>or</code>/<code>not</code> short-circuit and yield an operand. <code>break</code>/<code>continue</code> outside a loop and <code>return</code> outside a function are rejected at parse time.</p>
+<h3 id="switch"><code>switch</code></h3>
+<p><code>switch</code> dispatches on a value against constant <code>case</code> labels — <strong>no fallthrough</strong>, so exactly one arm runs:</p>
+<pre><code>switch command:
+    case <span class="str">&quot;start&quot;</span>:
+        run()
+    case <span class="str">&quot;stop&quot;</span>, <span class="str">&quot;halt&quot;</span>:     <span class="com"># multiple values per arm</span>
+        shutdown()
+    case <span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">2</span>, <span <span class="kw">class</span>="num">3</span>:            <span class="com"># cases may mix types</span>
+        handle_number()
+    default:                 <span class="com"># optional; runs when nothing matched</span>
+        unknown()</code></pre>
+<p>Case labels must be constant scalars (<code>Integer</code>, <code>Float</code>, <code>String</code>, <code>Bool</code>, or <code>None</code>) and are matched <strong>exactly by type and value</strong> — <code>case 1</code> and <code>case 1.0</code> are distinct, and a non-scalar subject (e.g. a list) only ever reaches <code>default</code>. The labels are compiled once into a hash jump-table, so dispatch is O(1) regardless of how many arms there are. Duplicate case values, a second <code>default</code>, and an empty body are rejected at parse/first-run time. <code>break</code>/<code>continue</code>/<code>return</code> inside an arm propagate to the enclosing loop/function as usual; a <code>switch</code> with no matching case and no <code>default</code> is a no-op.</p>
 <h2 id="functions">Functions</h2>
 <p>First-class values created with <code>Function</code>. Parameters take <strong>keyword arguments</strong>, <strong>default values</strong>, and <strong>enforced type annotations</strong>; the return type can be annotated too.</p>
 <pre><code><span class="kw">var</span> power = <span class="kw">Function</span>(base, exp = <span <span class="kw">class</span>="num">2</span>) -&gt; <span class="builtin">Integer</span>:

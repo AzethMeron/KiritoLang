@@ -58,6 +58,7 @@ kirito_test(test_super unit/test_super.cpp)
 kirito_test(test_stdlib_gaps unit/test_stdlib_gaps.cpp)
 kirito_test(test_list_ops unit/test_list_ops.cpp)
 kirito_test(test_bytesio unit/test_bytesio.cpp)
+kirito_test(test_switch unit/test_switch.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
 kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)

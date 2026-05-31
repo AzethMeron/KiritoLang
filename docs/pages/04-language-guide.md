@@ -124,6 +124,31 @@ for x in iterable:
 Logical operators `and`/`or`/`not` short-circuit and yield an operand. `break`/`continue` outside a
 loop and `return` outside a function are rejected at parse time.
 
+### `switch`
+
+`switch` dispatches on a value against constant `case` labels — **no fallthrough**, so exactly one
+arm runs:
+
+```kirito
+switch command:
+    case "start":
+        run()
+    case "stop", "halt":     # multiple values per arm
+        shutdown()
+    case 1, 2, 3:            # cases may mix types
+        handle_number()
+    default:                 # optional; runs when nothing matched
+        unknown()
+```
+
+Case labels must be constant scalars (`Integer`, `Float`, `String`, `Bool`, or `None`) and are
+matched **exactly by type and value** — `case 1` and `case 1.0` are distinct, and a non-scalar
+subject (e.g. a list) only ever reaches `default`. The labels are compiled once into a hash
+jump-table, so dispatch is O(1) regardless of how many arms there are. Duplicate case values, a
+second `default`, and an empty body are rejected at parse/first-run time. `break`/`continue`/`return`
+inside an arm propagate to the enclosing loop/function as usual; a `switch` with no matching case and
+no `default` is a no-op.
+
 ## Functions
 
 First-class values created with `Function`. Parameters take **keyword arguments**, **default
