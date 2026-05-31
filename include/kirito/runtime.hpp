@@ -1424,7 +1424,7 @@ inline Handle KiritoVM::importModule(const std::string& name) {
         std::stringstream buf;
         buf << in.rdbuf();
         Handle scope = newModuleScope();
-        {
+        try {
             RootScope guard(*this);
             guard.add(scope);
             auto prog = std::make_unique<ast::Program>(
@@ -1440,6 +1440,9 @@ inline Handle KiritoVM::importModule(const std::string& name) {
             moduleCache_[name] = h;
             pathCache_[key] = h;
             return h;
+        } catch (KiritoError& e) {
+            if (e.file.empty()) e.file = path.string();  // attribute the diagnostic to this module
+            throw;
         }
     }
     throw KiritoError("no module named '" + name + "'");
@@ -1462,6 +1465,27 @@ inline std::string inspectSignature(const std::string& name, const ast::Function
     return out;
 }
 
+// Render a native function's declared signature: name(p: T, q = <default>, ...) -> Ret. Defaults are
+// shown as their actual value (the VM is on hand to stringify them).
+inline std::string inspectNativeSignature(KiritoVM& vm, const std::string& name, const NativeFunction& nf) {
+    std::string out = name + "(";
+    const auto& ps = nf.params();
+    for (std::size_t i = 0; i < ps.size(); ++i) {
+        if (i) out += ", ";
+        out += ps[i].name;
+        if (!ps[i].annotation.empty()) out += ": " + ps[i].annotation;
+        if (ps[i].hasDefault) {
+            const Object& d = vm.arena().deref(ps[i].defaultValue);
+            // Quote String defaults so they read unambiguously (mode = "r", not mode = r).
+            out += " = " + (d.kind() == ValueKind::String ? "\"" + vm.stringify(ps[i].defaultValue) + "\""
+                                                          : vm.stringify(ps[i].defaultValue));
+        }
+    }
+    out += ")";
+    if (!nf.returnType().empty()) out += " -> " + nf.returnType();
+    return out;
+}
+
 // Human-readable introspection of any value: lists public methods/attributes (with signatures and
 // type annotations where declared) for classes, instances, modules, and functions. Returns a String.
 inline std::string inspectValue(KiritoVM& vm, Handle h) {
@@ -1477,8 +1501,12 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
         const Object& m = vm.arena().deref(mh);
         if (m.kind() == ValueKind::Function)
             return std::string(indent) + inspectSignature(key, static_cast<const KiFunction&>(m).def()) + "\n";
-        if (m.kind() == ValueKind::NativeFunction)
+        if (m.kind() == ValueKind::NativeFunction) {
+            const auto& nf = static_cast<const NativeFunction&>(m);
+            if (nf.hasSignature())
+                return std::string(indent) + inspectNativeSignature(vm, key, nf) + "  [native]\n";
             return std::string(indent) + key + "(...)  [native]\n";
+        }
         return std::string(indent) + key + ": " + m.typeName() + "\n";
     };
 
@@ -1535,8 +1563,11 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
         }
         case ValueKind::Function:
             return inspectSignature("function", static_cast<const KiFunction&>(o).def());
-        case ValueKind::NativeFunction:
-            return "native function";
+        case ValueKind::NativeFunction: {
+            const auto& nf = static_cast<const NativeFunction&>(o);
+            return nf.hasSignature() ? inspectNativeSignature(vm, nf.name(), nf)
+                                     : nf.name() + "(...)  [native]";
+        }
         default:
             return o.typeName() + " value";
     }
@@ -1654,6 +1685,11 @@ inline void KiritoVM::installBuiltins() {
     auto& g = static_cast<EnvValue&>(arena_.deref(global_));
     auto def = [&](const char* name, NativeFn fn) {
         g.define(name, alloc(std::make_unique<NativeFunction>(name, std::move(fn))));
+    };
+    // Like def, but with a declared signature so the builtin accepts keyword arguments and defaults
+    // and describes itself under `inspect`.
+    auto defSig = [&](const char* name, std::vector<NativeParam> sig, std::string ret, NativeFn fn) {
+        g.define(name, alloc(std::make_unique<NativeFunction>(name, std::move(sig), std::move(ret), std::move(fn))));
     };
 
     def("len", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
@@ -1792,12 +1828,14 @@ inline void KiritoVM::installBuiltins() {
         if (o.kind() == ValueKind::Float) return vm.makeFloat(std::fabs(static_cast<const FloatVal&>(o).value()));
         throw KiritoError("abs expects a number");
     });
-    def("round", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("round", {{"x", "Number"}, {"ndigits", "", none()}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.empty()) throw KiritoError("round expected at least 1 argument");
         const Object& xo = vm.arena().deref(a[0]);
         if (!isNumeric(xo)) throw KiritoError("round expects a number");
         double x = asDouble(xo);
-        if (a.size() >= 2) {
+        // ndigits given (and not the None default) -> round to that many decimals, yielding a Float;
+        // otherwise round to the nearest Integer (Python semantics).
+        if (a.size() >= 2 && vm.arena().deref(a[1]).kind() != ValueKind::None) {
             const Object& no = vm.arena().deref(a[1]);
             if (no.kind() != ValueKind::Integer) throw KiritoError("round ndigits must be an Integer");
             int64_t nd = static_cast<const IntVal&>(no).value();
@@ -2102,22 +2140,27 @@ inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {
 
 inline KiritoVM::~KiritoVM() = default;
 
-inline Handle KiritoVM::evalIn(std::string_view source, Handle scope) {
-    Lexer lexer(source);
-    Parser parser(lexer.tokenize());
-    auto prog = std::make_unique<ast::Program>(parser.parseProgram());
-    const ast::Program& program = *prog;
-    retainChunk(std::move(prog));  // keep the AST alive for the VM's lifetime (closures)
-    Evaluator ev(*this, scope);
+inline Handle KiritoVM::evalIn(std::string_view source, Handle scope, std::string_view chunkName) {
     try {
-        return ev.run(program);
-    } catch (const KiritoThrow& t) {
-        throw KiritoError("uncaught exception: " + stringify(t.value), t.span);
+        Lexer lexer(source);
+        Parser parser(lexer.tokenize());
+        auto prog = std::make_unique<ast::Program>(parser.parseProgram());
+        const ast::Program& program = *prog;
+        retainChunk(std::move(prog));  // keep the AST alive for the VM's lifetime (closures)
+        Evaluator ev(*this, scope);
+        try {
+            return ev.run(program);
+        } catch (const KiritoThrow& t) {
+            throw KiritoError("uncaught exception: " + stringify(t.value), t.span);
+        }
+    } catch (KiritoError& e) {
+        if (e.file.empty() && !chunkName.empty()) e.file = std::string(chunkName);
+        throw;
     }
 }
 
-inline Handle KiritoVM::runSource(std::string_view source, std::string_view) {
-    return evalIn(source, newModuleScope());
+inline Handle KiritoVM::runSource(std::string_view source, std::string_view chunkName) {
+    return evalIn(source, newModuleScope(), chunkName);
 }
 
 inline Handle KiritoVM::runRepl(std::string_view source) {

@@ -51,6 +51,14 @@ public:
         mod_.members[name] = vm_.alloc(std::make_unique<NativeFunction>(name, std::move(impl)));
         return *this;
     }
+    // With a declared signature: the function then accepts keyword arguments and defaults, and
+    // `inspect` shows its parameters/types and return type. Params: {"x"} / {"x","Int"} /
+    // {"x","Int", vm().makeInt(0)} (with default).
+    ModuleBuilder& fn(std::string name, std::vector<NativeParam> sig, std::string returnType, NativeFn impl) {
+        mod_.members[name] = vm_.alloc(std::make_unique<NativeFunction>(
+            name, std::move(sig), std::move(returnType), std::move(impl)));
+        return *this;
+    }
     ModuleBuilder& value(const std::string& name, Handle h) {
         mod_.members[name] = h;
         return *this;

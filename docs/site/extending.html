@@ -49,6 +49,18 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
         int64_t hi = static_cast&lt;const IntVal&amp;&gt;(vm.arena().deref(a[2])).value();
         return vm.makeInt(std::max(lo, std::min(x, hi)));
     })));</code></pre>
+<h3 id="declaring-a-signature-keyword-arguments-inspect">Declaring a signature (keyword arguments + <a class="xref" href="builtins.html#sym-inspect"><code>inspect</code></a>)</h3>
+<p>Give a native function a signature and it gains exactly what Kirito functions have: callers may pass <strong>keyword arguments</strong> and rely on <strong>defaults</strong>, and <a class="xref" href="builtins.html#sym-inspect"><code>inspect</code></a> shows its parameters, types, and return type. The implementation still receives a flat positional <code>span</code> — the runtime binds keywords and fills defaults before calling it. Construct params as <code>{&quot;name&quot;}</code>, <code>{&quot;name&quot;, &quot;Type&quot;}</code>, or <code>{&quot;name&quot;, &quot;Type&quot;, defaultHandle}</code>:</p>
+<pre><code>vm.registerGlobal(&quot;greet&quot;, vm.arena().alloc(std::make_unique&lt;NativeFunction&gt;(
+    &quot;greet&quot;,
+    std::vector&lt;NativeParam&gt;{{&quot;name&quot;, &quot;String&quot;}, {&quot;loud&quot;, &quot;Bool&quot;, vm.makeBool(false)}},
+    &quot;String&quot;,
+    [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; a) -&gt; Handle {
+        // a[0] is `name`; a[1] is `loud`, defaulted to False when the caller omits it.
+        return vm.makeString(&quot;Hello, &quot; + static_cast&lt;const StrVal&amp;&gt;(vm.arena().deref(a[0])).value());
+    })));
+// Kirito:  greet(&quot;Ada&quot;)  /  greet(name=&quot;Ada&quot;, loud=True)  /  inspect(greet)</code></pre>
+<p>Inside a module&#x27;s <code>setup</code>, the <code>ModuleBuilder</code> has the same overload: <code>m.fn(&quot;open&quot;, {{&quot;path&quot;, &quot;String&quot;}, {&quot;mode&quot;, &quot;String&quot;, m.vm().makeString(&quot;r&quot;)}}, &quot;File&quot;, impl);</code>.</p>
 <h2 id="adding-a-module">Adding a module</h2>
 <p>Subclass <code>NativeModule</code>, override <code>name()</code> and <code>setup()</code>, and register with <a class="xref" href="embedding.html#sym-install"><code>install&lt;T&gt;()</code></a>. Inside <code>setup</code>, declare functions and values via the <code>ModuleBuilder</code>:</p>
 <pre><code>class StatsModule : public NativeModule {

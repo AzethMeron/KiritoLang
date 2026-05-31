@@ -142,7 +142,10 @@ int main(int argc, char** argv) {
     try {
         vm.runSource(buffer.str(), file);
     } catch (const kirito::KiritoError& e) {
-        std::cerr << file << ":" << e.span.line << ":" << e.span.col << ": error: " << e.what() << "\n";
+        // Prefer the file the error was tagged with (e.g. an imported module), falling back to the
+        // entry script when the error carries no location of its own.
+        const std::string& where = e.file.empty() ? file : e.file;
+        std::cerr << where << ":" << e.span.line << ":" << e.span.col << ": error: " << e.what() << "\n";
         return 1;
     }
     return 0;

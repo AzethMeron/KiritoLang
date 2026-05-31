@@ -15,6 +15,28 @@ static std::string run(KiritoVM& vm, const std::string& src) {
 }
 
 int main() {
+    // --- named arguments + defaults on NATIVE functions (builtins and module functions) ---
+    {
+        KiritoVM vm;
+        // builtin `round` with a signature: keyword arg and default.
+        CHECK(run(vm, "round(3.14159, ndigits=2)") == "3.14");
+        CHECK(run(vm, "round(2.7)") == "3");            // default ndigits=None -> Integer
+        CHECK(run(vm, "round(2.71828, ndigits=3)") == "2.718");
+        // module function `io.open` with a default mode.
+        CHECK(run(vm,
+            "var io = import(\"io\")\nvar p = \"/tmp/kirito_namedargs_native.txt\"\n"
+            "var f = io.open(p, mode=\"w\")\ndiscard f.write(\"yo\")\nf.close()\n"
+            "var g = io.open(p)\nvar s = g.read()\ng.close()\nio.remove(p)\ns") == "yo");
+    }
+    // native-signature errors: unknown keyword, duplicate, too many positional, missing required.
+    {
+        KiritoVM vm;
+        CHECK_THROWS(vm.runSource("round(1, bogus=2)"));
+        CHECK_THROWS(vm.runSource("var io = import(\"io\")\nio.open(path=\"x\", path=\"y\")"));
+        CHECK_THROWS(vm.runSource("var io = import(\"io\")\nio.open(\"a\", \"b\", \"c\")"));
+        CHECK_THROWS(vm.runSource("var io = import(\"io\")\nio.open()"));
+    }
+
     // --- named arguments, any order, mixed with positional ---
     {
         KiritoVM vm;

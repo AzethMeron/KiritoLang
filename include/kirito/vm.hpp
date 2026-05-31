@@ -160,7 +160,7 @@ public:
     void installBuiltins();
 
     // Shared lex->parse->retain->evaluate against a given scope. Defined in runtime.hpp.
-    Handle evalIn(std::string_view source, Handle scope);
+    Handle evalIn(std::string_view source, Handle scope, std::string_view chunkName = {});
 
     ~KiritoVM();  // out-of-line so unique_ptr<ast::Program> sees a complete type
 

@@ -92,6 +92,52 @@ int main() {
         CHECK(!has(w, "result of expression is unused"));
     }
 
+    // --- re-declaration within a block ---
+    {
+        auto w = warn("var f = Function():\n    var x = 1\n    var x = 2\n    return x\n");
+        CHECK(has(w, "variable 'x' is re-declared in this block"));
+    }
+    // re-declaring in sibling branches is fine (different blocks)
+    {
+        auto w = warn("var f = Function(c):\n    if c:\n        var x = 1\n    else:\n        var x = 2\n    return 0\n");
+        CHECK(!has(w, "re-declared"));
+    }
+
+    // --- unreachable code after a terminator ---
+    {
+        auto w = warn("var f = Function():\n    return 1\n    var x = 2\n");
+        CHECK(has(w, "unreachable code"));
+    }
+    {
+        auto w = warn("var f = Function():\n    for i in [1, 2]:\n        break\n        var x = 9\n    return 0\n");
+        CHECK(has(w, "unreachable code"));
+    }
+    // a final return is not "unreachable"
+    {
+        auto w = warn("var f = Function():\n    var x = 1\n    return x\n");
+        CHECK(!has(w, "unreachable code"));
+    }
+
+    // --- self-assignment ---
+    {
+        auto w = warn("var x = 1\nx = x\n");
+        CHECK(has(w, "self-assignment of 'x' has no effect"));
+    }
+    {
+        auto w = warn("var a = 1\nvar b = 2\na = b\n");
+        CHECK(!has(w, "self-assignment"));
+    }
+
+    // --- duplicate parameter name ---
+    {
+        auto w = warn("var f = Function(a, b, a):\n    return a\n");
+        CHECK(has(w, "duplicate parameter name 'a'"));
+    }
+    {
+        auto w = warn("var f = Function(a, b):\n    return a + b\n");
+        CHECK(!has(w, "duplicate parameter"));
+    }
+
     // --- discard still runs the expression (side effects preserved) ---
     {
         KiritoVM vm;

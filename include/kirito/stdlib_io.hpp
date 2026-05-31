@@ -425,7 +425,8 @@ public:
             streamWriteTo(vm, slot(vm, "stdout"), out, /*flush=*/false);
             return vm.none();
         });
-        m.fn("open", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("open", {{"path", "String"}, {"mode", "String", vm.makeString("r")}}, "File",
+             [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.empty() || a.size() > 2) throw KiritoError("open expected 1 or 2 arguments");
             const Object& po = vm.arena().deref(a[0]);
             if (po.kind() != ValueKind::String) throw KiritoError("open path must be a String");

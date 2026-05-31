@@ -119,17 +119,25 @@ a stability fuzzer, and a benchmark). Working today:
 - **Garbage collection**: precise mark-sweep with rooted intermediates (AddressSanitizer-clean).
 - **f-strings** `f"{expr}"`; inline anonymous functions `Function(x): return x*x`.
 - **Static warnings + `discard`**: a non-fatal analysis pass (`analyzer.hpp`) run before execution
-  flags function-local variables assigned-but-never-used and bare expression statements whose
-  non-`None` value is dropped; `discard EXPR` evaluates and intentionally drops a value (suppressing
-  the latter). Warnings print `file:line:col: warning: ...` to stderr; the `ki` flag `-w`/`--no-warn`
-  disables them. Module-level names (exports) and class members are never flagged.
+  flags: function-local variables assigned-but-never-used; bare expression statements whose
+  non-`None` value is dropped; a `var` re-declared in the same block; unreachable code after a
+  return/throw/break/continue; self-assignment (`x = x`); and duplicate parameter names. `discard
+  EXPR` evaluates and intentionally drops a value (suppressing the unused-result case). Warnings
+  print `file:line:col: warning: ...` to stderr; the `ki` flag `-w`/`--no-warn` disables them.
+  Module-level names (exports) and class members are never flagged.
 - **Builtins**: `range`, `sum`, `min`, `max`, `abs`, `round`, `sorted`, `enumerate`, `zip`, `map`,
   `filter`, `len`, `type`, `import`, `inspect`, `all`, `any`, `reversed`, `divmod`, `isinstance`,
   `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), `format` (Python mini-format-spec:
   fill/align/sign/width/`,`/precision/type), and the
   `Integer`/`Float`/`String`/`Bool`/`List`/`Set`/`Dict` constructors/converters. `inspect(x)` returns
   a String describing the public methods/attributes (with signatures + annotations) of a class,
-  instance, module, or function.
+  instance, module, or function — **including native functions/modules that declare a signature**.
+- **Native functions can declare a signature** (`NativeFunction` second ctor / `ModuleBuilder::fn`
+  overload, taking `std::vector<NativeParam>` + a return-type string). A signatured native function
+  then accepts **keyword arguments** and **defaults** (the evaluator binds them into the positional
+  `span` the impl expects via `NativeFunction::bindArgs`) and is fully described by `inspect`. Errors
+  carry the module/chunk filename (`KiritoError::file`), so a parse error in an imported module
+  reports that module's path, not the entry script's.
 - **Standard library** (each a one-liner `vm.install<T>()`; a third party adds their own the same
   way — `#include` a header, register on the VM, no global state):
   - `io` — print/eprint/write/input/read acting on **rebindable, interchangeable streams**: the

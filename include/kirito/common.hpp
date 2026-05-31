@@ -27,6 +27,10 @@ public:
         : std::runtime_error(std::move(message)), span(span) {}
 
     SourceSpan span;
+    // The source file the error occurred in. Empty until a chunk/module loader tags it (the span's
+    // line:col are meaningless without knowing *which* file), so a parse error inside an imported
+    // module reports the module's path, not the entry script's.
+    std::string file;
 };
 
 }  // namespace kirito

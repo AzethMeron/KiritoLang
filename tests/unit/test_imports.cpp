@@ -40,6 +40,19 @@ int main() {
     // native modules still take precedence and work
     CHECK(vm.stringify(vm.runSource("import(\"math\").sqrt(49)")) == "7.0");
 
+    // a parse error inside an imported module is attributed to THAT module's file, not the caller.
+    {
+        std::ofstream f(dir / "broken.ki");
+        f << "var bad = Function(a, : return a\n";  // syntax error on line 1
+    }
+    bool tagged = false;
+    try {
+        vm.runSource("import(\"broken\")", "<entry>");
+    } catch (const KiritoError& e) {
+        tagged = e.file.find("broken.ki") != std::string::npos;
+    }
+    CHECK(tagged);
+
     // Same file reached through two library dirs that both contain mymod.ki resolves to the SAME
     // module (deduplicated by resolved path), and module-level state is shared (parsed once).
     {

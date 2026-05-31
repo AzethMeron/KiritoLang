@@ -12,9 +12,16 @@
 //     literal, arithmetic, comparison, indexing, collection literal, f-string, or a call to a
 //     locally-defined function that always returns a value) -> "result of expression is unused;
 //     prefix with 'discard' to ignore it intentionally". `discard EXPR` suppresses this.
+//   - a second `var` of the same name in one block -> "re-declared in this block" (block-scoped to
+//     avoid flagging the legitimate `if: var x .. else: var x` pattern).
+//   - a statement that can never run because the block already returned/threw/broke/continued ->
+//     "unreachable code".
+//   - `x = x` -> "self-assignment ... has no effect".
+//   - a repeated parameter name in a function signature -> "duplicate parameter".
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "ast.hpp"
@@ -100,9 +107,32 @@ private:
         return ret && ret->value != nullptr;
     }
 
+    // A statement that unconditionally transfers control, so anything after it in the same block is
+    // unreachable. (Conservative: an `if` that returns on every branch is NOT treated as one — that
+    // would need flow analysis and risk false positives.)
+    static bool isTerminator(const ast::Stmt& s) {
+        return dynamic_cast<const ast::ReturnStmt*>(&s) || dynamic_cast<const ast::ThrowStmt*>(&s)
+            || dynamic_cast<const ast::BreakStmt*>(&s) || dynamic_cast<const ast::ContinueStmt*>(&s);
+    }
+
     // --- statement walk -------------------------------------------------------------------------
     void analyzeBlock(const ast::Block& block) {
-        for (const auto& s : block) analyzeStmt(*s);
+        std::unordered_set<std::string> declaredHere;  // `var` names seen in THIS block
+        bool terminated = false, unreachableWarned = false;
+        for (const auto& s : block) {
+            if (terminated && !unreachableWarned) {
+                warnings_.push_back({s->span, "unreachable code (the block already returns/throws/"
+                                              "breaks/continues before this)"});
+                unreachableWarned = true;  // one warning per block is enough
+            }
+            if (const auto* v = dynamic_cast<const ast::VarDeclStmt*>(s.get()))
+                for (const auto& name : v->names)
+                    if (!declaredHere.insert(name).second)
+                        warnings_.push_back({v->span,
+                            "variable '" + name + "' is re-declared in this block"});
+            analyzeStmt(*s);
+            if (isTerminator(*s)) terminated = true;
+        }
     }
 
     void analyzeStmt(const ast::Stmt& s) {
@@ -115,6 +145,12 @@ private:
             analyzeExpr(*v->init);
             for (const auto& name : v->names) declare(name, v->span);
         } else if (const auto* a = dynamic_cast<const ast::AssignStmt*>(&s)) {
+            // `x = x` is a no-op (the simple name-to-name case; member/index can have side effects
+            // through custom protocols, so they are left alone).
+            const auto* tgtName = dynamic_cast<const ast::NameExpr*>(a->target.get());
+            const auto* valName = dynamic_cast<const ast::NameExpr*>(a->value.get());
+            if (tgtName && valName && tgtName->name == valName->name)
+                warnings_.push_back({a->span, "self-assignment of '" + tgtName->name + "' has no effect"});
             analyzeExpr(*a->value);
             analyzeAssignTarget(*a->target);
         } else if (const auto* i = dynamic_cast<const ast::IfStmt*>(&s)) {
@@ -266,7 +302,10 @@ private:
 
     void analyzeFunction(const ast::FunctionExpr& fn) {
         pushScope();
+        std::unordered_set<std::string> seenParams;
         for (const auto& p : fn.params) {
+            if (!seenParams.insert(p.name).second)
+                warnings_.push_back({fn.span, "duplicate parameter name '" + p.name + "'"});
             if (p.defaultValue) analyzeExpr(*p.defaultValue);  // defaults evaluate in the outer-ish scope
             declare(p.name, fn.span, /*isParam=*/true);
         }

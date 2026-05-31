@@ -403,15 +403,25 @@ public:
             for (std::size_t i = 0; i < e.args.size(); ++i)
                 positional[i] = rs.add(eval(*e.args[i].value));
             std::span<const Handle> args(positional.data(), e.args.size());
-            if (auto* fn = dynamic_cast<KiFunction*>(&vm_.arena().deref(callee)))
-                result_ = located(e.span, [&] { return fn->callFull(vm_, args, {}); });
+            Object& c = vm_.arena().deref(callee);
+            if (c.kind() == ValueKind::Function)
+                result_ = located(e.span, [&] { return static_cast<KiFunction&>(c).callFull(vm_, args, {}); });
+            else if (c.kind() == ValueKind::NativeFunction &&
+                     static_cast<NativeFunction&>(c).hasSignature())
+                // Even an all-positional call to a signatured native must bind, to apply defaults.
+                result_ = located(e.span, [&] {
+                    auto& nf = static_cast<NativeFunction&>(c);
+                    std::vector<Handle> bound = nf.bindArgs(args, {});
+                    for (Handle h : bound) rs.add(h);
+                    return nf.call(vm_, bound);
+                });
             else
-                result_ = located(e.span, [&] { return vm_.arena().deref(callee).call(vm_, args); });
+                result_ = located(e.span, [&] { return c.call(vm_, args); });
             return;
         }
 
         std::vector<Handle> positional;
-        std::vector<KiFunction::NamedArg> named;
+        std::vector<NamedArg> named;
         for (const auto& arg : e.args) {
             Handle v = rs.add(eval(*arg.value));
             if (arg.name.empty()) {
@@ -422,8 +432,17 @@ public:
                 named.push_back({arg.name, v});
             }
         }
-        if (auto* fn = dynamic_cast<KiFunction*>(&vm_.arena().deref(callee))) {
-            result_ = located(e.span, [&] { return fn->callFull(vm_, positional, named); });
+        Object& c = vm_.arena().deref(callee);
+        if (c.kind() == ValueKind::Function) {
+            result_ = located(e.span, [&] { return static_cast<KiFunction&>(c).callFull(vm_, positional, named); });
+        } else if (c.kind() == ValueKind::NativeFunction &&
+                   static_cast<NativeFunction&>(c).hasSignature()) {
+            result_ = located(e.span, [&] {
+                auto& nf = static_cast<NativeFunction&>(c);
+                std::vector<Handle> bound = nf.bindArgs(positional, named);
+                for (Handle h : bound) rs.add(h);
+                return nf.call(vm_, bound);
+            });
         } else {
             throw KiritoError("this callable does not accept keyword arguments", e.span);
         }

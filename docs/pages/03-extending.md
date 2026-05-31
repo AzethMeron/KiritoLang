@@ -20,6 +20,29 @@ vm.registerGlobal("clamp", vm.arena().alloc(std::make_unique<NativeFunction>(
     })));
 ```
 
+### Declaring a signature (keyword arguments + `inspect`)
+
+Give a native function a signature and it gains exactly what Kirito functions have: callers may pass
+**keyword arguments** and rely on **defaults**, and `inspect` shows its parameters, types, and return
+type. The implementation still receives a flat positional `span` — the runtime binds keywords and
+fills defaults before calling it. Construct params as `{"name"}`, `{"name", "Type"}`, or
+`{"name", "Type", defaultHandle}`:
+
+```cpp
+vm.registerGlobal("greet", vm.arena().alloc(std::make_unique<NativeFunction>(
+    "greet",
+    std::vector<NativeParam>{{"name", "String"}, {"loud", "Bool", vm.makeBool(false)}},
+    "String",
+    [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        // a[0] is `name`; a[1] is `loud`, defaulted to False when the caller omits it.
+        return vm.makeString("Hello, " + static_cast<const StrVal&>(vm.arena().deref(a[0])).value());
+    })));
+// Kirito:  greet("Ada")  /  greet(name="Ada", loud=True)  /  inspect(greet)
+```
+
+Inside a module's `setup`, the `ModuleBuilder` has the same overload:
+`m.fn("open", {{"path", "String"}, {"mode", "String", m.vm().makeString("r")}}, "File", impl);`.
+
 ## Adding a module
 
 Subclass `NativeModule`, override `name()` and `setup()`, and register with `install<T>()`. Inside

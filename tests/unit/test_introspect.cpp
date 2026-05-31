@@ -88,5 +88,22 @@ int main() {
         CHECK(out.find("sqrt") != std::string::npos);
     }
 
+    // --- inspect: native function with a declared signature (params, types, defaults, return) ---
+    {
+        KiritoVM vm;
+        std::string out = run(vm, "inspect(round)");
+        CHECK(out.find("round(x: Number") != std::string::npos);
+        CHECK(out.find("ndigits = None") != std::string::npos);
+
+        std::string io = run(vm, "inspect(import(\"io\").open)");
+        CHECK(io.find("open(path: String") != std::string::npos);
+        CHECK(io.find("mode: String = \"r\"") != std::string::npos);
+        CHECK(io.find("-> File") != std::string::npos);
+
+        // a module's signatured function shows its signature in the module listing too.
+        std::string mod = run(vm, "inspect(import(\"io\"))");
+        CHECK(mod.find("open(path: String") != std::string::npos);
+    }
+
     return RUN_TESTS();
 }
