@@ -1,0 +1,76 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Embedding Kirito in C++ — Kirito</title><style>
+:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
+--border:#e3e3e8;--side:#f7f7fa}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:#ececf2;text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#fff}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
+.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
+.builtin{color:#4078f2}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html" class="active">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="embedding-kirito-in-c">Embedding Kirito in C++</h1>
+<p>Kirito is header-only and Lua-style embeddable: <code>#include &quot;kirito.hpp&quot;</code>, construct a <code>KiritoVM</code>, and run source. There is no <code>main()</code> in the library — the standalone interpreter&#x27;s <code>main</code> lives only in <code>main.cpp</code>.</p>
+<h2 id="minimal-example">Minimal example</h2>
+<pre><code>#include &quot;kirito.hpp&quot;
+using namespace kirito;
+
+int main() {
+    KiritoVM vm;                       // one fully-encapsulated interpreter
+    Handle result = vm.runSource(&quot;var x = 6 * 7\nx\n&quot;);
+    std::printf(&quot;%s\n&quot;, vm.stringify(result).c_str());   // 42
+}</code></pre>
+<p>Build it by adding <code>include/</code> to your include path and compiling as C++20. No library to link — the core is all inline/templated headers.</p>
+<h2 id="the-kiritovm-surface">The <code>KiritoVM</code> surface</h2>
+<p>A <code>KiritoVM</code> owns its arena, global environment, and module registry. Key methods:</p>
+<table><thead><tr><th>Method</th><th>Purpose</th></tr></thead><tbody><tr><td><code>runSource(src [, chunkName])</code></td><td>Lex+parse+eval a chunk in a fresh module scope; returns the last value&#x27;s <code>Handle</code>.</td></tr><tr><td><code>runRepl(src)</code></td><td>Like <code>runSource</code> but reuses one persistent module scope across calls.</td></tr><tr><td><code>stringify(Handle)</code></td><td>The <code>str()</code> of a value (what <code>print</code> shows).</td></tr><tr><td><code>makeInt / makeFloat / makeString / makeBool / none()</code></td><td>Construct values from C++.</td></tr><tr><td><code>registerGlobal(name, Handle)</code></td><td>Bind a global name (e.g. inject a value or function).</td></tr><tr><td><code>install&lt;Module&gt;()</code></td><td>Register a C++-authored module (see <em>Extending</em>).</td></tr><tr><td><code>registerSourceModule(name, src)</code></td><td>Register a module whose body is Kirito source.</td></tr><tr><td><code>arena()</code></td><td>The value arena, for <code>deref(Handle)</code> etc.</td></tr></tbody></table>
+<h2 id="values-and-handles">Values and handles</h2>
+<p>Every Kirito value is an <code>Object</code> owned by the VM&#x27;s arena; your C++ code holds lightweight <code>Handle</code>s (slot + generation) and calls <code>vm.arena().deref(h)</code> to reach the object. Reference-assignment in Kirito means two names share one handle. You never own raw <code>Object</code> pointers.</p>
+<pre><code>Handle list = vm.runSource(&quot;[1, 2, 3]\n&quot;);
+const Object&amp; o = vm.arena().deref(list);
+std::printf(&quot;len = %lld\n&quot;, (long long)o.length(vm).value());   // 3</code></pre>
+<h2 id="errors">Errors</h2>
+<p>Runtime and parse problems are thrown as <code>KiritoError</code>, which carries a <code>SourceSpan{line, col}</code> and a message. An uncaught Kirito <code>throw</code> surfaces to the embedder as a <code>KiritoError</code> too.</p>
+<pre><code>try {
+    vm.runSource(&quot;1 / 0\n&quot;);
+} catch (const kirito::KiritoError&amp; e) {
+    std::fprintf(stderr, &quot;%d:%d: %s\n&quot;, e.span.line, e.span.col, e.what());
+}</code></pre>
+<h2 id="injecting-a-c-function">Injecting a C++ function</h2>
+<p>Use <code>registerGlobal</code> with a <code>NativeFunction</code>:</p>
+<pre><code>vm.registerGlobal(&quot;now_ms&quot;, vm.arena().alloc(std::make_unique&lt;NativeFunction&gt;(
+    &quot;now_ms&quot;, [](KiritoVM&amp; vm, std::span&lt;const Handle&gt;) -&gt; Handle {
+        auto ms = std::chrono::duration_cast&lt;std::chrono::milliseconds&gt;(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        return vm.makeInt(static_cast&lt;int64_t&gt;(ms));
+    })));
+// Kirito: var t = now_ms()</code></pre>
+<h2 id="isolation">Isolation</h2>
+<p>Each <code>KiritoVM</code> is independent — no global mutable state. You can run several VMs in one process (e.g. per-request sandboxes) and they never share values or modules.</p>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

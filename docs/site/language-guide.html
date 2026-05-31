@@ -1,0 +1,164 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Language Guide — Kirito</title><style>
+:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
+--border:#e3e3e8;--side:#f7f7fa}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:#ececf2;text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#fff}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
+.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
+.builtin{color:#4078f2}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html" class="active">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="language-guide">Language Guide</h1>
+<p>A reference for Kirito&#x27;s syntax and semantics.</p>
+<h2 id="comments-and-layout">Comments and layout</h2>
+<p><code>#</code> starts a line comment. Blocks use <strong>Python-style significant indentation</strong>: a <code>:</code> then a newline then an indented suite. Tabs and spaces both work, but mixing them ambiguously is an error.</p>
+<pre><code><span class="kw">if</span> x &gt; <span <span class="kw">class</span>="num">0</span>:
+    io.<span class="builtin">print</span>(<span class="str">&quot;positive&quot;</span>)    <span class="com"># indented block</span></code></pre>
+<h2 id="variables-and-assignment">Variables and assignment</h2>
+<p><code>var</code> declares a name in the current scope; bare <code>=</code> rebinds the nearest existing binding (a <code>NameError</code> if it doesn&#x27;t exist). Assignment binds a <strong>name to a value</strong> — it does not copy.</p>
+<pre><code><span class="kw">var</span> a = <span <span class="kw">class</span>="num">1</span>
+a = a + <span <span class="kw">class</span>="num">1</span>          <span class="com"># rebinds a</span>
+<span class="kw">var</span> b = a          <span class="com"># b and a are independent bindings to the same value</span></code></pre>
+<p>Reference semantics: <code>A = B</code> makes <code>A</code> refer to the same value as <code>B</code>; mutating a shared mutable value (List/Dict/Set/instance) is visible through every name bound to it.</p>
+<h2 id="types">Types</h2>
+<p>Dynamically typed, strongly typed. Built-in types:</p>
+<table><thead><tr><th>Type</th><th>Examples</th></tr></thead><tbody><tr><td><code>None</code></td><td><code>None</code></td></tr><tr><td><code>Bool</code></td><td><code>True</code>, <code>False</code></td></tr><tr><td><code>Integer</code></td><td><code>42</code>, <code>-7</code> (64-bit, two&#x27;s-complement wraparound on overflow)</td></tr><tr><td><code>Float</code></td><td><code>3.14</code>, <code>1.0</code></td></tr><tr><td><code>String</code></td><td><code>&quot;hi&quot;</code>, Unicode, code-point indexed</td></tr><tr><td><code>List</code></td><td><code>[1, 2, 3]</code> (ordered, mutable)</td></tr><tr><td><code>Set</code></td><td><code>{1, 2, 3}</code> (unique, unordered)</td></tr><tr><td><code>Dict</code></td><td><code>{&quot;a&quot;: 1}</code> (key→value)</td></tr></tbody></table>
+<p><code>type(x)</code> returns the type name as a String. Constructors double as converters: <code>Integer(&quot;42&quot;)</code>, <code>Float(3)</code>, <code>String(x)</code>, <code>Bool(x)</code>, and <code>List(iter)</code>, <code>Set(iter)</code>, <code>Dict(pairs)</code>.</p>
+<h2 id="numbers-and-arithmetic">Numbers and arithmetic</h2>
+<p>Python-3 division semantics: <code>/</code> always yields a <code>Float</code>; <code>//</code> is floor division; <code>%</code> modulo; <code>**</code> right-associative exponentiation.</p>
+<pre><code><span <span class="kw">class</span>="num">7</span> / <span <span class="kw">class</span>="num">2</span>       <span class="com"># 3.5  (Float)</span>
+<span <span class="kw">class</span>="num">7</span> // <span <span class="kw">class</span>="num">2</span>      <span class="com"># 3</span>
+-<span <span class="kw">class</span>="num">7</span> // <span <span class="kw">class</span>="num">2</span>     <span class="com"># -4   (floors toward negative infinity)</span>
+<span <span class="kw">class</span>="num">2</span> ** <span <span class="kw">class</span>="num">10</span>     <span class="com"># 1024</span></code></pre>
+<p>Integer overflow wraps (well-defined), it does not trap; arbitrary precision is a future enrichment.</p>
+<h2 id="strings">Strings</h2>
+<p>Unicode strings, indexed and sliced by <strong>code point</strong> (not byte). Concatenate with <code>+</code>, repeat with <code>*</code>. f-strings interpolate expressions:</p>
+<pre><code><span class="kw">var</span> s = <span class="str">&quot;chrząszcz&quot;</span>
+<span class="builtin">len</span>(s)              <span class="com"># 9 code points</span>
+s[<span <span class="kw">class</span>="num">0</span>]                # <span class="str">&quot;c&quot;</span>
+s[::-<span <span class="kw">class</span>="num">1</span>]             <span class="com"># reversed</span>
+<span class="str">&quot;ab&quot;</span> * <span <span class="kw">class</span>="num">3</span>            # <span class="str">&quot;ababab&quot;</span>
+<span class="kw">var</span> n = <span <span class="kw">class</span>="num">5</span>
+f<span class="str">&quot;n squared is {n * n}&quot;</span></code></pre>
+<p>Methods: <code>upper</code>, <code>lower</code> (Unicode-aware), <code>strip</code>/<code>lstrip</code>/<code>rstrip</code>, <code>split</code>, <code>join</code>, <code>replace</code>, <code>startswith</code>, <code>endswith</code>, <code>find</code>, <code>count</code>, <code>format</code>.</p>
+<h2 id="collections">Collections</h2>
+<pre><code><span class="kw">var</span> xs = [<span <span class="kw">class</span>="num">3</span>, <span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">2</span>]
+xs.append(<span <span class="kw">class</span>="num">4</span>)
+xs.sort()                  <span class="com"># in-place, stable</span>
+xs[<span <span class="kw">class</span>="num">0</span>]                      <span class="com"># 1</span>
+xs[<span <span class="kw">class</span>="num">1</span>:<span <span class="kw">class</span>="num">3</span>]                    <span class="com"># [2, 3]  (slicing)</span>
+<span class="builtin">len</span>(xs)
+
+<span class="kw">var</span> d = {<span class="str">&quot;a&quot;</span>: <span <span class="kw">class</span>="num">1</span>, <span class="str">&quot;b&quot;</span>: <span <span class="kw">class</span>="num">2</span>}
+d[<span class="str">&quot;c&quot;</span>] = <span <span class="kw">class</span>="num">3</span>
+d.get(<span class="str">&quot;z&quot;</span>, <span <span class="kw">class</span>="num">0</span>)              <span class="com"># default if missing</span>
+<span class="kw">for</span> k, v <span class="kw">in</span> d.items():
+    io.<span class="builtin">print</span>(f<span class="str">&quot;{k}={v}&quot;</span>)
+
+<span class="kw">var</span> s = {<span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">2</span>, <span <span class="kw">class</span>="num">3</span>}
+s.add(<span <span class="kw">class</span>="num">4</span>)
+<span <span class="kw">class</span>="num">2</span> <span class="kw">in</span> s                     <span class="com"># True</span></code></pre>
+<p>Slicing supports negative indices and steps: <code>xs[3:-1]</code>, <code>xs[::-1]</code>, <code>xs[::2]</code>.</p>
+<h2 id="control-flow">Control flow</h2>
+<pre><code><span class="kw">if</span> cond:
+    ...
+<span class="kw">elif</span> other:
+    ...
+<span class="kw">else</span>:
+    ...
+
+<span class="kw">while</span> cond:
+    ...
+    <span class="kw">if</span> done:
+        <span class="kw">break</span>
+    <span class="kw">continue</span>
+
+<span class="kw">for</span> x <span class="kw">in</span> iterable:
+    ...</code></pre>
+<p>Logical operators <code>and</code>/<code>or</code>/<code>not</code> short-circuit and yield an operand. <code>break</code>/<code>continue</code> outside a loop and <code>return</code> outside a function are rejected at parse time.</p>
+<h2 id="functions">Functions</h2>
+<p>First-class values created with <code>Function</code>. Parameters take <strong>keyword arguments</strong>, <strong>default values</strong>, and <strong>enforced type annotations</strong>; the return type can be annotated too.</p>
+<pre><code><span class="kw">var</span> power = <span class="kw">Function</span>(base, exp = <span <span class="kw">class</span>="num">2</span>) -&gt; <span class="builtin">Integer</span>:
+    <span class="kw">return</span> base ** exp
+
+power(<span <span class="kw">class</span>="num">5</span>)               <span class="com"># 25  (default exp)</span>
+power(exp = <span <span class="kw">class</span>="num">3</span>, base = <span <span class="kw">class</span>="num">2</span>)   <span class="com"># 8  (keyword args, any order)</span>
+
+<span class="kw">var</span> typed = <span class="kw">Function</span>(d : <span class="builtin">Dict</span>) -&gt; <span class="builtin">Float</span>:
+    <span class="kw">return</span> <span class="builtin">Float</span>(<span class="builtin">len</span>(d))
+<span class="com"># typed([1, 2])  -&gt; error: argument &#x27;d&#x27; must be Dict, got List</span></code></pre>
+<p>Annotations are checked at runtime (inheritance-aware for classes). <code>Any</code> or no annotation accepts anything. Inline form: <code>Function(x): return x * x</code>.</p>
+<h2 id="packing-and-unpacking">Packing and unpacking</h2>
+<p>A bare comma sequence packs into a List; the left side of <code>=</code>, <code>var</code>, and <code>for</code> unpacks any iterable, with one optional starred target absorbing the surplus.</p>
+<pre><code><span class="kw">var</span> t = <span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">2</span>, <span <span class="kw">class</span>="num">3</span>            <span class="com"># t == [1, 2, 3]</span>
+<span class="kw">var</span> a, b = <span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">2</span>            <span class="com"># a == 1, b == 2</span>
+a, b = b, a               <span class="com"># swap</span>
+<span class="kw">var</span> first, *rest = [<span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">2</span>, <span <span class="kw">class</span>="num">3</span>, <span <span class="kw">class</span>="num">4</span>]   <span class="com"># first == 1, rest == [2, 3, 4]</span>
+<span class="kw">for</span> k, v <span class="kw">in</span> d.items():
+    ...</code></pre>
+<h2 id="classes">Classes</h2>
+<pre><code><span class="kw">class</span> Animal:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name):
+        self.name = name
+        self._id = <span <span class="kw">class</span>="num">0</span>          <span class="com"># _name =&gt; private (only methods of this class can touch it)</span>
+    <span class="kw">var</span> speak = <span class="kw">Function</span>(self) -&gt; <span class="builtin">String</span>:
+        <span class="kw">return</span> <span class="str">&quot;...&quot;</span>
+
+<span class="kw">class</span> Dog(Animal):            <span class="com"># inheritance</span>
+    <span class="kw">var</span> speak = <span class="kw">Function</span>(self) -&gt; <span class="builtin">String</span>:
+        <span class="kw">return</span> f<span class="str">&quot;{self.name} says woof&quot;</span></code></pre>
+<p>Special methods use Python dunder names with <strong>single</strong> underscores: <code>_init_</code>, <code>_str_</code>, <code>_add_</code>/<code>_sub_</code>/<code>_mul_</code>/..., <code>_eq_</code>/<code>_lt_</code>/..., <code>_neg_</code>, <code>_call_</code>, <code>_getitem_</code>/<code>_setitem_</code>, <code>_len_</code>, <code>_contains_</code>, <code>_iter_</code>, <code>_enter_</code>/<code>_exit_</code>.</p>
+<h2 id="exceptions">Exceptions</h2>
+<p>C++-style keywords, Python-style blocks. <code>throw</code> raises; <code>try</code>/<code>catch [Type as e]</code>/<code>finally</code> handles.</p>
+<pre><code><span class="kw">class</span> ValueError:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, msg):
+        self.msg = msg
+
+<span class="kw">try</span>:
+    <span class="kw">throw</span> ValueError(<span class="str">&quot;bad&quot;</span>)
+<span class="kw">catch</span> ValueError <span class="kw">as</span> e:
+    io.<span class="builtin">print</span>(e.msg)
+<span class="kw">finally</span>:
+    io.<span class="builtin">print</span>(<span class="str">&quot;always runs&quot;</span>)</code></pre>
+<p>Typed <code>catch</code> matches via the class chain (a subclass matches its base). A bare <code>catch:</code> catches everything.</p>
+<h2 id="context-managers">Context managers</h2>
+<pre><code><span class="kw">with</span> io.open(<span class="str">&quot;file.txt&quot;</span>, <span class="str">&quot;r&quot;</span>) <span class="kw">as</span> f:
+    <span class="kw">for</span> line <span class="kw">in</span> f:
+        io.<span class="builtin">print</span>(line)
+<span class="com"># f is closed automatically (enter/exit protocol)</span></code></pre>
+<h2 id="modules">Modules</h2>
+<p><code>import(&quot;name&quot;)</code> returns a module value; access members with <code>.</code>. Modules are resolved from the bundled stdlib, then from <code>.ki</code> files on the import path. Each module loads once per VM.</p>
+<pre><code><span class="kw">var</span> math = <span class="kw">import</span>(<span class="str">&quot;math&quot;</span>)
+math.sqrt(<span <span class="kw">class</span>="num">2</span>)</code></pre>
+<h2 id="the-discard-statement-and-warnings">The <code>discard</code> statement and warnings</h2>
+<p>A bare expression whose non-<code>None</code> value is dropped triggers a warning (it&#x27;s probably a mistake). Use <code>discard EXPR</code> to say &quot;I&#x27;m intentionally ignoring this result&quot;:</p>
+<pre><code><span class="kw">discard</span> validate(x)    <span class="com"># called for its side effect / exception; result ignored on purpose</span></code></pre>
+<p>The interpreter also warns about local variables that are assigned but never used. Warnings go to stderr and never stop execution; <code>-w</code> disables them.</p>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

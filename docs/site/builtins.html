@@ -1,0 +1,51 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Built-in Functions — Kirito</title><style>
+:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
+--border:#e3e3e8;--side:#f7f7fa}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:#ececf2;text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#fff}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
+.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
+.builtin{color:#4078f2}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html" class="active">Built-in Functions</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="built-in-functions">Built-in Functions</h1>
+<p>These names are available everywhere without an <code>import</code>.</p>
+<h2 id="types-and-conversion">Types and conversion</h2>
+<table><thead><tr><th>Function</th><th>Description</th></tr></thead><tbody><tr><td><code>type(x)</code></td><td>Type name of <code>x</code> as a String (e.g. <code>&quot;Integer&quot;</code>).</td></tr><tr><td><code>Integer(x)</code></td><td>Convert Bool/Float/String to Integer.</td></tr><tr><td><code>Float(x)</code></td><td>Convert Integer/Bool/String to Float.</td></tr><tr><td><code>String(x)</code></td><td>The <code>str()</code> form of any value.</td></tr><tr><td><code>Bool(x)</code></td><td>Truthiness of <code>x</code>.</td></tr><tr><td><code>List([iter])</code></td><td>Empty list, or a list from an iterable.</td></tr><tr><td><code>Set([iter])</code></td><td>Empty set, or a set from an iterable.</td></tr><tr><td><code>Dict([pairs])</code></td><td>Empty dict, or a dict from <code>[key, value]</code> pairs.</td></tr><tr><td><code>isinstance(x, T)</code></td><td>True if <code>x</code> is an instance of type <code>T</code> (a class value or a type-name String); inheritance-aware.</td></tr></tbody></table>
+<h2 id="sequences-and-iteration">Sequences and iteration</h2>
+<table><thead><tr><th>Function</th><th>Description</th></tr></thead><tbody><tr><td><code>len(x)</code></td><td>Number of elements / code points.</td></tr><tr><td><code>range(stop)</code> / <code>range(start, stop[, step])</code></td><td>List of integers.</td></tr><tr><td><code>enumerate(iter)</code></td><td>List of <code>[index, value]</code> pairs.</td></tr><tr><td><code>zip(a, b, ...)</code></td><td>List of tuples, truncated to the shortest input.</td></tr><tr><td><code>map(f, iter)</code></td><td>Apply <code>f</code> to each element → List.</td></tr><tr><td><code>filter(f, iter)</code></td><td>Keep elements where <code>f(x)</code> is truthy → List.</td></tr><tr><td><code>reversed(iter)</code></td><td>Elements in reverse order → List.</td></tr><tr><td><code>sorted(iter[, key][, reverse])</code></td><td>New stable-sorted List.</td></tr><tr><td><code>sum(iter)</code></td><td>Sum of numbers (Integer if all Integer).</td></tr><tr><td><code>min(iter)</code> / <code>max(iter)</code></td><td>Smallest / largest (also variadic: <code>min(a, b, c)</code>).</td></tr><tr><td><code>all(iter)</code> / <code>any(iter)</code></td><td>Truthiness over a sequence.</td></tr></tbody></table>
+<h2 id="numbers">Numbers</h2>
+<table><thead><tr><th>Function</th><th>Description</th></tr></thead><tbody><tr><td><code>abs(x)</code></td><td>Absolute value.</td></tr><tr><td><code>round(x[, ndigits])</code></td><td>Round to <code>ndigits</code> decimals (default 0).</td></tr><tr><td><code>divmod(a, b)</code></td><td><code>[a // b, a % b]</code>.</td></tr><tr><td><code>pow(b, e)</code> / <code>pow(b, e, m)</code></td><td>Exponentiation; 3-arg form is modular <code>(b**e) % m</code>.</td></tr><tr><td><code>bin(n)</code> / <code>oct(n)</code> / <code>hex(n)</code></td><td>Base-2/8/16 string with <code>0b</code>/<code>0o</code>/<code>0x</code> prefix (sign-aware).</td></tr><tr><td><code>ord(ch)</code></td><td>Unicode code point of a single-character String.</td></tr><tr><td><code>chr(cp)</code></td><td>Single-character String for a code point.</td></tr></tbody></table>
+<h2 id="i-o-and-modules">I/O and modules</h2>
+<table><thead><tr><th>Function</th><th>Description</th></tr></thead><tbody><tr><td><code>import(name)</code></td><td>Load and return a module.</td></tr><tr><td><code>inspect(x)</code></td><td>A String describing the public methods/attributes (with signatures and type annotations) of a class, instance, module, or function.</td></tr></tbody></table>
+<blockquote><code>print</code> and <code>input</code> are <strong>not</strong> builtins — they live in the <code>io</code> module: <code>import(&quot;io&quot;).print(...)</code>.</blockquote>
+<h2 id="notes">Notes</h2>
+<ul><li><code>divmod</code>/<code>//</code>/<code>%</code> use Python floor semantics: <code>divmod(-7, 3) == [-3, 2]</code>.</li><li><code>range</code> materializes a List (there are no lazy generators yet), so very large ranges allocate.</li><li><code>min</code>/<code>max</code> raise on an empty sequence; <code>sum([])</code> is <code>0</code>.</li><li>Passing a non-iterable where an iterable is expected raises a clean <code>is not iterable</code> error.</li></ul>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

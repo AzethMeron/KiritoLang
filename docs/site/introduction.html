@@ -1,0 +1,77 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Introduction — Kirito</title><style>
+:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
+--border:#e3e3e8;--side:#f7f7fa}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:#ececf2;text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#fff}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
+.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
+.builtin{color:#4078f2}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html" class="active">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="introduction">Introduction</h1>
+<p><strong>Kirito</strong> is a from-scratch, dynamically-typed, strongly-typed general-purpose scripting language with Python-like ergonomics and a C++ soul. Source files use the <code>.ki</code> extension.</p>
+<p>It is implemented as a <strong>tree-walking interpreter</strong> in modern C++20, shipped header-only, so it both runs standalone (<code>ki</code>) and embeds into any C++ application as a library — a single <code>KiritoVM</code> object encapsulates an entire, isolated interpreter &quot;process&quot;.</p>
+<h2 id="why-kirito">Why Kirito</h2>
+<ul><li><strong>High-level and fast to write</strong>, like Python: significant indentation, first-class functions,</li></ul>
+<p>  rich collections, exceptions, classes — with just enough abstraction and no boilerplate.</p>
+<ul><li><strong>Strongly typed at runtime</strong>: separate <code>Integer</code> and <code>Float</code>, no silent coercions across</li></ul>
+<p>  incompatible types, and <em>enforced</em> type annotations when you want them (<code>Function(d : Dict) -&gt; Float:</code>   actually checks).</p>
+<ul><li><strong>A C++ framework</strong>: adding a new value type, function, or whole module from C++ is a few lines and</li></ul>
+<p>  is indistinguishable from a built-in to the evaluator.</p>
+<ul><li><strong>Fully encapsulated</strong>: one <code>KiritoVM</code> owns all of its state (no global mutable state), so multiple</li></ul>
+<p>  VMs coexist and the whole context is designed to be serializable.</p>
+<h2 id="a-taste">A taste</h2>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">class</span> Greeter:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name : <span class="builtin">String</span>):
+        self.name = name
+    <span class="kw">var</span> hello = <span class="kw">Function</span>(self) -&gt; <span class="builtin">String</span>:
+        <span class="kw">return</span> f<span class="str">&quot;Hello, {self.name}!&quot;</span>
+
+<span class="kw">var</span> g = Greeter(<span class="str">&quot;world&quot;</span>)
+io.<span class="builtin">print</span>(g.hello())                 <span class="com"># Hello, world!</span>
+
+<span class="com"># multiple return values + unpacking</span>
+<span class="kw">var</span> <span class="builtin">divmod</span> = <span class="kw">Function</span>(a, b):
+    <span class="kw">return</span> a // b, a % b
+<span class="kw">var</span> q, r = <span class="builtin">divmod</span>(<span <span class="kw">class</span>="num">17</span>, <span <span class="kw">class</span>="num">5</span>)
+io.<span class="builtin">print</span>(f<span class="str">&quot;{q} remainder {r}&quot;</span>)      <span class="com"># 3 remainder 2</span>
+
+<span class="com"># comprehension-free, but expressive</span>
+<span class="kw">var</span> squares = <span class="builtin">map</span>(<span class="kw">Function</span>(x): <span class="kw">return</span> x * x, <span class="builtin">range</span>(<span <span class="kw">class</span>="num">5</span>))
+io.<span class="builtin">print</span>(<span class="builtin">String</span>(squares))           <span class="com"># [0, 1, 4, 9, 16]</span></code></pre>
+<h2 id="how-to-read-these-docs">How to read these docs</h2>
+<ul><li><strong>Getting Started</strong>, <strong>Embedding</strong>, and <strong>Extending</strong> cover building, integrating, and growing</li></ul>
+<p>  Kirito from C++.</p>
+<ul><li><strong>Language Guide</strong> is the syntax/semantics reference; <strong>Recipes</strong> is task-oriented.</li><li><strong>Builtins</strong> and <strong>Standard Library</strong> document every function, module, and method.</li><li><strong>The Kirito Course</strong> is a hands-on, lesson-by-lesson path with explained sample projects — start</li></ul>
+<p>  there if you&#x27;d rather learn by doing.</p>
+<p>The docs are generated from Markdown in <code>docs/pages/</code> by <code>docs/build_docs.py</code>; add a numbered page and it appears in the sidebar automatically.</p>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

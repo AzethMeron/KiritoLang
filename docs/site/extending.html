@@ -1,0 +1,83 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Extending Kirito from C++ — Kirito</title><style>
+:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
+--border:#e3e3e8;--side:#f7f7fa}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:#ececf2;text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#fff}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
+.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
+.builtin{color:#4078f2}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html" class="active">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="extending-kirito-from-c">Extending Kirito from C++</h1>
+<p>Kirito&#x27;s whole object model is one uniform <code>Object</code> protocol. Built-ins, your C++ types, and Kirito-level classes all derive from the same base and dispatch through the same slots — so anything you add is indistinguishable from a built-in to the evaluator. You extend Kirito by subclassing two convenience bases and registering with one call.</p>
+<h2 id="adding-a-function">Adding a function</h2>
+<p>The lightest extension. A <code>NativeFunction</code> wraps a <code>std::function&lt;Handle(KiritoVM&amp;, std::span&lt;const Handle&gt;)&gt;</code>:</p>
+<pre><code>vm.registerGlobal(&quot;clamp&quot;, vm.arena().alloc(std::make_unique&lt;NativeFunction&gt;(
+    &quot;clamp&quot;, [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; a) -&gt; Handle {
+        if (a.size() != 3) throw KiritoError(&quot;clamp expected 3 arguments&quot;);
+        int64_t x  = static_cast&lt;const IntVal&amp;&gt;(vm.arena().deref(a[0])).value();
+        int64_t lo = static_cast&lt;const IntVal&amp;&gt;(vm.arena().deref(a[1])).value();
+        int64_t hi = static_cast&lt;const IntVal&amp;&gt;(vm.arena().deref(a[2])).value();
+        return vm.makeInt(std::max(lo, std::min(x, hi)));
+    })));</code></pre>
+<h2 id="adding-a-module">Adding a module</h2>
+<p>Subclass <code>NativeModule</code>, override <code>name()</code> and <code>setup()</code>, and register with <code>install&lt;T&gt;()</code>. Inside <code>setup</code>, declare functions and values via the <code>ModuleBuilder</code>:</p>
+<pre><code>class StatsModule : public NativeModule {
+public:
+    std::string name() const override { return &quot;stats&quot;; }
+    void setup(ModuleBuilder&amp; m) override {
+        m.fn(&quot;clamp&quot;, [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; a) -&gt; Handle {
+            /* ... */ return vm.none();
+        });
+        m.value(&quot;VERSION&quot;, vm_value);   // bind a constant
+    }
+};
+
+// register once on the VM (e.g. just after construction):
+vm.install&lt;StatsModule&gt;();
+// Kirito: var s = import(&quot;stats&quot;)   then   s.clamp(...)</code></pre>
+<p>A third party adds their own module exactly the way the bundled stdlib does: <code>#include</code> the header, call <code>install&lt;T&gt;()</code>, no global state.</p>
+<h2 id="adding-a-type">Adding a type</h2>
+<p>Subclass <code>NativeClass&lt;Derived&gt;</code> (a CRTP convenience that fills in sane defaults) and override only the protocol slots your type needs:</p>
+<table><thead><tr><th>Slot</th><th>Triggered by</th></tr></thead><tbody><tr><td><code>binary(vm, op, self, rhs)</code></td><td><code>a + b</code>, <code>a &lt; b</code>, ...</td></tr><tr><td><code>unary(vm, op, self)</code></td><td><code>-a</code>, <code>not a</code></td></tr><tr><td><code>call(vm, args)</code></td><td><code>obj(...)</code></td></tr><tr><td><code>getAttr(vm, self, name)</code> / <code>setAttr(...)</code></td><td><code>obj.field</code></td></tr><tr><td><code>getItem(vm, keys)</code> / <code>setItem(...)</code></td><td><code>obj[i]</code>, <code>obj[i] = v</code></td></tr><tr><td><code>iterate(vm)</code></td><td><code>for x in obj</code></td></tr><tr><td><code>length(vm)</code></td><td><code>len(obj)</code></td></tr><tr><td><code>contains(vm, value)</code></td><td><code>x in obj</code></td></tr><tr><td><code>str(ctx)</code> / <code>equals(...)</code> / <code>hash()</code></td><td>stringify / <code>==</code> / hashing</td></tr></tbody></table>
+<p>Register a constructor name so <code>MyType(args)</code> works from Kirito. The bundled <code>matrix</code>, <code>io.open</code>, <code>BytesIO</code>, and socket types are all <code>NativeClass</code>es authored this way — read <code>stdlib_matrix.hpp</code> for a full worked example.</p>
+<h2 id="authoring-a-module-in-kirito">Authoring a module in Kirito</h2>
+<p>If your module is pure logic (no new C++ primitives), it&#x27;s often cleaner to write it in Kirito and freeze the source into the binary:</p>
+<pre><code>inline constexpr std::string_view mymod = R&quot;KI(
+var double = Function(x):
+    return x * 2
+)KI&quot;;
+
+vm.registerSourceModule(&quot;mymod&quot;, mymod);</code></pre>
+<p>The source is compiled once per VM on first <code>import(&quot;mymod&quot;)</code>; its top-level <code>var</code>s become the module&#x27;s members (names starting with <code>_</code> stay private). The bundled <code>itertools</code>, <code>collections</code>, <code>statistics</code>, etc. are built this way — see <code>stdlib_kimodules.hpp</code>.</p>
+<h2 id="design-rules">Design rules</h2>
+<ul><li><strong>No global mutable state</strong> — everything is VM-scoped, so multiple VMs stay isolated.</li><li><strong>Never expose raw pointers</strong> across the boundary; hold <code>Handle</code>s, deref at point of use.</li><li><strong>Header-only ODR</strong>: everything <code>inline</code>/templated, <code>#ifndef</code> include guards (never <code>#pragma once</code>).</li><li>Raise <code>KiritoError</code> with a clear, actionable message for bad arguments — errors are part of the</li></ul>
+<p>  language, not an afterthought.</p>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>
