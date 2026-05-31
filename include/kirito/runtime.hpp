@@ -1619,7 +1619,13 @@ inline void KiritoVM::installBuiltins() {
             case ValueKind::String: {
                 const std::string& s = static_cast<const StrVal&>(o).value();
                 try {
-                    return vm.makeInt(static_cast<int64_t>(std::stoll(s)));
+                    std::size_t pos = 0;
+                    int64_t v = static_cast<int64_t>(std::stoll(s, &pos));
+                    // Reject trailing garbage (e.g. "42abc", "0x1F", "12.5") — std::stoll would
+                    // silently parse only a prefix. Surrounding whitespace is allowed.
+                    while (pos < s.size() && std::isspace(static_cast<unsigned char>(s[pos]))) ++pos;
+                    if (pos != s.size()) throw std::invalid_argument("trailing");
+                    return vm.makeInt(v);
                 } catch (...) {
                     throw KiritoError("cannot convert String to Integer: '" + s + "'");
                 }
@@ -1639,7 +1645,11 @@ inline void KiritoVM::installBuiltins() {
             case ValueKind::String: {
                 const std::string& s = static_cast<const StrVal&>(o).value();
                 try {
-                    return vm.makeFloat(std::stod(s));
+                    std::size_t pos = 0;
+                    double v = std::stod(s, &pos);
+                    while (pos < s.size() && std::isspace(static_cast<unsigned char>(s[pos]))) ++pos;
+                    if (pos != s.size()) throw std::invalid_argument("trailing");
+                    return vm.makeFloat(v);
                 } catch (...) {
                     throw KiritoError("cannot convert String to Float: '" + s + "'");
                 }

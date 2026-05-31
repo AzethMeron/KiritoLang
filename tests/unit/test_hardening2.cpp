@@ -80,6 +80,24 @@ int main() {
         CHECK(run(vm, "not not True") == "True");
     }
 
+    // --- Integer()/Float() reject trailing garbage (no silent prefix parse) ---
+    {
+        KiritoVM vm;
+        CHECK(raises(vm, "Integer(\"0x1F\")"));
+        CHECK(raises(vm, "Integer(\"42abc\")"));
+        CHECK(raises(vm, "Integer(\"12.5\")"));
+        CHECK(raises(vm, "Integer(\"\")"));
+        CHECK(raises(vm, "Integer(\"  \")"));
+        CHECK(raises(vm, "Float(\"1.5x\")"));
+        CHECK(raises(vm, "Float(\"abc\")"));
+        // valid forms (with optional surrounding whitespace) still work
+        CHECK(run(vm, "Integer(\"42\")") == "42");
+        CHECK(run(vm, "Integer(\"  -7  \")") == "-7");
+        CHECK(run(vm, "String(Float(\"1.5\"))") == "1.5");
+        CHECK(run(vm, "String(Float(\"  2.0 \"))") == "2.0");
+        CHECK(run(vm, "Integer(\"100\") + Float(\"0.5\") == 100.5") == "True");
+    }
+
     // --- uncaught throw/assert carry the correct source span ---
     {
         KiritoVM vm;
