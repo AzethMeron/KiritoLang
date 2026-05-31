@@ -75,11 +75,13 @@ private:
         bool marked = false;
     };
 
+    // Keep the (rare) error reporting out of line so at()'s hot path stays a tiny, inlinable check.
+    [[noreturn]] static void dangling(const char* why) { throw KiritoError(std::string("dangling handle (") + why + ")"); }
+
     const Slot& at(Handle h) const {
-        if (h.slot >= slots_.size()) throw KiritoError("dangling handle (slot out of range)");
+        if (h.slot >= slots_.size()) dangling("slot out of range");
         const Slot& slot = slots_[h.slot];
-        if (!slot.occupied || slot.generation != h.generation)
-            throw KiritoError("dangling handle (stale generation)");
+        if (!slot.occupied || slot.generation != h.generation) dangling("stale generation");
         return slot;
     }
     Slot& at(Handle h) { return const_cast<Slot&>(std::as_const(*this).at(h)); }

@@ -19,6 +19,24 @@
 
 namespace kirito {
 
+// A tiny argument buffer: holds up to kInline handles inline (the typical call has few args), and
+// spills to the heap only for larger arg lists. Avoids a per-call vector allocation on the hot
+// call path. The handles it holds are GC-rooted by the caller's RootScope, so it only needs to be
+// contiguous storage — no ownership semantics.
+struct SmallArgs {
+    static constexpr std::size_t kInline = 6;
+    explicit SmallArgs(std::size_t n) : size_(n), heap_(n > kInline ? new Handle[n] : nullptr) {}
+    ~SmallArgs() { delete[] heap_; }
+    SmallArgs(const SmallArgs&) = delete;
+    SmallArgs& operator=(const SmallArgs&) = delete;
+    Handle* data() { return heap_ ? heap_ : inline_; }
+    Handle& operator[](std::size_t i) { return data()[i]; }
+private:
+    std::size_t size_;
+    Handle* heap_;
+    Handle inline_[kInline];
+};
+
 // Tree-walking evaluator: an AST visitor that yields a Handle per expression. Because visit()
 // returns void (to keep the AST free of value-layer types), the result is stashed in result_
 // and read back by eval(). Statements run against the current scope handle (env_).
@@ -332,6 +350,25 @@ public:
     void visit(const ast::CallExpr& e) override {
         RootScope rs(vm_);
         Handle callee = rs.add(eval(*e.callee));
+
+        // Whether the call has any named (keyword) arguments is a parse-time property of the AST, so
+        // check it once. The overwhelmingly common case (all positional) avoids the `named` vector
+        // and uses a small stack buffer for the arguments — no per-call heap allocation.
+        bool anyNamed = false;
+        for (const auto& arg : e.args) if (!arg.name.empty()) { anyNamed = true; break; }
+
+        if (!anyNamed) {
+            SmallArgs positional(e.args.size());
+            for (std::size_t i = 0; i < e.args.size(); ++i)
+                positional[i] = rs.add(eval(*e.args[i].value));
+            std::span<const Handle> args(positional.data(), e.args.size());
+            if (auto* fn = dynamic_cast<KiFunction*>(&vm_.arena().deref(callee)))
+                result_ = located(e.span, [&] { return fn->callFull(vm_, args, {}); });
+            else
+                result_ = located(e.span, [&] { return vm_.arena().deref(callee).call(vm_, args); });
+            return;
+        }
+
         std::vector<Handle> positional;
         std::vector<KiFunction::NamedArg> named;
         for (const auto& arg : e.args) {
@@ -344,14 +381,10 @@ public:
                 named.push_back({arg.name, v});
             }
         }
-        // Kirito functions support named args, defaults, and annotation enforcement; other callables
-        // (native functions, classes) accept positional only.
         if (auto* fn = dynamic_cast<KiFunction*>(&vm_.arena().deref(callee))) {
             result_ = located(e.span, [&] { return fn->callFull(vm_, positional, named); });
         } else {
-            if (!named.empty())
-                throw KiritoError("this callable does not accept keyword arguments", e.span);
-            result_ = located(e.span, [&] { return vm_.arena().deref(callee).call(vm_, positional); });
+            throw KiritoError("this callable does not accept keyword arguments", e.span);
         }
     }
 
