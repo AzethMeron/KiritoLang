@@ -1614,8 +1614,15 @@ inline void KiritoVM::installBuiltins() {
         switch (o.kind()) {
             case ValueKind::Integer: return args[0];
             case ValueKind::Bool: return vm.makeInt(static_cast<const BoolVal&>(o).value() ? 1 : 0);
-            case ValueKind::Float:
-                return vm.makeInt(static_cast<int64_t>(static_cast<const FloatVal&>(o).value()));
+            case ValueKind::Float: {
+                double d = static_cast<const FloatVal&>(o).value();
+                // Casting a non-finite or out-of-range double to int64 is UB; reject it cleanly.
+                if (std::isnan(d)) throw KiritoError("cannot convert Float NaN to Integer");
+                if (std::isinf(d)) throw KiritoError("cannot convert Float infinity to Integer");
+                if (d >= 9223372036854775808.0 || d < -9223372036854775808.0)
+                    throw KiritoError("Float is out of Integer range");
+                return vm.makeInt(static_cast<int64_t>(d));
+            }
             case ValueKind::String: {
                 const std::string& s = static_cast<const StrVal&>(o).value();
                 try {
@@ -1725,12 +1732,21 @@ inline void KiritoVM::installBuiltins() {
         throw KiritoError("abs expects a number");
     });
     def("round", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-        double x = asDouble(vm.arena().deref(a[0]));
+        if (a.empty()) throw KiritoError("round expected at least 1 argument");
+        const Object& xo = vm.arena().deref(a[0]);
+        if (!isNumeric(xo)) throw KiritoError("round expects a number");
+        double x = asDouble(xo);
         if (a.size() >= 2) {
-            int64_t nd = static_cast<const IntVal&>(vm.arena().deref(a[1])).value();
+            const Object& no = vm.arena().deref(a[1]);
+            if (no.kind() != ValueKind::Integer) throw KiritoError("round ndigits must be an Integer");
+            int64_t nd = static_cast<const IntVal&>(no).value();
             double f = std::pow(10.0, static_cast<double>(nd));
             return vm.makeFloat(std::round(x * f) / f);
         }
+        if (std::isnan(x)) throw KiritoError("cannot round NaN to Integer");
+        if (std::isinf(x)) throw KiritoError("cannot round infinity to Integer");
+        if (x >= 9223372036854775808.0 || x < -9223372036854775808.0)
+            throw KiritoError("rounded value out of Integer range");
         return vm.makeInt(static_cast<int64_t>(std::llround(x)));  // Python: round(x) -> Integer
     });
     def("range", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {

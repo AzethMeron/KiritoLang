@@ -152,6 +152,19 @@ private:
             text += peek(); advance();
             while (std::isdigit(static_cast<unsigned char>(peek()))) { text += peek(); advance(); }
         }
+        // Scientific notation: an `e`/`E` followed by an optional sign and at least one digit makes
+        // it a Float (1e10, 1.5e3, 2e-3, 1E5). Only consume the exponent if it's well-formed, so a
+        // bare identifier after a number (e.g. `1 else`) isn't swallowed.
+        if (peek() == 'e' || peek() == 'E') {
+            std::size_t k = 1;
+            if (peek(k) == '+' || peek(k) == '-') ++k;
+            if (std::isdigit(static_cast<unsigned char>(peek(k)))) {
+                isFloat = true;
+                text += peek(); advance();                                   // e/E
+                if (peek() == '+' || peek() == '-') { text += peek(); advance(); }
+                while (std::isdigit(static_cast<unsigned char>(peek()))) { text += peek(); advance(); }
+            }
+        }
         return make(isFloat ? TokenType::Float : TokenType::Integer, line, col, std::move(text));
     }
 

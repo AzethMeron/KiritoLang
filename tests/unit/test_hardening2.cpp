@@ -80,6 +80,37 @@ int main() {
         CHECK(run(vm, "not not True") == "True");
     }
 
+    // --- scientific-notation numeric literals lex as Float ---
+    {
+        KiritoVM vm;
+        CHECK(run(vm, "String(1e3)") == "1000.0");
+        CHECK(run(vm, "String(1.5e3)") == "1500.0");
+        CHECK(run(vm, "String(2e-3)") == "0.002");
+        CHECK(run(vm, "String(1E5)") == "100000.0");
+        CHECK(run(vm, "type(1e10)") == "Float");
+        CHECK(run(vm, "1e2 == 100.0") == "True");
+        // a number followed by an `e...` identifier must NOT be swallowed
+        CHECK(run(vm, "var elephant = 7\n3 + elephant") == "10");
+    }
+
+    // --- Float->Integer conversion of non-finite/out-of-range raises (was float-cast-overflow UB) ---
+    {
+        KiritoVM vm;
+        CHECK(raises(vm, "var m = import(\"math\")\nInteger(m.inf)\n"));
+        CHECK(raises(vm, "var m = import(\"math\")\nInteger(m.nan)\n"));
+        CHECK(raises(vm, "Integer(1e300)"));
+        CHECK(raises(vm, "var m = import(\"math\")\nm.floor(m.inf)\n"));
+        CHECK(raises(vm, "var m = import(\"math\")\nm.ceil(1e300)\n"));
+        CHECK(raises(vm, "var m = import(\"math\")\nround(m.inf)\n"));
+        CHECK(raises(vm, "round(1e300)"));
+        // in-range conversions still work
+        CHECK(run(vm, "Integer(3.9)") == "3");
+        CHECK(run(vm, "Integer(-3.9)") == "-3");
+        CHECK(run(vm, "import(\"math\").floor(3.7)") == "3");
+        CHECK(run(vm, "round(2.4)") == "2");
+        CHECK(run(vm, "String(round(3.14159, 2))") == "3.14");
+    }
+
     // --- abs(INT64_MIN) is well-defined (was UB via std::llabs) ---
     {
         KiritoVM vm;

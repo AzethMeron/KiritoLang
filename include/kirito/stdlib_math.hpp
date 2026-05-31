@@ -20,6 +20,15 @@ inline double mathNum(KiritoVM& vm, Handle h) {
     throw KiritoError("math expected a number, got '" + o.typeName() + "'");
 }
 
+// Convert a double to int64 safely: casting a NaN/inf/out-of-range double to int64 is UB, so guard.
+inline int64_t toInt64Checked(double d, const char* who) {
+    if (std::isnan(d)) throw KiritoError(std::string(who) + ": cannot convert NaN to Integer");
+    if (std::isinf(d)) throw KiritoError(std::string(who) + ": cannot convert infinity to Integer");
+    if (d >= 9223372036854775808.0 || d < -9223372036854775808.0)
+        throw KiritoError(std::string(who) + ": result out of Integer range");
+    return static_cast<int64_t>(d);
+}
+
 // The `math` standard module: constants and the usual functions. Unary functions return Float;
 // floor/ceil/factorial/gcd return Integer.
 class MathModule : public NativeModule {
@@ -126,10 +135,10 @@ public:
             return vm.makeFloat(mathNum(vm, a[0]) * std::numbers::pi / 180.0);
         });
         m.fn("floor", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.makeInt(static_cast<int64_t>(std::floor(mathNum(vm, a[0]))));
+            return vm.makeInt(toInt64Checked(std::floor(mathNum(vm, a[0])), "floor"));
         });
         m.fn("ceil", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.makeInt(static_cast<int64_t>(std::ceil(mathNum(vm, a[0]))));
+            return vm.makeInt(toInt64Checked(std::ceil(mathNum(vm, a[0])), "ceil"));
         });
         m.fn("factorial", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const Object& o = vm.arena().deref(a[0]);
