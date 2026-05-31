@@ -92,7 +92,9 @@ a stability fuzzer, and a benchmark). Working today:
   (exactly one arm runs). Case labels are constant scalars (`Integer`/`Float`/`String`/`Bool`/`None`),
   matched exactly by type+value (so `case 1` ≠ `case 1.0`); compiled once into a hash jump-table for
   O(1) dispatch regardless of arm count. Non-scalar subjects only reach `default`; duplicate case
-  values, a second `default`, and an empty body are rejected.
+  values, a second `default`, and an empty body are rejected. `case`/`default` are **soft keywords**
+  (lexed as identifiers, recognized only inside a switch body) so they stay usable as ordinary names
+  like a `default` parameter; only `switch` itself is reserved.
 - First-class functions with closures and `return`; `assert`. Recursion is bounded by a call-depth
   guard (configurable) that raises a catchable error instead of overflowing the native stack.
 - `List`/`Set`/`Dict` with literals, indexing, slicing, iteration, `in`, and methods (append/pop/
@@ -177,6 +179,9 @@ a stability fuzzer, and a benchmark). Working today:
   no-temporaries fast call path, and other non-invasive perf wins.
 - **Sample projects** in `examples/` (complex linear-system solver, rule34 image downloader,
   word-frequency analyzer, RPN calculator) demonstrate non-trivial programs in pure Kirito.
+  `examples/big_projects/` holds larger ones with Python test harnesses that double as interpreter
+  stress tests: `sqldb` (a networked SQL database) and `webserver` (an HTTP/1.1 server + a small
+  routing framework — method+path routing with `:name` params, middleware, JSON, static files).
 
 Tested under strict flags (`-O2 -Werror -Wall -Wextra -Wformat=2 -Wpointer-arith -Wpedantic
 -fstack-protector`, preset `strict`) and AddressSanitizer/UBSan (preset `asan`); an 11k-input fuzzer
