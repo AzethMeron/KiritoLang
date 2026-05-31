@@ -1506,7 +1506,7 @@ inline void KiritoVM::installBuiltins() {
         std::string typeName;
         if (t.kind() == ValueKind::String) typeName = static_cast<const StrVal&>(t).value();
         else if (t.kind() == ValueKind::Class) typeName = static_cast<const ClassValue&>(t).name;
-        else typeName = t.typeName();
+        else throw KiritoError("isinstance second argument must be a class or a type-name String");
         return vm.makeBool(typeMatches(vm, a[0], typeName));
     });
     def("ord", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
