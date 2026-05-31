@@ -15,6 +15,56 @@
 
 namespace kirito {
 
+// Portable UTC broken-down-time -> epoch seconds (POSIX timegm / Windows _mkgmtime aren't standard).
+// Pure civil-date arithmetic (Howard Hinnant's days-from-civil algorithm) so it needs no globals or
+// timezone state and matches gmtime_r round-trips.
+inline int64_t timegmCompat(const std::tm& tm) {
+    int64_t y = tm.tm_year + 1900;
+    int64_t m = tm.tm_mon + 1;
+    int64_t d = tm.tm_mday;
+    y -= m <= 2;
+    int64_t era = (y >= 0 ? y : y - 399) / 400;
+    int64_t yoe = y - era * 400;
+    int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    int64_t days = era * 146097 + doe - 719468;  // days since 1970-01-01
+    return days * 86400 + tm.tm_hour * 3600 + tm.tm_min * 60 + tm.tm_sec;
+}
+
+// Minimal strptime covering the common UTC fields (%Y %m %d %H %M %S and literal separators). Avoids
+// the platform strptime (absent on Windows). Returns false if the text doesn't match the format.
+inline bool strptimeCompat(const char* s, const char* fmt, std::tm& tm) {
+    auto num = [&](int width, int& out) -> bool {
+        int v = 0, n = 0;
+        while (*s >= '0' && *s <= '9' && n < width) { v = v * 10 + (*s - '0'); ++s; ++n; }
+        if (n == 0) return false;
+        out = v;
+        return true;
+    };
+    tm.tm_mday = 1;  // sensible defaults so a partial format still yields a valid date
+    while (*fmt) {
+        if (*fmt == '%') {
+            ++fmt;
+            int v = 0;
+            switch (*fmt) {
+                case 'Y': if (!num(4, v)) return false; tm.tm_year = v - 1900; break;
+                case 'm': if (!num(2, v)) return false; tm.tm_mon = v - 1; break;
+                case 'd': if (!num(2, v)) return false; tm.tm_mday = v; break;
+                case 'H': if (!num(2, v)) return false; tm.tm_hour = v; break;
+                case 'M': if (!num(2, v)) return false; tm.tm_min = v; break;
+                case 'S': if (!num(2, v)) return false; tm.tm_sec = v; break;
+                case '%': if (*s != '%') return false; ++s; break;
+                default: return false;  // unsupported directive
+            }
+            ++fmt;
+        } else {
+            if (*s != *fmt) return false;  // literal must match
+            ++s; ++fmt;
+        }
+    }
+    return true;
+}
+
 // A point in calendar time, broken into fields (like Python's datetime). Constructed from a Unix
 // timestamp (seconds since the epoch, UTC). Exposes year/month/day/hour/minute/second plus
 // formatting; immutable once built.
@@ -56,6 +106,27 @@ public:
                 "timestamp",
                 [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
                     return vm.makeInt(static_cast<DateTime&>(vm.arena().deref(self)).epoch);
+                }, std::vector<Handle>{self}));
+        // Arithmetic: add/sub a number of seconds -> a new DateTime; diff -> seconds between two.
+        if (name == "add" || name == "sub")
+            return vm.alloc(std::make_unique<NativeFunction>(
+                std::string(name),
+                [self, sub = (name == "sub")](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                    if (a.size() != 1) throw KiritoError("add/sub expects 1 argument (seconds)");
+                    const Object& o = vm.arena().deref(a[0]);
+                    if (o.kind() != ValueKind::Integer) throw KiritoError("add/sub expects an Integer (seconds)");
+                    int64_t delta = static_cast<const IntVal&>(o).value();
+                    int64_t base = static_cast<DateTime&>(vm.arena().deref(self)).epoch;
+                    return vm.alloc(std::make_unique<DateTime>(base + (sub ? -delta : delta)));
+                }, std::vector<Handle>{self}));
+        if (name == "diff")
+            return vm.alloc(std::make_unique<NativeFunction>(
+                "diff",
+                [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                    if (a.size() != 1) throw KiritoError("diff expects 1 argument (a DateTime)");
+                    const auto* other = dynamic_cast<const DateTime*>(&vm.arena().deref(a[0]));
+                    if (!other) throw KiritoError("diff expects a DateTime");
+                    return vm.makeInt(static_cast<DateTime&>(vm.arena().deref(self)).epoch - other->epoch);
                 }, std::vector<Handle>{self}));
         if (name == "iso" || name == "isoformat")
             return vm.alloc(std::make_unique<NativeFunction>(
@@ -150,6 +221,39 @@ public:
         m.fn("now", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             int64_t secs = duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
             return vm.alloc(std::make_unique<DateTime>(secs));
+        });
+
+        // make(year, month, day[, hour, minute, second]) -> DateTime built from UTC components.
+        m.fn("make", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.size() < 3 || a.size() > 6) throw KiritoError("make expects 3 to 6 arguments");
+            auto iv = [&](std::size_t i, int dflt) {
+                if (i >= a.size()) return dflt;
+                const Object& o = vm.arena().deref(a[i]);
+                if (o.kind() != ValueKind::Integer) throw KiritoError("make expects Integer components");
+                return static_cast<int>(static_cast<const IntVal&>(o).value());
+            };
+            std::tm tm{};
+            tm.tm_year = iv(0, 1970) - 1900;
+            tm.tm_mon = iv(1, 1) - 1;
+            tm.tm_mday = iv(2, 1);
+            tm.tm_hour = iv(3, 0);
+            tm.tm_min = iv(4, 0);
+            tm.tm_sec = iv(5, 0);
+            return vm.alloc(std::make_unique<DateTime>(timegmCompat(tm)));
+        });
+
+        // strptime(text, format) -> DateTime, parsing UTC fields with the given strftime format.
+        m.fn("strptime", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.size() != 2) throw KiritoError("strptime expects (text, format)");
+            const Object& t = vm.arena().deref(a[0]);
+            const Object& f = vm.arena().deref(a[1]);
+            if (t.kind() != ValueKind::String || f.kind() != ValueKind::String)
+                throw KiritoError("strptime expects String arguments");
+            std::tm tm{};
+            if (!strptimeCompat(static_cast<const StrVal&>(t).value().c_str(),
+                                static_cast<const StrVal&>(f).value().c_str(), tm))
+                throw KiritoError("strptime: text does not match format");
+            return vm.alloc(std::make_unique<DateTime>(timegmCompat(tm)));
         });
     }
 };

@@ -126,11 +126,32 @@ interoperable with real zlib.
 TCP sockets (`connect`/`bind`/`listen`/`accept`/`send`/`recv`) and an HTTP/1.1 client (`http_get`,
 `http_post`). HTTPS is optional — build with `-DKIRITO_ENABLE_TLS=ON` (links OpenSSL).
 
+URL helpers (urllib.parse style): `quote(s)`/`unquote(s)` (percent-encoding), `urlencode(dict)` →
+`"k=v&..."`, `parse_qs(query)` → Dict, `urlsplit(url)` → Dict of
+`scheme`/`host`/`port`/`path`/`query`/`fragment`.
+
+```kirito
+var net = import("net")
+net.urlencode({"q": "a b"})              # "q=a%20b"
+net.urlsplit("https://h:8080/p?x=1")     # {"host": "h", "port": "8080", ...}
+```
+
 ## sys
 
 `getenv`/`setenv`/`unsetenv`/`environ`, `platform`, `exit(code)`.
 
 ## time
 
-`time()`, `time_ns()`, `monotonic()`, `perf_counter_ns()`, `sleep(seconds)`, and a Python-like
-`datetime`/`now()` with field access and `strftime`.
+`time()`, `time_ns()`, `monotonic()`, `perf_counter_ns()`, `sleep(seconds)`. Calendar time via
+`now()`, `datetime(timestamp)`, `make(year, month, day[, hour, minute, second])`, and
+`strptime(text, format)`. A `DateTime` exposes fields (`year`/`month`/`day`/`hour`/`minute`/`second`/
+`weekday`/`yearday`), `iso()`/`isoformat()`, `format(strftime_string)`, `timestamp()`, and
+arithmetic: `add(seconds)`/`sub(seconds)` → new DateTime, `diff(other)` → seconds between.
+
+```kirito
+var t = import("time")
+var d = t.make(2024, 2, 29, 12, 0, 0)
+d.iso()                   # "2024-02-29T12:00:00"
+d.add(86400).day          # 1  (next day)
+t.strptime("2023-06-15", "%Y-%m-%d").weekday
+```

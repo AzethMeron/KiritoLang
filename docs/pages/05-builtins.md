@@ -43,6 +43,23 @@ These names are available everywhere without an `import`.
 | `bin(n)` / `oct(n)` / `hex(n)` | Base-2/8/16 string with `0b`/`0o`/`0x` prefix (sign-aware). |
 | `ord(ch)` | Unicode code point of a single-character String. |
 | `chr(cp)` | Single-character String for a code point. |
+| `format(value[, spec])` | Format a value with a Python mini-format-spec (see below). |
+
+## Formatting with `format`
+
+`format(value, spec)` applies a Python-style format spec
+`[[fill]align][sign][#][0][width][,][.precision][type]`:
+
+```kirito
+format(42, "05d")        # "00042"
+format(255, "x")         # "ff"        (also X, b, o, d)
+format(3.14159, ".2f")   # "3.14"      (also e, g, %)
+format(1234567, ",")     # "1,234,567" (thousands separator)
+format(0.25, ".1%")      # "25.0%"
+format("hi", "^6")       # "  hi  "    (< left, > right, ^ center)
+format("x", "*^7")       # "***x***"   (custom fill)
+format(-42, "+06d")      # "-00042"    (sign + zero-pad)
+```
 
 ## I/O and modules
 

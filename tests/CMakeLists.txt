@@ -52,6 +52,7 @@ kirito_test(test_introspect unit/test_introspect.cpp)
 kirito_test(test_warnings unit/test_warnings.cpp)
 kirito_test(test_unicode unit/test_unicode.cpp)
 kirito_test(test_hardening unit/test_hardening.cpp)
+kirito_test(test_stdlib_extra unit/test_stdlib_extra.cpp)
 kirito_test(test_bytesio unit/test_bytesio.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)

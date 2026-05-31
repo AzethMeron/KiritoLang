@@ -104,7 +104,8 @@ a stability fuzzer, and a benchmark). Working today:
   disables them. Module-level names (exports) and class members are never flagged.
 - **Builtins**: `range`, `sum`, `min`, `max`, `abs`, `round`, `sorted`, `enumerate`, `zip`, `map`,
   `filter`, `len`, `type`, `import`, `inspect`, `all`, `any`, `reversed`, `divmod`, `isinstance`,
-  `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), and the
+  `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), `format` (Python mini-format-spec:
+  fill/align/sign/width/`,`/precision/type), and the
   `Integer`/`Float`/`String`/`Bool`/`List`/`Set`/`Dict` constructors/converters. `inspect(x)` returns
   a String describing the public methods/attributes (with signatures + annotations) of a class,
   instance, module, or function.
@@ -125,11 +126,13 @@ a stability fuzzer, and a benchmark). Working today:
   - `serialize` — text graph dumps/loads/save/load preserving shared references and cycles.
   - `dump` — compact BINARY serialization (a `Dump` blob value) preserving references and cycles;
     dumps/loads, Dump(bytes), save/load.
-  - `net` — TCP sockets (connect/bind/listen/accept/send/recv) and an HTTP/1.1 client
-    (http_get/http_post); HTTPS is optional (build with `-DKIRITO_ENABLE_TLS=ON`, links OpenSSL).
+  - `net` — TCP sockets (connect/bind/listen/accept/send/recv), an HTTP/1.1 client
+    (http_get/http_post; HTTPS optional via `-DKIRITO_ENABLE_TLS=ON`, links OpenSSL), and URL
+    helpers (quote/unquote/urlencode/parse_qs/urlsplit).
   - `sys` — environment (getenv/setenv/unsetenv/environ), `platform`, `exit`.
-  - `time` — high-precision clocks (time/time_ns/monotonic/perf_counter_ns), sleep, and a
-    Python-like `datetime`/`now` with field access and strftime.
+  - `time` — high-precision clocks (time/time_ns/monotonic/perf_counter_ns), sleep, and Python-like
+    calendar time (`now`/`datetime`/`make`/`strptime`; `DateTime` with fields, iso/format,
+    add/sub/diff arithmetic).
   - `zlib` — compress/decompress (standard zlib streams), raw deflate/inflate, adler32 — a
     self-contained DEFLATE/INFLATE, no external dependency, interoperable with real zlib.
   - `hash` — md5/sha1/sha256 hex digests (self-contained, standard-conformant).

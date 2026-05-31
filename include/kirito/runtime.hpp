@@ -1207,6 +1207,103 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
     }
 }
 
+// Python-style mini format-spec: [[fill]align][sign][#][0][width][,][.precision][type].
+// Supports align <^>= , sign +/-/space, zero-pad, width, thousands ',', precision, and types
+// b/o/x/X/d/f/e/g/s/% . Returns the formatted String. Raises on a malformed spec.
+inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string& spec) {
+    const Object& o = vm.arena().deref(value);
+    std::size_t i = 0;
+    char fill = ' ', align = 0, sign = '-';
+    bool zero = false, comma = false;
+    std::size_t width = 0;
+    int precision = -1;
+    char type = 0;
+    // optional fill+align (fill only valid when an align char follows)
+    auto isAlign = [](char c) { return c == '<' || c == '>' || c == '^' || c == '='; };
+    if (i + 1 < spec.size() && isAlign(spec[i + 1])) { fill = spec[i]; align = spec[i + 1]; i += 2; }
+    else if (i < spec.size() && isAlign(spec[i])) { align = spec[i]; ++i; }
+    if (i < spec.size() && (spec[i] == '+' || spec[i] == '-' || spec[i] == ' ')) { sign = spec[i]; ++i; }
+    if (i < spec.size() && spec[i] == '#') ++i;  // alternate form: accepted, no extra prefix added
+    if (i < spec.size() && spec[i] == '0') { zero = true; if (!align) { align = '='; fill = '0'; } ++i; }
+    while (i < spec.size() && spec[i] >= '0' && spec[i] <= '9') { width = width * 10 + (spec[i] - '0'); ++i; }
+    if (i < spec.size() && spec[i] == ',') { comma = true; ++i; }
+    if (i < spec.size() && spec[i] == '.') {
+        ++i; precision = 0;
+        while (i < spec.size() && spec[i] >= '0' && spec[i] <= '9') { precision = precision * 10 + (spec[i] - '0'); ++i; }
+    }
+    if (i < spec.size()) { type = spec[i]; ++i; }
+    if (i != spec.size()) throw KiritoError("invalid format spec '" + spec + "'");
+
+    auto groupThousands = [](std::string digits) {
+        std::string out;
+        int cnt = 0;
+        for (auto it = digits.rbegin(); it != digits.rend(); ++it) {
+            if (cnt && cnt % 3 == 0) out += ',';
+            out += *it; ++cnt;
+        }
+        std::reverse(out.begin(), out.end());
+        return out;
+    };
+
+    std::string body, signStr;
+    bool numeric = (o.kind() == ValueKind::Integer || o.kind() == ValueKind::Float || o.kind() == ValueKind::Bool);
+
+    if (type == 's' || (type == 0 && !numeric)) {
+        body = vm.stringify(value);
+        if (precision >= 0 && static_cast<std::size_t>(precision) < utf8Length(body)) {
+            auto starts = utf8Starts(body);
+            body = body.substr(0, starts[precision]);
+        }
+        if (!zero && align == 0) align = '<';  // strings default to left-align
+    } else if (type == 'b' || type == 'o' || type == 'x' || type == 'X' || type == 'd' || type == 0) {
+        if (o.kind() != ValueKind::Integer && o.kind() != ValueKind::Bool)
+            throw KiritoError("format type '" + std::string(1, type ? type : 'd') + "' needs an Integer");
+        int64_t v = o.kind() == ValueKind::Bool ? (static_cast<const BoolVal&>(o).value() ? 1 : 0)
+                                                : static_cast<const IntVal&>(o).value();
+        bool neg = v < 0;
+        uint64_t u = neg ? 0ull - static_cast<uint64_t>(v) : static_cast<uint64_t>(v);
+        int base = type == 'b' ? 2 : type == 'o' ? 8 : (type == 'x' || type == 'X') ? 16 : 10;
+        const char* alpha = type == 'X' ? "0123456789ABCDEF" : "0123456789abcdef";
+        std::string digits;
+        if (u == 0) digits = "0";
+        while (u) { digits += alpha[u % base]; u /= base; }
+        std::reverse(digits.begin(), digits.end());
+        if (comma && base == 10) digits = groupThousands(digits);
+        signStr = neg ? "-" : (sign == '+' ? "+" : sign == ' ' ? " " : "");
+        body = digits;
+    } else if (type == 'f' || type == 'e' || type == 'g' || type == '%') {
+        double d = o.kind() == ValueKind::Float ? static_cast<const FloatVal&>(o).value()
+                 : o.kind() == ValueKind::Integer ? static_cast<double>(static_cast<const IntVal&>(o).value())
+                 : (static_cast<const BoolVal&>(o).value() ? 1.0 : 0.0);
+        if (type == '%') d *= 100.0;
+        bool neg = std::signbit(d);
+        char fmtbuf[8];
+        char conv = type == '%' ? 'f' : type;
+        std::snprintf(fmtbuf, sizeof(fmtbuf), "%%.%d%c", precision < 0 ? 6 : precision, conv);
+        char out[64];
+        std::snprintf(out, sizeof(out), fmtbuf, std::fabs(d));
+        body = out;
+        if (type == '%') body += "%";
+        if (comma) {
+            std::size_t dot = body.find('.');
+            std::string intpart = body.substr(0, dot);
+            body = groupThousands(intpart) + (dot == std::string::npos ? "" : body.substr(dot));
+        }
+        signStr = neg ? "-" : (sign == '+' ? "+" : sign == ' ' ? " " : "");
+    } else {
+        throw KiritoError("unknown format type '" + std::string(1, type) + "'");
+    }
+
+    std::string s = signStr + body;
+    if (s.size() >= width) return s;
+    std::size_t pad = width - utf8Length(s);
+    if (align == '<') return s + std::string(pad, fill);
+    if (align == '>') return std::string(pad, fill) + s;
+    if (align == '^') return std::string(pad / 2, fill) + s + std::string(pad - pad / 2, fill);
+    if (align == '=') return signStr + std::string(pad, fill) + body;  // pad between sign and digits
+    return std::string(pad, fill) + s;  // numbers default to right-align
+}
+
 // --- built-in globals ------------------------------------------------------------------------
 
 inline void KiritoVM::installBuiltins() {
@@ -1464,6 +1561,17 @@ inline void KiritoVM::installBuiltins() {
     def("inspect", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 1) throw KiritoError("inspect expected 1 argument");
         return vm.makeString(inspectValue(vm, a[0]));
+    });
+    def("format", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        // format(value[, spec]) -> String, applying a Python mini-format-spec. No spec == String().
+        if (a.size() < 1 || a.size() > 2) throw KiritoError("format expected 1 or 2 arguments");
+        std::string spec;
+        if (a.size() == 2) {
+            const Object& s = vm.arena().deref(a[1]);
+            if (s.kind() != ValueKind::String) throw KiritoError("format spec must be a String");
+            spec = static_cast<const StrVal&>(s).value();
+        }
+        return vm.makeString(applyFormatSpec(vm, a[0], spec));
     });
 
     def("all", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {

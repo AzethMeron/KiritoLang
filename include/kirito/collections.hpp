@@ -108,6 +108,14 @@ public:
             for (const auto& [k, v] : bucket) out.push_back(k);
         return out;
     }
+    // Key/value pairs, for C++ consumers that need both (e.g. urlencode).
+    std::vector<std::pair<Handle, Handle>> pairs() const {
+        std::vector<std::pair<Handle, Handle>> out;
+        out.reserve(count);
+        for (const auto& [h, bucket] : buckets)
+            for (const auto& [k, v] : bucket) out.emplace_back(k, v);
+        return out;
+    }
 
     std::string str(StringifyCtx& ctx) const override {
         return stringifyGuarded(this, ctx, "{", "}", [&] {

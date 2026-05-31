@@ -123,6 +123,69 @@ inline Url parseUrl(const std::string& url) {
     return u;
 }
 
+// --- URL helpers (urllib.parse style) --------------------------------------------------------
+// Percent-encode all but the RFC 3986 "unreserved" set (Python urllib.parse.quote default).
+inline std::string percentEncode(const std::string& s) {
+    static const char* hex = "0123456789ABCDEF";
+    std::string out;
+    out.reserve(s.size());
+    for (unsigned char c : s) {
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+            c == '-' || c == '_' || c == '.' || c == '~') {
+            out += static_cast<char>(c);
+        } else {
+            out += '%';
+            out += hex[c >> 4];
+            out += hex[c & 0xF];
+        }
+    }
+    return out;
+}
+// Decode %XX escapes (and '+' as space, matching query-string decoding). Malformed escapes pass
+// through literally.
+inline std::string percentDecode(const std::string& s) {
+    auto val = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    };
+    std::string out;
+    out.reserve(s.size());
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == '%' && i + 2 < s.size()) {
+            int hi = val(s[i + 1]), lo = val(s[i + 2]);
+            if (hi >= 0 && lo >= 0) { out += static_cast<char>(hi * 16 + lo); i += 2; continue; }
+            out += s[i];
+        } else if (s[i] == '+') {
+            out += ' ';
+        } else {
+            out += s[i];
+        }
+    }
+    return out;
+}
+
+// A general URL split (any scheme), unlike parseUrl which is HTTP-specific.
+struct UrlParts { std::string scheme, host, port, path, query, fragment; };
+inline UrlParts splitUrl(const std::string& url) {
+    UrlParts p;
+    std::string rest = url;
+    std::size_t sc = rest.find("://");
+    if (sc != std::string::npos) { p.scheme = rest.substr(0, sc); rest = rest.substr(sc + 3); }
+    std::size_t hash = rest.find('#');
+    if (hash != std::string::npos) { p.fragment = rest.substr(hash + 1); rest = rest.substr(0, hash); }
+    std::size_t q = rest.find('?');
+    if (q != std::string::npos) { p.query = rest.substr(q + 1); rest = rest.substr(0, q); }
+    std::size_t slash = rest.find('/');
+    std::string hostport = slash == std::string::npos ? rest : rest.substr(0, slash);
+    p.path = slash == std::string::npos ? "" : rest.substr(slash);
+    std::size_t colon = hostport.find(':');
+    if (colon == std::string::npos) { p.host = hostport; }
+    else { p.host = hostport.substr(0, colon); p.port = hostport.substr(colon + 1); }
+    return p;
+}
+
 // Perform the raw HTTP exchange (send request bytes, read the full response). Plain TCP by
 // default; over TLS when built with KIRITO_ENABLE_TLS (links OpenSSL). Defined below.
 std::string httpExchange(const Url& u, const std::string& request);
@@ -334,6 +397,61 @@ public:
         m.fn("http_post", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::string ct = a.size() > 2 ? SocketVal::asStr(vm, a[2]) : "text/plain";
             return net::httpRequest(vm, "POST", SocketVal::asStr(vm, a[0]), SocketVal::asStr(vm, a[1]), ct);
+        });
+
+        // --- URL helpers (urllib.parse style) ---
+        m.fn("quote", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return vm.makeString(net::percentEncode(SocketVal::asStr(vm, a[0])));
+        });
+        m.fn("unquote", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return vm.makeString(net::percentDecode(SocketVal::asStr(vm, a[0])));
+        });
+        // urlencode(dict) -> "k1=v1&k2=v2" with both keys and values percent-encoded.
+        m.fn("urlencode", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            const Object& o = vm.arena().deref(a[0]);
+            if (o.kind() != ValueKind::Dict) throw KiritoError("urlencode expects a Dict");
+            std::string out;
+            for (const auto& [k, v] : static_cast<const DictVal&>(o).pairs()) {
+                if (!out.empty()) out += "&";
+                out += net::percentEncode(vm.stringify(k)) + "=" + net::percentEncode(vm.stringify(v));
+            }
+            return vm.makeString(out);
+        });
+        // parse_qs("a=1&b=2") -> {"a": "1", "b": "2"} (values percent-decoded).
+        m.fn("parse_qs", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::string q = SocketVal::asStr(vm, a[0]);
+            RootScope rs(vm);
+            Handle dh = rs.add(vm.alloc(std::make_unique<DictVal>()));
+            auto& d = static_cast<DictVal&>(vm.arena().deref(dh));
+            std::size_t i = 0;
+            while (i < q.size()) {
+                std::size_t amp = q.find('&', i);
+                std::string pair = q.substr(i, amp == std::string::npos ? std::string::npos : amp - i);
+                std::size_t eq = pair.find('=');
+                std::string k = net::percentDecode(eq == std::string::npos ? pair : pair.substr(0, eq));
+                std::string v = eq == std::string::npos ? "" : net::percentDecode(pair.substr(eq + 1));
+                if (!k.empty()) d.set(vm.arena(), rs.add(vm.makeString(k)), rs.add(vm.makeString(v)));
+                if (amp == std::string::npos) break;
+                i = amp + 1;
+            }
+            return dh;
+        });
+        // urlsplit("scheme://host:port/path?query#frag") -> Dict of components.
+        m.fn("urlsplit", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            net::UrlParts p = net::splitUrl(SocketVal::asStr(vm, a[0]));
+            RootScope rs(vm);
+            Handle dh = rs.add(vm.alloc(std::make_unique<DictVal>()));
+            auto& d = static_cast<DictVal&>(vm.arena().deref(dh));
+            auto put = [&](const char* key, const std::string& val) {
+                d.set(vm.arena(), rs.add(vm.makeString(key)), rs.add(vm.makeString(val)));
+            };
+            put("scheme", p.scheme);
+            put("host", p.host);
+            put("port", p.port);
+            put("path", p.path);
+            put("query", p.query);
+            put("fragment", p.fragment);
+            return dh;
         });
     }
 };
