@@ -137,7 +137,7 @@ a stability fuzzer, and a benchmark). Working today:
   then accepts **keyword arguments** and **defaults** (the evaluator binds them into the positional
   `span` the impl expects via `NativeFunction::bindArgs`) and is fully described by `inspect`. Errors
   carry the module/chunk filename (`KiritoError::file`), so a parse error in an imported module
-  reports that module's path, not the entry script's.
+  reports that module's path, not the entry script's. **All native stdlib modules** (io/math/random/matrix/json/serialize/dump/net/sys/time/zlib/hash) declare signatures on their fixed-arity functions, so they accept keyword args and `inspect` shows full signatures (variadic ones like `min`/`max`/`zip`/`io.print` stay positional).
 - **Standard library** (each a one-liner `vm.install<T>()`; a third party adds their own the same
   way — `#include` a header, register on the VM, no global state):
   - `io` — print/eprint/write/input/read acting on **rebindable, interchangeable streams**: the

@@ -380,26 +380,27 @@ class NetModule : public NativeModule {
 public:
     std::string name() const override { return "net"; }
     void setup(ModuleBuilder& m) override {
-        m.fn("Socket", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        KiritoVM& vm = m.vm();
+        m.fn("Socket", {}, "Socket", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             return vm.alloc(std::make_unique<SocketVal>());
         });
-        m.fn("http_get", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("http_get", {{"url", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return net::httpRequest(vm, "GET", SocketVal::asStr(vm, a[0]), "", "");
         });
-        m.fn("http_post", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("http_post", {{"url", "String"}, {"body", "String"}, {"content_type", "String", vm.makeString("text/plain")}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::string ct = a.size() > 2 ? SocketVal::asStr(vm, a[2]) : "text/plain";
             return net::httpRequest(vm, "POST", SocketVal::asStr(vm, a[0]), SocketVal::asStr(vm, a[1]), ct);
         });
 
         // --- URL helpers (urllib.parse style) ---
-        m.fn("quote", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("quote", {{"s", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeString(net::percentEncode(SocketVal::asStr(vm, a[0])));
         });
-        m.fn("unquote", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("unquote", {{"s", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeString(net::percentDecode(SocketVal::asStr(vm, a[0])));
         });
         // urlencode(dict) -> "k1=v1&k2=v2" with both keys and values percent-encoded.
-        m.fn("urlencode", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("urlencode", {{"params", "Dict"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const Object& o = vm.arena().deref(a[0]);
             if (o.kind() != ValueKind::Dict) throw KiritoError("urlencode expects a Dict");
             std::string out;
@@ -410,7 +411,7 @@ public:
             return vm.makeString(out);
         });
         // parse_qs("a=1&b=2") -> {"a": "1", "b": "2"} (values percent-decoded).
-        m.fn("parse_qs", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("parse_qs", {{"query", "String"}}, "Dict", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::string q = SocketVal::asStr(vm, a[0]);
             RootScope rs(vm);
             Handle dh = rs.add(vm.alloc(std::make_unique<DictVal>()));
@@ -429,7 +430,7 @@ public:
             return dh;
         });
         // urlsplit("scheme://host:port/path?query#frag") -> Dict of components.
-        m.fn("urlsplit", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("urlsplit", {{"url", "String"}}, "Dict", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             net::UrlParts p = net::splitUrl(SocketVal::asStr(vm, a[0]));
             RootScope rs(vm);
             Handle dh = rs.add(vm.alloc(std::make_unique<DictVal>()));

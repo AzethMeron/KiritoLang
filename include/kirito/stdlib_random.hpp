@@ -120,8 +120,9 @@ class RandomModule : public NativeModule {
 public:
     std::string name() const override { return "random"; }
     void setup(ModuleBuilder& m) override {
-        m.fn("Random", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            if (a.empty()) return vm.alloc(std::make_unique<RandomState>());
+        m.fn("Random", {{"seed", "", m.vm().none()}}, "Random", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty() || vm.arena().deref(a[0]).kind() == ValueKind::None)
+                return vm.alloc(std::make_unique<RandomState>());
             const Object& o = vm.arena().deref(a[0]);
             if (o.kind() != ValueKind::Integer) throw KiritoError("Random seed must be an Integer");
             return vm.alloc(std::make_unique<RandomState>(

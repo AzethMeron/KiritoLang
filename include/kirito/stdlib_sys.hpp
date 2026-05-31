@@ -39,7 +39,7 @@ public:
         m.value("platform", vm.makeString("linux"));
 #endif
 
-        m.fn("getenv", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("getenv", {{"name", "String"}, {"default", "", vm.none()}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             // getenv(name[, default]) -> String, or default/None if unset.
             const std::string& name = asStr(vm, a[0], "getenv");
             const char* v = std::getenv(name.c_str());
@@ -47,7 +47,7 @@ public:
             return a.size() > 1 ? a[1] : vm.none();
         });
 
-        m.fn("setenv", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("setenv", {{"name", "String"}, {"value", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const std::string& name = asStr(vm, a[0], "setenv");
             const std::string& val = asStr(vm, a[1], "setenv");
 #if defined(_WIN32)
@@ -61,7 +61,7 @@ public:
             return vm.none();
         });
 
-        m.fn("unsetenv", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("unsetenv", {{"name", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const std::string& name = asStr(vm, a[0], "unsetenv");
 #if defined(_WIN32)
             ::SetEnvironmentVariableA(name.c_str(), nullptr);
@@ -73,7 +73,7 @@ public:
         });
 
         // environ() -> Dict of all environment variables.
-        m.fn("environ", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        m.fn("environ", {}, "Dict", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             RootScope rs(vm);
             auto dict = std::make_unique<DictVal>();
             Handle h = rs.add(vm.alloc(std::move(dict)));
@@ -104,7 +104,7 @@ public:
             return h;
         });
 
-        m.fn("exit", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("exit", {{"code", "Integer", vm.makeInt(0)}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             int code = 0;
             if (!a.empty()) {
                 const Object& o = vm.arena().deref(a[0]);

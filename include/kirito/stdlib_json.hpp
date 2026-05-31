@@ -320,14 +320,15 @@ class JsonModule : public NativeModule {
 public:
     std::string name() const override { return "json"; }
     void setup(ModuleBuilder& m) override {
-        m.fn("parse", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        KiritoVM& vm = m.vm();
+        m.fn("parse", {{"text", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const Object& o = vm.arena().deref(a[0]);
             if (o.kind() != ValueKind::String) throw KiritoError("json.parse expects a String");
             RootScope roots(vm);
             json::Parser p(vm, static_cast<const StrVal&>(o).value(), roots);
             return p.parse();
         });
-        m.fn("stringify", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("stringify", {{"value"}, {"indent", "Integer", vm.makeInt(0)}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             // stringify(value[, indent]): compact by default; pretty-printed with `indent` spaces.
             std::string out;
             std::unordered_set<const Object*> active;

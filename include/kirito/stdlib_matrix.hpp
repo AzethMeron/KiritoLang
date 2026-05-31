@@ -287,17 +287,17 @@ public:
                 for (std::size_t j = 0; j < c; ++j) mtx->at(i, j) = grid[i][j];
             return vm.alloc(std::move(mtx));
         });
-        m.fn("zeros", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("zeros", {{"rows", "Integer"}, {"cols", "Integer"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             int64_t r = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
             int64_t c = static_cast<const IntVal&>(vm.arena().deref(a[1])).value();
             return vm.alloc(mat::make(static_cast<std::size_t>(r), static_cast<std::size_t>(c), 0.0));
         });
-        m.fn("ones", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("ones", {{"rows", "Integer"}, {"cols", "Integer"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             int64_t r = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
             int64_t c = static_cast<const IntVal&>(vm.arena().deref(a[1])).value();
             return vm.alloc(mat::make(static_cast<std::size_t>(r), static_cast<std::size_t>(c), 1.0));
         });
-        m.fn("identity", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("identity", {{"n", "Integer"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             int64_t n = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
             auto mtx = mat::make(static_cast<std::size_t>(n), static_cast<std::size_t>(n));
             for (std::size_t i = 0; i < mtx->rows; ++i) mtx->at(i, i) = 1.0;

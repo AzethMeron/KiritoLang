@@ -186,17 +186,17 @@ class SerializeModule : public NativeModule {
 public:
     std::string name() const override { return "serialize"; }
     void setup(ModuleBuilder& m) override {
-        m.fn("dumps", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("dumps", {{"value"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             serial::Writer w(vm);
             return vm.makeString(w.dump(a[0]));
         });
-        m.fn("loads", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("loads", {{"text", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const Object& o = vm.arena().deref(a[0]);
             if (o.kind() != ValueKind::String) throw KiritoError("loads expects a String");
             serial::Reader r(vm, static_cast<const StrVal&>(o).value());
             return r.load();
         });
-        m.fn("save", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("save", {{"value"}, {"path", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const Object& po = vm.arena().deref(a[1]);
             if (po.kind() != ValueKind::String) throw KiritoError("save path must be a String");
             serial::Writer w(vm);
@@ -205,7 +205,7 @@ public:
             f << w.dump(a[0]);
             return vm.none();
         });
-        m.fn("load", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("load", {{"path", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const Object& po = vm.arena().deref(a[0]);
             if (po.kind() != ValueKind::String) throw KiritoError("load path must be a String");
             std::ifstream f(static_cast<const StrVal&>(po).value(), std::ios::binary);

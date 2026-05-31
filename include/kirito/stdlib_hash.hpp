@@ -17,13 +17,13 @@ class HashModule : public NativeModule {
 public:
     std::string name() const override { return "hash"; }
     void setup(ModuleBuilder& m) override {
-        m.fn("md5", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("md5", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeString(hashing::md5(bytesOf(vm, a[0], "md5")));
         });
-        m.fn("sha1", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("sha1", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeString(hashing::sha1(bytesOf(vm, a[0], "sha1")));
         });
-        m.fn("sha256", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("sha256", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeString(hashing::sha256(bytesOf(vm, a[0], "sha256")));
         });
     }

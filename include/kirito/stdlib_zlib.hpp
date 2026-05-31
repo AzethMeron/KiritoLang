@@ -17,10 +17,10 @@ class ZlibModule : public NativeModule {
 public:
     std::string name() const override { return "zlib"; }
     void setup(ModuleBuilder& m) override {
-        m.fn("compress", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("compress", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeString(deflate::zlibCompress(bytesOf(vm, a[0], "compress")));
         });
-        m.fn("decompress", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("decompress", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             try {
                 return vm.makeString(deflate::zlibDecompress(bytesOf(vm, a[0], "decompress")));
             } catch (const deflate::DeflateError& e) {
@@ -28,17 +28,17 @@ public:
             }
         });
         // Raw DEFLATE (no zlib header/trailer) — symmetric pair.
-        m.fn("deflate", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("deflate", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeString(deflate::compress(bytesOf(vm, a[0], "deflate")));
         });
-        m.fn("inflate", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("inflate", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             try {
                 return vm.makeString(deflate::inflate(bytesOf(vm, a[0], "inflate")));
             } catch (const deflate::DeflateError& e) {
                 throw KiritoError(std::string("zlib: ") + e.what());
             }
         });
-        m.fn("adler32", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("adler32", {{"data", "String"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeInt(static_cast<int64_t>(deflate::adler32(bytesOf(vm, a[0], "adler32"))));
         });
     }
