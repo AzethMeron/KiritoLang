@@ -30,8 +30,10 @@ to itself, and stringifies as `"None"`.
 
 `True` and `False`. Produced by comparisons and the logical operators, and accepted anywhere a truth
 value is needed. `Bool(x)` gives the truthiness of any value: `None`, `0`, `0.0`, `""`, and empty
-collections are falsy; everything else is truthy. In arithmetic, `True` acts as `1` and `False` as
-`0`.
+collections are falsy; everything else is truthy. Unlike Python, `Bool` is a **distinct type, not an
+Integer**: it is not numeric (`True + 1` is a type error) and `True != 1`, in keeping with Kirito's
+strong typing. Convert explicitly with `Integer(flag)` (`Integer(True) == 1`) when you need to count
+or sum truth values.
 
 ## Integer
 
