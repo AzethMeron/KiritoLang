@@ -147,6 +147,45 @@ int main() {
         CHECK(err(vm, "round(1, bogus=2)").find("unexpected keyword argument 'bogus'") != std::string::npos);
     }
 
+    // ===== List.index honors the optional [start[, end]] window =====
+    {
+        KiritoVM vm;
+        CHECK(run(vm, "String([1, 2, 1, 2].index(1, 1))") == "2");
+        CHECK(run(vm, "String([1, 2, 1, 2].index(2, 2))") == "3");
+        CHECK(run(vm, "String([1, 2, 1, 2].index(2, -2))") == "3");
+        CHECK(err(vm, "[1, 2, 1, 2].index(1, 1, 2)").find("not in List") != std::string::npos);
+    }
+
+    // ===== collections respect a user class's _eq_ (in / index / count / remove) =====
+    {
+        KiritoVM vm;
+        std::string P =
+            "class P:\n"
+            "    var _init_ = Function(self, v):\n        self.v = v\n"
+            "    var _eq_ = Function(self, o):\n        return self.v == o.v\n";
+        CHECK(run(vm, P + "String(P(1) == P(1))") == "True");
+        CHECK(run(vm, P + "String(P(1) in [P(2), P(1)])") == "True");
+        CHECK(run(vm, P + "String(P(9) in [P(2), P(1)])") == "False");
+        CHECK(run(vm, P + "String([P(2), P(1)].index(P(1)))") == "1");
+        CHECK(run(vm, P + "String([P(1), P(1), P(2)].count(P(1)))") == "2");
+        CHECK(run(vm, P + "var L = [P(1), P(2), P(1)]\nL.remove(P(1))\nString(len(L))") == "2");
+    }
+
+    // ===== sorted / min / max / < respect a user class's _lt_ =====
+    {
+        KiritoVM vm;
+        std::string P =
+            "class P:\n"
+            "    var _init_ = Function(self, v):\n        self.v = v\n"
+            "    var _lt_ = Function(self, o):\n        return self.v < o.v\n"
+            "    var _str_ = Function(self):\n        return \"P\" + String(self.v)\n";
+        CHECK(run(vm, P + "String(sorted([P(3), P(1), P(2)]))") == "[P1, P2, P3]");
+        CHECK(run(vm, P + "String(min([P(3), P(1), P(2)]))") == "P1");
+        CHECK(run(vm, P + "String(max([P(3), P(1), P(2)]))") == "P3");
+        CHECK(run(vm, P + "String(P(1) < P(2))") == "True");
+        CHECK(run(vm, P + "String(sorted([P(3), P(1), P(2)], reverse=True))") == "[P3, P2, P1]");
+    }
+
     // ===== resource guards: bounded, raise instead of OOM =====
     {
         KiritoVM vm;

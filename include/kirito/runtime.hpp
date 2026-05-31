@@ -260,6 +260,10 @@ inline std::size_t sequenceIndex(KiritoVM& vm, std::size_t size, Handle key) {
     return static_cast<std::size_t>(i);
 }
 
+// Value equality that respects a user class's `_eq_` (defined below; forward-declared so the List
+// methods above can use it for `index`/`count`/`remove`).
+inline bool kiEquals(KiritoVM& vm, Handle a, Handle b);
+
 // Ordering for sort()/comparisons: numbers numerically, Strings and Lists lexicographically, else a
 // type error. List ordering compares element-by-element (recursively) and breaks ties by length,
 // matching Python — enabling the common multi-key sort idiom (key returns a [k1, k2, ...] list).
@@ -280,6 +284,10 @@ inline bool kiLessThan(KiritoVM& vm, Handle a, Handle b) {
         }
         return xe.size() < ye.size();  // shared prefix equal: shorter list is "less"
     }
+    // A user class can define ordering via `_lt_`, so sorted()/min()/max() and `<` work on instances.
+    if (x.kind() == ValueKind::Instance)
+        if (auto* inst = dynamic_cast<const InstanceValue*>(&x); inst && inst->findMethod(vm.arena(), "_lt_"))
+            return vm.arena().deref(vm.arena().deref(a).binary(vm, BinOp::Lt, a, b)).truthy();
     throw KiritoError("cannot order '" + x.typeName() + "' and '" + y.typeName() + "'");
 }
 
@@ -427,18 +435,27 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
         return vm.alloc(std::make_unique<NativeFunction>(
             "remove", [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 auto& e = self_list(vm, self).elems;
-                const Object& v = vm.arena().deref(a[0]);
                 for (std::size_t i = 0; i < e.size(); ++i)
-                    if (vm.arena().deref(e[i]).equals(vm.arena(), v)) { e.erase(e.begin() + i); return vm.none(); }
+                    if (kiEquals(vm, e[i], a[0])) { e.erase(e.begin() + i); return vm.none(); }
                 throw KiritoError("remove: value not in List");
             }, std::vector<Handle>{self}));
     if (name == "index")
         return vm.alloc(std::make_unique<NativeFunction>(
             "index", [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 auto& e = self_list(vm, self).elems;
-                const Object& v = vm.arena().deref(a[0]);
-                for (std::size_t i = 0; i < e.size(); ++i)
-                    if (vm.arena().deref(e[i]).equals(vm.arena(), v)) return vm.makeInt(static_cast<int64_t>(i));
+                // Optional [start[, end]] search window (Python-style: negatives count from the end).
+                int64_t n = static_cast<int64_t>(e.size()), start = 0, end = n;
+                auto clampIdx = [&](Handle h, int64_t dflt) {
+                    if (vm.arena().deref(h).kind() == ValueKind::None) return dflt;
+                    int64_t k = argInt(vm, h, "index");
+                    if (k < 0) k += n;
+                    return k < 0 ? int64_t{0} : k > n ? n : k;
+                };
+                if (a.size() > 1) start = clampIdx(a[1], 0);
+                if (a.size() > 2) end = clampIdx(a[2], n);
+                for (int64_t i = start; i < end; ++i)
+                    if (kiEquals(vm, e[static_cast<std::size_t>(i)], a[0]))
+                        return vm.makeInt(i);
                 throw KiritoError("index: value not in List");
             }, std::vector<Handle>{self}));
     if (name == "extend")
@@ -470,7 +487,7 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
                 auto& e = self_list(vm, self).elems;
                 int64_t n = 0;
                 for (Handle h : e)
-                    if (vm.arena().deref(h).equals(vm.arena(), vm.arena().deref(a[0]))) ++n;
+                    if (kiEquals(vm, h, a[0])) ++n;
                 return vm.makeInt(n);
             }, std::vector<Handle>{self}));
     return Object::getAttr(vm, self, name);
@@ -1163,10 +1180,25 @@ inline Handle ListVal::slice(KiritoVM& vm, Handle s, Handle e, Handle st) {
         result->elems.push_back(elems[i]);  // existing handles, reachable from this list
     return vm.alloc(std::move(result));
 }
+// Value equality that respects a user class's `_eq_` (so `in`, `index`, `count`, `remove` on a List
+// agree with the `==` operator), falling back to structural equality. Tries either operand's `_eq_`
+// (matching Python's `x == e or e == x`), so it works regardless of which side is the instance.
+inline bool kiEquals(KiritoVM& vm, Handle a, Handle b) {
+    auto viaEq = [&](Handle x, Handle y) -> std::optional<bool> {
+        Object& o = vm.arena().deref(x);
+        if (o.kind() == ValueKind::Instance)
+            if (auto* inst = dynamic_cast<InstanceValue*>(&o); inst && inst->findMethod(vm.arena(), "_eq_"))
+                return vm.arena().deref(o.binary(vm, BinOp::Eq, x, y)).truthy();
+        return std::nullopt;
+    };
+    if (auto r = viaEq(a, b)) return *r;
+    if (auto r = viaEq(b, a)) return *r;
+    return vm.arena().deref(a).equals(vm.arena(), vm.arena().deref(b));
+}
+
 inline bool ListVal::contains(KiritoVM& vm, Handle value) {
-    const Object& v = vm.arena().deref(value);
     for (Handle e : elems)
-        if (vm.arena().deref(e).equals(vm.arena(), v)) return true;
+        if (kiEquals(vm, e, value)) return true;
     return false;
 }
 inline bool DictVal::contains(KiritoVM& vm, Handle key) {
