@@ -88,8 +88,11 @@ def highlight_kirito(code):
                         return f'<span class="builtin">{w}</span>'
                     return w
                 esc = html.escape(part)
-                esc = re.sub(r"\b\d+\.?\d*\b", lambda m: f'<span class="num">{m.group(0)}</span>', esc)
+                # Identifiers first, then numbers: the number wrapper emits a <span class="num">…
+                # tag, and `class` is itself a Kirito keyword — highlighting identifiers afterwards
+                # would match `class` *inside* that tag and produce broken nested markup.
                 esc = re.sub(r"[A-Za-z_][A-Za-z0-9_]*", tok, esc)
+                esc = re.sub(r"\b\d+\.?\d*\b", lambda m: f'<span class="num">{m.group(0)}</span>', esc)
                 rendered += esc
         if comment:
             rendered += f'<span class="com">{html.escape(comment)}</span>'

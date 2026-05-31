@@ -44,10 +44,10 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
     <span class="kw">var</span> distance = <span class="kw">Function</span>(self, other) -&gt; <span class="builtin">Float</span>:
         <span class="kw">var</span> dx = self.x - other.x
         <span class="kw">var</span> dy = self.y - other.y
-        <span class="kw">return</span> (dx * dx + dy * dy) ** <span <span class="kw">class</span>="num">0.5</span>
+        <span class="kw">return</span> (dx * dx + dy * dy) ** <span class="num">0.5</span>
 
-<span class="kw">var</span> a = Point(<span <span class="kw">class</span>="num">0</span>, <span <span class="kw">class</span>="num">0</span>)
-<span class="kw">var</span> b = Point(<span <span class="kw">class</span>="num">3</span>, <span <span class="kw">class</span>="num">4</span>)
+<span class="kw">var</span> a = Point(<span class="num">0</span>, <span class="num">0</span>)
+<span class="kw">var</span> b = Point(<span class="num">3</span>, <span class="num">4</span>)
 io.<span class="builtin">print</span>(<span class="builtin">String</span>(a.distance(b)))     <span class="com"># 5.0</span></code></pre>
 <h2 id="lesson-3-2-operators-and-printing">Lesson 3.2 — Operators and printing</h2>
 <p>Define special methods (single underscores both sides) to make your type behave like a built-in:</p>
@@ -60,7 +60,7 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(a.dist
     <span class="kw">var</span> _str_ = <span class="kw">Function</span>(self) -&gt; <span class="builtin">String</span>:
         <span class="kw">return</span> f<span class="str">&quot;Vec({self.x}, {self.y})&quot;</span>
 
-<span class="kw">var</span> v = Vec(<span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">2</span>) + Vec(<span <span class="kw">class</span>="num">3</span>, <span <span class="kw">class</span>="num">4</span>)
+<span class="kw">var</span> v = Vec(<span class="num">1</span>, <span class="num">2</span>) + Vec(<span class="num">3</span>, <span class="num">4</span>)
 io.<span class="builtin">print</span>(<span class="builtin">String</span>(v))                 <span class="com"># Vec(4, 6)</span></code></pre>
 <p>Useful ones: <code>_eq_</code>, <code>_lt_</code> (sorting/comparison), <code>_getitem_</code>/<code>_setitem_</code> (indexing), <code>_len_</code>, <code>_contains_</code> (<code>in</code>), <code>_iter_</code> (<code>for</code>), <code>_call_</code> (make instances callable).</p>
 <h2 id="lesson-3-3-inheritance">Lesson 3.3 — Inheritance</h2>
@@ -69,16 +69,16 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(v))   
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name):
         self.name = name
     <span class="kw">var</span> area = <span class="kw">Function</span>(self) -&gt; <span class="builtin">Float</span>:
-        <span class="kw">return</span> <span <span class="kw">class</span>="num">0.0</span>
+        <span class="kw">return</span> <span class="num">0.0</span>
 
 <span class="kw">class</span> Circle(Shape):
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, r):
         self.name = <span class="str">&quot;circle&quot;</span>
         self.r = r
     <span class="kw">var</span> area = <span class="kw">Function</span>(self) -&gt; <span class="builtin">Float</span>:
-        <span class="kw">return</span> <span <span class="kw">class</span>="num">3.14159</span> * self.r * self.r
+        <span class="kw">return</span> <span class="num">3.14159</span> * self.r * self.r
 
-<span class="kw">var</span> c = Circle(<span <span class="kw">class</span>="num">2</span>)
+<span class="kw">var</span> c = Circle(<span class="num">2</span>)
 io.<span class="builtin">print</span>(f<span class="str">&quot;{c.name}: {c.area()}&quot;</span>)
 io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span class="builtin">isinstance</span>(c, <span class="str">&quot;Shape&quot;</span>)))   <span class="com"># True — inheritance-aware</span></code></pre>
 <p>Attributes/methods whose name has a single leading underscore (e.g. <code>_cache</code>) are <strong>private</strong>: reachable only from inside methods of the same class.</p>
@@ -95,18 +95,18 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span 
         self.msg = msg
 
 <span class="kw">var</span> checkedSqrt = <span class="kw">Function</span>(x : <span class="builtin">Float</span>) -&gt; <span class="builtin">Float</span>:
-    <span class="kw">if</span> x &lt; <span <span class="kw">class</span>="num">0.0</span>:
+    <span class="kw">if</span> x &lt; <span class="num">0.0</span>:
         <span class="kw">throw</span> RangeError(<span class="str">&quot;cannot sqrt a negative&quot;</span>)
-    <span class="kw">return</span> x ** <span <span class="kw">class</span>="num">0.5</span>
+    <span class="kw">return</span> x ** <span class="num">0.5</span>
 
 <span class="kw">try</span>:
-    io.<span class="builtin">print</span>(<span class="builtin">String</span>(checkedSqrt(-<span <span class="kw">class</span>="num">1.0</span>)))
+    io.<span class="builtin">print</span>(<span class="builtin">String</span>(checkedSqrt(-<span class="num">1.0</span>)))
 <span class="kw">catch</span> RangeError <span class="kw">as</span> e:
     io.<span class="builtin">print</span>(f<span class="str">&quot;error: {e.msg}&quot;</span>)
 <span class="kw">finally</span>:
     io.<span class="builtin">print</span>(<span class="str">&quot;done&quot;</span>)</code></pre>
 <p><code>catch RangeError as e</code> matches that class (and its subclasses); a bare <code>catch:</code> catches anything. If you call something only for its exception and ignore the return value, mark it <code>discard</code> to keep the linter quiet:</p>
-<pre><code><span class="kw">discard</span> checkedSqrt(<span <span class="kw">class</span>="num">4.0</span>)</code></pre>
+<pre><code><span class="kw">discard</span> checkedSqrt(<span class="num">4.0</span>)</code></pre>
 <h2 id="capstone-project-a-tiny-rpn-calculator">Capstone Project — A tiny RPN calculator</h2>
 <p>A Reverse Polish Notation calculator evaluates expressions like <code>3 4 + 5 *</code> (= 35) using a stack. This pulls together classes, private members, exceptions, strings, and control flow.</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
@@ -123,7 +123,7 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span 
         self._stack.append(x)
 
     <span class="kw">var</span> _binop = <span class="kw">Function</span>(self, op):
-        <span class="kw">if</span> <span class="builtin">len</span>(self._stack) &lt; <span <span class="kw">class</span>="num">2</span>:
+        <span class="kw">if</span> <span class="builtin">len</span>(self._stack) &lt; <span class="num">2</span>:
             <span class="kw">throw</span> CalcError(<span class="str">&quot;not enough operands for &quot;</span> + op)
         <span class="kw">var</span> b = self._stack.pop()
         <span class="kw">var</span> a = self._stack.pop()
@@ -134,7 +134,7 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span 
         <span class="kw">elif</span> op == <span class="str">&quot;*&quot;</span>:
             self._push(a * b)
         <span class="kw">elif</span> op == <span class="str">&quot;/&quot;</span>:
-            <span class="kw">if</span> b == <span <span class="kw">class</span>="num">0.0</span>:
+            <span class="kw">if</span> b == <span class="num">0.0</span>:
                 <span class="kw">throw</span> CalcError(<span class="str">&quot;division by zero&quot;</span>)
             self._push(a / b)
         <span class="kw">else</span>:
@@ -144,15 +144,15 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span 
         self._stack = []
         <span class="kw">for</span> token <span class="kw">in</span> expr.split(<span class="str">&quot; &quot;</span>):
             <span class="kw">var</span> t = token.strip()
-            <span class="kw">if</span> <span class="builtin">len</span>(t) == <span <span class="kw">class</span>="num">0</span>:
+            <span class="kw">if</span> <span class="builtin">len</span>(t) == <span class="num">0</span>:
                 <span class="kw">continue</span>
             <span class="kw">if</span> t == <span class="str">&quot;+&quot;</span> <span class="kw">or</span> t == <span class="str">&quot;-&quot;</span> <span class="kw">or</span> t == <span class="str">&quot;*&quot;</span> <span class="kw">or</span> t == <span class="str">&quot;/&quot;</span>:
                 self._binop(t)
             <span class="kw">else</span>:
                 self._push(<span class="builtin">Float</span>(t))
-        <span class="kw">if</span> <span class="builtin">len</span>(self._stack) != <span <span class="kw">class</span>="num">1</span>:
+        <span class="kw">if</span> <span class="builtin">len</span>(self._stack) != <span class="num">1</span>:
             <span class="kw">throw</span> CalcError(<span class="str">&quot;malformed expression&quot;</span>)
-        <span class="kw">return</span> self._stack[<span <span class="kw">class</span>="num">0</span>]
+        <span class="kw">return</span> self._stack[<span class="num">0</span>]
 
 <span class="kw">var</span> calc = RPN()
 <span class="kw">for</span> expr <span class="kw">in</span> [<span class="str">&quot;3 4 +&quot;</span>, <span class="str">&quot;3 4 + 5 *&quot;</span>, <span class="str">&quot;10 2 /&quot;</span>, <span class="str">&quot;1 0 /&quot;</span>]:

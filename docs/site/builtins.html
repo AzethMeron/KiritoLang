@@ -44,14 +44,14 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <table><thead><tr><th>Function</th><th>Description</th></tr></thead><tbody><tr><td><code>abs(x)</code></td><td>Absolute value.</td></tr><tr><td><code>round(x[, ndigits])</code></td><td>Round to <code>ndigits</code> decimals (default 0).</td></tr><tr><td><code>divmod(a, b)</code></td><td><code>[a // b, a % b]</code>.</td></tr><tr><td><code>pow(b, e)</code> / <code>pow(b, e, m)</code></td><td>Exponentiation; 3-arg form is modular <code>(b**e) % m</code>.</td></tr><tr><td><code>bin(n)</code> / <code>oct(n)</code> / <code>hex(n)</code></td><td>Base-2/8/16 string with <code>0b</code>/<code>0o</code>/<code>0x</code> prefix (sign-aware).</td></tr><tr><td><code>ord(ch)</code></td><td>Unicode code point of a single-character String.</td></tr><tr><td><code>chr(cp)</code></td><td>Single-character String for a code point.</td></tr><tr><td><code>format(value[, spec])</code></td><td>Format a value with a Python mini-format-spec (see below).</td></tr></tbody></table>
 <h2 id="formatting-with-format">Formatting with <code>format</code></h2>
 <p><code>format(value, spec)</code> applies a Python-style format spec <code>[[fill]align][sign][#][0][width][,][.precision][type]</code>:</p>
-<pre><code>format(<span <span class="kw">class</span>="num">42</span>, <span class="str">&quot;05d&quot;</span>)        # <span class="str">&quot;00042&quot;</span>
-format(<span <span class="kw">class</span>="num">255</span>, <span class="str">&quot;x&quot;</span>)         # <span class="str">&quot;ff&quot;</span>        (also X, b, o, d)
-format(<span <span class="kw">class</span>="num">3.14159</span>, <span class="str">&quot;.2f&quot;</span>)   # <span class="str">&quot;3.14&quot;</span>      (also e, g, %)
-format(<span <span class="kw">class</span>="num">1234567</span>, <span class="str">&quot;,&quot;</span>)     # <span class="str">&quot;1,234,567&quot;</span> (thousands separator)
-format(<span <span class="kw">class</span>="num">0.25</span>, <span class="str">&quot;.1%&quot;</span>)      # <span class="str">&quot;25.0%&quot;</span>
+<pre><code>format(<span class="num">42</span>, <span class="str">&quot;05d&quot;</span>)        # <span class="str">&quot;00042&quot;</span>
+format(<span class="num">255</span>, <span class="str">&quot;x&quot;</span>)         # <span class="str">&quot;ff&quot;</span>        (also X, b, o, d)
+format(<span class="num">3.14159</span>, <span class="str">&quot;.2f&quot;</span>)   # <span class="str">&quot;3.14&quot;</span>      (also e, g, %)
+format(<span class="num">1234567</span>, <span class="str">&quot;,&quot;</span>)     # <span class="str">&quot;1,234,567&quot;</span> (thousands separator)
+format(<span class="num">0.25</span>, <span class="str">&quot;.1%&quot;</span>)      # <span class="str">&quot;25.0%&quot;</span>
 format(<span class="str">&quot;hi&quot;</span>, <span class="str">&quot;^6&quot;</span>)       # <span class="str">&quot;  hi  &quot;</span>    (&lt; left, &gt; right, ^ center)
 format(<span class="str">&quot;x&quot;</span>, <span class="str">&quot;*^7&quot;</span>)       # <span class="str">&quot;***x***&quot;</span>   (custom fill)
-format(-<span <span class="kw">class</span>="num">42</span>, <span class="str">&quot;+06d&quot;</span>)      # <span class="str">&quot;-00042&quot;</span>    (sign + zero-pad)</code></pre>
+format(-<span class="num">42</span>, <span class="str">&quot;+06d&quot;</span>)      # <span class="str">&quot;-00042&quot;</span>    (sign + zero-pad)</code></pre>
 <h2 id="i-o-and-modules">I/O and modules</h2>
 <table><thead><tr><th>Function</th><th>Description</th></tr></thead><tbody><tr><td><code>import(name)</code></td><td>Load and return a module.</td></tr><tr><td><code>inspect(x)</code></td><td>A String describing the public methods/attributes (with signatures and type annotations) of a class, instance, module, or function.</td></tr></tbody></table>
 <blockquote><code>print</code> and <code>input</code> are <strong>not</strong> builtins — they live in the <code>io</code> module: <code>import(&quot;io&quot;).print(...)</code>.</blockquote>

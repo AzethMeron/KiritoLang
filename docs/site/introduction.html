@@ -61,11 +61,11 @@ io.<span class="builtin">print</span>(g.hello())                 <span class="co
 <span class="com"># multiple return values + unpacking</span>
 <span class="kw">var</span> <span class="builtin">divmod</span> = <span class="kw">Function</span>(a, b):
     <span class="kw">return</span> a // b, a % b
-<span class="kw">var</span> q, r = <span class="builtin">divmod</span>(<span <span class="kw">class</span>="num">17</span>, <span <span class="kw">class</span>="num">5</span>)
+<span class="kw">var</span> q, r = <span class="builtin">divmod</span>(<span class="num">17</span>, <span class="num">5</span>)
 io.<span class="builtin">print</span>(f<span class="str">&quot;{q} remainder {r}&quot;</span>)      <span class="com"># 3 remainder 2</span>
 
 <span class="com"># comprehension-free, but expressive</span>
-<span class="kw">var</span> squares = <span class="builtin">map</span>(<span class="kw">Function</span>(x): <span class="kw">return</span> x * x, <span class="builtin">range</span>(<span <span class="kw">class</span>="num">5</span>))
+<span class="kw">var</span> squares = <span class="builtin">map</span>(<span class="kw">Function</span>(x): <span class="kw">return</span> x * x, <span class="builtin">range</span>(<span class="num">5</span>))
 io.<span class="builtin">print</span>(<span class="builtin">String</span>(squares))           <span class="com"># [0, 1, 4, 9, 16]</span></code></pre>
 <h2 id="how-to-read-these-docs">How to read these docs</h2>
 <ul><li><strong>Getting Started</strong>, <strong>Embedding</strong>, and <strong>Extending</strong> cover building, integrating, and growing</li></ul>

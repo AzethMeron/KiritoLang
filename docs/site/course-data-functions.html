@@ -37,25 +37,25 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html" class="active">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="course-2-data-and-functions">Course 2 — Data and Functions</h1>
 <h2 id="lesson-2-1-lists">Lesson 2.1 — Lists</h2>
 <p>Lists are ordered and mutable:</p>
-<pre><code><span class="kw">var</span> xs = [<span <span class="kw">class</span>="num">3</span>, <span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">2</span>]
-xs.append(<span <span class="kw">class</span>="num">4</span>)            <span class="com"># [3, 1, 2, 4]</span>
+<pre><code><span class="kw">var</span> xs = [<span class="num">3</span>, <span class="num">1</span>, <span class="num">2</span>]
+xs.append(<span class="num">4</span>)            <span class="com"># [3, 1, 2, 4]</span>
 xs.sort()               <span class="com"># [1, 2, 3, 4]  (in place, stable)</span>
-io.<span class="builtin">print</span>(<span class="builtin">String</span>(xs[<span <span class="kw">class</span>="num">0</span>])) <span class="com"># 1</span>
-io.<span class="builtin">print</span>(<span class="builtin">String</span>(xs[-<span <span class="kw">class</span>="num">1</span>]))<span class="com"># 4  (negative index = from the end)</span>
-io.<span class="builtin">print</span>(<span class="builtin">String</span>(xs[<span <span class="kw">class</span>="num">1</span>:<span <span class="kw">class</span>="num">3</span>]))   <span class="com"># [2, 3]  (slice)</span>
+io.<span class="builtin">print</span>(<span class="builtin">String</span>(xs[<span class="num">0</span>])) <span class="com"># 1</span>
+io.<span class="builtin">print</span>(<span class="builtin">String</span>(xs[-<span class="num">1</span>]))<span class="com"># 4  (negative index = from the end)</span>
+io.<span class="builtin">print</span>(<span class="builtin">String</span>(xs[<span class="num">1</span>:<span class="num">3</span>]))   <span class="com"># [2, 3]  (slice)</span>
 io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span class="builtin">len</span>(xs)))</code></pre>
 <p>Slicing accepts negative bounds and a step: <code>xs[::-1]</code> reverses, <code>xs[::2]</code> takes every other.</p>
 <h2 id="lesson-2-2-dicts-and-sets">Lesson 2.2 — Dicts and Sets</h2>
 <p>A Dict maps keys to values; a Set holds unique values:</p>
-<pre><code><span class="kw">var</span> ages = {<span class="str">&quot;Ann&quot;</span>: <span <span class="kw">class</span>="num">30</span>, <span class="str">&quot;Bo&quot;</span>: <span <span class="kw">class</span>="num">25</span>}
-ages[<span class="str">&quot;Cy&quot;</span>] = <span <span class="kw">class</span>="num">41</span>
-io.<span class="builtin">print</span>(<span class="builtin">String</span>(ages.get(<span class="str">&quot;Zoe&quot;</span>, <span <span class="kw">class</span>="num">0</span>)))   <span class="com"># 0 — default when missing</span>
+<pre><code><span class="kw">var</span> ages = {<span class="str">&quot;Ann&quot;</span>: <span class="num">30</span>, <span class="str">&quot;Bo&quot;</span>: <span class="num">25</span>}
+ages[<span class="str">&quot;Cy&quot;</span>] = <span class="num">41</span>
+io.<span class="builtin">print</span>(<span class="builtin">String</span>(ages.get(<span class="str">&quot;Zoe&quot;</span>, <span class="num">0</span>)))   <span class="com"># 0 — default when missing</span>
 <span class="kw">for</span> name, age <span class="kw">in</span> ages.items():
     io.<span class="builtin">print</span>(f<span class="str">&quot;{name}: {age}&quot;</span>)
 
-<span class="kw">var</span> seen = {<span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">2</span>, <span <span class="kw">class</span>="num">2</span>, <span <span class="kw">class</span>="num">3</span>}     <span class="com"># {1, 2, 3}</span>
-seen.add(<span <span class="kw">class</span>="num">4</span>)
-io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span <span class="kw">class</span>="num">3</span> <span class="kw">in</span> seen)) <span class="com"># True</span></code></pre>
+<span class="kw">var</span> seen = {<span class="num">1</span>, <span class="num">2</span>, <span class="num">2</span>, <span class="num">3</span>}     <span class="com"># {1, 2, 3}</span>
+seen.add(<span class="num">4</span>)
+io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span class="num">3</span> <span class="kw">in</span> seen)) <span class="com"># True</span></code></pre>
 <h2 id="lesson-2-3-strings-in-depth">Lesson 2.3 — Strings in depth</h2>
 <p>Strings are Unicode and indexed by character:</p>
 <pre><code><span class="kw">var</span> s = <span class="str">&quot;Hello, World&quot;</span>
@@ -68,7 +68,7 @@ io.<span class="builtin">print</span>(f<span class="str">&quot;length: {len(s)}&
 <p>Functions are values. Define one with <code>Function</code> and call it by name:</p>
 <pre><code><span class="kw">var</span> square = <span class="kw">Function</span>(x):
     <span class="kw">return</span> x * x
-io.<span class="builtin">print</span>(<span class="builtin">String</span>(square(<span <span class="kw">class</span>="num">9</span>)))   <span class="com"># 81</span></code></pre>
+io.<span class="builtin">print</span>(<span class="builtin">String</span>(square(<span class="num">9</span>)))   <span class="com"># 81</span></code></pre>
 <p>Parameters can have <strong>defaults</strong> and be passed by <strong>name</strong>:</p>
 <pre><code><span class="kw">var</span> greet = <span class="kw">Function</span>(name, greeting = <span class="str">&quot;Hello&quot;</span>):
     <span class="kw">return</span> f<span class="str">&quot;{greeting}, {name}!&quot;</span>
@@ -76,21 +76,21 @@ io.<span class="builtin">print</span>(greet(<span class="str">&quot;Ada&quot;</s
 io.<span class="builtin">print</span>(greet(<span class="str">&quot;Ada&quot;</span>, greeting = <span class="str">&quot;Hi&quot;</span>))   <span class="com"># Hi, Ada!</span></code></pre>
 <p>Add <strong>type annotations</strong> to make the contract enforced at runtime:</p>
 <pre><code><span class="kw">var</span> half = <span class="kw">Function</span>(n : <span class="builtin">Integer</span>) -&gt; <span class="builtin">Float</span>:
-    <span class="kw">return</span> n / <span <span class="kw">class</span>="num">2</span>
-io.<span class="builtin">print</span>(<span class="builtin">String</span>(half(<span <span class="kw">class</span>="num">7</span>)))     <span class="com"># 3.5</span>
+    <span class="kw">return</span> n / <span class="num">2</span>
+io.<span class="builtin">print</span>(<span class="builtin">String</span>(half(<span class="num">7</span>)))     <span class="com"># 3.5</span>
 # half(<span class="str">&quot;x&quot;</span>)  -&gt; error: argument &#x27;n&#x27; must be <span class="builtin">Integer</span>, got <span class="builtin">String</span></code></pre>
 <h2 id="lesson-2-5-multiple-values">Lesson 2.5 — Multiple values</h2>
 <p>Return several values with a comma (they pack into a List), and unpack on the left:</p>
 <pre><code><span class="kw">var</span> stats = <span class="kw">Function</span>(xs):
     <span class="kw">return</span> <span class="builtin">min</span>(xs), <span class="builtin">max</span>(xs), <span class="builtin">sum</span>(xs)
-<span class="kw">var</span> lo, hi, total = stats([<span <span class="kw">class</span>="num">4</span>, <span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">7</span>, <span <span class="kw">class</span>="num">3</span>])
+<span class="kw">var</span> lo, hi, total = stats([<span class="num">4</span>, <span class="num">1</span>, <span class="num">7</span>, <span class="num">3</span>])
 io.<span class="builtin">print</span>(f<span class="str">&quot;min={lo} max={hi} sum={total}&quot;</span>)</code></pre>
 <p>A starred target grabs the rest: <code>var first, *others = [1, 2, 3, 4]</code>.</p>
 <h2 id="lesson-2-6-higher-order-functions">Lesson 2.6 — Higher-order functions</h2>
 <p>Functions can take and return functions. <code>map</code>, <code>filter</code>, and <code>sorted</code> accept a function:</p>
-<pre><code><span class="kw">var</span> nums = [<span <span class="kw">class</span>="num">1</span>, <span <span class="kw">class</span>="num">2</span>, <span <span class="kw">class</span>="num">3</span>, <span <span class="kw">class</span>="num">4</span>, <span <span class="kw">class</span>="num">5</span>, <span <span class="kw">class</span>="num">6</span>]
-<span class="kw">var</span> evens = <span class="builtin">filter</span>(<span class="kw">Function</span>(x): <span class="kw">return</span> x % <span <span class="kw">class</span>="num">2</span> == <span <span class="kw">class</span>="num">0</span>, nums)
-<span class="kw">var</span> doubled = <span class="builtin">map</span>(<span class="kw">Function</span>(x): <span class="kw">return</span> x * <span <span class="kw">class</span>="num">2</span>, nums)
+<pre><code><span class="kw">var</span> nums = [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]
+<span class="kw">var</span> evens = <span class="builtin">filter</span>(<span class="kw">Function</span>(x): <span class="kw">return</span> x % <span class="num">2</span> == <span class="num">0</span>, nums)
+<span class="kw">var</span> doubled = <span class="builtin">map</span>(<span class="kw">Function</span>(x): <span class="kw">return</span> x * <span class="num">2</span>, nums)
 io.<span class="builtin">print</span>(<span class="builtin">String</span>(evens))     <span class="com"># [2, 4, 6]</span>
 io.<span class="builtin">print</span>(<span class="builtin">String</span>(doubled))   <span class="com"># [2, 4, 6, 8, 10, 12]</span>
 
@@ -104,18 +104,18 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span 
     <span class="kw">var</span> counts = {}
     <span class="kw">for</span> raw <span class="kw">in</span> text.split(<span class="str">&quot; &quot;</span>):
         <span class="kw">var</span> word = raw.strip().lower()
-        <span class="kw">if</span> <span class="builtin">len</span>(word) &gt; <span <span class="kw">class</span>="num">0</span>:
-            counts[word] = counts.get(word, <span <span class="kw">class</span>="num">0</span>) + <span <span class="kw">class</span>="num">1</span>
+        <span class="kw">if</span> <span class="builtin">len</span>(word) &gt; <span class="num">0</span>:
+            counts[word] = counts.get(word, <span class="num">0</span>) + <span class="num">1</span>
     <span class="kw">return</span> counts
 
 <span class="kw">var</span> topN = <span class="kw">Function</span>(counts : <span class="builtin">Dict</span>, n : <span class="builtin">Integer</span>):
     <span class="kw">var</span> pairs = counts.items()
-    <span class="kw">var</span> ranked = <span class="builtin">sorted</span>(pairs, <span class="kw">Function</span>(p): <span class="kw">return</span> p[<span <span class="kw">class</span>="num">1</span>], <span class="kw">True</span>)   <span class="com"># by count, descending</span>
-    <span class="kw">return</span> ranked[<span <span class="kw">class</span>="num">0</span>:n]
+    <span class="kw">var</span> ranked = <span class="builtin">sorted</span>(pairs, <span class="kw">Function</span>(p): <span class="kw">return</span> p[<span class="num">1</span>], <span class="kw">True</span>)   <span class="com"># by count, descending</span>
+    <span class="kw">return</span> ranked[<span class="num">0</span>:n]
 
 <span class="kw">var</span> text = <span class="str">&quot;the cat sat on the mat the cat ran&quot;</span>
 <span class="kw">var</span> counts = countWords(text)
-<span class="kw">for</span> word, n <span class="kw">in</span> topN(counts, <span <span class="kw">class</span>="num">3</span>):
+<span class="kw">for</span> word, n <span class="kw">in</span> topN(counts, <span class="num">3</span>):
     io.<span class="builtin">print</span>(f<span class="str">&quot;{word}: {n}&quot;</span>)</code></pre>
 <p><strong>Why it works:</strong></p>
 <ul><li><code>countWords</code> normalizes each word (<code>strip</code>, <code>lower</code>) and uses <code>counts.get(word, 0) + 1</code> so the</li></ul>
