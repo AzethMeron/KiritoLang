@@ -35,6 +35,9 @@ private:
         return toks_[std::min(pos_ + k, toks_.size() - 1)];
     }
     bool at(TokenType t) const { return peek().type == t; }
+    // True if the current token is an identifier with the given text — used for soft keywords
+    // (`case`/`default`) that are only special in a specific syntactic position.
+    bool atWord(const char* w) const { return at(TokenType::Identifier) && peek().text == w; }
     const Token& advance() { return toks_[pos_++]; }
 
     const Token& expect(TokenType t, const char* what) {
@@ -156,17 +159,19 @@ private:
         expect(TokenType::Colon, "':' after the switch subject");
         expect(TokenType::Newline, "a newline before the switch body");
         expect(TokenType::Indent, "an indented switch body");
-        // The body is a sequence of `case ...:` arms and an optional trailing `default:`.
+        // The body is a sequence of `case ...:` arms and an optional trailing `default:`. `case` and
+        // `default` are soft keywords: matched here as identifiers so they remain usable as names
+        // (e.g. a `default` parameter) outside a switch.
         while (!at(TokenType::Dedent) && !at(TokenType::EndOfFile)) {
             if (at(TokenType::Newline)) { advance(); continue; }
-            if (at(TokenType::KwCase)) {
+            if (atWord("case")) {
                 advance();
                 ast::CaseClause clause;
                 clause.values.push_back(parseExpr());
                 while (at(TokenType::Comma)) { advance(); clause.values.push_back(parseExpr()); }
                 clause.body = parseBlock();
                 node->cases.push_back(std::move(clause));
-            } else if (at(TokenType::KwDefault)) {
+            } else if (atWord("default")) {
                 if (node->hasDefault) throw KiritoError("a switch can have only one 'default'", peek().span);
                 advance();
                 node->hasDefault = true;

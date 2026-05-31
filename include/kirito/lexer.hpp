@@ -16,7 +16,8 @@ enum class TokenType {
     KwIf, KwElif, KwElse, KwWhile, KwBreak, KwContinue,
     KwAnd, KwOr, KwNot, KwFunction, KwReturn, KwFor, KwIn,
     KwTry, KwCatch, KwFinally, KwThrow, KwAs, KwClass, KwWith, KwPass, KwAssert, KwDiscard,
-    KwSwitch, KwCase, KwDefault,
+    KwSwitch,  // `case`/`default` are contextual (soft) keywords — lexed as identifiers, recognized
+               // only inside a switch body — so they stay usable as ordinary names everywhere else.
     Plus, Minus, Star, Slash, SlashSlash, Percent, StarStar, Arrow,
     Assign, EqEq, NotEq, Lt, Le, Gt, Ge,
     LParen, RParen, LBracket, RBracket, LBrace, RBrace,
@@ -205,8 +206,6 @@ private:
         else if (text == "assert") type = TokenType::KwAssert;
         else if (text == "discard") type = TokenType::KwDiscard;
         else if (text == "switch") type = TokenType::KwSwitch;
-        else if (text == "case") type = TokenType::KwCase;
-        else if (text == "default") type = TokenType::KwDefault;
         return make(type, line, col, std::move(text));
     }
 

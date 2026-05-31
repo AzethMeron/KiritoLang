@@ -72,6 +72,14 @@ int main() {
             "        default:\n            return \"c\"\n"
             "var s = \"\"\nfor i in range(6):\n    s = s + c(i)\ns") == "abcabc");
     }
+    // `case` and `default` are soft keywords: still usable as ordinary identifiers outside a switch.
+    {
+        KiritoVM vm;
+        CHECK(run(vm, "var get = Function(d, default): return default\nget({}, 7)") == "7");
+        CHECK(run(vm, "var case = 5\nvar default = 3\nString(case + default)") == "8");
+        CHECK(run(vm, "var d = {\"case\": 1, \"default\": 2}\nString(d[\"case\"] + d[\"default\"])") == "3");
+    }
+
     // errors
     {
         KiritoVM vm;

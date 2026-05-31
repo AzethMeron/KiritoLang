@@ -1,0 +1,54 @@
+# A single-process HTTP/1.1 server in pure Kirito. Accepts one connection at a time (matching
+# Kirito's no-threads model), parses each request, dispatches it through the demo App, and writes
+# the response with `Connection: close`. Prints "LISTENING <host> <port>" once ready (the test
+# harness waits for that line), then serves until it receives GET /__shutdown__.
+#
+# Run:  ki --lib lib server.ki [host] [port] [static_dir]
+#   defaults: 127.0.0.1 8080 ./static
+
+var net = import("net")
+var io = import("io")
+var http = import("http")
+var appmod = import("app")
+
+var host = "127.0.0.1"
+var port = 8080
+var static_dir = "static"
+if len(argv) >= 1:
+    host = argv[0]
+if len(argv) >= 2:
+    port = Integer(argv[1])
+if len(argv) >= 3:
+    static_dir = argv[2]
+
+var app = appmod.create(static_dir)
+
+var srv = net.Socket()
+srv.bind(host, port)
+srv.listen(16)
+io.print("LISTENING " + host + " " + String(port))
+
+var running = True
+while running:
+    var conn = srv.accept()
+    try:
+        var reader = http.Reader(conn)
+        var req = None
+        try:
+            req = http.parse_request(reader)
+        catch as e:
+            discard http.Response().text("bad request: " + String(e), 400).write_to(conn)
+        if req != None:
+            if req.path == "/__shutdown__":
+                running = False
+                discard http.Response().text("bye", 200).write_to(conn)
+            else:
+                var resp = app.handle(req)
+                discard resp.write_to(conn)
+    catch as e:
+        # A connection-level failure must not take the server down.
+        io.eprint("connection error: " + String(e))
+    conn.close()
+
+srv.close()
+io.print("STOPPED")
