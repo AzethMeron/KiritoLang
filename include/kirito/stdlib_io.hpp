@@ -377,7 +377,8 @@ public:
         };
 
         // BytesIO([initial]) -> an in-memory binary buffer.
-        m.fn("BytesIO", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("BytesIO", {{"initial", "String", vm.makeString("")}}, "BytesIO",
+             [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.empty()) return vm.alloc(std::make_unique<BytesIO>());
             const Object& o = vm.arena().deref(a[0]);
             if (o.kind() != ValueKind::String) throw KiritoError("BytesIO expects a byte String");
@@ -453,31 +454,31 @@ public:
             if (o.kind() != ValueKind::String) throw KiritoError("expected a path String");
             return static_cast<const StrVal&>(o).value();
         };
-        m.fn("exists", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("exists", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;
             return vm.makeBool(std::filesystem::exists(pathArg(vm, a[0]), ec));
         });
-        m.fn("remove", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("remove", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;
             std::filesystem::remove(pathArg(vm, a[0]), ec);
             return vm.makeBool(!ec);
         });
-        m.fn("rename", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("rename", {{"src", "String"}, {"dst", "String"}}, "", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;
             std::filesystem::rename(pathArg(vm, a[0]), pathArg(vm, a[1]), ec);
             if (ec) throw KiritoError("rename failed: " + ec.message());
             return vm.none();
         });
-        m.fn("mkdir", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("mkdir", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;
             std::filesystem::create_directories(pathArg(vm, a[0]), ec);
             return vm.makeBool(!ec);
         });
-        m.fn("getcwd", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        m.fn("getcwd", {}, "String", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             std::error_code ec;
             return vm.makeString(std::filesystem::current_path(ec).string());
         });
-        m.fn("listdir", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("listdir", {{"path", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             RootScope rs(vm);
             auto list = std::make_unique<ListVal>();
             std::error_code ec;
@@ -487,21 +488,21 @@ public:
         });
 
         // --- path helpers (os.path style) ---
-        m.fn("isfile", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("isfile", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;
             return vm.makeBool(std::filesystem::is_regular_file(pathArg(vm, a[0]), ec));
         });
-        m.fn("isdir", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("isdir", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;
             return vm.makeBool(std::filesystem::is_directory(pathArg(vm, a[0]), ec));
         });
-        m.fn("dirname", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("dirname", {{"path", "String"}}, "String", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeString(std::filesystem::path(pathArg(vm, a[0])).parent_path().string());
         });
-        m.fn("basename", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("basename", {{"path", "String"}}, "String", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeString(std::filesystem::path(pathArg(vm, a[0])).filename().string());
         });
-        m.fn("splitext", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("splitext", {{"path", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::filesystem::path p(pathArg(vm, a[0]));
             std::string ext = p.extension().string();
             std::string root = pathArg(vm, a[0]);
@@ -519,7 +520,7 @@ public:
             for (std::size_t i = 1; i < a.size(); ++i) p /= pathArg(vm, a[i]);
             return vm.makeString(p.string());
         });
-        m.fn("getsize", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("getsize", {{"path", "String"}}, "Integer", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;
             auto sz = std::filesystem::file_size(pathArg(vm, a[0]), ec);
             if (ec) throw KiritoError("getsize: " + ec.message());
@@ -527,7 +528,7 @@ public:
         });
         // walk(dir) -> List of file paths under dir, recursively (flattened; simpler than Python's
         // (dirpath, dirnames, filenames) triples but covers the common "visit every file" case).
-        m.fn("walk", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("walk", {{"dir", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             RootScope rs(vm);
             auto list = std::make_unique<ListVal>();
             std::error_code ec;

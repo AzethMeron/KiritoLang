@@ -44,7 +44,7 @@ public:
         m.value("nan", vm.makeFloat(std::nan("")));
 
         auto unary = [&](const char* nm, double (*f)(double)) {
-            m.fn(nm, [f](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            m.fn(nm, {{"x", "Number"}}, "Float", [f](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 if (a.size() != 1) throw KiritoError("math function expected 1 argument");
                 return vm.makeFloat(f(mathNum(vm, a[0])));
             });
@@ -73,22 +73,22 @@ public:
         unary("lgamma", std::lgamma);
         unary("erf", std::erf);
 
-        m.fn("isnan", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("isnan", {{"x", "Number"}}, "Bool", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeBool(std::isnan(mathNum(vm, a[0])));
         });
-        m.fn("isinf", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("isinf", {{"x", "Number"}}, "Bool", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeBool(std::isinf(mathNum(vm, a[0])));
         });
-        m.fn("isfinite", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("isfinite", {{"x", "Number"}}, "Bool", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeBool(std::isfinite(mathNum(vm, a[0])));
         });
-        m.fn("copysign", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("copysign", {{"x", "Number"}, {"y", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeFloat(std::copysign(mathNum(vm, a[0]), mathNum(vm, a[1])));
         });
-        m.fn("fmod", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("fmod", {{"x", "Number"}, {"y", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeFloat(std::fmod(mathNum(vm, a[0]), mathNum(vm, a[1])));
         });
-        m.fn("lcm", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("lcm", {{"a", "Integer"}, {"b", "Integer"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto get = [&](Handle h) {
                 const Object& o = vm.arena().deref(h);
                 if (o.kind() != ValueKind::Integer) throw KiritoError("lcm expects Integers");
@@ -108,39 +108,41 @@ public:
             return vm.makeInt(static_cast<int64_t>(prod));
         });
 
-        m.fn("log", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            if (a.size() == 1) return vm.makeFloat(std::log(mathNum(vm, a[0])));
-            if (a.size() == 2) return vm.makeFloat(std::log(mathNum(vm, a[0])) / std::log(mathNum(vm, a[1])));
-            throw KiritoError("log expected 1 or 2 arguments");
+        m.fn("log", {{"x", "Number"}, {"base", "", vm.none()}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            // log(x) is the natural log; log(x, base) changes the base. A None base (the default) is
+            // the natural log too.
+            if (a.size() < 2 || vm.arena().deref(a[1]).kind() == ValueKind::None)
+                return vm.makeFloat(std::log(mathNum(vm, a[0])));
+            return vm.makeFloat(std::log(mathNum(vm, a[0])) / std::log(mathNum(vm, a[1])));
         });
-        m.fn("pow", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("pow", {{"x", "Number"}, {"y", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.size() != 2) throw KiritoError("pow expected 2 arguments");
             return vm.makeFloat(std::pow(mathNum(vm, a[0]), mathNum(vm, a[1])));
         });
-        m.fn("atan2", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("atan2", {{"y", "Number"}, {"x", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.size() != 2) throw KiritoError("atan2 expected 2 arguments");
             return vm.makeFloat(std::atan2(mathNum(vm, a[0]), mathNum(vm, a[1])));
         });
-        m.fn("hypot", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("hypot", {{"x", "Number"}, {"y", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.size() != 2) throw KiritoError("hypot expected 2 arguments");
             return vm.makeFloat(std::hypot(mathNum(vm, a[0]), mathNum(vm, a[1])));
         });
-        m.fn("fabs", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("fabs", {{"x", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeFloat(std::fabs(mathNum(vm, a[0])));
         });
-        m.fn("degrees", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("degrees", {{"x", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeFloat(mathNum(vm, a[0]) * 180.0 / std::numbers::pi);
         });
-        m.fn("radians", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("radians", {{"x", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeFloat(mathNum(vm, a[0]) * std::numbers::pi / 180.0);
         });
-        m.fn("floor", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("floor", {{"x", "Number"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeInt(toInt64Checked(std::floor(mathNum(vm, a[0])), "floor"));
         });
-        m.fn("ceil", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("ceil", {{"x", "Number"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return vm.makeInt(toInt64Checked(std::ceil(mathNum(vm, a[0])), "ceil"));
         });
-        m.fn("factorial", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("factorial", {{"n", "Integer"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const Object& o = vm.arena().deref(a[0]);
             if (o.kind() != ValueKind::Integer) throw KiritoError("factorial expects an Integer");
             int64_t n = static_cast<const IntVal&>(o).value();
@@ -151,7 +153,7 @@ public:
                     throw KiritoError("factorial result too large for Integer");
             return vm.makeInt(r);
         });
-        m.fn("gcd", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("gcd", {{"a", "Integer"}, {"b", "Integer"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto get = [&](Handle h) {
                 const Object& o = vm.arena().deref(h);
                 if (o.kind() != ValueKind::Integer) throw KiritoError("gcd expects Integers");
@@ -224,8 +226,8 @@ public:
                 throw KiritoError("comb/perm result too large for Integer");
             return vm.makeInt(static_cast<int64_t>(r));
         };
-        m.fn("comb", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, true); });
-        m.fn("perm", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, false); });
+        m.fn("comb", {{"n", "Integer"}, {"k", "Integer"}}, "Integer", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, true); });
+        m.fn("perm", {{"n", "Integer"}, {"k", "Integer"}}, "Integer", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, false); });
     }
 };
 

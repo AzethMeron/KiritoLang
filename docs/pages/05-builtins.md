@@ -2,6 +2,12 @@
 
 These names are available everywhere without an `import`.
 
+Most fixed-arity builtins (and stdlib module functions) declare a **signature**, so they accept
+**keyword arguments** and **defaults** just like Kirito functions — e.g. `round(3.14159, ndigits=2)`,
+`sorted(xs, reverse=True)`, `pow(2, 10, mod=1000)`, `io.open(path, mode="w")`. `inspect(fn)` shows a
+function's parameters, types, and return type. Genuinely variadic builtins (`min`, `max`, `zip`,
+`range`, `io.print`) take positional arguments only.
+
 ## Types and conversion
 
 | Function | Description |

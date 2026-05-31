@@ -407,8 +407,10 @@ public:
             if (c.kind() == ValueKind::Function)
                 result_ = located(e.span, [&] { return static_cast<KiFunction&>(c).callFull(vm_, args, {}); });
             else if (c.kind() == ValueKind::NativeFunction &&
-                     static_cast<NativeFunction&>(c).hasSignature())
-                // Even an all-positional call to a signatured native must bind, to apply defaults.
+                     static_cast<NativeFunction&>(c).hasSignature() &&
+                     args.size() != static_cast<NativeFunction&>(c).params().size())
+                // Positional call that doesn't exactly fill the params: bind to apply defaults /
+                // report arity errors. (The common exact-arity case below skips this — no alloc.)
                 result_ = located(e.span, [&] {
                     auto& nf = static_cast<NativeFunction&>(c);
                     std::vector<Handle> bound = nf.bindArgs(args, {});

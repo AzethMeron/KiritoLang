@@ -110,14 +110,22 @@ int main() {
               != std::string::npos);
     }
 
-    // --- 'Any' / no annotation accept everything; native callables reject keyword args ---
+    // --- 'Any' / no annotation accept everything ---
     {
         KiritoVM vm;
         std::string def = "var id = Function(x : Any):\n    return x\n";
         CHECK(run(vm, def + "id(\"s\")") == "s");
         CHECK(run(vm, def + "id([1])") == "[1]");
         CHECK(run(vm, "len([1, 2])") == "2");
+    }
+    // a signatured native takes keyword args by its declared parameter name, and rejects unknown ones
+    {
+        KiritoVM vm;
+        CHECK(run(vm, "len(x = [1, 2])") == "2");  // `len`'s parameter is named `x`
         CHECK(run(vm, "try:\n    len(obj = [1, 2])\ncatch as e:\n    e\n")
+                  .find("unexpected keyword argument 'obj'") != std::string::npos);
+        // a signatureless native (variadic) still rejects keyword args wholesale
+        CHECK(run(vm, "var io = import(\"io\")\ntry:\n    io.print(end = 1)\ncatch as e:\n    e\n")
                   .find("does not accept keyword arguments") != std::string::npos);
     }
 

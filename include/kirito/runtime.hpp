@@ -1692,12 +1692,12 @@ inline void KiritoVM::installBuiltins() {
         g.define(name, alloc(std::make_unique<NativeFunction>(name, std::move(sig), std::move(ret), std::move(fn))));
     };
 
-    def("len", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+    defSig("len", {{"x"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         if (args.size() != 1) throw KiritoError("len expected 1 argument");
         return vm.makeInt(vm.arena().deref(args[0]).length(vm).value());
     });
 
-    def("import", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+    defSig("import", {{"name", "String"}}, "Module", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         if (args.size() != 1) throw KiritoError("import expected 1 argument");
         const Object& a = vm.arena().deref(args[0]);
         if (a.kind() != ValueKind::String) throw KiritoError("import expects a String module name");
@@ -1817,7 +1817,7 @@ inline void KiritoVM::installBuiltins() {
         return dh;
     });
 
-    def("abs", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("abs", {{"x", "Number"}}, "Number", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         const Object& o = vm.arena().deref(a[0]);
         if (o.kind() == ValueKind::Integer) {
             int64_t v = static_cast<const IntVal&>(o).value();
@@ -1875,7 +1875,7 @@ inline void KiritoVM::installBuiltins() {
         else for (int64_t i = start; i > stop; i += step) list->elems.push_back(rs.add(vm.makeInt(i)));
         return vm.alloc(std::move(list));
     });
-    def("sum", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("sum", {{"iterable"}}, "Number", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto items = vm.arena().deref(a[0]).iterate(vm);
         bool isFloat = false;
         double f = 0;
@@ -1902,7 +1902,8 @@ inline void KiritoVM::installBuiltins() {
     };
     def("min", [extremum](KiritoVM& vm, std::span<const Handle> a) { return extremum(vm, a, false); });
     def("max", [extremum](KiritoVM& vm, std::span<const Handle> a) { return extremum(vm, a, true); });
-    def("sorted", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("sorted", {{"iterable"}, {"key", "", none()}, {"reverse", "Bool", makeBool(false)}}, "List",
+           [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         // sorted(iterable[, key][, reverse]) -> a new STABLE-sorted List.
         RootScope rs(vm);
         Handle keyFn{};
@@ -1925,7 +1926,7 @@ inline void KiritoVM::installBuiltins() {
         for (auto& p : tagged) list->elems.push_back(p.second);
         return vm.alloc(std::move(list));
     });
-    def("enumerate", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("enumerate", {{"iterable"}}, "List", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         RootScope rs(vm);
         auto out = std::make_unique<ListVal>();
         auto items = vm.arena().deref(a[0]).iterate(vm);
@@ -1953,7 +1954,7 @@ inline void KiritoVM::installBuiltins() {
         }
         return vm.alloc(std::move(out));
     });
-    def("map", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("map", {{"function"}, {"iterable"}}, "List", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         RootScope rs(vm);
         Handle f = a[0];
         auto out = std::make_unique<ListVal>();
@@ -1965,7 +1966,7 @@ inline void KiritoVM::installBuiltins() {
         }
         return vm.alloc(std::move(out));
     });
-    def("filter", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("filter", {{"function"}, {"iterable"}}, "List", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         RootScope rs(vm);
         Handle f = a[0];
         auto out = std::make_unique<ListVal>();
@@ -1977,14 +1978,15 @@ inline void KiritoVM::installBuiltins() {
         }
         return vm.alloc(std::move(out));
     });
-    def("type", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("type", {{"x"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         return vm.makeString(vm.arena().deref(a[0]).typeName());
     });
-    def("inspect", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("inspect", {{"x"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 1) throw KiritoError("inspect expected 1 argument");
         return vm.makeString(inspectValue(vm, a[0]));
     });
-    def("format", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("format", {{"value"}, {"spec", "String", makeString("")}}, "String",
+           [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         // format(value[, spec]) -> String, applying a Python mini-format-spec. No spec == String().
         if (a.size() < 1 || a.size() > 2) throw KiritoError("format expected 1 or 2 arguments");
         std::string spec;
@@ -1996,7 +1998,7 @@ inline void KiritoVM::installBuiltins() {
         return vm.makeString(applyFormatSpec(vm, a[0], spec));
     });
 
-    def("all", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("all", {{"iterable"}}, "Bool", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 1) throw KiritoError("all expected 1 argument");
         auto items = vm.arena().deref(a[0]).iterate(vm);
         if (!items) throw KiritoError("all expects an iterable");
@@ -2004,7 +2006,7 @@ inline void KiritoVM::installBuiltins() {
             if (!vm.arena().deref(h).truthy()) return vm.makeBool(false);
         return vm.makeBool(true);
     });
-    def("any", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("any", {{"iterable"}}, "Bool", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 1) throw KiritoError("any expected 1 argument");
         auto items = vm.arena().deref(a[0]).iterate(vm);
         if (!items) throw KiritoError("any expects an iterable");
@@ -2012,7 +2014,7 @@ inline void KiritoVM::installBuiltins() {
             if (vm.arena().deref(h).truthy()) return vm.makeBool(true);
         return vm.makeBool(false);
     });
-    def("reversed", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("reversed", {{"iterable"}}, "List", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 1) throw KiritoError("reversed expected 1 argument");
         auto items = vm.arena().deref(a[0]).iterate(vm);
         if (!items) throw KiritoError("reversed expects an iterable");
@@ -2022,7 +2024,7 @@ inline void KiritoVM::installBuiltins() {
         out->elems.assign(items.value().rbegin(), items.value().rend());
         return vm.alloc(std::move(out));
     });
-    def("divmod", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("divmod", {{"a"}, {"b"}}, "List", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 2) throw KiritoError("divmod expected 2 arguments");
         RootScope rs(vm);
         Handle q = rs.add(numericBinary(vm, BinOp::FloorDiv, a[0], a[1]));
@@ -2032,7 +2034,7 @@ inline void KiritoVM::installBuiltins() {
         pair->elems.push_back(r);
         return vm.alloc(std::move(pair));
     });
-    def("isinstance", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("isinstance", {{"value"}, {"type"}}, "Bool", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 2) throw KiritoError("isinstance expected 2 arguments");
         // Second arg is a type: either a class value or a String type-name. Either resolves to a
         // name we match through typeMatches (kind names + inheritance-aware class chain).
@@ -2043,7 +2045,7 @@ inline void KiritoVM::installBuiltins() {
         else throw KiritoError("isinstance second argument must be a class or a type-name String");
         return vm.makeBool(typeMatches(vm, a[0], typeName));
     });
-    def("ord", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("ord", {{"char", "String"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 1) throw KiritoError("ord expected 1 argument");
         const Object& o = vm.arena().deref(a[0]);
         if (o.kind() != ValueKind::String) throw KiritoError("ord expects a String");
@@ -2051,7 +2053,7 @@ inline void KiritoVM::installBuiltins() {
         if (utf8Length(s) != 1) throw KiritoError("ord expects a single character");
         return vm.makeInt(static_cast<int64_t>(utf8DecodeAt(s, 0)));
     });
-    def("chr", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    defSig("chr", {{"codepoint", "Integer"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 1) throw KiritoError("chr expected 1 argument");
         const Object& o = vm.arena().deref(a[0]);
         if (o.kind() != ValueKind::Integer) throw KiritoError("chr expects an Integer");
@@ -2076,12 +2078,15 @@ inline void KiritoVM::installBuiltins() {
         std::reverse(digits.begin(), digits.end());
         return vm.makeString((neg ? "-" : "") + std::string(prefix) + digits);
     };
-    def("bin", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 2, "0b", "bin"); });
-    def("oct", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 8, "0o", "oct"); });
-    def("hex", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 16, "0x", "hex"); });
-    def("pow", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-        if (a.size() == 2) return numericBinary(vm, BinOp::Pow, a[0], a[1]);
-        if (a.size() == 3) {
+    defSig("bin", {{"n", "Integer"}}, "String", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 2, "0b", "bin"); });
+    defSig("oct", {{"n", "Integer"}}, "String", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 8, "0o", "oct"); });
+    defSig("hex", {{"n", "Integer"}}, "String", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 16, "0x", "hex"); });
+    defSig("pow", {{"base"}, {"exp"}, {"mod", "", none()}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        // pow(base, exp) -> base**exp; pow(base, exp, mod) -> modular exponentiation. A None mod
+        // (the default) means the plain two-argument form.
+        if (a.size() < 3 || vm.arena().deref(a[2]).kind() == ValueKind::None)
+            return numericBinary(vm, BinOp::Pow, a[0], a[1]);
+        {
             // pow(base, exp, mod): modular exponentiation over non-negative Integers.
             auto geti = [&](Handle h, const char* w) {
                 const Object& o = vm.arena().deref(h);
@@ -2099,7 +2104,6 @@ inline void KiritoVM::installBuiltins() {
             }
             return vm.makeInt(static_cast<int64_t>(result));
         }
-        throw KiritoError("pow expected 2 or 3 arguments");
     });
 }
 
