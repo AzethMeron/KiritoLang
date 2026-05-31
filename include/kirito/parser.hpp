@@ -72,6 +72,13 @@ private:
                 expectStatementEnd();
                 return node;
             }
+            case TokenType::KwDiscard: {
+                auto node = std::make_unique<ast::DiscardStmt>();
+                node->span = advance().span;
+                node->expr = parseExpr();
+                endSimpleStatement();
+                return node;
+            }
             case TokenType::KwAssert: {
                 auto node = std::make_unique<ast::AssertStmt>();
                 node->span = advance().span;
@@ -497,12 +504,18 @@ private:
     }
 
     // One parameter: name [: Type] [= default].
+    // A type annotation is a type/class name: an identifier, or the built-in `None` type.
+    std::string parseTypeName(const char* what) {
+        if (at(TokenType::KwNone)) { advance(); return "None"; }
+        return expect(TokenType::Identifier, what).text;
+    }
+
     ast::Param parseParam() {
         ast::Param p;
         p.name = expect(TokenType::Identifier, "a parameter name").text;
         if (at(TokenType::Colon)) {
             advance();
-            p.annotation = expect(TokenType::Identifier, "a type name after ':'").text;
+            p.annotation = parseTypeName("a type name after ':'");
         }
         if (at(TokenType::Assign)) {
             advance();
@@ -531,7 +544,7 @@ private:
         expect(TokenType::RParen, "')' after parameters");
         if (at(TokenType::Arrow)) {
             advance();
-            node->returnAnnotation = expect(TokenType::Identifier, "a return type after '->'").text;
+            node->returnAnnotation = parseTypeName("a return type after '->'");
         }
         expect(TokenType::Colon, "':' after Function parameters");
         // A function body is its own break/continue/return context: a loop outside the function

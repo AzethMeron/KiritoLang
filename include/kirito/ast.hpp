@@ -189,6 +189,7 @@ struct ClassStmt;
 struct WithStmt;
 struct PassStmt;
 struct AssertStmt;
+struct DiscardStmt;
 
 struct StmtVisitor {
     virtual ~StmtVisitor() = default;
@@ -207,6 +208,7 @@ struct StmtVisitor {
     virtual void visit(const WithStmt&) = 0;
     virtual void visit(const PassStmt&) = 0;
     virtual void visit(const AssertStmt&) = 0;
+    virtual void visit(const DiscardStmt&) = 0;
 };
 
 struct Stmt {
@@ -217,6 +219,13 @@ struct Stmt {
 using StmtPtr = std::unique_ptr<Stmt>;
 
 struct ExprStmt : Stmt {
+    ExprPtr expr;
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+// `discard EXPR` — evaluate EXPR for its side effects and intentionally drop its value. Suppresses
+// the "return value ignored" warning; otherwise identical to an ExprStmt at runtime.
+struct DiscardStmt : Stmt {
     ExprPtr expr;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };

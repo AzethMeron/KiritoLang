@@ -67,6 +67,7 @@ public:
 
     // --- statements ---
     void visit(const ast::ExprStmt& s) override { result_ = eval(*s.expr); }
+    void visit(const ast::DiscardStmt& s) override { eval(*s.expr); result_ = vm_.none(); }
 
     void visit(const ast::VarDeclStmt& s) override {
         RootScope rs(vm_);

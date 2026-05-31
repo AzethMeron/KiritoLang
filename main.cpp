@@ -84,6 +84,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> libs;
     std::string file;
     std::vector<std::string> scriptArgs;
+    bool warnings = true;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -94,6 +95,8 @@ int main(int argc, char** argv) {
             libs.emplace_back(argv[i]);
         } else if (arg.rfind("--lib=", 0) == 0) {
             libs.push_back(arg.substr(6));
+        } else if (arg == "--no-warn" || arg == "-w") {
+            warnings = false;
         } else if (arg == "-h" || arg == "--help") {
             usage();
             return 0;
@@ -122,6 +125,20 @@ int main(int argc, char** argv) {
     buffer << in.rdbuf();
 
     setArgv(vm, scriptArgs);
+
+    // Static analysis (non-fatal warnings) before execution: parse once, lint, print to stderr.
+    if (warnings) {
+        try {
+            kirito::Parser parser(kirito::Lexer(buffer.str()).tokenize());
+            kirito::ast::Program program = parser.parseProgram();
+            kirito::Analyzer analyzer;
+            for (const auto& w : kirito::formatWarnings(analyzer.analyze(program), file))
+                std::cerr << w << "\n";
+        } catch (const kirito::KiritoError&) {
+            // A parse error here will be reported (with its span) by runSource below; skip linting.
+        }
+    }
+
     try {
         vm.runSource(buffer.str(), file);
     } catch (const kirito::KiritoError& e) {

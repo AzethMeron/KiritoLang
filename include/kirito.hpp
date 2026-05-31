@@ -34,6 +34,7 @@
 #include "kirito/stdlib_dump.hpp"
 #include "kirito/stdlib_zlib.hpp"
 #include "kirito/stdlib_hash.hpp"
+#include "kirito/analyzer.hpp"
 #include "kirito/evaluator.hpp"
 #include "kirito/runtime.hpp"
 

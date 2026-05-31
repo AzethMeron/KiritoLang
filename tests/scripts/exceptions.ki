@@ -20,7 +20,7 @@ var validate = Function(age):
     return age
 
 try:
-    validate(-5)
+    discard validate(-5)
 catch ValueError as e:
     io.print("caught: " + e.msg)  # caught: age cannot be negative
 

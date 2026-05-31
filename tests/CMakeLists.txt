@@ -49,6 +49,7 @@ kirito_test(test_adversarial unit/test_adversarial.cpp)
 kirito_test(test_unpacking unit/test_unpacking.cpp)
 kirito_test(test_stdmodules unit/test_stdmodules.cpp)
 kirito_test(test_introspect unit/test_introspect.cpp)
+kirito_test(test_warnings unit/test_warnings.cpp)
 kirito_test(test_bytesio unit/test_bytesio.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
