@@ -177,7 +177,7 @@ public:
     void visit(const ast::AssertStmt& s) override {
         if (!truthy(eval(*s.cond))) {
             Handle msg = s.message ? eval(*s.message) : vm_.makeString("assertion failed");
-            throw KiritoThrow{msg};
+            throw KiritoThrow{msg, s.span};
         }
         result_ = vm_.none();
     }
@@ -189,7 +189,7 @@ public:
     }
 
     void visit(const ast::ThrowStmt& s) override {
-        throw KiritoThrow{eval(*s.value)};
+        throw KiritoThrow{eval(*s.value), s.span};
     }
 
     void visit(const ast::WithStmt& s) override {
@@ -200,6 +200,7 @@ public:
 
         bool pendingThrow = false;
         Handle excValue = vm_.none();
+        SourceSpan throwSpan{};
         bool pendingError = false;
         std::string errMsg;
         Flow flowAfter = Flow::Normal;
@@ -209,6 +210,7 @@ public:
         } catch (const KiritoThrow& t) {
             pendingThrow = true;
             excValue = rs.add(t.value);
+            throwSpan = t.span;
         } catch (const KiritoError& e) {
             pendingError = true;
             errMsg = e.what();
@@ -219,7 +221,7 @@ public:
         }
         flow_ = Flow::Normal;
         callMethod(s.span, mgr, "_exit_", {});  // always run cleanup
-        if (pendingThrow) throw KiritoThrow{excValue};
+        if (pendingThrow) throw KiritoThrow{excValue, throwSpan};
         if (pendingError) throw KiritoError(errMsg);
         flow_ = flowAfter;
         result_ = vm_.none();
@@ -259,11 +261,13 @@ public:
         RootScope rs(vm_);
         bool pending = false;
         Handle excValue = vm_.none();
+        SourceSpan throwSpan{};
         try {
             execBlock(s.body);
         } catch (const KiritoThrow& t) {
             pending = true;
             excValue = rs.add(t.value);
+            throwSpan = t.span;
         } catch (const KiritoError& err) {
             // Internal/runtime errors are surfaced to Kirito code as a (String) exception value.
             flow_ = Flow::Normal;
@@ -299,7 +303,7 @@ public:
             flow_ = flowAfter;
             returnValue_ = savedReturn;
         }
-        if (pending) throw KiritoThrow{excValue};
+        if (pending) throw KiritoThrow{excValue, throwSpan};
         // result_ carries the value of the last expression in the executed body/handler.
     }
 

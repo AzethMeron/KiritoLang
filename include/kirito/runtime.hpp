@@ -44,6 +44,11 @@
 
 namespace kirito {
 
+// Upper bound on the size of a single string/collection built by repetition or padding, so a
+// hostile or careless count (e.g. "x" * 10**12, "".ljust(10**9)) raises cleanly instead of OOMing
+// the host. ~256 MB of characters is far beyond any legitimate scripting use.
+inline constexpr uint64_t kMaxRepeat = 256ull * 1024 * 1024;
+
 // --- numeric helpers (Python semantics) -----------------------------------------------------
 
 inline bool isNumeric(const Object& o) {
@@ -215,7 +220,13 @@ inline Handle StrVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
         if (b.kind() != ValueKind::Integer)
             throw KiritoError("can only repeat String by an Integer");
         int64_t n = static_cast<const IntVal&>(b).value();
+        if (n <= 0 || value_.empty()) return vm.makeString("");
+        // Guard against absurd allocations from a dumb/hostile count (e.g. "x" * 10**12): reject up
+        // front rather than OOM the host. The product is computed in unsigned to avoid overflow UB.
+        if (static_cast<uint64_t>(n) > kMaxRepeat / value_.size())
+            throw KiritoError("repeated String too large");
         std::string out;
+        out.reserve(value_.size() * static_cast<std::size_t>(n));
         for (int64_t i = 0; i < n; ++i) out += value_;
         return vm.makeString(std::move(out));
     }
@@ -954,6 +965,8 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             if (a.empty() || vm.arena().deref(a[0]).kind() != ValueKind::Integer)
                 throw KiritoError(op + " expects an Integer width");
             int64_t width = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
+            if (static_cast<uint64_t>(width < 0 ? 0 : width) > kMaxRepeat)
+                throw KiritoError(op + " width too large");
             std::string fill = a.size() > 1 ? asStr(vm, a[1], op.c_str()) : " ";
             if (utf8Length(fill) != 1) throw KiritoError(op + " fill must be a single character");
             int64_t pad = width - static_cast<int64_t>(utf8Length(s));
@@ -970,6 +983,8 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             if (a.empty() || vm.arena().deref(a[0]).kind() != ValueKind::Integer)
                 throw KiritoError("zfill expects an Integer width");
             int64_t width = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
+            if (static_cast<uint64_t>(width < 0 ? 0 : width) > kMaxRepeat)
+                throw KiritoError("zfill width too large");
             int64_t pad = width - static_cast<int64_t>(utf8Length(s));
             if (pad <= 0) return vm.makeString(s);
             // Keep a leading sign in front of the zero padding.
@@ -1488,7 +1503,11 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
     if (i < spec.size() && (spec[i] == '+' || spec[i] == '-' || spec[i] == ' ')) { sign = spec[i]; ++i; }
     if (i < spec.size() && spec[i] == '#') ++i;  // alternate form: accepted, no extra prefix added
     if (i < spec.size() && spec[i] == '0') { zero = true; if (!align) { align = '='; fill = '0'; } ++i; }
-    while (i < spec.size() && spec[i] >= '0' && spec[i] <= '9') { width = width * 10 + (spec[i] - '0'); ++i; }
+    while (i < spec.size() && spec[i] >= '0' && spec[i] <= '9') {
+        width = width * 10 + static_cast<std::size_t>(spec[i] - '0');
+        if (width > kMaxRepeat) throw KiritoError("format width too large");
+        ++i;
+    }
     if (i < spec.size() && spec[i] == ',') { comma = true; ++i; }
     if (i < spec.size() && spec[i] == '.') {
         ++i; precision = 0;
@@ -1557,6 +1576,7 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
         throw KiritoError("unknown format type '" + std::string(1, type) + "'");
     }
 
+    if (width > kMaxRepeat) throw KiritoError("format width too large");
     std::string s = signStr + body;
     if (s.size() >= width) return s;
     std::size_t pad = width - utf8Length(s);
@@ -1710,8 +1730,17 @@ inline void KiritoVM::installBuiltins() {
         else if (a.size() == 3) { start = iv(a[0]); stop = iv(a[1]); step = iv(a[2]); }
         else throw KiritoError("range expects 1 to 3 arguments");
         if (step == 0) throw KiritoError("range step cannot be zero");
+        // range materializes a List (no lazy generators yet), so reject a count that would exhaust
+        // memory up front rather than OOM mid-build.
+        uint64_t count = 0;
+        if (step > 0 && stop > start)
+            count = (static_cast<uint64_t>(stop - start) + static_cast<uint64_t>(step) - 1) / static_cast<uint64_t>(step);
+        else if (step < 0 && stop < start)
+            count = (static_cast<uint64_t>(start - stop) + static_cast<uint64_t>(-step) - 1) / static_cast<uint64_t>(-step);
+        if (count > kMaxRepeat) throw KiritoError("range too large");
         RootScope rs(vm);
         auto list = std::make_unique<ListVal>();
+        list->elems.reserve(static_cast<std::size_t>(count));
         if (step > 0) for (int64_t i = start; i < stop; i += step) list->elems.push_back(rs.add(vm.makeInt(i)));
         else for (int64_t i = start; i > stop; i += step) list->elems.push_back(rs.add(vm.makeInt(i)));
         return vm.alloc(std::move(list));
@@ -1991,7 +2020,7 @@ inline Handle KiritoVM::evalIn(std::string_view source, Handle scope) {
     try {
         return ev.run(program);
     } catch (const KiritoThrow& t) {
-        throw KiritoError("uncaught exception: " + stringify(t.value));
+        throw KiritoError("uncaught exception: " + stringify(t.value), t.span);
     }
 }
 
