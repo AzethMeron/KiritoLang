@@ -116,6 +116,95 @@ var combinations = Function(items, r):
             chosen.pop()
     helper(0, [])
     return result
+
+var takewhile = Function(pred, iterable):
+    var out = []
+    for x in iterable:
+        if not pred(x):
+            break
+        out.append(x)
+    return out
+
+var dropwhile = Function(pred, iterable):
+    var out = []
+    var dropping = True
+    for x in iterable:
+        if dropping and pred(x):
+            continue
+        dropping = False
+        out.append(x)
+    return out
+
+var filterfalse = Function(pred, iterable):
+    var out = []
+    for x in iterable:
+        if not pred(x):
+            out.append(x)
+    return out
+
+var compress = Function(data, selectors):
+    var out = []
+    var i = 0
+    for x in data:
+        if i < len(selectors) and selectors[i]:
+            out.append(x)
+        i = i + 1
+    return out
+
+var starmap = Function(func, argtuples):
+    var out = []
+    for args in argtuples:
+        out.append(func(args))
+    return out
+
+var pairwise = Function(iterable):
+    var out = []
+    var prev = None
+    var first = True
+    for x in iterable:
+        if not first:
+            out.append([prev, x])
+        prev = x
+        first = False
+    return out
+
+var zip_longest = Function(lists, fillvalue = None):
+    var longest = 0
+    for lst in lists:
+        if len(lst) > longest:
+            longest = len(lst)
+    var out = []
+    for i in range(longest):
+        var row = []
+        for lst in lists:
+            if i < len(lst):
+                row.append(lst[i])
+            else:
+                row.append(fillvalue)
+        out.append(row)
+    return out
+
+var groupby = Function(iterable, key = None):
+    # Group CONSECUTIVE elements sharing a key -> list of [key, [members...]] (like Python).
+    var out = []
+    var haveCur = False
+    var curKey = None
+    var curGroup = []
+    for x in iterable:
+        var k = x
+        if key != None:
+            k = key(x)
+        if haveCur and k == curKey:
+            curGroup.append(x)
+        else:
+            if haveCur:
+                out.append([curKey, curGroup])
+            curKey = k
+            curGroup = [x]
+            haveCur = True
+    if haveCur:
+        out.append([curKey, curGroup])
+    return out
 )KI";
 
 // --- functools ---------------------------------------------------------------------------------
@@ -141,6 +230,14 @@ var partial = Function(func, bound):
         for x in rest:
             allargs.append(x)
         return func(allargs)
+
+var cache = Function(func):
+    # Memoize a single-argument function (the argument must be hashable). Returns a wrapper.
+    var store = {}
+    return Function(x):
+        if x not in store:
+            store[x] = func(x)
+        return store[x]
 )KI";
 
 // --- collections: deque, Counter, defaultdict, OrderedDict (as classes) ------------------------
@@ -268,6 +365,45 @@ var stdev = Function(data) -> Float:
 
 var pstdev = Function(data) -> Float:
     return _math.sqrt(pvariance(data))
+
+var multimode = Function(data):
+    # All values tied for the highest count, in first-seen order.
+    var counts = {}
+    var order = []
+    var best = 0
+    for x in data:
+        if x not in counts:
+            order.append(x)
+        var c = counts.get(x, 0) + 1
+        counts[x] = c
+        if c > best:
+            best = c
+    var out = []
+    for x in order:
+        if counts[x] == best:
+            out.append(x)
+    return out
+
+var quantiles = Function(data, n = 4):
+    # Cut points dividing sorted data into n equal groups (exclusive method, like Python default).
+    var s = sorted(data)
+    var ld = len(s)
+    if ld < 2:
+        throw "quantiles requires at least two data points"
+    var out = []
+    var i = 1
+    while i < n:
+        var pos = Float(i) * Float(ld + 1) / Float(n)
+        var lo = Integer(pos)
+        if lo < 1:
+            out.append(Float(s[0]))
+        elif lo >= ld:
+            out.append(Float(s[ld - 1]))
+        else:
+            var frac = pos - Float(lo)
+            out.append(Float(s[lo - 1]) + frac * (Float(s[lo]) - Float(s[lo - 1])))
+        i = i + 1
+    return out
 )KI";
 
 // --- string constants and helpers --------------------------------------------------------------
@@ -396,6 +532,13 @@ var decode = Function(s):
             bits = bits - 8
             out.append((buffer // (2 ** bits)) % 256)
     return out
+
+# URL-safe variant: '+' -> '-', '/' -> '_'. Encodes/decodes by translating to/from the standard form.
+var urlsafe_encode = Function(data) -> String:
+    return encode(data).replace("+", "-").replace("/", "_")
+
+var urlsafe_decode = Function(s):
+    return decode(s.replace("-", "+").replace("_", "/"))
 )KI";
 
 // --- csv (simple, RFC-style quoting) -----------------------------------------------------------
@@ -511,6 +654,30 @@ var nsmallest = Function(n, items):
     var heap = heapify(items)
     var out = []
     while len(out) < n and len(heap) > 0:
+        out.append(heappop(heap))
+    return out
+
+var nlargest = Function(n, items):
+    var s = sorted(items, None, True)
+    return s[0:n]
+
+var heapreplace = Function(heap, item):
+    # Pop the smallest then push item (more efficient than separate pop+push).
+    if len(heap) == 0:
+        throw "heapreplace on empty heap"
+    var top = heap[0]
+    heap[0] = item
+    _siftdown(heap)
+    return top
+
+var merge = Function(lists):
+    # Merge already-sorted lists into one sorted list.
+    var heap = []
+    for lst in lists:
+        for x in lst:
+            heappush(heap, x)
+    var out = []
+    while len(heap) > 0:
         out.append(heappop(heap))
     return out
 )KI";

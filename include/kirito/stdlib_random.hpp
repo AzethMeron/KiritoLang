@@ -27,11 +27,7 @@ public:
     }
     explicit RandomState(uint64_t seed) { engine.seed(seed); }
 
-    static int64_t asInt(KiritoVM& vm, Handle h) {
-        const Object& o = vm.arena().deref(h);
-        if (o.kind() != ValueKind::Integer) throw KiritoError("expected an Integer");
-        return static_cast<const IntVal&>(o).value();
-    }
+    static int64_t asInt(KiritoVM& vm, Handle h) { return argInt(vm, h, "argument"); }
     static double asNum(KiritoVM& vm, Handle h) {
         const Object& o = vm.arena().deref(h);
         if (o.kind() == ValueKind::Integer) return static_cast<double>(static_cast<const IntVal&>(o).value());
@@ -59,6 +55,18 @@ public:
             return bind("uniform", [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 std::uniform_real_distribution<double> d(asNum(vm, a[0]), asNum(vm, a[1]));
                 return vm.makeFloat(d(rng(vm, self).engine));
+            });
+        if (name == "gauss" || name == "normalvariate")
+            return bind(std::string(name).c_str(), [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                double mu = a.size() > 0 ? asNum(vm, a[0]) : 0.0;
+                double sigma = a.size() > 1 ? asNum(vm, a[1]) : 1.0;
+                return vm.makeFloat(std::normal_distribution<double>(mu, sigma)(rng(vm, self).engine));
+            });
+        if (name == "expovariate")
+            return bind("expovariate", [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                double lambda = a.size() > 0 ? asNum(vm, a[0]) : 1.0;
+                if (lambda <= 0.0) throw KiritoError("expovariate: lambda must be positive");
+                return vm.makeFloat(std::exponential_distribution<double>(lambda)(rng(vm, self).engine));
             });
         if (name == "randint")  // inclusive [a, b]
             return bind("randint", [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {

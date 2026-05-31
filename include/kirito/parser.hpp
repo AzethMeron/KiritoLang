@@ -1,6 +1,7 @@
 #ifndef KIRITO_PARSER_HPP
 #define KIRITO_PARSER_HPP
 
+#include <cctype>
 #include <memory>
 #include <string>
 #include <variant>
@@ -483,7 +484,7 @@ private:
                 auto node = std::make_unique<ast::MemberExpr>();
                 node->span = span;
                 node->object = std::move(expr);
-                node->name = expect(TokenType::Identifier, "a member name after '.'").text;
+                node->name = parseMemberName();
                 expr = std::move(node);
             } else {
                 break;
@@ -504,6 +505,22 @@ private:
     }
 
     // One parameter: name [: Type] [= default].
+    // A member name after '.': normally an identifier, but a keyword spelling is also valid as an
+    // attribute (e.g. set.discard(), obj.type) — the token still carries its text. This keeps
+    // language keywords from colliding with method/attribute names.
+    std::string parseMemberName() {
+        const Token& t = peek();
+        if (t.type == TokenType::Identifier || !t.text.empty()) {
+            // Reject tokens whose text isn't an identifier (operators/punctuation have empty text,
+            // numbers have digit text). A keyword token's text is its spelling — accept it.
+            char c0 = t.text.empty() ? '\0' : t.text[0];
+            if (t.type == TokenType::Identifier || ((c0 == '_' || std::isalpha(static_cast<unsigned char>(c0))))) {
+                return advance().text;
+            }
+        }
+        throw KiritoError("expected a member name after '.'", peek().span);
+    }
+
     // A type annotation is a type/class name: an identifier, or the built-in `None` type.
     std::string parseTypeName(const char* what) {
         if (at(TokenType::KwNone)) { advance(); return "None"; }

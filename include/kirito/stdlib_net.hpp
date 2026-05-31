@@ -40,16 +40,8 @@ public:
         if (netcompat::isValid(fd) && !closed) { netcompat::closeSocket(fd); closed = true; }
     }
 
-    static int64_t asInt(KiritoVM& vm, Handle h) {
-        const Object& o = vm.arena().deref(h);
-        if (o.kind() != ValueKind::Integer) throw KiritoError("expected an Integer");
-        return static_cast<const IntVal&>(o).value();
-    }
-    static const std::string& asStr(KiritoVM& vm, Handle h) {
-        const Object& o = vm.arena().deref(h);
-        if (o.kind() != ValueKind::String) throw KiritoError("expected a String");
-        return static_cast<const StrVal&>(o).value();
-    }
+    static int64_t asInt(KiritoVM& vm, Handle h) { return argInt(vm, h, "argument"); }
+    static const std::string& asStr(KiritoVM& vm, Handle h) { return argString(vm, h, "argument"); }
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override;
 };

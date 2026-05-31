@@ -74,7 +74,9 @@ f"n squared is {n * n}"
 ```
 
 Methods: `upper`, `lower` (Unicode-aware), `strip`/`lstrip`/`rstrip`, `split`, `join`, `replace`,
-`startswith`, `endswith`, `find`, `count`, `format`.
+`startswith`, `endswith`, `find`/`rfind`, `index`/`rindex`, `count`, `format`, the `is...` predicates
+(`isdigit`/`isalpha`/`isalnum`/`isspace`/`islower`/`isupper`), `removeprefix`/`removesuffix`,
+`ljust`/`rjust`/`center`/`zfill`, and `partition`/`rpartition`.
 
 ## Collections
 

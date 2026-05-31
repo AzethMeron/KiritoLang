@@ -115,18 +115,17 @@ private:
                     case 'b': out += '\b'; break;
                     case 'f': out += '\f'; break;
                     case 'u': {
-                        if (pos_ + 4 > s_.size()) fail("bad \\u escape");
-                        unsigned cp = 0;
-                        for (int k = 0; k < 4; ++k) {
-                            char d = s_[pos_ + k];
-                            int v = (d >= '0' && d <= '9') ? d - '0'
-                                  : (d >= 'a' && d <= 'f') ? d - 'a' + 10
-                                  : (d >= 'A' && d <= 'F') ? d - 'A' + 10 : -1;
-                            if (v < 0) fail("invalid \\u escape (expected hex digits)");
-                            cp = cp * 16 + static_cast<unsigned>(v);
+                        unsigned cp = readHex4();
+                        // Combine a UTF-16 surrogate pair (😀) into one astral code point.
+                        if (cp >= 0xD800 && cp <= 0xDBFF && pos_ + 1 < s_.size() &&
+                            s_[pos_] == '\\' && s_[pos_ + 1] == 'u') {
+                            pos_ += 2;
+                            unsigned lo = readHex4();
+                            if (lo >= 0xDC00 && lo <= 0xDFFF)
+                                cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+                            else fail("invalid low surrogate in \\u escape");
                         }
-                        pos_ += 4;
-                        encodeUtf8(cp, out);
+                        utf8Encode(cp, out);  // shared encoder (builtins.hpp), 4-byte-capable
                         break;
                     }
                     default: fail("bad escape");
@@ -140,10 +139,20 @@ private:
         return out;
     }
 
-    static void encodeUtf8(unsigned cp, std::string& out) {
-        if (cp < 0x80) out += static_cast<char>(cp);
-        else if (cp < 0x800) { out += static_cast<char>(0xC0 | (cp >> 6)); out += static_cast<char>(0x80 | (cp & 0x3F)); }
-        else { out += static_cast<char>(0xE0 | (cp >> 12)); out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F)); out += static_cast<char>(0x80 | (cp & 0x3F)); }
+    // Read exactly four hex digits at pos_ (advancing past them) into a code-point value.
+    unsigned readHex4() {
+        if (pos_ + 4 > s_.size()) fail("bad \\u escape");
+        unsigned cp = 0;
+        for (int k = 0; k < 4; ++k) {
+            char d = s_[pos_ + k];
+            int v = (d >= '0' && d <= '9') ? d - '0'
+                  : (d >= 'a' && d <= 'f') ? d - 'a' + 10
+                  : (d >= 'A' && d <= 'F') ? d - 'A' + 10 : -1;
+            if (v < 0) fail("invalid \\u escape (expected hex digits)");
+            cp = cp * 16 + static_cast<unsigned>(v);
+        }
+        pos_ += 4;
+        return cp;
     }
 
     Handle number() {
@@ -231,6 +240,55 @@ inline void write(KiritoVM& vm, Handle h, std::string& out, std::unordered_set<c
     active.erase(&o);
 }
 
+// Pretty-printing variant: `indent` spaces per nesting level.
+inline void writeIndented(KiritoVM& vm, Handle h, std::string& out,
+                          std::unordered_set<const Object*>& active, int indent, int depth) {
+    const Object& o = vm.arena().deref(h);
+    switch (o.kind()) {
+        case ValueKind::None: out += "null"; return;
+        case ValueKind::Bool: out += static_cast<const BoolVal&>(o).value() ? "true" : "false"; return;
+        case ValueKind::Integer: out += std::to_string(static_cast<const IntVal&>(o).value()); return;
+        case ValueKind::Float: out += floatToString(static_cast<const FloatVal&>(o).value()); return;
+        case ValueKind::String: escapeString(static_cast<const StrVal&>(o).value(), out); return;
+        default: break;
+    }
+    if (active.count(&o)) throw KiritoError("cannot serialize a cyclic structure to JSON");
+    active.insert(&o);
+    std::string pad((depth + 1) * indent, ' '), padEnd(depth * indent, ' ');
+    if (o.kind() == ValueKind::List || o.kind() == ValueKind::Array) {
+        const auto& l = static_cast<const ListVal&>(o);
+        if (l.elems.empty()) { out += "[]"; active.erase(&o); return; }
+        out += "[\n";
+        for (std::size_t i = 0; i < l.elems.size(); ++i) {
+            if (i) out += ",\n";
+            out += pad;
+            writeIndented(vm, l.elems[i], out, active, indent, depth + 1);
+        }
+        out += "\n" + padEnd + "]";
+    } else if (o.kind() == ValueKind::Dict) {
+        const auto& d = static_cast<const DictVal&>(o);
+        auto ks = d.keys();
+        if (ks.empty()) { out += "{}"; active.erase(&o); return; }
+        out += "{\n";
+        bool first = true;
+        for (Handle k : ks) {
+            if (!first) out += ",\n";
+            first = false;
+            out += pad;
+            const Object& ko = vm.arena().deref(k);
+            if (ko.kind() == ValueKind::String) escapeString(static_cast<const StrVal&>(ko).value(), out);
+            else escapeString(vm.stringify(k), out);
+            out += ": ";
+            writeIndented(vm, *d.find(vm.arena(), k), out, active, indent, depth + 1);
+        }
+        out += "\n" + padEnd + "}";
+    } else {
+        active.erase(&o);
+        throw KiritoError("cannot serialize '" + o.typeName() + "' to JSON");
+    }
+    active.erase(&o);
+}
+
 }  // namespace json
 
 class JsonModule : public NativeModule {
@@ -245,11 +303,22 @@ public:
             return p.parse();
         });
         m.fn("stringify", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            // stringify(value[, indent]): compact by default; pretty-printed with `indent` spaces.
             std::string out;
             std::unordered_set<const Object*> active;
-            json::write(vm, a[0], out, active);
+            int indent = 0;
+            if (a.size() > 1) {
+                const Object& o = vm.arena().deref(a[1]);
+                if (o.kind() != ValueKind::Integer) throw KiritoError("json.stringify indent must be an Integer");
+                indent = static_cast<int>(static_cast<const IntVal&>(o).value());
+            }
+            if (indent > 0) json::writeIndented(vm, a[0], out, active, indent, 0);
+            else json::write(vm, a[0], out, active);
             return vm.makeString(std::move(out));
         });
+        // Python-compatible aliases.
+        m.alias("loads", "parse");
+        m.alias("dumps", "stringify");
     }
 };
 

@@ -4,12 +4,27 @@
 #include <memory>
 #include <string>
 
+#include "builtins.hpp"
 #include "function.hpp"
 #include "module.hpp"
 #include "object.hpp"
 #include "vm.hpp"
 
 namespace kirito {
+
+// Shared argument-extraction helpers for native functions/modules — one place to dereference a
+// Handle and type-check it, so modules don't each reimplement asStr/asInt (DRY). `who` names the
+// caller for the error message.
+inline const std::string& argString(KiritoVM& vm, Handle h, const char* who) {
+    const Object& o = vm.arena().deref(h);
+    if (o.kind() != ValueKind::String) throw KiritoError(std::string(who) + " expects a String");
+    return static_cast<const StrVal&>(o).value();
+}
+inline int64_t argInt(KiritoVM& vm, Handle h, const char* who) {
+    const Object& o = vm.arena().deref(h);
+    if (o.kind() != ValueKind::Integer) throw KiritoError(std::string(who) + " expects an Integer");
+    return static_cast<const IntVal&>(o).value();
+}
 
 // ============================================================================================
 // Extension API — how C++ code adds new functions, modules, and types to Kirito.
@@ -34,6 +49,13 @@ public:
     }
     ModuleBuilder& value(const std::string& name, Handle h) {
         mod_.members[name] = h;
+        return *this;
+    }
+    // Bind `name` to the same member as an already-registered `existing` (a second public name).
+    ModuleBuilder& alias(const std::string& name, const std::string& existing) {
+        auto it = mod_.members.find(existing);
+        if (it == mod_.members.end()) throw KiritoError("alias target '" + existing + "' not registered");
+        mod_.members[name] = it->second;
         return *this;
     }
     KiritoVM& vm() { return vm_; }

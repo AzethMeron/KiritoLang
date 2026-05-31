@@ -88,11 +88,15 @@ a stability fuzzer, and a benchmark). Working today:
 - First-class functions with closures and `return`; `assert`. Recursion is bounded by a call-depth
   guard (configurable) that raises a catchable error instead of overflowing the native stack.
 - `List`/`Set`/`Dict` with literals, indexing, slicing, iteration, `in`, and methods (append/pop/
-  reverse/insert/remove/index/extend/copy; keys/values/items/get/pop; add/contains/union/...); `len`.
-  Ordered collections have an efficient in-place `sort([key][, reverse])` that is **stable** by
-  default (so is the `sorted()` builtin); keys are precomputed once per element.
+  reverse/insert/remove/index/extend/copy/clear/count; keys/values/items/get/pop/update/setdefault/
+  popitem/clear; add/discard/contains/union/intersection/difference/symmetric_difference/issubset/
+  issuperset/isdisjoint/pop/clear/...); `len`. Ordered collections have an efficient in-place
+  `sort([key][, reverse])` that is **stable** by default (so is the `sorted()` builtin); keys are
+  precomputed once per element.
 - **Unicode** `String` (code-point indexing/slicing/iteration), `*` repetition, and methods
-  (upper/lower/strip/split/join/replace/startswith/endswith/find/count) and `.format()`.
+  (upper/lower [Unicode-aware]/strip/split/join/replace/startswith/endswith/find/rfind/index/count/
+  is{digit,alpha,alnum,space,lower,upper}/removeprefix/removesuffix/ljust/rjust/center/zfill/
+  partition/rpartition) and `.format()`.
 - **User-defined `class`es** with methods, attributes, inheritance, Python-style operator methods
   (`_add_`/`_str_`/`_getitem_`/...), and private `_members`.
 - **Exceptions**: `try`/`catch [Type as e]`/`finally`/`throw` (typed matching via the class chain).
@@ -119,15 +123,17 @@ a stability fuzzer, and a benchmark). Working today:
   - `io` — print/input/write, `open` files & streams (read/readline/readlines/write/writelines/
     seek/tell/flush, iterable line-by-line, usable as a `with` context manager), `BytesIO` (an
     in-memory binary buffer like Python's), plus filesystem helpers (exists/remove/rename/mkdir/
-    getcwd/listdir).
+    getcwd/listdir/isfile/isdir/getsize/walk) and os.path-style path helpers (dirname/basename/
+    splitext/join).
   - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf, floor/ceil/
-    trunc, gcd/lcm, factorial, isnan/isinf, ...).
+    trunc, gcd/lcm, factorial, isnan/isinf, prod/comb/perm, ...).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
-    randrange/choice/shuffle/sample.
+    randrange/choice/shuffle/sample/gauss/expovariate.
   - `matrix` — dense real matrices (no complex, no concurrency): +,-,* (matrix/scalar), `m[i, j]`
     element access/assignment, transpose, determinant, inverse, trace, apply, factories
     (zeros/ones/identity).
-  - `json` — parse (objects → Dict) / stringify.
+  - `json` — parse/loads (objects → Dict; decodes \u escapes + surrogate pairs) and stringify/dumps
+    (optional indent for pretty-printing).
   - `serialize` — text graph dumps/loads/save/load preserving shared references and cycles.
   - `dump` — compact BINARY serialization (a `Dump` blob value) preserving references and cycles;
     dumps/loads, Dump(bytes), save/load.
@@ -143,10 +149,12 @@ a stability fuzzer, and a benchmark). Working today:
   - `hash` — md5/sha1/sha256 hex digests (self-contained, standard-conformant).
   - **Kirito-authored, frozen-source modules** (registered via `vm.registerSourceModule(name, src)`;
     bodies live in `stdlib_kimodules.hpp`, compiled once per VM on first import): `itertools`
-    (chain/repeat/cycle/islice/accumulate/product/permutations/combinations/count), `functools`
-    (reduce/partial), `collections` (deque/Counter/defaultdict), `statistics`
-    (mean/median/mode/variance/stdev/...), `string` (constants + capwords), `textwrap`
-    (wrap/fill/indent/dedent), `base64`, `csv`, `heapq`, `bisect`, `copy` (copy/deepcopy), `enum`.
+    (chain/repeat/cycle/islice/accumulate/product/permutations/combinations/count/takewhile/
+    dropwhile/filterfalse/compress/starmap/pairwise/zip_longest/groupby), `functools`
+    (reduce/partial/cache), `collections` (deque/Counter/defaultdict), `statistics`
+    (mean/median/mode/variance/stdev/multimode/quantiles/...), `string` (constants + capwords),
+    `textwrap` (wrap/fill/indent/dedent), `base64` (+urlsafe), `csv`, `heapq`
+    (+nlargest/heapreplace/merge), `bisect`, `copy` (copy/deepcopy), `enum`.
 - **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, and the
   script's directory), lexed+parsed+evaluated once per VM and cached by resolved path. The `ki` CLI
   is Python-like: REPL with no file (multi-line blocks via a `...` continuation prompt until a blank

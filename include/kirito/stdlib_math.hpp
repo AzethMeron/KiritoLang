@@ -157,6 +157,57 @@ public:
                 throw KiritoError("gcd result too large for Integer");
             return vm.makeInt(static_cast<int64_t>(x));
         });
+        // prod(iterable[, start]): product of the elements (Integer if all Integer, else Float).
+        m.fn("prod", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("prod expects an iterable");
+            auto items = vm.arena().deref(a[0]).iterate(vm);
+            if (!items) throw KiritoError("prod expects an iterable");
+            bool isFloat = false;
+            double f = 1.0;
+            int64_t n = 1;
+            if (a.size() > 1) {
+                const Object& s = vm.arena().deref(a[1]);
+                if (s.kind() == ValueKind::Float) { isFloat = true; f = static_cast<const FloatVal&>(s).value(); }
+                else if (s.kind() == ValueKind::Integer) { n = static_cast<const IntVal&>(s).value(); f = static_cast<double>(n); }
+                else throw KiritoError("prod start must be a number");
+            }
+            for (Handle h : items.value()) {
+                const Object& o = vm.arena().deref(h);
+                if (o.kind() == ValueKind::Float) { isFloat = true; f *= static_cast<const FloatVal&>(o).value(); }
+                else if (o.kind() == ValueKind::Integer) { int64_t v = static_cast<const IntVal&>(o).value(); n *= v; f *= static_cast<double>(v); }
+                else throw KiritoError("prod expects numbers");
+            }
+            return isFloat ? vm.makeFloat(f) : vm.makeInt(n);
+        });
+        // comb(n, k) / perm(n, k): combinations / partial permutations, computed without overflow
+        // for the common small cases (raises if the exact result exceeds int64).
+        auto combPerm = [](KiritoVM& vm, std::span<const Handle> a, bool comb) -> Handle {
+            auto geti = [&](Handle h, const char* w) {
+                const Object& o = vm.arena().deref(h);
+                if (o.kind() != ValueKind::Integer) throw KiritoError(std::string(w) + " expects Integers");
+                return static_cast<const IntVal&>(o).value();
+            };
+            int64_t n = geti(a[0], comb ? "comb" : "perm");
+            int64_t k = a.size() > 1 ? geti(a[1], comb ? "comb" : "perm") : n;
+            if (n < 0 || k < 0) throw KiritoError("comb/perm require non-negative Integers");
+            if (k > n) return vm.makeInt(0);
+            if (comb && k > n - k) k = n - k;  // symmetry: fewer multiplications
+            // result = n*(n-1)*...*(n-k+1) [/ k!] — accumulate with overflow checking.
+            unsigned long long num = 1;
+            for (int64_t i = 0; i < k; ++i)
+                if (__builtin_mul_overflow(num, static_cast<unsigned long long>(n - i), &num))
+                    throw KiritoError("comb/perm result too large for Integer");
+            if (comb) {
+                unsigned long long den = 1;
+                for (int64_t i = 1; i <= k; ++i) den *= static_cast<unsigned long long>(i);
+                num /= den;
+            }
+            if (num > static_cast<unsigned long long>(INT64_MAX))
+                throw KiritoError("comb/perm result too large for Integer");
+            return vm.makeInt(static_cast<int64_t>(num));
+        };
+        m.fn("comb", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, true); });
+        m.fn("perm", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, false); });
     }
 };
 

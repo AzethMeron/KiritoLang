@@ -375,6 +375,22 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
                 c->elems = self_list(vm, self).elems;
                 return vm.alloc(std::move(c));
             }, std::vector<Handle>{self}));
+    if (name == "clear")
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "clear", [self, self_list](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                self_list(vm, self).elems.clear();
+                return vm.none();
+            }, std::vector<Handle>{self}));
+    if (name == "count")
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "count", [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.size() != 1) throw KiritoError("count expected 1 argument");
+                auto& e = self_list(vm, self).elems;
+                int64_t n = 0;
+                for (Handle h : e)
+                    if (vm.arena().deref(h).equals(vm.arena(), vm.arena().deref(a[0]))) ++n;
+                return vm.makeInt(n);
+            }, std::vector<Handle>{self}));
     return Object::getAttr(vm, self, name);
 }
 
@@ -451,6 +467,48 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
             c->count = dict(vm, self).count;
             return vm.alloc(std::move(c));
         });
+    if (name == "clear")
+        return bind("clear", [self, dict](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            auto& d = dict(vm, self);
+            d.buckets.clear();
+            d.count = 0;
+            return vm.none();
+        });
+    if (name == "update")
+        return bind("update", [self, dict](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            // update(other): merge another Dict (its entries override).
+            if (a.size() != 1) throw KiritoError("update expected 1 argument");
+            const Object& o = vm.arena().deref(a[0]);
+            if (o.kind() != ValueKind::Dict) throw KiritoError("update expects a Dict");
+            for (const auto& [k, v] : static_cast<const DictVal&>(o).pairs())
+                dict(vm, self).set(vm.arena(), k, v);
+            return vm.none();
+        });
+    if (name == "setdefault")
+        return bind("setdefault", [self, dict](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            // setdefault(key[, default]): return existing value, else insert default (or None).
+            if (a.empty()) throw KiritoError("setdefault expected at least 1 argument");
+            auto& d = dict(vm, self);
+            const Handle* v = d.find(vm.arena(), a[0]);
+            if (v) return *v;
+            Handle dflt = a.size() > 1 ? a[1] : vm.none();
+            d.set(vm.arena(), a[0], dflt);
+            return dflt;
+        });
+    if (name == "popitem")
+        return bind("popitem", [self, dict](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            auto& d = dict(vm, self);
+            auto ks = d.keys();
+            if (ks.empty()) throw KiritoError("popitem: dictionary is empty");
+            RootScope rs(vm);
+            Handle k = rs.add(ks.back());
+            Handle v = rs.add(*d.find(vm.arena(), k));
+            d.remove(vm.arena(), k);
+            auto pair = std::make_unique<ListVal>();
+            pair->elems.push_back(k);
+            pair->elems.push_back(v);
+            return vm.alloc(std::move(pair));
+        });
     return Object::getAttr(vm, self, name);
 }
 
@@ -498,13 +556,49 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             c->count = set_of(vm, self).count;
             return vm.alloc(std::move(c));
         });
-    if (name == "union" || name == "intersection" || name == "difference") {
+    if (name == "discard")  // remove if present, no error otherwise (cf. remove)
+        return bind("discard", [self, set_of](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            auto& s = set_of(vm, self);
+            const Object& v = vm.arena().deref(a[0]);
+            if (!v.hashable()) return vm.none();
+            auto it = s.buckets.find(v.hash());
+            if (it != s.buckets.end())
+                for (std::size_t i = 0; i < it->second.size(); ++i)
+                    if (vm.arena().deref(it->second[i]).equals(vm.arena(), v)) {
+                        it->second.erase(it->second.begin() + i);
+                        --s.count;
+                        break;
+                    }
+            return vm.none();
+        });
+    if (name == "clear")
+        return bind("clear", [self, set_of](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            auto& s = set_of(vm, self);
+            s.buckets.clear();
+            s.count = 0;
+            return vm.none();
+        });
+    if (name == "pop")  // remove and return an arbitrary element
+        return bind("pop", [self, set_of](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            auto& s = set_of(vm, self);
+            for (auto& [h, bucket] : s.buckets)
+                if (!bucket.empty()) {
+                    Handle v = bucket.back();
+                    bucket.pop_back();
+                    --s.count;
+                    return v;
+                }
+            throw KiritoError("pop from an empty Set");
+        });
+    if (name == "union" || name == "intersection" || name == "difference" ||
+        name == "symmetric_difference") {
         std::string op(name);
         return bind(op.c_str(), [self, set_of, op](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             RootScope rs(vm);
             auto result = std::make_unique<SetVal>();
             auto& s = set_of(vm, self);
             auto other = vm.arena().deref(a[0]).iterate(vm);
+            if (!other) throw KiritoError(op + " expects an iterable");
             if (op == "union") {
                 for (Handle e : s.items()) result->add(vm.arena(), e);
                 for (Handle e : other.value()) result->add(vm.arena(), e);
@@ -512,12 +606,37 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
                 SetVal otherSet;
                 for (Handle e : other.value()) otherSet.add(vm.arena(), e);
                 for (Handle e : s.items()) if (otherSet.contains(vm.arena(), e)) result->add(vm.arena(), e);
-            } else {  // difference
+            } else if (op == "difference") {
                 SetVal otherSet;
                 for (Handle e : other.value()) otherSet.add(vm.arena(), e);
                 for (Handle e : s.items()) if (!otherSet.contains(vm.arena(), e)) result->add(vm.arena(), e);
+            } else {  // symmetric_difference: in one but not both
+                SetVal otherSet;
+                for (Handle e : other.value()) otherSet.add(vm.arena(), e);
+                for (Handle e : s.items()) if (!otherSet.contains(vm.arena(), e)) result->add(vm.arena(), e);
+                for (Handle e : otherSet.items()) if (!s.contains(vm.arena(), e)) result->add(vm.arena(), e);
             }
             return vm.alloc(std::move(result));
+        });
+    }
+    if (name == "issubset" || name == "issuperset" || name == "isdisjoint") {
+        std::string op(name);
+        return bind(op.c_str(), [self, set_of, op](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            auto& s = set_of(vm, self);
+            auto other = vm.arena().deref(a[0]).iterate(vm);
+            if (!other) throw KiritoError(op + " expects an iterable");
+            SetVal otherSet;
+            for (Handle e : other.value()) otherSet.add(vm.arena(), e);
+            if (op == "issubset") {
+                for (Handle e : s.items()) if (!otherSet.contains(vm.arena(), e)) return vm.makeBool(false);
+                return vm.makeBool(true);
+            }
+            if (op == "issuperset") {
+                for (Handle e : otherSet.items()) if (!s.contains(vm.arena(), e)) return vm.makeBool(false);
+                return vm.makeBool(true);
+            }
+            for (Handle e : s.items()) if (otherSet.contains(vm.arena(), e)) return vm.makeBool(false);  // isdisjoint
+            return vm.makeBool(true);
         });
     }
     return Object::getAttr(vm, self, name);
@@ -756,6 +875,120 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             }
             return vm.makeString(std::move(out));
         });
+    // index(sub): like find but raises if not found.
+    if (name == "index")
+        return bind("index", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& s = recv(vm, self);
+            const std::string& sub = asStr(vm, a[0], "index");
+            std::size_t bp = s.find(sub);
+            if (bp == std::string::npos) throw KiritoError("substring not found");
+            int64_t cp = 0;
+            for (std::size_t st : utf8Starts(s)) { if (st >= bp) break; ++cp; }
+            return vm.makeInt(cp);
+        });
+    if (name == "rfind" || name == "rindex") {
+        bool raise = name == "rindex";
+        return bind(std::string(name).c_str(), [self, recv, raise](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& s = recv(vm, self);
+            const std::string& sub = asStr(vm, a[0], "rfind");
+            std::size_t bp = s.rfind(sub);
+            if (bp == std::string::npos) {
+                if (raise) throw KiritoError("substring not found");
+                return vm.makeInt(-1);
+            }
+            int64_t cp = 0;
+            for (std::size_t st : utf8Starts(s)) { if (st >= bp) break; ++cp; }
+            return vm.makeInt(cp);
+        });
+    }
+    // Character-class predicates (non-empty string, all code points satisfy the test).
+    auto classify = [&](const char* nm, bool (*test)(unsigned)) {
+        return bind(nm, [self, recv, test](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            const std::string& s = recv(vm, self);
+            if (s.empty()) return vm.makeBool(false);
+            for (std::size_t st : utf8Starts(s)) if (!test(utf8DecodeAt(s, st))) return vm.makeBool(false);
+            return vm.makeBool(true);
+        });
+    };
+    if (name == "isdigit") return classify("isdigit", [](unsigned c) { return c >= '0' && c <= '9'; });
+    if (name == "isalpha") return classify("isalpha", [](unsigned c) {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c >= 0x80; });  // non-ASCII letters count
+    if (name == "isalnum") return classify("isalnum", [](unsigned c) {
+        return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c >= 0x80; });
+    if (name == "isspace") return classify("isspace", [](unsigned c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v'; });
+    if (name == "islower") return classify("islower", [](unsigned c) {
+        return !((c >= 'A' && c <= 'Z')) && (utf8ToUpperCp(c) != c || (c >= 'a' && c <= 'z')); });
+    if (name == "isupper") return classify("isupper", [](unsigned c) {
+        return !((c >= 'a' && c <= 'z')) && (utf8ToLowerCp(c) != c || (c >= 'A' && c <= 'Z')); });
+    // removeprefix / removesuffix (Python 3.9).
+    if (name == "removeprefix")
+        return bind("removeprefix", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& s = recv(vm, self);
+            const std::string& p = asStr(vm, a[0], "removeprefix");
+            if (s.size() >= p.size() && s.compare(0, p.size(), p) == 0) return vm.makeString(s.substr(p.size()));
+            return vm.makeString(s);
+        });
+    if (name == "removesuffix")
+        return bind("removesuffix", [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+            const std::string& s = recv(vm, self);
+            const std::string& p = asStr(vm, a[0], "removesuffix");
+            if (!p.empty() && s.size() >= p.size() && s.compare(s.size() - p.size(), p.size(), p) == 0)
+                return vm.makeString(s.substr(0, s.size() - p.size()));
+            return vm.makeString(s);
+        });
+    // Padding/alignment by code-point width.
+    if (name == "ljust" || name == "rjust" || name == "center") {
+        std::string op(name);
+        return bind(op.c_str(), [self, recv, op](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            const std::string& s = recv(vm, self);
+            if (a.empty() || vm.arena().deref(a[0]).kind() != ValueKind::Integer)
+                throw KiritoError(op + " expects an Integer width");
+            int64_t width = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
+            std::string fill = a.size() > 1 ? asStr(vm, a[1], op.c_str()) : " ";
+            if (utf8Length(fill) != 1) throw KiritoError(op + " fill must be a single character");
+            int64_t pad = width - static_cast<int64_t>(utf8Length(s));
+            if (pad <= 0) return vm.makeString(s);
+            auto rep = [&](int64_t n) { std::string r; for (int64_t i = 0; i < n; ++i) r += fill; return r; };
+            if (op == "ljust") return vm.makeString(s + rep(pad));
+            if (op == "rjust") return vm.makeString(rep(pad) + s);
+            return vm.makeString(rep(pad / 2) + s + rep(pad - pad / 2));  // center
+        });
+    }
+    if (name == "zfill")
+        return bind("zfill", [self, recv](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            const std::string& s = recv(vm, self);
+            if (a.empty() || vm.arena().deref(a[0]).kind() != ValueKind::Integer)
+                throw KiritoError("zfill expects an Integer width");
+            int64_t width = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
+            int64_t pad = width - static_cast<int64_t>(utf8Length(s));
+            if (pad <= 0) return vm.makeString(s);
+            // Keep a leading sign in front of the zero padding.
+            std::string sign, body = s;
+            if (!s.empty() && (s[0] == '+' || s[0] == '-')) { sign = s.substr(0, 1); body = s.substr(1); }
+            return vm.makeString(sign + std::string(static_cast<std::size_t>(pad), '0') + body);
+        });
+    if (name == "partition" || name == "rpartition") {
+        bool right = name == "rpartition";
+        return bind(std::string(name).c_str(), [self, recv, right](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            const std::string& s = recv(vm, self);
+            const std::string& sep = asStr(vm, a[0], "partition");
+            if (sep.empty()) throw KiritoError("empty separator");
+            std::size_t pos = right ? s.rfind(sep) : s.find(sep);
+            RootScope rs(vm);
+            auto t = std::make_unique<ListVal>();
+            if (pos == std::string::npos) {
+                t->elems.push_back(rs.add(vm.makeString(right ? "" : s)));
+                t->elems.push_back(rs.add(vm.makeString("")));
+                t->elems.push_back(rs.add(vm.makeString(right ? s : "")));
+            } else {
+                t->elems.push_back(rs.add(vm.makeString(s.substr(0, pos))));
+                t->elems.push_back(rs.add(vm.makeString(sep)));
+                t->elems.push_back(rs.add(vm.makeString(s.substr(pos + sep.size()))));
+            }
+            return vm.alloc(std::move(t));
+        });
+    }
     return Object::getAttr(vm, self, name);
 }
 

@@ -29,11 +29,7 @@ public:
     }
 
 private:
-    static const std::string& bytesOf(KiritoVM& vm, Handle h, const char* who) {
-        const Object& o = vm.arena().deref(h);
-        if (o.kind() != ValueKind::String) throw KiritoError(std::string(who) + " expects a byte String");
-        return static_cast<const StrVal&>(o).value();
-    }
+    static const std::string& bytesOf(KiritoVM& vm, Handle h, const char* who) { return argString(vm, h, who); }
 };
 
 }  // namespace kirito

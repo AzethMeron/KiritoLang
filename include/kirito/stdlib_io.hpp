@@ -290,6 +290,57 @@ public:
                 list->elems.push_back(rs.add(vm.makeString(entry.path().filename().string())));
             return vm.alloc(std::move(list));
         });
+
+        // --- path helpers (os.path style) ---
+        m.fn("isfile", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::error_code ec;
+            return vm.makeBool(std::filesystem::is_regular_file(pathArg(vm, a[0]), ec));
+        });
+        m.fn("isdir", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::error_code ec;
+            return vm.makeBool(std::filesystem::is_directory(pathArg(vm, a[0]), ec));
+        });
+        m.fn("dirname", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return vm.makeString(std::filesystem::path(pathArg(vm, a[0])).parent_path().string());
+        });
+        m.fn("basename", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return vm.makeString(std::filesystem::path(pathArg(vm, a[0])).filename().string());
+        });
+        m.fn("splitext", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::filesystem::path p(pathArg(vm, a[0]));
+            std::string ext = p.extension().string();
+            std::string root = pathArg(vm, a[0]);
+            root = root.substr(0, root.size() - ext.size());
+            RootScope rs(vm);
+            auto pair = std::make_unique<ListVal>();
+            pair->elems.push_back(rs.add(vm.makeString(root)));
+            pair->elems.push_back(rs.add(vm.makeString(ext)));
+            return vm.alloc(std::move(pair));
+        });
+        // join(parts...) -> path with the platform separator (uses filesystem's operator/).
+        m.fn("join", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) return vm.makeString("");
+            std::filesystem::path p(pathArg(vm, a[0]));
+            for (std::size_t i = 1; i < a.size(); ++i) p /= pathArg(vm, a[i]);
+            return vm.makeString(p.string());
+        });
+        m.fn("getsize", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::error_code ec;
+            auto sz = std::filesystem::file_size(pathArg(vm, a[0]), ec);
+            if (ec) throw KiritoError("getsize: " + ec.message());
+            return vm.makeInt(static_cast<int64_t>(sz));
+        });
+        // walk(dir) -> List of file paths under dir, recursively (flattened; simpler than Python's
+        // (dirpath, dirnames, filenames) triples but covers the common "visit every file" case).
+        m.fn("walk", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            RootScope rs(vm);
+            auto list = std::make_unique<ListVal>();
+            std::error_code ec;
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(pathArg(vm, a[0]), ec))
+                if (entry.is_regular_file())
+                    list->elems.push_back(rs.add(vm.makeString(entry.path().string())));
+            return vm.alloc(std::move(list));
+        });
     }
 };
 

@@ -14,7 +14,10 @@ Console, files, in-memory buffers, and filesystem helpers.
   line-by-line iteration, and use as a `with` context manager.
 - `BytesIO([bytes])` — an in-memory binary buffer like Python's.
 - Filesystem: `exists(path)`, `remove(path)`, `rename(a, b)`, `mkdir(path)`, `getcwd()`,
-  `listdir(path)`.
+  `listdir(path)`, `isfile(path)`, `isdir(path)`, `getsize(path)`, `walk(dir)` (all files under
+  `dir`, recursively).
+- Path helpers (os.path style): `dirname(p)`, `basename(p)`, `splitext(p)` → `[root, ext]`,
+  `join(parts...)`.
 
 ```kirito
 var io = import("io")
@@ -28,12 +31,14 @@ for line in io.open("out.txt", "r"):
 
 Constants `pi`, `e`, `tau`, `inf`, `nan`; functions `sqrt`, `pow`, `exp`, `log` (1- or 2-arg),
 `log2`, `log10`, trig (`sin`/`cos`/`tan`/`asin`/...), hyperbolic, `floor`, `ceil`, `trunc`, `gcd`,
-`lcm`, `factorial`, `gamma`, `erf`, `isnan`, `isinf`, and more.
+`lcm`, `factorial`, `gamma`, `erf`, `isnan`, `isinf`, `prod(iter[, start])`, `comb(n, k)`,
+`perm(n[, k])`, and more.
 
 ## random
 
 Object-based RNG, no global state. `Random([seed])` then: `random()`, `uniform(a, b)`,
-`randint(a, b)`, `randrange(...)`, `choice(seq)`, `shuffle(list)`, `sample(seq, k)`.
+`randint(a, b)`, `randrange(...)`, `choice(seq)`, `shuffle(list)`, `sample(seq, k)`,
+`gauss([mu, sigma])`, `expovariate([lambda])`.
 
 ```kirito
 var rng = import("random").Random(42)
@@ -44,11 +49,15 @@ rng.randint(1, 6)
 
 Combinators returning Lists (no lazy generators). `chain(lists)`, `repeat(value, times)`,
 `cycle(iter, times)`, `islice(iter, start, stop[, step])`, `accumulate(iter[, func])`,
-`product(lists)`, `permutations(items[, r])`, `combinations(items, r)`, `count(start, step, stop)`.
+`product(lists)`, `permutations(items[, r])`, `combinations(items, r)`, `count(start, step, stop)`,
+`takewhile(pred, iter)`, `dropwhile(pred, iter)`, `filterfalse(pred, iter)`, `compress(data, selectors)`,
+`starmap(func, argtuples)`, `pairwise(iter)`, `zip_longest(lists[, fillvalue])`, `groupby(iter[, key])`
+(groups consecutive equal keys → `[key, [members]]`).
 
 ## functools
 
-`reduce(func, iter[, initial])`, `partial(func, bound_args_list)`.
+`reduce(func, iter[, initial])`, `partial(func, bound_args_list)`, `cache(func)` (memoize a
+single-argument function).
 
 ## collections
 
@@ -59,7 +68,8 @@ Combinators returning Lists (no lazy generators). `chain(lists)`, `repeat(value,
 
 ## statistics
 
-`mean`, `median`, `mode`, `variance`, `pvariance`, `stdev`, `pstdev`.
+`mean`, `median`, `mode`, `variance`, `pvariance`, `stdev`, `pstdev`, `multimode`,
+`quantiles(data[, n])`.
 
 ## string
 
@@ -72,7 +82,8 @@ Constants `ascii_lowercase`, `ascii_uppercase`, `ascii_letters`, `digits`, `hexd
 
 ## base64
 
-`encode(byte_list)` → String, `decode(string)` → byte List (standard alphabet).
+`encode(byte_list)` → String, `decode(string)` → byte List (standard alphabet); `urlsafe_encode`/
+`urlsafe_decode` use the `-`/`_` URL-safe alphabet.
 
 ## csv
 
@@ -80,8 +91,8 @@ Constants `ascii_lowercase`, `ascii_uppercase`, `ascii_letters`, `digits`, `hexd
 
 ## heapq
 
-Binary min-heap over a List: `heappush(heap, x)`, `heappop(heap)`, `heapify(items)`,
-`nsmallest(n, items)`.
+Binary min-heap over a List: `heappush(heap, x)`, `heappop(heap)`, `heapreplace(heap, x)`,
+`heapify(items)`, `nsmallest(n, items)`, `nlargest(n, items)`, `merge(lists)`.
 
 ## bisect
 
@@ -103,7 +114,8 @@ Dense real matrices: `Matrix(rows)`, `zeros`, `ones`, `identity`, element access
 
 ## json
 
-`parse(text)` (objects → Dict) and `stringify(value)`.
+`parse(text)` / `loads(text)` (objects → Dict; decodes `\u` escapes and surrogate pairs) and
+`stringify(value[, indent])` / `dumps(value[, indent])` (pretty-printed when `indent > 0`).
 
 ## serialize / dump
 
