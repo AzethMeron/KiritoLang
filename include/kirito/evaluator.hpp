@@ -79,9 +79,16 @@ public:
     }
 
     Handle eval(const ast::Expr& e) {
+        // Bound expression-tree recursion depth: a pathologically deep AST (e.g. 1+1+1+...+1, which
+        // parses to a left-leaning tree) would otherwise overflow the native stack during eval. A
+        // cheap balanced counter raises a catchable error well before that. (Distinct from the
+        // function-call depth guard, which counts Kirito calls, not AST nesting.)
+        if (++exprDepth_ > kMaxExprDepth) { --exprDepth_; throw KiritoError("expression too deeply nested to evaluate", e.span); }
         e.accept(*this);
+        --exprDepth_;
         return result_;
     }
+    static constexpr int kMaxExprDepth = 3000;
 
     // --- statements ---
     void visit(const ast::ExprStmt& s) override { result_ = eval(*s.expr); }
@@ -655,6 +662,7 @@ private:
     Flow flow_ = Flow::Normal;
     Handle currentClass_{};
     bool hasCurrentClass_ = false;
+    int exprDepth_ = 0;  // current eval() recursion depth (bounded, anti-stack-overflow)
 };
 
 }  // namespace kirito

@@ -320,7 +320,22 @@ private:
         return node;
     }
 
-    ast::ExprPtr parseExpr() { return parseOr(); }
+    // Bound recursion depth so pathological source (deeply nested parens/lists/calls/operators)
+    // raises a clean error instead of overflowing the native stack while parsing. RAII so every
+    // exit path (including thrown errors) decrements.
+    struct DepthGuard {
+        int& d;
+        explicit DepthGuard(int& depth, SourceSpan span) : d(depth) {
+            if (++d > kMaxParseDepth) throw KiritoError("expression nested too deeply", span);
+        }
+        ~DepthGuard() { --d; }
+    };
+    static constexpr int kMaxParseDepth = 2000;
+
+    ast::ExprPtr parseExpr() {
+        DepthGuard g(exprDepth_, peek().span);
+        return parseOr();
+    }
 
     ast::ExprPtr parseOr() {
         auto left = parseAnd();
@@ -342,6 +357,7 @@ private:
 
     ast::ExprPtr parseNot() {
         if (at(TokenType::KwNot)) {
+            DepthGuard g(exprDepth_, peek().span);  // bound deep `not not ... x` chains
             SourceSpan span = advance().span;
             auto node = std::make_unique<ast::UnaryExpr>();
             node->span = span;
@@ -406,6 +422,7 @@ private:
 
     ast::ExprPtr parseUnary() {
         if (at(TokenType::Minus)) {
+            DepthGuard g(exprDepth_, peek().span);  // bound deep unary chains (---...---1)
             SourceSpan span = advance().span;
             auto node = std::make_unique<ast::UnaryExpr>();
             node->span = span;
@@ -810,6 +827,7 @@ private:
     bool blockJustClosed_ = false;
     int loopDepth_ = 0;   // > 0 inside a while/for body (for break/continue validity)
     int funcDepth_ = 0;   // > 0 inside a function body (for return validity)
+    int exprDepth_ = 0;   // current expression nesting (bounded by DepthGuard, anti-stack-overflow)
 };
 
 }  // namespace kirito

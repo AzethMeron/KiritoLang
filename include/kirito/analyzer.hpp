@@ -51,6 +51,8 @@ private:
     };
     std::vector<Scope> scopes_;
     std::vector<Warning> warnings_;
+    int depth_ = 0;  // analyzeExpr recursion depth (bounded, anti-stack-overflow)
+    struct DepthPop { int& d; ~DepthPop() { --d; } };
 
     void pushScope(bool checkUnused = true) { scopes_.emplace_back(); scopes_.back().checkUnused = checkUnused; }
     void popScope() {
@@ -210,6 +212,12 @@ private:
 
     // --- expression walk (use-tracking + nested functions) --------------------------------------
     void analyzeExpr(const ast::Expr& e) {
+        // Bound recursion so a pathologically deep AST can't overflow the stack during analysis.
+        // The analyzer is best-effort (non-fatal lint), so on an over-deep tree we simply stop
+        // descending rather than raise — execution's own guards will report the real problem.
+        if (depth_ > 2500) return;
+        ++depth_;
+        DepthPop pop{depth_};
         if (const auto* n = dynamic_cast<const ast::NameExpr*>(&e)) {
             markUsed(n->name);
         } else if (const auto* u = dynamic_cast<const ast::UnaryExpr*>(&e)) {

@@ -60,6 +60,26 @@ int main() {
         CHECK(run(vm, "import(\"json\").parse(\"[[1],[2,[3]]]\")[1][1][0]") == "3");
     }
 
+    // --- pathologically deep SOURCE must raise (parser/analyzer/evaluator), not crash ---
+    {
+        KiritoVM vm;
+        CHECK(raises(vm, "var x = " + std::string(5000, '(') + "1" + std::string(5000, ')')));   // parens
+        CHECK(raises(vm, "var x = " + std::string(5000, '[') + std::string(5000, ']')));          // list literal
+        CHECK(raises(vm, "var x = " + std::string(5000, '-') + "1"));                              // unary chain
+        // a deep left-leaning binary tree parses iteratively but would overflow eval; it must raise
+        std::string deepSum = "var x = 1";
+        for (int i = 0; i < 8000; ++i) deepSum += " + 1";
+        CHECK(raises(vm, deepSum + "\n"));
+        // a deep `not` chain
+        std::string notChain = "var x = ";
+        for (int i = 0; i < 6000; ++i) notChain += "not ";
+        notChain += "True\n";
+        CHECK(raises(vm, notChain));
+        // moderate nesting still works
+        CHECK(run(vm, "((((1 + 2)) * 3))") == "9");
+        CHECK(run(vm, "not not True") == "True");
+    }
+
     // --- uncaught throw/assert carry the correct source span ---
     {
         KiritoVM vm;
