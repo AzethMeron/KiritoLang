@@ -169,6 +169,7 @@ struct FStringExpr : Expr {
         bool isExpr = false;
         std::string literal;
         ExprPtr expr;
+        std::string spec;  // optional :format-spec applied to the expression's value (f"{x:05d}")
     };
     std::vector<Part> parts;
     void accept(ExprVisitor& v) const override { v.visit(*this); }

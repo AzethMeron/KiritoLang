@@ -121,7 +121,8 @@ a stability fuzzer, and a benchmark). Working today:
   catchable String), so a C++ module that throws can't escape a Kirito `try`.
 - **Context managers**: `with ... as ...` (enter/exit protocol).
 - **Garbage collection**: precise mark-sweep with rooted intermediates (AddressSanitizer-clean).
-- **f-strings** `f"{expr}"`; inline anonymous functions `Function(x): return x*x`.
+- **f-strings** `f"{expr}"` (with optional `:format-spec` — `f"{x:05d}"`, `f"{pi:.2f}"` — and
+  surrounding whitespace allowed inside the braces); inline anonymous functions `Function(x): return x*x`.
 - **Static warnings + `discard`**: a non-fatal analysis pass (`analyzer.hpp`) run before execution
   flags: function-local variables assigned-but-never-used; bare expression statements whose
   non-`None` value is dropped; a `var` re-declared in the same block; unreachable code after a

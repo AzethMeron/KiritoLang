@@ -19,6 +19,9 @@
 
 namespace kirito {
 
+// Defined in runtime.hpp; used for f-string format specs (f"{x:05d}").
+inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string& spec);
+
 // A tiny argument buffer: holds up to kInline handles inline (the typical call has few args), and
 // spills to the heap only for larger arg lists. Avoids a per-call vector allocation on the hot
 // call path. The handles it holds are GC-rooted by the caller's RootScope, so it only needs to be
@@ -629,8 +632,9 @@ public:
         RootScope rs(vm_);
         std::string out;
         for (const auto& part : e.parts) {
-            if (part.isExpr) out += vm_.stringify(rs.add(eval(*part.expr)));
-            else out += part.literal;
+            if (!part.isExpr) { out += part.literal; continue; }
+            Handle v = rs.add(eval(*part.expr));
+            out += part.spec.empty() ? vm_.stringify(v) : applyFormatSpec(vm_, v, part.spec);
         }
         result_ = vm_.makeString(std::move(out));
     }

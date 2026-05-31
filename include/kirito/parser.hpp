@@ -772,7 +772,13 @@ private:
     }
 
     // Parse one embedded expression out of an f-string's {...}.
-    ast::ExprPtr parseEmbedded(const std::string& code, SourceSpan span) {
+    ast::ExprPtr parseEmbedded(const std::string& rawCode, SourceSpan span) {
+        // Trim surrounding whitespace: `f"{ x }"` is valid, and a leading space would otherwise make
+        // the (indentation-sensitive) sub-lexer emit an INDENT and fail.
+        std::size_t b = rawCode.find_first_not_of(" \t");
+        std::size_t e = rawCode.find_last_not_of(" \t");
+        std::string code = (b == std::string::npos) ? std::string() : rawCode.substr(b, e - b + 1);
+        if (code.empty()) throw KiritoError("f-string '{...}' must contain a single expression", span);
         Lexer lex(code);
         Parser sub(lex.tokenize());
         ast::Program prog = sub.parseProgram();
@@ -809,7 +815,17 @@ private:
                 if (depth != 0) throw KiritoError("unmatched '{' in f-string", t.span);
                 ast::FStringExpr::Part p;
                 p.isExpr = true;
-                p.expr = parseEmbedded(raw.substr(i + 1, j - (i + 1)), t.span);
+                std::string inner = raw.substr(i + 1, j - (i + 1));
+                // Split off an optional `:format-spec` at bracket depth 0 (so a `:` inside a slice
+                // `x[1:2]` or a dict `{1:2}` is not mistaken for a spec separator).
+                int bd = 0;
+                for (std::size_t k = 0; k < inner.size(); ++k) {
+                    char ch = inner[k];
+                    if (ch == '(' || ch == '[' || ch == '{') ++bd;
+                    else if (ch == ')' || ch == ']' || ch == '}') --bd;
+                    else if (ch == ':' && bd == 0) { p.spec = inner.substr(k + 1); inner.resize(k); break; }
+                }
+                p.expr = parseEmbedded(inner, t.span);
                 node->parts.push_back(std::move(p));
                 i = j + 1;
             } else if (c == '}') {
