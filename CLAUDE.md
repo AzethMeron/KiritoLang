@@ -52,10 +52,13 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   `a, b = b, a` (swap), `for k, v in d.items()` — with a single **starred** target absorbing the
   surplus (`var first, *rest = xs`, `var *init, last = xs`). Counts are checked (a clear error on
   mismatch); unpack targets may be names, indices, or members (`a[0], a[1] = x, y`).
-- **Numerics**: separate `Integer` (int64) and `Float` (double); **Python-3 division** — `/` always
-  yields `Float`, `//` is floor division, `%` modulo, `**` right-assoc exponentiation. Integer
-  arithmetic is fixed-width int64 with **well-defined two's-complement wraparound** on overflow (no
-  UB); arbitrary-precision integers are a future enrichment.
+- **Numerics**: separate `Integer` (int64) and `Float` (double); float literals allow scientific
+  notation (`1e10`, `1.5e3`, `2e-3`). **Python-3 division** — `/` always yields `Float`, `//` is
+  floor division, `%` modulo, `**` right-assoc exponentiation. Integer arithmetic is fixed-width
+  int64 with **well-defined two's-complement wraparound** on overflow (no UB); arbitrary-precision
+  integers are a future enrichment. Resource guards: huge string/list repetition, padding, and
+  `range` are bounded (raise instead of OOMing); deeply nested source/data structures raise instead
+  of overflowing the native stack.
 - **Modules** via `import("io")`; first stdlib module is `io` (`io.input`, `io.print`).
 - Built-in types, dynamically typed: `None`, `Bool`, `Integer`, `Float`, `String`,
   and collections `Array`, `List`, `Set`, `Dict`. Values are hashable where it makes
