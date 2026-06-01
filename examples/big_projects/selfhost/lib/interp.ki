@@ -1420,8 +1420,21 @@ var makeGlobal = Function(St):
     def("shr", builtinShr)
     return g
 
-# --- module bridge: stdlib modules forwarded to the host ------------------------------------------
-var _hostMath = import("math")
+# --- modules -------------------------------------------------------------------------------------
+# Stdlib modules are implemented in Kirito, not borrowed from the host. `io` is native (it is the
+# interpreter's boundary to real output, and it owns the captured stdout/stderr buffers). Every
+# other module is an ordinary .ki source file under stdmods/ that the self-host lexes, parses and
+# evaluates *through itself* — true self-hosting — exposing its top-level names as members. The
+# only host primitive involved is reading the module's source text (a thin syscall, below).
+
+# THE thin syscall layer: the one host facility the pure-Kirito std modules are allowed to lean on,
+# for things that genuinely require the OS (here: reading a source file off disk). Marked _sys_.
+var _sys_hostIo = import("io")
+var _sys_readFile = Function(path):
+    var fh = _sys_hostIo.open(path, "r")
+    var data = fh.read()
+    fh.close()
+    return data
 
 var importModule = Function(St, name):
     if name in St["modules"]:
@@ -1429,15 +1442,23 @@ var importModule = Function(St, name):
     var mod = None
     if name == "io":
         mod = bridgeIo(St)
-    elif name == "math":
-        mod = bridgeMath(St)
     else:
-        rtError("no module named '" + name + "' (self-host bridge)")
+        mod = evalModule(St, name)
     St["modules"][name] = mod
     return mod
 
-# Streams are tiny host-object boxes; writing routes to the right per-VM buffer (or an in-memory
-# BytesIO). io.stdout / io.stderr are rebindable module members, so I/O redirection is assignment.
+# Load a Kirito std module: read its source and evaluate it through the self-host in a fresh module
+# scope, then expose every top-level binding as a member.
+var evalModule = Function(St, name):
+    var path = St["moddir"] + "/" + name + ".ki"
+    var src = _sys_readFile(path)
+    var toks = lexerMod.tokenize(src)
+    var ast = parserMod.parseProgram(toks)
+    var modEnv = newEnv(St["global"])
+    execBlock(St, modEnv, ast)
+    return mkModule(name, modEnv["vars"])
+
+# --- io: the native boundary module (captures output; reads fed input) ----------------------------
 var mkStream = Function(kind):
     return {"sk": "hostobj", "kind": kind}
 
@@ -1506,69 +1527,6 @@ var bridgeIo = Function(St):
     members["BytesIO"] = mkNative("BytesIO", ioBytesIO)
     return mkModule("io", members)
 
-var _mathFn1 = Function(name, fn):
-    return mkNative(name, Function(St2, a, k): return fn(a[0]))
-
-var _mathLog = Function(St2, a, k):
-    if len(a) == 2:
-        return _hostMath.log(a[0], a[1])
-    return _hostMath.log(a[0])
-
-var bridgeMath = Function(St):
-    var m = {}
-    m["pi"] = _hostMath.pi
-    m["e"] = _hostMath.e
-    m["tau"] = _hostMath.tau
-    m["inf"] = _hostMath.inf
-    m["nan"] = _hostMath.nan
-    m["sqrt"] = _mathFn1("sqrt", Function(x): return _hostMath.sqrt(x))
-    m["sin"] = _mathFn1("sin", Function(x): return _hostMath.sin(x))
-    m["cos"] = _mathFn1("cos", Function(x): return _hostMath.cos(x))
-    m["tan"] = _mathFn1("tan", Function(x): return _hostMath.tan(x))
-    m["exp"] = _mathFn1("exp", Function(x): return _hostMath.exp(x))
-    m["log2"] = _mathFn1("log2", Function(x): return _hostMath.log2(x))
-    m["log10"] = _mathFn1("log10", Function(x): return _hostMath.log10(x))
-    m["floor"] = _mathFn1("floor", Function(x): return _hostMath.floor(x))
-    m["ceil"] = _mathFn1("ceil", Function(x): return _hostMath.ceil(x))
-    m["trunc"] = _mathFn1("trunc", Function(x): return _hostMath.trunc(x))
-    m["fabs"] = _mathFn1("fabs", Function(x): return _hostMath.fabs(x))
-    m["factorial"] = _mathFn1("factorial", Function(x): return _hostMath.factorial(x))
-    m["isnan"] = _mathFn1("isnan", Function(x): return _hostMath.isnan(x))
-    m["isinf"] = _mathFn1("isinf", Function(x): return _hostMath.isinf(x))
-    m["log"] = mkNative("log", _mathLog)
-    m["pow"] = mkNative("pow", Function(St2, a, k): return _hostMath.pow(a[0], a[1]))
-    m["hypot"] = mkNative("hypot", Function(St2, a, k): return _hostMath.hypot(a[0], a[1]))
-    m["gcd"] = mkNative("gcd", Function(St2, a, k): return _hostMath.gcd(a[0], a[1]))
-    m["lcm"] = mkNative("lcm", Function(St2, a, k): return _hostMath.lcm(a[0], a[1]))
-    m["prod"] = mkNative("prod", Function(St2, a, k): return _hostMath.prod(a[0]))
-    m["asin"] = _mathFn1("asin", Function(x): return _hostMath.asin(x))
-    m["acos"] = _mathFn1("acos", Function(x): return _hostMath.acos(x))
-    m["atan"] = _mathFn1("atan", Function(x): return _hostMath.atan(x))
-    m["sinh"] = _mathFn1("sinh", Function(x): return _hostMath.sinh(x))
-    m["cosh"] = _mathFn1("cosh", Function(x): return _hostMath.cosh(x))
-    m["tanh"] = _mathFn1("tanh", Function(x): return _hostMath.tanh(x))
-    m["cbrt"] = _mathFn1("cbrt", Function(x): return _hostMath.cbrt(x))
-    m["erf"] = _mathFn1("erf", Function(x): return _hostMath.erf(x))
-    m["gamma"] = _mathFn1("gamma", Function(x): return _hostMath.gamma(x))
-    m["expm1"] = _mathFn1("expm1", Function(x): return _hostMath.expm1(x))
-    m["log1p"] = _mathFn1("log1p", Function(x): return _hostMath.log1p(x))
-    m["degrees"] = _mathFn1("degrees", Function(x): return _hostMath.degrees(x))
-    m["radians"] = _mathFn1("radians", Function(x): return _hostMath.radians(x))
-    m["isfinite"] = _mathFn1("isfinite", Function(x): return _hostMath.isfinite(x))
-    m["atan2"] = mkNative("atan2", Function(St2, a, k): return _hostMath.atan2(a[0], a[1]))
-    m["copysign"] = mkNative("copysign", Function(St2, a, k): return _hostMath.copysign(a[0], a[1]))
-    m["fmod"] = mkNative("fmod", Function(St2, a, k): return _hostMath.fmod(a[0], a[1]))
-    m["comb"] = mkNative("comb", Function(St2, a, k): return _hostMath.comb(a[0], a[1]))
-    m["perm"] = mkNative("perm", Function(St2, a, k): return _hostMath.perm(a[0], a[1]))
-    return mkModule("math", m)
-
-# host context-manager protocol for `with` over bridged objects (no-ops for now)
-var withEnterHost = Function(St, ctx):
-    return ctx
-
-var withExitHost = Function(St, ctx):
-    return None
-
 var hostObjMethod = Function(St, recv, name, args, kwargs):
     if recv["kind"] == "bytesio":
         if name == "write":
@@ -1588,15 +1546,28 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
             return None
     rtError("host object ('" + recv["kind"] + "') has no method '" + name + "'")
 
+var withEnterHost = Function(St, ctx):
+    return ctx
+
+var withExitHost = Function(St, ctx):
+    return None
+
 # --- top-level entry points -----------------------------------------------------------------------
+# Directory holding the self-host's pure-Kirito standard library .ki modules. Default assumes the
+# repo root as cwd; override with run3(src, input, moddir) for other layouts.
+var DEFAULT_MODDIR = "examples/big_projects/selfhost/lib/stdmods"
+
 var run = Function(src):
     return runWithInput(src, "")
 
 var runWithInput = Function(src, inputText):
+    return run3(src, inputText, DEFAULT_MODDIR)
+
+var run3 = Function(src, inputText, moddir):
     var inlines = []
     if len(inputText) > 0:
         inlines = inputText.split("\n")
-    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0}
+    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0, "moddir": moddir}
     var g = makeGlobal(St)
     St["global"] = g
     var toks = lexerMod.tokenize(src)

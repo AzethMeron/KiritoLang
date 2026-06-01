@@ -53,12 +53,35 @@ unwind to the nearest interpreted `try` — which means a self-host `try`/`catch
 catches errors raised by the host underneath it (mirroring how the real interpreter catches C++
 exceptions).
 
-### Standard library
+### Standard library — implemented in Kirito, not borrowed
 
-Module functions are **bridged** to the host: `import("math")` inside the self-host returns a module
-whose members forward to the host's `math`. The point of the project is to exercise the *language*,
-not to re-implement zlib or sockets in pure Kirito. Currently bridged: `io` (print/eprint/write/
-input, `BytesIO`, and rebindable `stdout`/`stderr` for redirection) and `math` (full function set).
+Nothing is forwarded to the host's stdlib. Standard modules are ordinary `.ki` source files under
+`lib/stdmods/` that **the self-host lexes, parses and evaluates through itself** (true self-hosting),
+exposing their top-level bindings as members. `lib/stdmods/math.ki`, for example, computes trig/exp/
+log from range-reduced Taylor/atanh series, roots by Newton iteration, and gamma via Lanczos — pure
+Kirito, accurate within the suite's tolerance, classifying inf/NaN with ordering comparisons (since
+float `==` is relative-epsilon).
+
+`io` is the one native module, because it is the interpreter's boundary to real output: it owns the
+captured `stdout`/`stderr` buffers and the fed `stdin`, and provides `print`/`eprint`/`write`/`input`/
+`BytesIO` plus rebindable streams for redirection.
+
+#### The irreducible substrate
+
+A tree-walking interpreter must bottom out somewhere. The self-host leans on the host for exactly:
+
+- **scalar arithmetic / comparison operators** on Integer and Float (an inner Integer *is* a host
+  Integer; `+` *is* the host `+`). Note float `==` is the host's relative-epsilon comparison.
+- **container storage**: List/Dict/Set creation, indexing, `append`/`pop`/`get`/`keys`/`add`, `len`,
+  iteration — the interpreter's memory model.
+- **`ord` / `chr`** (character ↔ code point) — genuinely irreducible.
+- **number ↔ text and float ↔ int conversions** (`Integer`/`Float`/`String` on scalars) — the
+  IEEE formatting/parsing primitives (the analogue of libc's `strtod`/`snprintf`).
+- **one thin syscall** (`_sys_readFile`, built on `io.open`) used only to load a std module's source
+  off disk.
+
+Everything else — the lexer, parser, evaluator, every statement and operator, the class/exception/
+`with` machinery, and the `math` module — is pure Kirito.
 
 ## Test coverage
 
