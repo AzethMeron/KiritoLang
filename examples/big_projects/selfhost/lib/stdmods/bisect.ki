@@ -1,0 +1,27 @@
+var bisectleft = Function(a, x) -> Integer:
+    var lo = 0
+    var hi = len(a)
+    while lo < hi:
+        var mid = (lo + hi) // 2
+        if a[mid] < x:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
+
+var bisectright = Function(a, x) -> Integer:
+    var lo = 0
+    var hi = len(a)
+    while lo < hi:
+        var mid = (lo + hi) // 2
+        if x < a[mid]:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+var insortleft = Function(a, x):
+    a.insert(bisectleft(a, x), x)
+
+var insortright = Function(a, x):
+    a.insert(bisectright(a, x), x)

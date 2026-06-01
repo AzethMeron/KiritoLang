@@ -1,0 +1,52 @@
+var _needsQuote = Function(field) -> Bool:
+    return "," in field or "\"" in field or "\n" in field
+
+var formatrow = Function(fields) -> String:
+    var parts = []
+    for f in fields:
+        var s = String(f)
+        if _needsQuote(s):
+            s = "\"" + s.replace("\"", "\"\"") + "\""
+        parts.append(s)
+    return ",".join(parts)
+
+var parserow = Function(line):
+    var fields = []
+    var current = ""
+    var inQuotes = False
+    var i = 0
+    var n = len(line)
+    while i < n:
+        var c = line[i]
+        if inQuotes:
+            if c == "\"":
+                if i + 1 < n and line[i + 1] == "\"":
+                    current = current + "\""
+                    i = i + 1
+                else:
+                    inQuotes = False
+            else:
+                current = current + c
+        elif c == "\"":
+            inQuotes = True
+        elif c == ",":
+            fields.append(current)
+            current = ""
+        else:
+            current = current + c
+        i = i + 1
+    fields.append(current)
+    return fields
+
+var format = Function(rows) -> String:
+    var lines = []
+    for row in rows:
+        lines.append(formatrow(row))
+    return "\n".join(lines)
+
+var parse = Function(text):
+    var rows = []
+    for line in text.split("\n"):
+        if len(line) > 0:
+            rows.append(parserow(line))
+    return rows

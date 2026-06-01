@@ -1,0 +1,29 @@
+var reduce = Function(func, iterable, initial = None):
+    var acc = initial
+    var first = True
+    for x in iterable:
+        if first and initial == None:
+            acc = x
+            first = False
+        else:
+            acc = func(acc, x)
+            first = False
+    if acc == None and initial == None:
+        throw "reduce of empty sequence with no initial value"
+    return acc
+
+var partial = Function(func, bound):
+    # partial(f, [a, b]) -> g(rest...) calls f(a, b, rest...). `bound` is a list of leading args.
+    return Function(rest):
+        var allargs = bound.copy()
+        for x in rest:
+            allargs.append(x)
+        return func(allargs)
+
+var cache = Function(func):
+    # Memoize a single-argument function (the argument must be hashable). Returns a wrapper.
+    var store = {}
+    return Function(x):
+        if x not in store:
+            store[x] = func(x)
+        return store[x]

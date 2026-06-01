@@ -1902,11 +1902,21 @@ var importModule = Function(St, name):
     St["modules"][name] = mod
     return mod
 
+# Read a module's source from the first import dir that has it.
+var _sys_exists = Function(path):
+    return _sys_hostIo.exists(path)
+
+var _findModuleSource = Function(St, name):
+    for dir in St["importdirs"]:
+        var path = dir + "/" + name + ".ki"
+        if _sys_exists(path):
+            return _sys_readFile(path)
+    rtError("no module named '" + name + "'")
+
 # Load a Kirito std module: read its source and evaluate it through the self-host in a fresh module
 # scope, then expose every top-level binding as a member.
 var evalModule = Function(St, name):
-    var path = St["moddir"] + "/" + name + ".ki"
-    var src = _sys_readFile(path)
+    var src = _findModuleSource(St, name)
     var toks = lexerMod.tokenize(src)
     var ast = parserMod.parseProgram(toks)
     var modEnv = newEnv(St["global"])
@@ -2016,13 +2026,18 @@ var run = Function(src):
     return runWithInput(src, "")
 
 var runWithInput = Function(src, inputText):
-    return run3(src, inputText, DEFAULT_MODDIR)
+    return run4(src, inputText, [DEFAULT_MODDIR])
 
 var run3 = Function(src, inputText, moddir):
+    return run4(src, inputText, [moddir])
+
+# run4: import dirs are searched in order for `import("name")` -> name.ki (so a program's own
+# directory can supply library modules like complex/cmatrix/linsolve alongside the stdmods).
+var run4 = Function(src, inputText, importdirs):
     var inlines = []
     if len(inputText) > 0:
         inlines = inputText.split("\n")
-    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0, "moddir": moddir}
+    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0, "importdirs": importdirs}
     var g = makeGlobal(St)
     St["global"] = g
     var toks = lexerMod.tokenize(src)

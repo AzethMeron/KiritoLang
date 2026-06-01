@@ -11,3 +11,4 @@ var interp = import("interp")
 
 var run = interp.run
 var runWithInput = interp.runWithInput
+var run4 = interp.run4

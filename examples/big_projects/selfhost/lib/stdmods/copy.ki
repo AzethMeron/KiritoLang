@@ -1,0 +1,27 @@
+var copy = Function(obj):
+    if type(obj) == "List":
+        return obj.copy()
+    if type(obj) == "Dict":
+        return obj.copy()
+    if type(obj) == "Set":
+        return obj.copy()
+    return obj
+
+var deepcopy = Function(obj):
+    var t = type(obj)
+    if t == "List":
+        var out = []
+        for x in obj:
+            out.append(deepcopy(x))
+        return out
+    if t == "Dict":
+        var out = {}
+        for pair in obj.items():
+            out[deepcopy(pair[0])] = deepcopy(pair[1])
+        return out
+    if t == "Set":
+        var out = Set()
+        for x in obj:
+            out.add(deepcopy(x))
+        return out
+    return obj
