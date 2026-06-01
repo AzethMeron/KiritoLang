@@ -438,11 +438,14 @@ public:
                 if (mo.kind() != ValueKind::String) throw KiritoError("open mode must be a String");
                 mode = static_cast<const StrVal&>(mo).value();
             }
-            std::ios::openmode flags{};
-            if (mode == "r") flags = std::ios::in;
-            else if (mode == "w") flags = std::ios::out | std::ios::trunc;
-            else if (mode == "a") flags = std::ios::out | std::ios::app;
-            else if (mode == "r+") flags = std::ios::in | std::ios::out;
+            // Always binary: Kirito strings are byte/code-point exact, so a file's contents and the
+            // tell()/seek()/read() offsets must be identical on every platform. Text mode would let
+            // Windows translate \n<->\r\n, desynchronising byte offsets from character counts.
+            std::ios::openmode flags = std::ios::binary;
+            if (mode == "r") flags |= std::ios::in;
+            else if (mode == "w") flags |= std::ios::out | std::ios::trunc;
+            else if (mode == "a") flags |= std::ios::out | std::ios::app;
+            else if (mode == "r+") flags |= std::ios::in | std::ios::out;
             else throw KiritoError("unsupported file mode '" + mode + "'");
             auto f = std::make_unique<FileVal>(path, flags);
             if (!f->stream.is_open()) throw KiritoError("could not open file '" + path + "'");

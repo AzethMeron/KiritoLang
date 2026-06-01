@@ -108,13 +108,19 @@ public:
         });
 
         m.fn("joinpath", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            // joinpath(parts...) -> the parts joined with the platform separator, with os.path.join
-            // semantics: a later component that is absolute resets the result. Variadic.
+            // joinpath(parts...) -> the parts joined with '/'. Kirito uses '/' on every platform so
+            // results are identical cross-platform (not std::filesystem's '\' on Windows). A later
+            // component that is absolute (starts with '/') resets the result. Variadic.
             Args args(vm, a, "joinpath");
             if (args.empty()) throw KiritoError("joinpath expected at least one path component");
-            std::filesystem::path p(args[0].asString("joinpath"));
-            for (std::size_t i = 1; i < a.size(); ++i) p /= args[i].asString("joinpath");
-            return val(vm, p.string());
+            std::string out = args[0].asString("joinpath");
+            for (std::size_t i = 1; i < a.size(); ++i) {
+                std::string part = args[i].asString("joinpath");
+                if (!part.empty() && part[0] == '/') out = part;            // absolute resets
+                else if (out.empty() || out.back() == '/') out += part;     // no double separator
+                else out += "/" + part;
+            }
+            return val(vm, out);
         });
 
         m.fn("exit", {{"code", "Integer", vm.makeInt(0)}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
