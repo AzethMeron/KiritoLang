@@ -18,24 +18,29 @@ set -u
 cd "$(dirname "$0")/.."
 
 # run_suite <label> <runner argv...>   (the .ki path is appended to the runner)
+# Carriage returns are stripped from both sides before comparing: a Windows binary's stdout/stderr is
+# CRLF (the CRT translates \n), while the golden fixtures are LF — the comparison is of logical
+# output, so the line-ending difference is normalized away.
 run_suite() {
     local label="$1"; shift
-    local pass=0 fail=0 s exp in actual err rc ok n
+    local pass=0 fail=0 s exp in actual expected err rc ok n
     for s in tests/scripts/*.ki; do
         exp="${s%.ki}.expected"; [ -f "$exp" ] || continue
         in="${s%.ki}.in"
-        if [ -f "$in" ]; then actual="$("$@" "$s" < "$in" 2>/dev/null)"
-        else                  actual="$("$@" "$s" < /dev/null 2>/dev/null)"; fi
-        if [ "$actual" = "$(cat "$exp")" ]; then pass=$((pass + 1))
+        if [ -f "$in" ]; then actual="$("$@" "$s" < "$in" 2>/dev/null | tr -d '\r')"
+        else                  actual="$("$@" "$s" < /dev/null 2>/dev/null | tr -d '\r')"; fi
+        expected="$(tr -d '\r' < "$exp")"
+        if [ "$actual" = "$expected" ]; then pass=$((pass + 1))
         else echo "  FAIL       $s"; fail=$((fail + 1)); fi
     done
     for s in tests/errors/*.ki; do
         exp="${s%.ki}.experr"; [ -f "$exp" ] || continue
         err="$("$@" "$s" < /dev/null 2>&1 >/dev/null)"; rc=$?
+        err="$(printf '%s' "$err" | tr -d '\r')"
         ok=1
         [ "$rc" -eq 0 ] && ok=0   # must FAIL
         while IFS= read -r n; do
-            [ -z "$n" ] && continue
+            n="${n%$'\r'}"; [ -z "$n" ] && continue
             case "$err" in *"$n"*) ;; *) ok=0 ;; esac
         done < "$exp"
         if [ "$ok" -eq 1 ]; then pass=$((pass + 1))

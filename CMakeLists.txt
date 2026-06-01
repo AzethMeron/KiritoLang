@@ -45,6 +45,17 @@ if(NOT MSVC)
     target_compile_options(ki PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# Windows defaults to a 1 MB stack (vs ~8 MB on Linux), so the recursion / nesting depth guard —
+# tuned to trip well within a typical Unix stack — could be beaten to it by a raw stack overflow.
+# Reserve a Linux-sized stack so the catchable guard error fires first, consistently across platforms.
+if(WIN32)
+    if(MSVC)
+        target_link_options(ki PRIVATE /STACK:16777216)
+    else()
+        target_link_options(ki PRIVATE -Wl,--stack,16777216)
+    endif()
+endif()
+
 if(KIRITO_ENABLE_TLS)
     find_package(OpenSSL REQUIRED)
     target_compile_definitions(ki PRIVATE KIRITO_ENABLE_TLS)
