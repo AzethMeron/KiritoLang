@@ -52,11 +52,11 @@ function's parameters, types, and return type. Genuinely variadic builtins (`min
 | `shl(a, n)` / `shr(a, n)` | Shift `a` left / right by `n` bits (`n ≥ 0`). `shr` is arithmetic (sign-preserving). |
 | `ord(ch)` | Unicode code point of a single-character String. |
 | `chr(cp)` | Single-character String for a code point. |
-| `format(value[, spec])` | Format a value with a Python mini-format-spec (see below). |
+| `format(value[, spec])` | Format a value with a mini-format-spec (see below). |
 
 ## Formatting with `format`
 
-`format(value, spec)` applies a Python-style format spec
+`format(value, spec)` applies a format spec of the form
 `[[fill]align][sign][#][0][width][,][.precision][type]`:
 
 ```kirito
@@ -81,7 +81,8 @@ format(-42, "+06d")      # "-00042"    (sign + zero-pad)
 
 ## Notes
 
-- `divmod`/`//`/`%` use Python floor semantics: `divmod(-7, 3) == [-3, 2]`.
+- `divmod`/`//`/`%` use floor semantics — the quotient rounds toward negative infinity and the
+  remainder takes the sign of the divisor: `divmod(-7, 3) == [-3, 2]`.
 - `range` materializes a List (there are no lazy generators yet), so very large ranges allocate.
 - `min`/`max` raise on an empty sequence; `sum([])` is `0`.
 - Passing a non-iterable where an iterable is expected raises a clean `is not iterable` error.

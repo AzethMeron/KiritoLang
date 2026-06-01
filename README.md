@@ -1,0 +1,104 @@
+# Kirito
+
+**Kirito** is a small, dynamically-typed yet strongly-typed scripting language built from scratch in
+modern C++20. It is designed first and foremost as an **extension language for C++ applications**: a
+high-level, ergonomic surface for writing logic, with a runtime that drops cleanly into a host
+program and lets that program reach back in.
+
+Source files use the `.ki` extension. The whole interpreter is header-only — a single
+`#include "kirito.hpp"` — so Kirito runs both as a standalone interpreter (`ki`) and as a library
+embedded in any C++ project. One `KiritoVM` object is one fully isolated interpreter "process".
+
+```kirito
+var io = import("io")
+
+var greet = Function(name : String) -> String:
+    return f"Hello, {name}!"
+
+for who in ["world", "Kirito"]:
+    io.print(greet(who))
+```
+
+## Why Kirito
+
+- **A high level of abstraction, with no boilerplate.** Significant indentation, first-class
+  functions and closures, classes with inheritance and operator overloading, exceptions, context
+  managers, rich built-in collections (`List` / `Set` / `Dict`), f-strings, packing/unpacking, and a
+  batteries-included standard library — so a few lines of `.ki` express a lot.
+
+- **Memory safety by construction.** Every value lives in a VM-owned arena and is referred to through
+  lightweight handles, never raw pointers. A precise mark-and-sweep garbage collector reclaims values
+  automatically (the test suite runs clean under AddressSanitizer and UBSan). Recursion depth, huge
+  allocations, and deeply nested data are all guarded so hostile or runaway scripts raise a catchable
+  error instead of crashing the host.
+
+- **Strong typing without ceremony.** `Integer` and `Float` are distinct, there are no silent
+  coercions across incompatible types, and type annotations are *enforced at runtime* when you want
+  them (`Function(d : Dict) -> Float:` actually checks the argument and the return value) — yet they
+  are entirely optional.
+
+- **Easy integration, both directions.**
+  - *Embed Kirito in C++* — construct a `KiritoVM`, run source, read results back. No build step
+    beyond adding `include/` to your include path and compiling as C++20; there is no library to
+    link.
+  - *Extend Kirito from C++* — register your own functions, modules, and object types. Anything you
+    add flows through the same object protocol as the built-ins, so to a Kirito program your C++ type
+    is indistinguishable from a native one.
+
+## Embedding Kirito in C++
+
+```cpp
+#include "kirito.hpp"
+using namespace kirito;
+
+int main() {
+    KiritoVM vm;                                   // one isolated interpreter
+    Handle result = vm.runSource("var x = 6 * 7\nx\n");
+    std::printf("%s\n", vm.stringify(result).c_str());   // 42
+}
+```
+
+## Extending Kirito from C++
+
+Expose a C++ function to scripts with a single registration. The `Value` / `Args` helpers read and
+build Kirito values, turning a bad argument into a clear error instead of a crash:
+
+```cpp
+vm.registerGlobal("repeat", vm.alloc(std::make_unique<NativeFunction>(
+    "repeat", [](KiritoVM& vm, std::span<const Handle> raw) -> Handle {
+        Args a(vm, raw, "repeat");
+        std::string s = a.at(0).asString("s");
+        int64_t n     = a.at(1).asInt("n");
+        std::string out;
+        for (int64_t i = 0; i < n; ++i) out += s;
+        return val(vm, out);
+    })));
+// Kirito:  repeat("ab", 3)   ->   "ababab"
+```
+
+Whole modules and brand-new object types (with their own methods and operators) are added the same
+way — see the documentation for complete, worked examples.
+
+## Building and running
+
+Requires a C++20 compiler and CMake.
+
+```sh
+cmake --preset debug
+cmake --build build
+
+./build/ki path/to/program.ki      # run a script
+./build/ki                         # start the REPL
+```
+
+## Documentation
+
+Full documentation lives in [`docs/`](docs/) as a small, dependency-free static site. Open
+[`docs/site/index.html`](docs/site/index.html) in a browser, or read the Markdown sources in
+[`docs/pages/`](docs/pages/). It covers:
+
+- **Getting started**, the **language guide**, and a built-in **types & operator-overloading**
+  reference
+- The **built-in functions** and a per-function **standard-library** reference
+- **Embedding** Kirito in a C++ program and **extending** it with C++ functions, modules, and types
+- Recipes and a multi-part course with worked sample projects

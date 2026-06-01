@@ -1,7 +1,8 @@
 # Introduction
 
 **Kirito** is a from-scratch, dynamically-typed, strongly-typed general-purpose scripting language
-with Python-like ergonomics and a C++ soul. Source files use the `.ki` extension.
+with the ergonomics of a high-level scripting language and a C++ soul. Source files use the `.ki`
+extension.
 
 It is implemented as a **tree-walking interpreter** in modern C++20, shipped header-only, so it both
 runs standalone (`ki`) and embeds into any C++ application as a library — a single `KiritoVM` object
@@ -9,7 +10,7 @@ encapsulates an entire, isolated interpreter "process".
 
 ## Why Kirito
 
-- **High-level and fast to write**, like Python: significant indentation, first-class functions,
+- **High-level and fast to write**: significant indentation, first-class functions,
   rich collections, exceptions, classes — with just enough abstraction and no boilerplate.
 - **Strongly typed at runtime**: separate `Integer` and `Float`, no silent coercions across
   incompatible types, and *enforced* type annotations when you want them (`Function(d : Dict) -> Float:`

@@ -38,10 +38,10 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
 </style></head>
 <body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html" class="active">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="introduction">Introduction</h1>
-<p><strong>Kirito</strong> is a from-scratch, dynamically-typed, strongly-typed general-purpose scripting language with Python-like ergonomics and a C++ soul. Source files use the <code>.ki</code> extension.</p>
+<p><strong>Kirito</strong> is a from-scratch, dynamically-typed, strongly-typed general-purpose scripting language with the ergonomics of a high-level scripting language and a C++ soul. Source files use the <code>.ki</code> extension.</p>
 <p>It is implemented as a <strong>tree-walking interpreter</strong> in modern C++20, shipped header-only, so it both runs standalone (<code>ki</code>) and embeds into any C++ application as a library — a single <code>KiritoVM</code> object encapsulates an entire, isolated interpreter &quot;process&quot;.</p>
 <h2 id="why-kirito">Why Kirito</h2>
-<ul><li><strong>High-level and fast to write</strong>, like Python: significant indentation, first-class functions,</li></ul>
+<ul><li><strong>High-level and fast to write</strong>: significant indentation, first-class functions,</li></ul>
 <p>  rich collections, exceptions, classes — with just enough abstraction and no boilerplate.</p>
 <ul><li><strong>Strongly typed at runtime</strong>: separate <a class="xref" href="types.html#integer"><code>Integer</code></a> and <a class="xref" href="types.html#float"><code>Float</code></a>, no silent coercions across</li></ul>
 <p>  incompatible types, and <em>enforced</em> type annotations when you want them (<code>Function(d : Dict) -&gt; Float:</code>   actually checks).</p>

@@ -4,7 +4,7 @@ A reference for Kirito's syntax and semantics.
 
 ## Comments and layout
 
-`#` starts a line comment. Blocks use **Python-style significant indentation**: a `:` then a newline
+`#` starts a line comment. Blocks use **significant indentation**: a `:` then a newline
 then an indented suite. Tabs and spaces both work, but mixing them ambiguously is an error.
 
 ```kirito
@@ -46,8 +46,8 @@ Dynamically typed, strongly typed. Built-in types:
 
 ## Numbers and arithmetic
 
-Python-3 division semantics: `/` always yields a `Float`; `//` is floor division; `%` modulo; `**`
-right-associative exponentiation.
+Division semantics: `/` always yields a `Float` (`7 / 2 == 3.5`); `//` is floor division (rounding
+toward negative infinity); `%` modulo; `**` right-associative exponentiation.
 
 ```kirito
 7 / 2       # 3.5  (Float)
@@ -226,7 +226,7 @@ class Dog(Animal):            # inheritance
         return f"{self.name} says woof"
 ```
 
-Special methods use Python dunder names with **single** underscores: `_init_`, `_str_`,
+Special methods use names wrapped in a **single** leading and trailing underscore: `_init_`, `_str_`,
 `_add_`/`_sub_`/`_mul_`/..., `_eq_`/`_lt_`/..., `_neg_`, `_call_`, `_getitem_`/`_setitem_`, `_len_`,
 `_contains_`, `_iter_`, `_enter_`/`_exit_`.
 
@@ -257,7 +257,7 @@ call in that class's methods; there is no good reason to do it.
 
 ## Exceptions
 
-C++-style keywords, Python-style blocks. `throw` raises; `try`/`catch [Type as e]`/`finally` handles.
+C++-style keywords with indented blocks. `throw` raises; `try`/`catch [Type as e]`/`finally` handles.
 
 ```kirito
 class ValueError:

@@ -30,9 +30,8 @@ to itself, and stringifies as `"None"`.
 
 `True` and `False`. Produced by comparisons and the logical operators, and accepted anywhere a truth
 value is needed. `Bool(x)` gives the truthiness of any value: `None`, `0`, `0.0`, `""`, and empty
-collections are falsy; everything else is truthy. Unlike Python, `Bool` is a **distinct type, not an
-Integer**: it is not numeric (`True + 1` is a type error) and `True != 1`, in keeping with Kirito's
-strong typing. Convert explicitly with `Integer(flag)` (`Integer(True) == 1`) when you need to count
+collections are falsy; everything else is truthy. `Bool` is a **distinct type, not an Integer**: it
+is not numeric (`True + 1` is a type error) and `True != 1`, in keeping with Kirito's strong typing. Convert explicitly with `Integer(flag)` (`Integer(True) == 1`) when you need to count
 or sum truth values.
 
 ## Integer
@@ -46,7 +45,7 @@ The arithmetic operators are `+`, `-`, `*`, the three division forms below, and 
 
 - `/` always produces a `Float` — even when the operands divide evenly (`7 / 2 == 3.5`,
   `4 / 2 == 2.0`); use `//` when you want an Integer result.
-- `//` (floor division), `%` (modulo), and `divmod(a, b)` follow Python's floor semantics, so the
+- `//` (floor division), `%` (modulo), and `divmod(a, b)` floor toward negative infinity, so the
   remainder takes the sign of the divisor: `divmod(-7, 3) == [-3, 2]`.
 - `**` raises to a power (`2 ** 10 == 1024`).
 - `bin(n)` / `oct(n)` / `hex(n)` render an Integer in base 2 / 8 / 16 as a `String`
@@ -73,7 +72,7 @@ Float `nan`/`inf` arise from `math` (`math.inf`, `math.nan`).
 Immutable Unicode text, indexed and sliced by **code point** (not byte). `+` concatenates, `*`
 repeats, `len` counts code points, `in` tests substrings, and iteration yields characters. Strings
 are hashable (usable as Dict keys / Set elements). f-strings (`f"{expr}"`) interpolate, and
-`.format()` / the `format` builtin apply Python mini-format-specs.
+`.format()` / the `format` builtin apply the mini-format-spec (fill/align/sign/width/precision/type).
 
 ```kirito
 var s = "café"
@@ -95,7 +94,7 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 | `s.find(sub)` / `s.rfind(sub)` | First / last index of `sub`, or `-1`. |
 | `s.index(sub)` / `s.rindex(sub)` | Like find/rfind but raise if absent. |
 | `s.count(sub)` | Number of non-overlapping occurrences. |
-| `s.format(...)` | Substitute `{}` / `{name}` fields (Python str.format). |
+| `s.format(...)` | Substitute `{}` / `{name}` fields with the given positional / keyword arguments. |
 | `s.isdigit()` / `s.isalpha()` / `s.isalnum()` | Character-class predicates over the whole string. |
 | `s.isspace()` / `s.islower()` / `s.isupper()` | Whitespace / case predicates. |
 | `s.removeprefix(p)` / `s.removesuffix(p)` | Drop a prefix/suffix if present. |
@@ -107,8 +106,8 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 
 An ordered, mutable sequence. Supports indexing (`xs[0]`, negatives count from the end), slicing
 (`xs[1:3]`, `xs[::-1]`, `xs[::2]`), `+` concatenation, `*` repetition, `in`, iteration, and
-lexicographic comparison (`<`/`<=`/`>`/`>=`, element-by-element then by length, like Python — which
-makes multi-key sorts easy via a list-returning `key`).
+lexicographic comparison (`<`/`<=`/`>`/`>=`, compared element-by-element, then by length when one is
+a prefix of the other — which makes multi-key sorts easy via a list-returning `key`).
 
 ```kirito
 var xs = [3, 1, 2]

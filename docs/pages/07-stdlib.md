@@ -27,7 +27,7 @@ rebindable stream objects — assign a `File`, a `BytesIO`, another stream, or a
 ### Files and buffers
 
 - `open(path: String, mode: String = "r") → File` — open a file. Modes: `"r"` read, `"w"` truncate-write, `"a"` append, `"r+"` read/write. Raises if it can't be opened. Usable as a `with` context manager.
-- `BytesIO([initial: String]) → BytesIO` — an in-memory read/write byte buffer (like Python's `io.BytesIO`).
+- `BytesIO([initial: String]) → BytesIO` — an in-memory read/write byte buffer, usable anywhere a file or stream is expected.
 
 ### Filesystem
 
@@ -140,7 +140,7 @@ Dense real matrices (no complex numbers).
 
 ## json
 
-JSON parsing and serialization. `loads`/`dumps` are Python-compatible aliases of `parse`/`stringify`.
+JSON parsing and serialization. `loads`/`dumps` are aliases of `parse`/`stringify`.
 
 - `parse(text: String)` / `loads(text: String)` — parse JSON text into Kirito values (objects → Dict, arrays → List, decodes `\u` escapes and surrogate pairs). Raises a clear error on malformed input.
 - `stringify(value, indent: Integer = 0) → String` / `dumps(value, indent = 0) → String` — serialize a value to JSON; compact by default, pretty-printed with `indent > 0`.
@@ -196,7 +196,7 @@ Process environment and platform.
 - `unsetenv(name: String) → None` — remove a variable.
 - `environ() → Dict` — all environment variables.
 - `gettempdir() → String` — the system temp directory (honors `TMPDIR`/`TMP`/`TEMP`, falls back to
-  `/tmp`), like Python's `tempfile.gettempdir`. Pairs with `io` to build scratch file paths:
+  `/tmp`). Pairs with `io` to build scratch file paths:
   `io.open(sys.joinpath(sys.gettempdir(), "scratch.txt"), "w")`.
 - `joinpath(*parts) → String` — join path components with the platform separator (`os.path.join`
   semantics: a later component that is absolute resets the result). Needs at least one part.
@@ -243,9 +243,9 @@ Cryptographic hash digests (self-contained), returned as lowercase hex Strings.
 
 ---
 
-The following modules are **authored in Kirito** (frozen source compiled once per VM), mirroring
-their Python namesakes. Because Kirito has no lazy generators yet, the `itertools`-style helpers are
-**eager** — they return a List.
+The following modules are **authored in Kirito** (frozen source compiled once per VM). Because
+Kirito has no lazy generators yet, the iterator-style helpers are **eager** — they return a List
+rather than a lazy sequence.
 
 ## itertools
 
