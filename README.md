@@ -87,6 +87,13 @@ vm.registerGlobal("repeat", vm.alloc(std::make_unique<NativeFunction>(
 Whole modules and brand-new object types (with their own methods and operators) are added the same
 way — see the documentation for complete, worked examples.
 
+## Downloads
+
+Prebuilt `ki` binaries for **Windows and Linux, 32- and 64-bit** are attached to each
+[GitHub Release](../../releases). Every release binary is an optimized build with HTTPS (TLS)
+support, linked as statically as possible (OpenSSL and the C/C++ runtime are bundled in), so it runs
+without installing anything else.
+
 ## Building and running
 
 Requires a C++20 compiler and CMake.
@@ -99,6 +106,10 @@ cmake --build build
 ./build/ki                         # start the REPL
 ```
 
+To build a shippable, statically-linked release binary yourself (TLS enabled), run
+`scripts/build_release.sh`; it writes the binaries for every toolchain available on your machine into
+`dist/`. The full cross-platform set is produced on CI by `.github/workflows/release.yml`.
+
 ## Documentation
 
 Full documentation lives in [`docs/`](docs/) as a small, dependency-free static site. Open
@@ -110,3 +121,7 @@ Full documentation lives in [`docs/`](docs/) as a small, dependency-free static 
 - The **built-in functions** and a per-function **standard-library** reference
 - **Embedding** Kirito in a C++ program and **extending** it with C++ functions, modules, and types
 - Recipes and a multi-part course with worked sample projects
+
+## License
+
+Released under the [MIT License](LICENSE).
