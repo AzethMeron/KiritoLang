@@ -62,7 +62,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 // Kirito:  greet(&quot;Ada&quot;)  /  greet(name=&quot;Ada&quot;, loud=True)  /  inspect(greet)</code></pre>
 <p>Inside a module&#x27;s <code>setup</code>, the <code>ModuleBuilder</code> has the same overload: <code>m.fn(&quot;open&quot;, {{&quot;path&quot;, &quot;String&quot;}, {&quot;mode&quot;, &quot;String&quot;, m.vm().makeString(&quot;r&quot;)}}, &quot;File&quot;, impl);</code>.</p>
 <h2 id="adding-a-module">Adding a module</h2>
-<p>Subclass <code>NativeModule</code>, override <code>name()</code> and <code>setup()</code>, and register with <a class="xref" href="embedding.html#sym-install"><code>install&lt;T&gt;()</code></a>. Inside <code>setup</code>, declare functions and values via the <code>ModuleBuilder</code>:</p>
+<p>Subclass <code>NativeModule</code>, override <a class="xref" href="stdlib.html#sym-name"><code>name()</code></a> and <code>setup()</code>, and register with <a class="xref" href="embedding.html#sym-install"><code>install&lt;T&gt;()</code></a>. Inside <code>setup</code>, declare functions and values via the <code>ModuleBuilder</code>:</p>
 <pre><code>class StatsModule : public NativeModule {
 public:
     std::string name() const override { return &quot;stats&quot;; }

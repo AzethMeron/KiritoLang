@@ -208,7 +208,10 @@ calling a change done.
 
 **Docs:** an expandable HTML site (`docs/`) — hand-authored Markdown in `docs/pages/` rendered by
 the dependency-free `docs/build_docs.py` into `docs/site/` (intro, build, embedding, extending,
-language guide, recipes, builtins/stdlib reference, and a 3-part course with worked sample projects).
+language guide, a built-in **types + special-methods/operator-overloading** reference, builtins
+reference, a **comprehensive per-function stdlib reference** with signatures/inputs/outputs, recipes,
+and a 3-part course with worked sample projects). `build_docs.py` auto-anchors every documented
+symbol and turns later `inline code` mentions into clickable cross-links.
 Documentation is authored in those `.md` files, NOT scraped from code comments.
 
 Not yet done (future enrichment): comprehensions, variadic params,
