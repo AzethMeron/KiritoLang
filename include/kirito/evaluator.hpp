@@ -85,10 +85,15 @@ public:
         // Bound expression-tree recursion depth: a pathologically deep AST (e.g. 1+1+1+...+1, which
         // parses to a left-leaning tree) would otherwise overflow the native stack during eval. A
         // cheap balanced counter raises a catchable error well before that. (Distinct from the
-        // function-call depth guard, which counts Kirito calls, not AST nesting.)
-        if (++exprDepth_ > kMaxExprDepth) { --exprDepth_; throw KiritoError("expression too deeply nested to evaluate", e.span); }
+        // function-call depth guard, which counts Kirito calls, not AST nesting.) The counter is
+        // restored via RAII so a nested evaluation that throws (and is then caught by a Kirito
+        // try/catch) does NOT leak depth — otherwise thousands of caught errors would eventually
+        // trip this guard falsely.
+        if (exprDepth_ >= kMaxExprDepth)
+            throw KiritoError("expression too deeply nested to evaluate", e.span);
+        ++exprDepth_;
+        struct DepthPop { int& d; ~DepthPop() { --d; } } pop{exprDepth_};
         e.accept(*this);
-        --exprDepth_;
         return result_;
     }
     static constexpr int kMaxExprDepth = 3000;
