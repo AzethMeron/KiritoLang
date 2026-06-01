@@ -39,6 +39,28 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 </style></head>
 <body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html" class="active">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="extending-kirito-from-c">Extending Kirito from C++</h1>
 <p>Kirito&#x27;s whole object model is one uniform <code>Object</code> protocol. Built-ins, your C++ types, and Kirito-level classes all derive from the same base and dispatch through the same slots — so anything you add is indistinguishable from a built-in to the evaluator. You extend Kirito by subclassing two convenience bases and registering with one call.</p>
+<blockquote><strong>Reach for the built-in types first.</strong> Returning Integers, Floats, Strings, Bools, <a class="xref" href="types.html#none"><code>None</code></a>, Lists, Dicts, and Sets covers the vast majority of modules. Defining a <em>new</em> <code>NativeClass</code> is the fallback — only for genuinely new behaviour (a file handle, a socket, a matrix). The <code>Value</code> API below makes working with the built-in types the easy, default path.</blockquote>
+<h2 id="working-with-built-in-types-the-value-api">Working with built-in types — the <code>Value</code> API</h2>
+<p><code>#include &quot;kirito.hpp&quot;</code> brings in <code>value.hpp</code>: a <code>Value</code> facade <code>(vm, handle)</code> with typed accessors, GC-safe builders (<a class="xref" href="types.html#list"><code>List</code></a>/<a class="xref" href="types.html#dict"><code>Dict</code></a>/<a class="xref" href="types.html#set"><code>Set</code></a>), <code>val(...)</code> constructors, and an <code>Args</code> view over a function&#x27;s arguments. <code>Value</code> converts implicitly to/from <code>Handle</code>, so it drops straight into a <code>NativeFn</code>.</p>
+<pre><code>using namespace kirito;
+
+// A function that takes (a: Integer, b: Integer, items: List) and returns a Dict.
+NativeFn demo = [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Handle {
+    Args a(vm, raw, &quot;demo&quot;);
+    int64_t x = a.at(0).asInt(&quot;a&quot;);                 // typed read, clear error on mismatch
+    int64_t y = a.at(1).asInt(&quot;b&quot;);
+
+    List items(vm);                                 // builder roots intermediates for the GC
+    for (Value e : a[2].items()) items.add(e);      // iterate any iterable
+    items.add(x + y);
+
+    return Dict(vm)                                 // fluent build; -&gt; Handle implicitly
+        .set(&quot;sum&quot;, x + y)
+        .set(&quot;items&quot;, items.build())
+        .set(&quot;ok&quot;, true)
+        .build();
+};</code></pre>
+<p>Reading: <code>v.asInt()</code> / <code>asFloat()</code> (accepts Integer or Float) / <code>asString()</code> / <code>asBool()</code>; <code>v.isInt()</code>/<code>isString()</code>/<code>isList()</code>/…; <code>v.len()</code>, <code>v.at(i)</code> (list index, negatives allowed), <code>v.items()</code> (iterate), and for Dicts <code>v.get(key)</code>, <code>v.get(key, default)</code>, <code>v.has(key)</code>, <code>v.pairs()</code>. Building: <code>val(vm, 42)</code>, <code>val(vm, 3.14)</code>, <code>val(vm, &quot;hi&quot;)</code>, <code>val(vm, true)</code>, <code>none(vm)</code>, <code>makeList(vm, {h1, h2})</code>, and the <a class="xref" href="types.html#list"><code>List</code></a>/<a class="xref" href="types.html#dict"><code>Dict</code></a>/<a class="xref" href="types.html#set"><code>Set</code></a> builders (each owns a <code>RootScope</code>, so a GC during construction can never reclaim a half-built value).</p>
 <h2 id="adding-a-function">Adding a function</h2>
 <p>The lightest extension. A <code>NativeFunction</code> wraps a <code>std::function&lt;Handle(KiritoVM&amp;, std::span&lt;const Handle&gt;)&gt;</code>:</p>
 <pre><code>vm.registerGlobal(&quot;clamp&quot;, vm.arena().alloc(std::make_unique&lt;NativeFunction&gt;(

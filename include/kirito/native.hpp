@@ -8,6 +8,7 @@
 #include "function.hpp"
 #include "module.hpp"
 #include "object.hpp"
+#include "value.hpp"
 #include "vm.hpp"
 
 namespace kirito {

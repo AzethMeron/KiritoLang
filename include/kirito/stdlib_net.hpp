@@ -400,22 +400,19 @@ public:
             return vm.makeString(net::percentDecode(SocketVal::asStr(vm, a[0])));
         });
         // urlencode(dict) -> "k1=v1&k2=v2" with both keys and values percent-encoded.
+        // (Showcase of the Value/builder API: read a Dict's pairs, build a String.)
         m.fn("urlencode", {{"params", "Dict"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const Object& o = vm.arena().deref(a[0]);
-            if (o.kind() != ValueKind::Dict) throw KiritoError("urlencode expects a Dict");
             std::string out;
-            for (const auto& [k, v] : static_cast<const DictVal&>(o).pairs()) {
+            for (const auto& [k, v] : Args(vm, a, "urlencode")[0].pairs()) {
                 if (!out.empty()) out += "&";
-                out += net::percentEncode(vm.stringify(k)) + "=" + net::percentEncode(vm.stringify(v));
+                out += net::percentEncode(k.str()) + "=" + net::percentEncode(v.str());
             }
-            return vm.makeString(out);
+            return val(vm, out);
         });
         // parse_qs("a=1&b=2") -> {"a": "1", "b": "2"} (values percent-decoded).
         m.fn("parse_qs", {{"query", "String"}}, "Dict", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::string q = SocketVal::asStr(vm, a[0]);
-            RootScope rs(vm);
-            Handle dh = rs.add(vm.alloc(std::make_unique<DictVal>()));
-            auto& d = static_cast<DictVal&>(vm.arena().deref(dh));
+            std::string q = Args(vm, a, "parse_qs")[0].asString("parse_qs");
+            Dict d(vm);
             std::size_t i = 0;
             while (i < q.size()) {
                 std::size_t amp = q.find('&', i);
@@ -423,28 +420,17 @@ public:
                 std::size_t eq = pair.find('=');
                 std::string k = net::percentDecode(eq == std::string::npos ? pair : pair.substr(0, eq));
                 std::string v = eq == std::string::npos ? "" : net::percentDecode(pair.substr(eq + 1));
-                if (!k.empty()) d.set(vm.arena(), rs.add(vm.makeString(k)), rs.add(vm.makeString(v)));
+                if (!k.empty()) d.set(k, val(vm, v));
                 if (amp == std::string::npos) break;
                 i = amp + 1;
             }
-            return dh;
+            return d.build();
         });
         // urlsplit("scheme://host:port/path?query#frag") -> Dict of components.
         m.fn("urlsplit", {{"url", "String"}}, "Dict", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            net::UrlParts p = net::splitUrl(SocketVal::asStr(vm, a[0]));
-            RootScope rs(vm);
-            Handle dh = rs.add(vm.alloc(std::make_unique<DictVal>()));
-            auto& d = static_cast<DictVal&>(vm.arena().deref(dh));
-            auto put = [&](const char* key, const std::string& val) {
-                d.set(vm.arena(), rs.add(vm.makeString(key)), rs.add(vm.makeString(val)));
-            };
-            put("scheme", p.scheme);
-            put("host", p.host);
-            put("port", p.port);
-            put("path", p.path);
-            put("query", p.query);
-            put("fragment", p.fragment);
-            return dh;
+            net::UrlParts p = net::splitUrl(Args(vm, a, "urlsplit")[0].asString("urlsplit"));
+            return Dict(vm).set("scheme", p.scheme).set("host", p.host).set("port", p.port)
+                           .set("path", p.path).set("query", p.query).set("fragment", p.fragment).build();
         });
     }
 };

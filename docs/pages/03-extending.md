@@ -5,6 +5,45 @@ Kirito-level classes all derive from the same base and dispatch through the same
 you add is indistinguishable from a built-in to the evaluator. You extend Kirito by subclassing two
 convenience bases and registering with one call.
 
+> **Reach for the built-in types first.** Returning Integers, Floats, Strings, Bools, `None`, Lists,
+> Dicts, and Sets covers the vast majority of modules. Defining a *new* `NativeClass` is the fallback
+> — only for genuinely new behaviour (a file handle, a socket, a matrix). The `Value` API below makes
+> working with the built-in types the easy, default path.
+
+## Working with built-in types — the `Value` API
+
+`#include "kirito.hpp"` brings in `value.hpp`: a `Value` facade `(vm, handle)` with typed accessors,
+GC-safe builders (`List`/`Dict`/`Set`), `val(...)` constructors, and an `Args` view over a function's
+arguments. `Value` converts implicitly to/from `Handle`, so it drops straight into a `NativeFn`.
+
+```cpp
+using namespace kirito;
+
+// A function that takes (a: Integer, b: Integer, items: List) and returns a Dict.
+NativeFn demo = [](KiritoVM& vm, std::span<const Handle> raw) -> Handle {
+    Args a(vm, raw, "demo");
+    int64_t x = a.at(0).asInt("a");                 // typed read, clear error on mismatch
+    int64_t y = a.at(1).asInt("b");
+
+    List items(vm);                                 // builder roots intermediates for the GC
+    for (Value e : a[2].items()) items.add(e);      // iterate any iterable
+    items.add(x + y);
+
+    return Dict(vm)                                 // fluent build; -> Handle implicitly
+        .set("sum", x + y)
+        .set("items", items.build())
+        .set("ok", true)
+        .build();
+};
+```
+
+Reading: `v.asInt()` / `asFloat()` (accepts Integer or Float) / `asString()` / `asBool()`;
+`v.isInt()`/`isString()`/`isList()`/…; `v.len()`, `v.at(i)` (list index, negatives allowed),
+`v.items()` (iterate), and for Dicts `v.get(key)`, `v.get(key, default)`, `v.has(key)`, `v.pairs()`.
+Building: `val(vm, 42)`, `val(vm, 3.14)`, `val(vm, "hi")`, `val(vm, true)`, `none(vm)`,
+`makeList(vm, {h1, h2})`, and the `List`/`Dict`/`Set` builders (each owns a `RootScope`, so a GC
+during construction can never reclaim a half-built value).
+
 ## Adding a function
 
 The lightest extension. A `NativeFunction` wraps a `std::function<Handle(KiritoVM&, std::span<const Handle>)>`:

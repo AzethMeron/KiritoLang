@@ -254,6 +254,10 @@ ASCII + Latin-1 + Latin Extended-A), and a bytecode VM behind the AST boundary.
   closures capture their lexical scope by handle. Only functions/modules introduce scopes.
 - **Extending in C++**: subclass `NativeModule` (override `setup`) or `NativeClass` (override only
   the slots you need) and register with one call — indistinguishable from a built-in to the evaluator.
+  Prefer the built-in types via the ergonomic `value.hpp` API (`Value` facade + `Args` + `List`/
+  `Dict`/`Set` builders + `val(...)`; builders root intermediates for the GC). Returning built-in
+  values is the default; defining a new `NativeClass` is the fallback (only for genuinely new
+  behaviour). `value.hpp` is included by `native.hpp`, so every module gets it.
 
 ## Build & test
 

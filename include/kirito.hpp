@@ -21,6 +21,7 @@
 #include "kirito/environment.hpp"
 #include "kirito/function.hpp"
 #include "kirito/vm.hpp"
+#include "kirito/value.hpp"
 #include "kirito/native.hpp"
 #include "kirito/stdlib_io.hpp"
 #include "kirito/stdlib_math.hpp"
