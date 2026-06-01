@@ -8,6 +8,13 @@
 
 #include "kirito.hpp"
 
+#ifdef _WIN32
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
+#endif
+
 // To add a new module to the interpreter: #include its header and call vm.install<Module>().
 // (The bundled stdlib is already registered by the VM; this is where a user wires in their own.)
 //   #include "mymodule.hpp"
@@ -15,8 +22,22 @@
 
 namespace {
 
+#ifdef _WIN32
+// Put the Windows console into UTF-8 mode for the program's lifetime, so Kirito's Unicode output
+// (code-point strings, etc.) renders correctly instead of as mojibake, and restore it on exit. On
+// non-Windows this is unnecessary (terminals are already UTF-8).
+struct ConsoleUtf8 {
+    UINT out_, in_;
+    ConsoleUtf8() : out_(GetConsoleOutputCP()), in_(GetConsoleCP()) {
+        SetConsoleOutputCP(CP_UTF8);
+        SetConsoleCP(CP_UTF8);
+    }
+    ~ConsoleUtf8() { SetConsoleOutputCP(out_); SetConsoleCP(in_); }
+};
+#endif
+
 void usage() {
-    std::cout << "kirito (ki) — a Python-like scripting language\n"
+    std::cout << "kirito (ki) - a high-level scripting language\n"
                  "usage: ki [options] [file.ki [args...]]\n"
                  "  with no file, starts an interactive REPL\n"
                  "options:\n"
@@ -32,7 +53,7 @@ void setArgv(kirito::KiritoVM& vm, const std::vector<std::string>& args) {
 }
 
 int repl(kirito::KiritoVM& vm) {
-    std::cout << "kirito (ki) REPL — Ctrl-D to exit\n";
+    std::cout << "kirito (ki) REPL - Ctrl-D to exit\n";
     std::string line;
     while (std::cout << ">>> " && std::getline(std::cin, line)) {
         if (line.empty()) continue;
@@ -81,6 +102,9 @@ int repl(kirito::KiritoVM& vm) {
 }  // namespace
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    ConsoleUtf8 utf8Console;  // UTF-8 console for the duration of the program
+#endif
     std::vector<std::string> libs;
     std::string file;
     std::vector<std::string> scriptArgs;
