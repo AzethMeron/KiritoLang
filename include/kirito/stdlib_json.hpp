@@ -322,25 +322,19 @@ public:
     void setup(ModuleBuilder& m) override {
         KiritoVM& vm = m.vm();
         m.fn("parse", {{"text", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const Object& o = vm.arena().deref(a[0]);
-            if (o.kind() != ValueKind::String) throw KiritoError("json.parse expects a String");
             RootScope roots(vm);
-            json::Parser p(vm, static_cast<const StrVal&>(o).value(), roots);
+            json::Parser p(vm, Args(vm, a, "json.parse")[0].asString("json.parse"), roots);
             return p.parse();
         });
         m.fn("stringify", {{"value"}, {"indent", "Integer", vm.makeInt(0)}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             // stringify(value[, indent]): compact by default; pretty-printed with `indent` spaces.
+            Args args(vm, a, "json.stringify");
             std::string out;
             std::unordered_set<const Object*> active;
-            int indent = 0;
-            if (a.size() > 1) {
-                const Object& o = vm.arena().deref(a[1]);
-                if (o.kind() != ValueKind::Integer) throw KiritoError("json.stringify indent must be an Integer");
-                indent = static_cast<int>(static_cast<const IntVal&>(o).value());
-            }
-            if (indent > 0) json::writeIndented(vm, a[0], out, active, indent, 0);
-            else json::write(vm, a[0], out, active);
-            return vm.makeString(std::move(out));
+            int indent = args.size() > 1 ? static_cast<int>(args[1].asInt("json.stringify indent")) : 0;
+            if (indent > 0) json::writeIndented(vm, args[0], out, active, indent, 0);
+            else json::write(vm, args[0], out, active);
+            return val(vm, std::move(out));
         });
         // Python-compatible aliases.
         m.alias("loads", "parse");

@@ -18,18 +18,15 @@ public:
     std::string name() const override { return "hash"; }
     void setup(ModuleBuilder& m) override {
         m.fn("md5", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.makeString(hashing::md5(bytesOf(vm, a[0], "md5")));
+            return val(vm, hashing::md5(Args(vm, a, "md5")[0].asString("md5")));
         });
         m.fn("sha1", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.makeString(hashing::sha1(bytesOf(vm, a[0], "sha1")));
+            return val(vm, hashing::sha1(Args(vm, a, "sha1")[0].asString("sha1")));
         });
         m.fn("sha256", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.makeString(hashing::sha256(bytesOf(vm, a[0], "sha256")));
+            return val(vm, hashing::sha256(Args(vm, a, "sha256")[0].asString("sha256")));
         });
     }
-
-private:
-    static const std::string& bytesOf(KiritoVM& vm, Handle h, const char* who) { return argString(vm, h, who); }
 };
 
 }  // namespace kirito

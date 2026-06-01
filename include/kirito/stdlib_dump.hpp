@@ -281,25 +281,22 @@ public:
     std::string name() const override { return "dump"; }
     void setup(ModuleBuilder& m) override {
         m.fn("dumps", {{"value"}}, "Dump", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.alloc(std::make_unique<DumpVal>(dumpfmt::write(vm, a[0])));
+            return vm.alloc(std::make_unique<DumpVal>(dumpfmt::write(vm, Args(vm, a, "dumps")[0])));
         });
         m.fn("loads", {{"data"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const Object& o = vm.arena().deref(a[0]);
+            Value v = Args(vm, a, "loads")[0];
+            const Object& o = vm.arena().deref(v.handle());
             const auto* d = dynamic_cast<const DumpVal*>(&o);
             if (d) return dumpfmt::read(vm, d->data);
-            if (o.kind() == ValueKind::String) return dumpfmt::read(vm, static_cast<const StrVal&>(o).value());
+            if (v.isString()) return dumpfmt::read(vm, v.asString());
             throw KiritoError("loads expects a Dump or a String of bytes");
         });
         m.fn("Dump", {{"bytes", "String"}}, "Dump", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             // Dump(bytes) wraps an existing byte String as a Dump value.
-            const Object& o = vm.arena().deref(a[0]);
-            if (o.kind() != ValueKind::String) throw KiritoError("Dump expects a byte String");
-            return vm.alloc(std::make_unique<DumpVal>(static_cast<const StrVal&>(o).value()));
+            return vm.alloc(std::make_unique<DumpVal>(Args(vm, a, "Dump")[0].asString("Dump bytes")));
         });
         m.fn("load", {{"path", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const Object& o = vm.arena().deref(a[0]);
-            if (o.kind() != ValueKind::String) throw KiritoError("load expects a path String");
-            std::ifstream f(static_cast<const StrVal&>(o).value(), std::ios::binary);
+            std::ifstream f(Args(vm, a, "load")[0].asString("load path"), std::ios::binary);
             if (!f) throw KiritoError("could not open file for loading");
             std::stringstream ss;
             ss << f.rdbuf();

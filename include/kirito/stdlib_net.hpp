@@ -385,19 +385,20 @@ public:
             return vm.alloc(std::make_unique<SocketVal>());
         });
         m.fn("http_get", {{"url", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return net::httpRequest(vm, "GET", SocketVal::asStr(vm, a[0]), "", "");
+            return net::httpRequest(vm, "GET", Args(vm, a, "http_get")[0].asString("url"), "", "");
         });
         m.fn("http_post", {{"url", "String"}, {"body", "String"}, {"content_type", "String", vm.makeString("text/plain")}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::string ct = a.size() > 2 ? SocketVal::asStr(vm, a[2]) : "text/plain";
-            return net::httpRequest(vm, "POST", SocketVal::asStr(vm, a[0]), SocketVal::asStr(vm, a[1]), ct);
+            Args args(vm, a, "http_post");
+            std::string ct = args.size() > 2 ? args[2].asString("content_type") : "text/plain";
+            return net::httpRequest(vm, "POST", args[0].asString("url"), args[1].asString("body"), ct);
         });
 
         // --- URL helpers (urllib.parse style) ---
         m.fn("quote", {{"s", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.makeString(net::percentEncode(SocketVal::asStr(vm, a[0])));
+            return val(vm, net::percentEncode(Args(vm, a, "quote")[0].asString("s")));
         });
         m.fn("unquote", {{"s", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.makeString(net::percentDecode(SocketVal::asStr(vm, a[0])));
+            return val(vm, net::percentDecode(Args(vm, a, "unquote")[0].asString("s")));
         });
         // urlencode(dict) -> "k1=v1&k2=v2" with both keys and values percent-encoded.
         // (Showcase of the Value/builder API: read a Dict's pairs, build a String.)

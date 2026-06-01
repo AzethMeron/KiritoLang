@@ -74,7 +74,11 @@ inline double numOf(KiritoVM& vm, Handle h) {
     throw KiritoError("Matrix expects numbers");
 }
 
+// Cap total element count so a hostile/absurd dimension raises a catchable error instead of an
+// uncaught std::bad_alloc (which would terminate the VM). ~16M doubles = 128 MB is plenty for CPU.
+inline constexpr std::size_t kMaxMatrixElems = 16ull * 1024 * 1024;
 inline std::unique_ptr<MatrixVal> make(std::size_t r, std::size_t c, double fill = 0.0) {
+    if (c != 0 && r > kMaxMatrixElems / c) throw KiritoError("Matrix too large");
     return std::make_unique<MatrixVal>(r, c, fill);
 }
 
@@ -264,20 +268,19 @@ public:
     void setup(ModuleBuilder& m) override {
         // Matrix(nested-list) or Matrix(rows, cols)
         m.fn("Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            if (a.size() == 2) {
-                int64_t r = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
-                int64_t c = static_cast<const IntVal&>(vm.arena().deref(a[1])).value();
+            Args args(vm, a, "Matrix");
+            if (args.size() == 2) {
+                int64_t r = args[0].asInt("Matrix rows");
+                int64_t c = args[1].asInt("Matrix cols");
                 if (r < 0 || c < 0) throw KiritoError("Matrix dimensions must be non-negative");
                 return vm.alloc(mat::make(static_cast<std::size_t>(r), static_cast<std::size_t>(c)));
             }
-            if (a.size() != 1) throw KiritoError("Matrix expects a nested list or (rows, cols)");
-            auto rowsIt = vm.arena().deref(a[0]).iterate(vm);
+            if (args.size() != 1) throw KiritoError("Matrix expects a nested list or (rows, cols)");
             std::vector<std::vector<double>> grid;
-            for (Handle rowH : rowsIt.value()) {
-                auto colsIt = vm.arena().deref(rowH).iterate(vm);
-                std::vector<double> row;
-                for (Handle cell : colsIt.value()) row.push_back(mat::numOf(vm, cell));
-                grid.push_back(std::move(row));
+            for (Value row : args[0].items()) {
+                std::vector<double> r;
+                for (Value cell : row.items()) r.push_back(cell.asFloat("Matrix element"));
+                grid.push_back(std::move(r));
             }
             std::size_t r = grid.size(), c = r ? grid[0].size() : 0;
             for (const auto& row : grid)
@@ -288,18 +291,16 @@ public:
             return vm.alloc(std::move(mtx));
         });
         m.fn("zeros", {{"rows", "Integer"}, {"cols", "Integer"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            int64_t r = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
-            int64_t c = static_cast<const IntVal&>(vm.arena().deref(a[1])).value();
-            return vm.alloc(mat::make(static_cast<std::size_t>(r), static_cast<std::size_t>(c), 0.0));
+            Args args(vm, a, "zeros");
+            return vm.alloc(mat::make(static_cast<std::size_t>(args[0].asInt("rows")), static_cast<std::size_t>(args[1].asInt("cols")), 0.0));
         });
         m.fn("ones", {{"rows", "Integer"}, {"cols", "Integer"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            int64_t r = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
-            int64_t c = static_cast<const IntVal&>(vm.arena().deref(a[1])).value();
-            return vm.alloc(mat::make(static_cast<std::size_t>(r), static_cast<std::size_t>(c), 1.0));
+            Args args(vm, a, "ones");
+            return vm.alloc(mat::make(static_cast<std::size_t>(args[0].asInt("rows")), static_cast<std::size_t>(args[1].asInt("cols")), 1.0));
         });
         m.fn("identity", {{"n", "Integer"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            int64_t n = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
-            auto mtx = mat::make(static_cast<std::size_t>(n), static_cast<std::size_t>(n));
+            std::size_t n = static_cast<std::size_t>(Args(vm, a, "identity")[0].asInt("n"));
+            auto mtx = mat::make(n, n);
             for (std::size_t i = 0; i < mtx->rows; ++i) mtx->at(i, i) = 1.0;
             return vm.alloc(std::move(mtx));
         });

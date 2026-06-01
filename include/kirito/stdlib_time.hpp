@@ -170,51 +170,39 @@ public:
 
         // time() -> Float seconds since the Unix epoch (wall clock).
         m.fn("time", {}, "Float", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
-            auto now = system_clock::now().time_since_epoch();
-            return vm.makeFloat(duration<double>(now).count());
+            return val(vm, duration<double>(system_clock::now().time_since_epoch()).count());
         });
 
         // time_ns() -> Integer nanoseconds since the epoch (wall clock).
         m.fn("time_ns", {}, "Integer", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
-            auto now = system_clock::now().time_since_epoch();
-            return vm.makeInt(static_cast<int64_t>(duration_cast<nanoseconds>(now).count()));
+            return val(vm, static_cast<int64_t>(duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count()));
         });
 
         // monotonic() -> Float seconds from a steady clock (for measuring intervals).
         m.fn("monotonic", {}, "Float", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
-            auto now = steady_clock::now().time_since_epoch();
-            return vm.makeFloat(duration<double>(now).count());
+            return val(vm, duration<double>(steady_clock::now().time_since_epoch()).count());
         });
 
         // perf_counter_ns() -> Integer nanoseconds from the highest-resolution steady clock.
         m.fn("perf_counter_ns", {}, "Integer", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
-            auto now = steady_clock::now().time_since_epoch();
-            return vm.makeInt(static_cast<int64_t>(duration_cast<nanoseconds>(now).count()));
+            return val(vm, static_cast<int64_t>(duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count()));
         });
 
         // sleep(seconds) — Float or Integer seconds.
         m.fn("sleep", {{"seconds", "Number"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const Object& o = vm.arena().deref(a[0]);
-            double secs = o.kind() == ValueKind::Integer
-                              ? static_cast<double>(static_cast<const IntVal&>(o).value())
-                          : o.kind() == ValueKind::Float ? static_cast<const FloatVal&>(o).value()
-                                                         : throw KiritoError("sleep expects a number");
+            double secs = Args(vm, a, "sleep")[0].asFloat("sleep");
             if (secs > 0) std::this_thread::sleep_for(duration<double>(secs));
-            return vm.none();
+            return none(vm);
         });
 
         // datetime(timestamp) -> DateTime; with no arg (or None), the current UTC time.
         m.fn("datetime", {{"timestamp", "", vm.none()}}, "DateTime", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Args args(vm, a, "datetime");
             int64_t secs;
-            if (a.empty() || vm.arena().deref(a[0]).kind() == ValueKind::None) {
+            if (args.empty() || args[0].isNone())
                 secs = duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
-            } else {
-                const Object& o = vm.arena().deref(a[0]);
-                if (o.kind() == ValueKind::Integer) secs = static_cast<const IntVal&>(o).value();
-                else if (o.kind() == ValueKind::Float)
-                    secs = static_cast<int64_t>(static_cast<const FloatVal&>(o).value());
-                else throw KiritoError("datetime expects a numeric timestamp");
-            }
+            else
+                secs = static_cast<int64_t>(args[0].asFloat("datetime timestamp"));
             return vm.alloc(std::make_unique<DateTime>(secs));
         });
 
@@ -226,12 +214,9 @@ public:
 
         // make(year, month, day[, hour, minute, second]) -> DateTime built from UTC components.
         m.fn("make", {{"year", "Integer"}, {"month", "Integer"}, {"day", "Integer"}, {"hour", "Integer", vm.makeInt(0)}, {"minute", "Integer", vm.makeInt(0)}, {"second", "Integer", vm.makeInt(0)}}, "DateTime", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            if (a.size() < 3 || a.size() > 6) throw KiritoError("make expects 3 to 6 arguments");
+            Args args(vm, a, "make");
             auto iv = [&](std::size_t i, int dflt) {
-                if (i >= a.size()) return dflt;
-                const Object& o = vm.arena().deref(a[i]);
-                if (o.kind() != ValueKind::Integer) throw KiritoError("make expects Integer components");
-                return static_cast<int>(static_cast<const IntVal&>(o).value());
+                return i >= args.size() ? dflt : static_cast<int>(args[i].asInt("make component"));
             };
             std::tm tm{};
             tm.tm_year = iv(0, 1970) - 1900;
@@ -245,14 +230,10 @@ public:
 
         // strptime(text, format) -> DateTime, parsing UTC fields with the given strftime format.
         m.fn("strptime", {{"text", "String"}, {"format", "String"}}, "DateTime", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            if (a.size() != 2) throw KiritoError("strptime expects (text, format)");
-            const Object& t = vm.arena().deref(a[0]);
-            const Object& f = vm.arena().deref(a[1]);
-            if (t.kind() != ValueKind::String || f.kind() != ValueKind::String)
-                throw KiritoError("strptime expects String arguments");
+            Args args(vm, a, "strptime");
             std::tm tm{};
-            if (!strptimeCompat(static_cast<const StrVal&>(t).value().c_str(),
-                                static_cast<const StrVal&>(f).value().c_str(), tm))
+            if (!strptimeCompat(args[0].asString("strptime text").c_str(),
+                                args[1].asString("strptime format").c_str(), tm))
                 throw KiritoError("strptime: text does not match format");
             return vm.alloc(std::make_unique<DateTime>(timegmCompat(tm)));
         });

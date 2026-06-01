@@ -18,33 +18,30 @@ public:
     std::string name() const override { return "zlib"; }
     void setup(ModuleBuilder& m) override {
         m.fn("compress", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.makeString(deflate::zlibCompress(bytesOf(vm, a[0], "compress")));
+            return val(vm, deflate::zlibCompress(Args(vm, a, "compress")[0].asString("compress")));
         });
         m.fn("decompress", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             try {
-                return vm.makeString(deflate::zlibDecompress(bytesOf(vm, a[0], "decompress")));
+                return val(vm, deflate::zlibDecompress(Args(vm, a, "decompress")[0].asString("decompress")));
             } catch (const deflate::DeflateError& e) {
                 throw KiritoError(std::string("zlib: ") + e.what());
             }
         });
         // Raw DEFLATE (no zlib header/trailer) — symmetric pair.
         m.fn("deflate", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.makeString(deflate::compress(bytesOf(vm, a[0], "deflate")));
+            return val(vm, deflate::compress(Args(vm, a, "deflate")[0].asString("deflate")));
         });
         m.fn("inflate", {{"data", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             try {
-                return vm.makeString(deflate::inflate(bytesOf(vm, a[0], "inflate")));
+                return val(vm, deflate::inflate(Args(vm, a, "inflate")[0].asString("inflate")));
             } catch (const deflate::DeflateError& e) {
                 throw KiritoError(std::string("zlib: ") + e.what());
             }
         });
         m.fn("adler32", {{"data", "String"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.makeInt(static_cast<int64_t>(deflate::adler32(bytesOf(vm, a[0], "adler32"))));
+            return val(vm, static_cast<int64_t>(deflate::adler32(Args(vm, a, "adler32")[0].asString("adler32"))));
         });
     }
-
-private:
-    static const std::string& bytesOf(KiritoVM& vm, Handle h, const char* who) { return argString(vm, h, who); }
 };
 
 }  // namespace kirito

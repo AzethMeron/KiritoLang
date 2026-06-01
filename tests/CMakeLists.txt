@@ -62,6 +62,7 @@ kirito_test(test_switch unit/test_switch.cpp)
 kirito_test(test_streams unit/test_streams.cpp)
 kirito_test(test_stress unit/test_stress.cpp)
 kirito_test(test_value unit/test_value.cpp)
+kirito_test(test_modules_fuzz unit/test_modules_fuzz.cpp)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
 kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)

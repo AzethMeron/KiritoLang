@@ -41,52 +41,47 @@ public:
 
         m.fn("getenv", {{"name", "String"}, {"default", "", vm.none()}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             // getenv(name[, default]) -> String, or default/None if unset.
-            const std::string& name = asStr(vm, a[0], "getenv");
-            const char* v = std::getenv(name.c_str());
-            if (v) return vm.makeString(v);
-            return a.size() > 1 ? a[1] : vm.none();
+            Args args(vm, a, "getenv");
+            const char* v = std::getenv(args[0].asString("getenv").c_str());
+            if (v) return val(vm, v);
+            return args.opt(1, none(vm));
         });
 
         m.fn("setenv", {{"name", "String"}, {"value", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const std::string& name = asStr(vm, a[0], "setenv");
-            const std::string& val = asStr(vm, a[1], "setenv");
+            Args args(vm, a, "setenv");
+            std::string name = args[0].asString("setenv");
+            std::string value = args[1].asString("setenv");
 #if defined(_WIN32)
-            bool ok = ::SetEnvironmentVariableA(name.c_str(), val.c_str()) != 0;
-            // keep the CRT view (getenv) consistent too
-            ::_putenv_s(name.c_str(), val.c_str());
+            bool ok = ::SetEnvironmentVariableA(name.c_str(), value.c_str()) != 0;
+            ::_putenv_s(name.c_str(), value.c_str());  // keep the CRT view (getenv) consistent too
 #else
-            bool ok = ::setenv(name.c_str(), val.c_str(), 1) == 0;
+            bool ok = ::setenv(name.c_str(), value.c_str(), 1) == 0;
 #endif
             if (!ok) throw KiritoError("setenv failed for '" + name + "'");
-            return vm.none();
+            return none(vm);
         });
 
         m.fn("unsetenv", {{"name", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const std::string& name = asStr(vm, a[0], "unsetenv");
+            std::string name = Args(vm, a, "unsetenv")[0].asString("unsetenv");
 #if defined(_WIN32)
             ::SetEnvironmentVariableA(name.c_str(), nullptr);
             ::_putenv_s(name.c_str(), "");
 #else
             ::unsetenv(name.c_str());
 #endif
-            return vm.none();
+            return none(vm);
         });
 
         // environ() -> Dict of all environment variables.
         m.fn("environ", {}, "Dict", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
-            RootScope rs(vm);
-            auto dict = std::make_unique<DictVal>();
-            Handle h = rs.add(vm.alloc(std::move(dict)));
-            auto& d = static_cast<DictVal&>(vm.arena().deref(h));
+            Dict d(vm);
 #if defined(_WIN32)
             LPCH block = ::GetEnvironmentStringsA();
             if (block) {
                 for (LPCH p = block; *p; p += std::strlen(p) + 1) {
                     std::string entry(p);
                     std::size_t eq = entry.find('=');
-                    if (eq != std::string::npos && eq > 0)
-                        d.set(vm.arena(), rs.add(vm.makeString(entry.substr(0, eq))),
-                              rs.add(vm.makeString(entry.substr(eq + 1))));
+                    if (eq != std::string::npos && eq > 0) d.set(entry.substr(0, eq), val(vm, entry.substr(eq + 1)));
                 }
                 ::FreeEnvironmentStringsA(block);
             }
@@ -95,28 +90,20 @@ public:
                 for (char** e = environ; *e; ++e) {
                     std::string entry(*e);
                     std::size_t eq = entry.find('=');
-                    if (eq != std::string::npos)
-                        d.set(vm.arena(), rs.add(vm.makeString(entry.substr(0, eq))),
-                              rs.add(vm.makeString(entry.substr(eq + 1))));
+                    if (eq != std::string::npos) d.set(entry.substr(0, eq), val(vm, entry.substr(eq + 1)));
                 }
             }
 #endif
-            return h;
+            return d.build();
         });
 
         m.fn("exit", {{"code", "Integer", vm.makeInt(0)}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            int code = 0;
-            if (!a.empty()) {
-                const Object& o = vm.arena().deref(a[0]);
-                if (o.kind() == ValueKind::Integer) code = static_cast<int>(static_cast<const IntVal&>(o).value());
-            }
+            Args args(vm, a, "exit");
+            int code = args.empty() || !args[0].isInt() ? 0 : static_cast<int>(args[0].asInt());
             std::exit(code);
-            return vm.none();  // unreachable
+            return none(vm);  // unreachable
         });
     }
-
-private:
-    static const std::string& asStr(KiritoVM& vm, Handle h, const char* who) { return argString(vm, h, who); }
 };
 
 }  // namespace kirito

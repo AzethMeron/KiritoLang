@@ -188,27 +188,22 @@ public:
     void setup(ModuleBuilder& m) override {
         m.fn("dumps", {{"value"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             serial::Writer w(vm);
-            return vm.makeString(w.dump(a[0]));
+            return val(vm, w.dump(Args(vm, a, "dumps")[0]));
         });
         m.fn("loads", {{"text", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const Object& o = vm.arena().deref(a[0]);
-            if (o.kind() != ValueKind::String) throw KiritoError("loads expects a String");
-            serial::Reader r(vm, static_cast<const StrVal&>(o).value());
+            serial::Reader r(vm, Args(vm, a, "loads")[0].asString("loads"));
             return r.load();
         });
         m.fn("save", {{"value"}, {"path", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const Object& po = vm.arena().deref(a[1]);
-            if (po.kind() != ValueKind::String) throw KiritoError("save path must be a String");
+            Args args(vm, a, "save");
             serial::Writer w(vm);
-            std::ofstream f(static_cast<const StrVal&>(po).value(), std::ios::binary);
+            std::ofstream f(args[1].asString("save path"), std::ios::binary);
             if (!f) throw KiritoError("could not open file for saving");
-            f << w.dump(a[0]);
-            return vm.none();
+            f << w.dump(args[0]);
+            return none(vm);
         });
         m.fn("load", {{"path", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const Object& po = vm.arena().deref(a[0]);
-            if (po.kind() != ValueKind::String) throw KiritoError("load path must be a String");
-            std::ifstream f(static_cast<const StrVal&>(po).value(), std::ios::binary);
+            std::ifstream f(Args(vm, a, "load")[0].asString("load path"), std::ios::binary);
             if (!f) throw KiritoError("could not open file for loading");
             std::stringstream ss;
             ss << f.rdbuf();
