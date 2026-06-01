@@ -475,7 +475,12 @@ var callValue = Function(St, fn, args, kwargs):
         var a2 = [fn["self"]]
         for x in args:
             a2.append(x)
-        return callFunction(St, fn["func"], a2, kwargs, fn["defcls"])
+        # dunder dispatch (operators, _getitem_, _str_, ...) builds plain bounds with no recorded
+        # class; default the method's class to the instance's own so private members resolve.
+        var dc = fn["defcls"]
+        if dc == None and boxKind(fn["self"]) == "instance":
+            dc = fn["self"]["cls"]
+        return callFunction(St, fn["func"], a2, kwargs, dc)
     if k == "boundnative":
         return callMethod(St, fn["recv"], fn["name"], args, kwargs)
     if k == "class":
@@ -1500,6 +1505,10 @@ var builtinSorted = Function(St, args, kwargs):
     var items = materialize(St, args[0])
     var keyFn = None
     var rev = False
+    if len(args) >= 2 and args[1] != None:
+        keyFn = args[1]
+    if len(args) >= 3:
+        rev = args[2]
     for kw in kwargs:
         if kw[0] == "key":
             keyFn = kw[1]
