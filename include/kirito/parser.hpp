@@ -851,21 +851,23 @@ private:
         return node;
     }
 
-    // Decode an Integer literal's text into an int64. Decimal goes through std::stoll; a base prefix
-    // (0x / 0b / 0o, validated by the lexer) is accumulated in unsigned 64-bit space, so a full-width
-    // bit pattern like 0xFFFFFFFFFFFFFFFF wraps to -1 (the language's two's-complement rule) instead
-    // of overflowing.
+    // Decode an Integer literal's text into an int64. Decimal, or a base prefix (0x / 0b / 0o,
+    // validated by the lexer), are accumulated the same way in unsigned 64-bit space, so an
+    // over-wide literal wraps two's-complement (0xFFFFFFFFFFFFFFFF == -1, and 9223372036854775808
+    // == INT64_MIN — which makes `-9223372036854775808` work) instead of overflowing. Crucially this
+    // never throws: a giant decimal like 99999999999999999999 wraps rather than aborting (std::stoll
+    // would throw std::out_of_range).
     static int64_t intLiteral(const std::string& s) {
-        int base = 0;
+        int base = 10;
+        std::size_t i = 0;
         if (s.size() >= 2 && s[0] == '0') {
             char b = s[1];
-            if (b == 'x' || b == 'X') base = 16;
-            else if (b == 'b' || b == 'B') base = 2;
-            else if (b == 'o' || b == 'O') base = 8;
+            if (b == 'x' || b == 'X') { base = 16; i = 2; }
+            else if (b == 'b' || b == 'B') { base = 2; i = 2; }
+            else if (b == 'o' || b == 'O') { base = 8; i = 2; }
         }
-        if (base == 0) return static_cast<int64_t>(std::stoll(s));
         uint64_t v = 0;
-        for (std::size_t i = 2; i < s.size(); ++i) {
+        for (; i < s.size(); ++i) {
             char c = s[i];
             int d = (c >= '0' && c <= '9') ? c - '0'
                   : (c >= 'a' && c <= 'f') ? c - 'a' + 10

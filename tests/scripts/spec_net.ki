@@ -1,0 +1,44 @@
+# Thorough checks for the net module's URL helpers (no sockets / no network here).
+var io = import("io")
+var net = import("net")
+
+# --- percent-encoding ---
+assert net.quote("hello world") == "hello%20world", "quote space"
+assert net.quote("a/b?c=d&e") == "a%2Fb%3Fc%3Dd%26e", "quote reserved chars"
+assert net.quote("safe-._~") == "safe-._~", "quote leaves unreserved"
+assert net.unquote("hello%20world") == "hello world", "unquote"
+assert net.unquote("a%2Fb") == "a/b", "unquote reserved"
+# round-trip
+var samples = ["plain", "with spaces", "sym/bo?ls=&#", "unicode café"]
+for s in samples:
+    assert net.unquote(net.quote(s)) == s, "quote/unquote round-trip"
+
+# --- urlencode (Dict -> query string) and parseqs (query -> Dict) ---
+var qs = net.urlencode({"a": "1", "b": "two words"})
+assert "a=1" in qs and "b=two%20words" in qs and "&" in qs, "urlencode pairs"
+var parsed = net.parseqs("x=1&y=2&z=hello%20world")
+assert parsed["x"] == "1" and parsed["y"] == "2" and parsed["z"] == "hello world", "parseqs decodes"
+# round-trip through parseqs
+var rt = net.parseqs(net.urlencode({"k": "v v", "n": "42"}))
+assert rt["k"] == "v v" and rt["n"] == "42", "urlencode/parseqs round-trip"
+assert net.parseqs("") == {}, "parseqs empty"
+
+# --- urlsplit ---
+var u = net.urlsplit("http://example.com:8080/path/to?query=1#frag")
+assert u["scheme"] == "http", "urlsplit scheme"
+assert u["host"] == "example.com", "urlsplit host"
+assert u["port"] == "8080", "urlsplit port (String)"
+assert u["path"] == "/path/to", "urlsplit path"
+var u2 = net.urlsplit("https://host/just/path")
+assert u2["scheme"] == "https" and u2["host"] == "host" and u2["path"] == "/just/path", "urlsplit no port"
+
+# --- adversarial: bad types raise, never crash ---
+var raised = 0
+for thunk in [Function(): return net.urlencode("not a dict"), Function(): return net.quote(42)]:
+    try:
+        discard thunk()
+    catch as e:
+        raised = raised + 1
+assert raised == 2, "net helpers reject bad argument types"
+
+io.print("OK")

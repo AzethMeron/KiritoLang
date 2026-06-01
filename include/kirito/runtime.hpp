@@ -1646,7 +1646,13 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
             return out + methods.substr(0, methods.size() - 1);  // drop trailing newline
         }
         case ValueKind::Instance: {
-            const auto& inst = static_cast<const InstanceValue&>(o);
+            // A C++-authored NativeClass (Matrix, Random, File, …) also reports ValueKind::Instance
+            // but is NOT an InstanceValue, so only treat genuine user-class instances as one;
+            // anything else is described generically (never blindly downcast — that would read
+            // garbage and crash).
+            const auto* instp = dynamic_cast<const InstanceValue*>(&o);
+            if (!instp) return o.typeName() + " value";
+            const auto& inst = *instp;
             std::string out = inst.className + " instance:\n";
             std::string attrs;
             for (const std::string& k : sortedKeys(inst.attrs))

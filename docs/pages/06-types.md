@@ -16,7 +16,7 @@ names can share one collection and see each other's mutations.
 | `String` | `"hi"`, `f"{x}"` | no | yes | Unicode, indexed by code point |
 | `List` | `[1, 2, 3]` | yes | no | ordered sequence |
 | `Set` | `{1, 2, 3}` | yes | no | unordered unique elements |
-| `Dict` | `{"a": 1}` | yes | no | insertion-ordered key→value map |
+| `Dict` | `{"a": 1}` | yes | no | unordered key→value map (hashable keys) |
 
 Each type's constructor (e.g. `Integer(x)`, `List(iter)`) is a built-in function — see
 [Built-in Functions](builtins.html#types-and-conversion).
@@ -94,7 +94,7 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 | `s.find(sub)` / `s.rfind(sub)` | First / last index of `sub`, or `-1`. |
 | `s.index(sub)` / `s.rindex(sub)` | Like find/rfind but raise if absent. |
 | `s.count(sub)` | Number of non-overlapping occurrences. |
-| `s.format(...)` | Substitute `{}` / `{name}` fields with the given positional / keyword arguments. |
+| `s.format(...)` | Substitute `{}` (sequential) and `{0}`/`{1}` (indexed) fields with the positional arguments. (Named `{x}` fields are an f-string feature.) |
 | `s.isdigit()` / `s.isalpha()` / `s.isalnum()` | Character-class predicates over the whole string. |
 | `s.isspace()` / `s.islower()` / `s.isupper()` | Whitespace / case predicates. |
 | `s.removeprefix(p)` / `s.removesuffix(p)` | Drop a prefix/suffix if present. |
@@ -161,9 +161,9 @@ io.print(a.union(b), a.intersection(b))   # {1, 2, 3, 4} {3}
 
 ## Dict
 
-An insertion-ordered map from hashable keys to values. Supports `d[key]` get/set, `in` (over keys),
-`len`, and iteration (over keys). Multi-key indexing assignment (`m[i, j] = v`) is available to
-types that define it.
+An **unordered** map from hashable keys to values (iteration order is unspecified — do not rely on
+it). Supports `d[key]` get/set, `in` (over keys), `len`, and iteration (over keys). Multi-key
+indexing assignment (`m[i, j] = v`) is available to types that define it.
 
 ```kirito
 var d = {"a": 1, "b": 2}
@@ -177,7 +177,7 @@ io.print(d.get("z", 0))    # 0 (default)
 
 | Method | Description |
 |--------|-------------|
-| `d.keys()` | List of keys (in insertion order). |
+| `d.keys()` | List of keys (in unspecified order). |
 | `d.values()` | List of values. |
 | `d.items()` | List of `[key, value]` pairs. |
 | `d.get(key[, default])` | Value for `key`, or `default` (or `None`) if missing. |
