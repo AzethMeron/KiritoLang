@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Run the end-to-end .ki test suites against the RELEASE executables in dist/ — i.e. exercise the
+# actual `ki` interpreter binary, not the in-tree C++ unit tests. Two suites are run per binary:
+#
+#   tests/scripts/*.ki  -> stdout must exactly match the matching .expected (a .in file, if present,
+#                          is fed on stdin).
+#   tests/errors/*.ki   -> the program must exit non-zero and its stderr must contain every line of
+#                          the matching .experr (each line is a required substring).
+#
+# Linux binaries run natively; Windows .exe binaries run under Wine (sudo apt-get install -y wine64).
+#
+# Usage:
+#   scripts/test_release.sh                 # test every binary found in dist/
+#   scripts/test_release.sh ./build/ki      # test one specific interpreter
+#   scripts/test_release.sh path/ki.exe wine64   # test one binary through a runner (e.g. wine)
+
+set -u
+cd "$(dirname "$0")/.."
+
+# run_suite <label> <runner argv...>   (the .ki path is appended to the runner)
+run_suite() {
+    local label="$1"; shift
+    local pass=0 fail=0 s exp in actual err rc ok n
+    for s in tests/scripts/*.ki; do
+        exp="${s%.ki}.expected"; [ -f "$exp" ] || continue
+        in="${s%.ki}.in"
+        if [ -f "$in" ]; then actual="$("$@" "$s" < "$in" 2>/dev/null)"
+        else                  actual="$("$@" "$s" < /dev/null 2>/dev/null)"; fi
+        if [ "$actual" = "$(cat "$exp")" ]; then pass=$((pass + 1))
+        else echo "  FAIL       $s"; fail=$((fail + 1)); fi
+    done
+    for s in tests/errors/*.ki; do
+        exp="${s%.ki}.experr"; [ -f "$exp" ] || continue
+        err="$("$@" "$s" < /dev/null 2>&1 >/dev/null)"; rc=$?
+        ok=1
+        [ "$rc" -eq 0 ] && ok=0   # must FAIL
+        while IFS= read -r n; do
+            [ -z "$n" ] && continue
+            case "$err" in *"$n"*) ;; *) ok=0 ;; esac
+        done < "$exp"
+        if [ "$ok" -eq 1 ]; then pass=$((pass + 1))
+        else echo "  FAIL(err)  $s"; fail=$((fail + 1)); fi
+    done
+    echo "[$label] $pass passed, $fail failed"
+    [ "$fail" -eq 0 ]
+}
+
+# Pick a Wine runner for .exe binaries, if available.
+wine_runner() { command -v wine64 || command -v wine || true; }
+
+rc=0
+
+# explicit binary given on the command line
+if [ "$#" -ge 1 ]; then
+    bin="$1"; shift
+    run_suite "$(basename "$bin")" "$@" "$bin" || rc=1
+    exit "$rc"
+fi
+
+# otherwise: every binary in dist/
+shopt -s nullglob
+found=0
+for bin in dist/ki-linux-* ; do
+    found=1; echo "=== $(basename "$bin") ==="
+    run_suite "$(basename "$bin")" "$bin" || rc=1
+done
+for bin in dist/ki-windows-*.exe ; do
+    found=1; echo "=== $(basename "$bin") ==="
+    w="$(wine_runner)"
+    if [ -n "$w" ]; then run_suite "$(basename "$bin")" "$w" "$bin" || rc=1
+    else echo "  SKIP: install wine to run the .exe (sudo apt-get install -y wine64)"; fi
+done
+[ "$found" -eq 0 ] && { echo "no dist/ki-* binaries found — run scripts/build_all.sh first"; exit 1; }
+exit "$rc"

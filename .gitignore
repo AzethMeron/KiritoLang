@@ -46,6 +46,8 @@ build-*/
 
 # Release build output (binaries are published to GitHub Releases, not committed)
 dist/
+# Cross-build dependency cache (e.g. the mingw OpenSSL built by scripts/build_all.sh)
+.deps/
 
 # CMake generated files
 CMakeFiles/

@@ -49,6 +49,11 @@ if(KIRITO_ENABLE_TLS)
     find_package(OpenSSL REQUIRED)
     target_compile_definitions(ki PRIVATE KIRITO_ENABLE_TLS)
     target_link_libraries(ki PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+    if(WIN32)
+        # A static OpenSSL on Windows pulls in the system cert store + CNG RNG; link those libs so
+        # a fully-static mingw/MSVC build resolves (harmless when OpenSSL is shared).
+        target_link_libraries(ki PRIVATE crypt32 bcrypt ws2_32)
+    endif()
 endif()
 
 enable_testing()

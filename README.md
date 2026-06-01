@@ -89,26 +89,52 @@ way — see the documentation for complete, worked examples.
 
 ## Downloads
 
-Prebuilt `ki` binaries for **Windows and Linux, 32- and 64-bit** are attached to each
+Prebuilt 64-bit `ki` binaries for **Windows and Linux** are attached to each
 [GitHub Release](../../releases). Every release binary is an optimized build with HTTPS (TLS)
 support, linked as statically as possible (OpenSSL and the C/C++ runtime are bundled in), so it runs
 without installing anything else.
 
 ## Building and running
 
-Requires a C++20 compiler and CMake.
+The everyday build needs a C++20 compiler (GCC 13+ / Clang 18+ / MSVC), CMake 3.28+, and Ninja:
 
 ```sh
+sudo apt-get install -y build-essential cmake ninja-build   # Debian/Ubuntu/WSL
 cmake --preset debug
 cmake --build build
 
 ./build/ki path/to/program.ki      # run a script
 ./build/ki                         # start the REPL
+ctest --test-dir build             # run the C++ unit + golden-script test suite
 ```
 
-To build a shippable, statically-linked release binary yourself (TLS enabled), run
-`scripts/build_release.sh`; it writes the binaries for every toolchain available on your machine into
-`dist/`. The full cross-platform set is produced on CI by `.github/workflows/release.yml`.
+### Building the release binaries (static, TLS)
+
+`scripts/build_all.sh` builds the shippable 64-bit binaries into `dist/` — `ki-linux-x64` and, when
+the mingw cross compiler is installed, `ki-windows-x64.exe` (it builds a static OpenSSL for the
+Windows target from source, cached under `.deps/`). On Debian/Ubuntu/WSL:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y build-essential cmake ninja-build git perl libssl-dev mingw-w64
+scripts/build_all.sh
+```
+
+Each binary is a Release build with TLS on and linked as statically as possible (the Linux binary
+keeps only glibc dynamic; the Windows `.exe` is fully static). The same set is also produced on CI by
+`.github/workflows/release.yml`, which publishes it to a GitHub Release on a `v*` tag.
+
+### Testing the built executables
+
+`scripts/test_release.sh` runs the end-to-end `.ki` test suites (golden-output + error-diagnostic
+scripts) against the binaries in `dist/`, so you can verify each shipped interpreter directly. Linux
+binaries run natively; Windows `.exe` binaries run under Wine:
+
+```sh
+sudo apt-get install -y wine64        # only needed to test the .exe
+scripts/test_release.sh               # tests every dist/ki-* binary
+scripts/test_release.sh ./build/ki    # or test one specific interpreter
+```
 
 ## Documentation
 

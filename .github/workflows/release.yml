@@ -1,8 +1,8 @@
 name: release
 
-# Build shippable `ki` binaries for Windows and Linux, 32- and 64-bit, each an optimized Release
-# build with TLS (HTTPS) enabled and OpenSSL + the C/C++ runtime linked statically, then attach them
-# to a GitHub Release. Triggered by pushing a version tag (e.g. v1.0.0); also runnable manually.
+# Build shippable 64-bit `ki` binaries for Windows and Linux, each an optimized Release build with
+# TLS (HTTPS) enabled and OpenSSL + the C/C++ runtime linked statically, then attach them to a
+# GitHub Release. Triggered by pushing a version tag (e.g. v1.0.0); also runnable manually.
 
 on:
   push:
@@ -13,63 +13,51 @@ permissions:
   contents: write
 
 jobs:
-  # ---- Linux x86_64 and i686 (gcc; static OpenSSL/libstdc++/libgcc, glibc dynamic) ----
+  # ---- Linux x86_64 (gcc; static OpenSSL/libstdc++/libgcc, glibc dynamic) ----
   linux:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - { arch: x64, flags: "",    apt: "libssl-dev" }
-          - { arch: x86, flags: "-m32", apt: "gcc-multilib g++-multilib libssl-dev:i386" }
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain + OpenSSL
         run: |
-          sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build ${{ matrix.apt }}
+          sudo apt-get install -y cmake ninja-build libssl-dev
       - name: Build
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DKIRITO_ENABLE_TLS=ON -DOPENSSL_USE_STATIC_LIBS=ON \
-            -DCMAKE_CXX_FLAGS="-O2 ${{ matrix.flags }}" \
-            -DCMAKE_EXE_LINKER_FLAGS="-s ${{ matrix.flags }}"
+            -DCMAKE_EXE_LINKER_FLAGS="-s"
           cmake --build build --target ki
-          mv build/ki ki-linux-${{ matrix.arch }}
+          mv build/ki ki-linux-x64
       - uses: actions/upload-artifact@v4
         with:
-          name: ki-linux-${{ matrix.arch }}
-          path: ki-linux-${{ matrix.arch }}
+          name: ki-linux-x64
+          path: ki-linux-x64
 
-  # ---- Windows x64 and x86 (MSVC; static CRT via /MT, static OpenSSL from vcpkg) ----
+  # ---- Windows x86_64 (MSVC; static CRT via /MT, static OpenSSL from vcpkg) ----
   windows:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        include:
-          - { arch: x64, platform: x64,   triplet: x64-windows-static }
-          - { arch: x86, platform: Win32, triplet: x86-windows-static }
     steps:
       - uses: actions/checkout@v4
       - name: Install static OpenSSL (vcpkg)
         shell: bash
-        run: vcpkg install openssl:${{ matrix.triplet }}
+        run: vcpkg install openssl:x64-windows-static
       - name: Build
         shell: bash
         run: |
-          cmake -S . -B build -A ${{ matrix.platform }} \
+          cmake -S . -B build -A x64 \
             -DKIRITO_ENABLE_TLS=ON -DOPENSSL_USE_STATIC_LIBS=ON \
-            -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           cmake --build build --config Release --target ki
-          mv build/Release/ki.exe ki-windows-${{ matrix.arch }}.exe
+          mv build/Release/ki.exe ki-windows-x64.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: ki-windows-${{ matrix.arch }}
-          path: ki-windows-${{ matrix.arch }}.exe
+          name: ki-windows-x64
+          path: ki-windows-x64.exe
 
-  # ---- collect every artifact and publish the GitHub Release ----
+  # ---- collect the artifacts and publish the GitHub Release ----
   release:
     needs: [linux, windows]
     runs-on: ubuntu-latest
