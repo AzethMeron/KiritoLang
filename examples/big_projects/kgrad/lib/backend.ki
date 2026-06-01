@@ -1,0 +1,209 @@
+# Backend abstraction layer for kgrad.
+#
+# Tensor operations never touch raw CPU loops directly: they go through a Device, which exposes a
+# KernelProvider (the compute kernels) and an Allocator (memory). Swapping in a GPU backend later
+# means implementing a new Device with the same kernel surface — the tensor/autograd layers above
+# are unchanged. Kernels operate on CONTIGUOUS flat buffers (Lists of Float) plus shape metadata;
+# the ndarray layer is responsible for materialising strided views (via `gather`) before a kernel
+# that wants packed data, exactly as real frameworks do. This keeps the kernel surface small and
+# portable (a GPU kernel also wants contiguous/explicit-stride buffers).
+
+# ---- helpers -------------------------------------------------------------------------------------
+
+var prod = Function(shape):
+    var p = 1
+    for d in shape:
+        p = p * d
+    return p
+
+# Row-major (C-order) strides for a shape.
+var contig_strides = Function(shape):
+    var n = len(shape)
+    var strides = []
+    var i = 0
+    while i < n:
+        strides.append(0)
+        i = i + 1
+    var acc = 1
+    var k = n - 1
+    while k >= 0:
+        strides[k] = acc
+        acc = acc * shape[k]
+        k = k - 1
+    return strides
+
+# ---- CPU device ----------------------------------------------------------------------------------
+# A Device bundles a name + the kernels. The CPU kernels are plain Kirito loops. Every kernel takes
+# and returns flat buffers (Lists), so the ndarray layer is backend-agnostic.
+
+class CpuDevice:
+    var _init_ = Function(self):
+        self.name = "cpu"
+
+    # --- allocation ---
+    var zeros_buffer = Function(self, n):
+        var b = []
+        var i = 0
+        while i < n:
+            b.append(0.0)
+            i = i + 1
+        return b
+
+    var full_buffer = Function(self, n, value):
+        var b = []
+        var i = 0
+        while i < n:
+            b.append(value)
+            i = i + 1
+        return b
+
+    # --- materialise a (possibly strided/broadcast) view into a packed C-order buffer ---
+    # idx walks the logical shape as an odometer; flat = offset + sum(idx[d]*strides[d]).
+    var gather = Function(self, src, offset, shape, strides):
+        var n = len(shape)
+        var total = prod(shape)
+        var out = []
+        if n == 0:
+            out.append(src[offset])      # 0-d scalar
+            return out
+        var idx = []
+        var d = 0
+        while d < n:
+            idx.append(0)
+            d = d + 1
+        var count = 0
+        while count < total:
+            var flat = offset
+            var j = 0
+            while j < n:
+                flat = flat + idx[j] * strides[j]
+                j = j + 1
+            out.append(src[flat])
+            # increment odometer (last axis fastest)
+            var ax = n - 1
+            var carry = True
+            while ax >= 0 and carry:
+                idx[ax] = idx[ax] + 1
+                if idx[ax] >= shape[ax]:
+                    idx[ax] = 0
+                    ax = ax - 1
+                else:
+                    carry = False
+            count = count + 1
+        return out
+
+    # --- elementwise binary on two equally-shaped contiguous buffers ---
+    var binary = Function(self, op, a, b):
+        var out = []
+        var n = len(a)
+        var i = 0
+        while i < n:
+            var x = a[i]
+            var y = b[i]
+            var r = 0.0
+            if op == "add":
+                r = x + y
+            elif op == "sub":
+                r = x - y
+            elif op == "mul":
+                r = x * y
+            elif op == "div":
+                r = x / y
+            elif op == "pow":
+                r = x ** y
+            elif op == "max":
+                if x > y:
+                    r = x
+                else:
+                    r = y
+            else:
+                throw "unknown binary op: " + op
+            out.append(r)
+            i = i + 1
+        return out
+
+    # --- elementwise unary on a contiguous buffer ---
+    var unary = Function(self, op, a):
+        var math = import("math")
+        var out = []
+        var n = len(a)
+        var i = 0
+        while i < n:
+            var x = a[i]
+            var r = 0.0
+            if op == "neg":
+                r = -x
+            elif op == "exp":
+                r = math.exp(x)
+            elif op == "log":
+                r = math.log(x)
+            elif op == "relu":
+                if x > 0.0:
+                    r = x
+                else:
+                    r = 0.0
+            elif op == "sign_pos":
+                if x > 0.0:
+                    r = 1.0
+                else:
+                    r = 0.0
+            elif op == "tanh":
+                r = math.tanh(x)
+            elif op == "sqrt":
+                r = math.sqrt(x)
+            elif op == "abs":
+                r = abs(x)
+            else:
+                throw "unknown unary op: " + op
+            out.append(r)
+            i = i + 1
+        return out
+
+    # --- scalar broadcast op (buffer OP scalar) ---
+    var scalar = Function(self, op, a, s):
+        var out = []
+        var n = len(a)
+        var i = 0
+        while i < n:
+            var x = a[i]
+            var r = 0.0
+            if op == "add":
+                r = x + s
+            elif op == "sub":
+                r = x - s
+            elif op == "mul":
+                r = x * s
+            elif op == "div":
+                r = x / s
+            elif op == "rsub":
+                r = s - x
+            elif op == "pow":
+                r = x ** s
+            else:
+                throw "unknown scalar op: " + op
+            out.append(r)
+            i = i + 1
+        return out
+
+    # --- 2-D matmul: a is (m,k) contiguous, b is (k,n) contiguous -> (m,n) ---
+    var matmul = Function(self, a, m, k, b, n):
+        var out = self.zeros_buffer(m * n)
+        var i = 0
+        while i < m:
+            var j = 0
+            while j < n:
+                var acc = 0.0
+                var p = 0
+                while p < k:
+                    acc = acc + a[i * k + p] * b[p * n + j]
+                    p = p + 1
+                out[i * n + j] = acc
+                j = j + 1
+            i = i + 1
+        return out
+
+# A single shared CPU device instance (kgrad is single-device for now).
+var cpu = CpuDevice()
+
+var default_device = Function():
+    return cpu

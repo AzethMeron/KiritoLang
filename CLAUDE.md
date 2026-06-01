@@ -193,8 +193,12 @@ a stability fuzzer, and a benchmark). Working today:
 - **Sample projects** in `examples/` (complex linear-system solver, rule34 image downloader,
   word-frequency analyzer, RPN calculator) demonstrate non-trivial programs in pure Kirito.
   `examples/big_projects/` holds larger ones with Python test harnesses that double as interpreter
-  stress tests: `sqldb` (a networked SQL database) and `webserver` (an HTTP/1.1 server + a small
-  routing framework — method+path routing with `:name` params, middleware, JSON, static files).
+  stress tests: `sqldb` (a networked SQL database), `webserver` (an HTTP/1.1 server + a small
+  routing framework — method+path routing with `:name` params, middleware, JSON, static files), and
+  `kgrad` (a pure-Kirito tensor/autodiff/deep-learning library: strided views, reverse-mode autograd
+  with a computational graph, SGD/Adam, Linear/Conv2d/BatchNorm/activations as PyTorch-style Modules,
+  MSE/BCE/CE/NLL losses, Dataset/DataLoader, PCA, weight serialization, and a backend abstraction
+  ready for a future GPU device — trains an MLP that solves XOR; conv backward is gradient-checked).
 
 Tested under strict flags (`-O2 -Werror -Wall -Wextra -Wformat=2 -Wpointer-arith -Wpedantic
 -fstack-protector`, preset `strict`) and AddressSanitizer/UBSan (preset `asan`); an 11k-input fuzzer
