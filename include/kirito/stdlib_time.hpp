@@ -173,8 +173,8 @@ public:
             return val(vm, duration<double>(system_clock::now().time_since_epoch()).count());
         });
 
-        // time_ns() -> Integer nanoseconds since the epoch (wall clock).
-        m.fn("time_ns", {}, "Integer", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        // timens() -> Integer nanoseconds since the epoch (wall clock).
+        m.fn("timens", {}, "Integer", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             return val(vm, static_cast<int64_t>(duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count()));
         });
 
@@ -183,8 +183,8 @@ public:
             return val(vm, duration<double>(steady_clock::now().time_since_epoch()).count());
         });
 
-        // perf_counter_ns() -> Integer nanoseconds from the highest-resolution steady clock.
-        m.fn("perf_counter_ns", {}, "Integer", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        // perfcounterns() -> Integer nanoseconds from the highest-resolution steady clock.
+        m.fn("perfcounterns", {}, "Integer", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             return val(vm, static_cast<int64_t>(duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count()));
         });
 

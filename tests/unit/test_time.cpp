@@ -14,7 +14,7 @@ int main() {
 
     // clocks return sane, monotonic-ish values
     CHECK(evalStr(vm, "import(\"time\").time() > 1000000000.0") == "True");
-    CHECK(evalStr(vm, "import(\"time\").time_ns() > 1000000000000000000") == "True");
+    CHECK(evalStr(vm, "import(\"time\").timens() > 1000000000000000000") == "True");
     CHECK(evalStr(vm, R"(
 var t = import("time")
 var a = t.monotonic()
@@ -23,8 +23,8 @@ b >= a
 )") == "True");
     CHECK(evalStr(vm, R"(
 var t = import("time")
-var a = t.perf_counter_ns()
-var b = t.perf_counter_ns()
+var a = t.perfcounterns()
+var b = t.perfcounterns()
 b >= a
 )") == "True");
 

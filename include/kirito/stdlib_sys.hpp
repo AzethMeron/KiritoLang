@@ -3,6 +3,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <span>
 #include <string>
 
@@ -95,6 +96,25 @@ public:
             }
 #endif
             return d.build();
+        });
+
+        // --- filesystem location / path helpers (system facilities; pair naturally with `io`) ---
+        m.fn("gettempdir", {}, "String", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            // The system temp directory (honors TMPDIR/TMP/TEMP, falls back to /tmp), like Python's
+            // tempfile.gettempdir — a stable scratch location to build temp file paths for `io`.
+            std::error_code ec;
+            auto p = std::filesystem::temp_directory_path(ec);
+            return val(vm, ec ? std::string("/tmp") : p.string());
+        });
+
+        m.fn("joinpath", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            // joinpath(parts...) -> the parts joined with the platform separator, with os.path.join
+            // semantics: a later component that is absolute resets the result. Variadic.
+            Args args(vm, a, "joinpath");
+            if (args.empty()) throw KiritoError("joinpath expected at least one path component");
+            std::filesystem::path p(args[0].asString("joinpath"));
+            for (std::size_t i = 1; i < a.size(); ++i) p /= args[i].asString("joinpath");
+            return val(vm, p.string());
         });
 
         m.fn("exit", {{"code", "Integer", vm.makeInt(0)}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {

@@ -18,7 +18,7 @@ python3 tests/bench/compare.py --ki /path/to/ki
 ```
 
 Each implementation times `reps` internal repetitions with its own high-resolution clock
-(`steady_clock` / `time.perf_counter_ns` / `time.perf_counter_ns`), excluding process startup and
+(`steady_clock` / `time.perfcounterns` / `time.perfcounterns`), excluding process startup and
 input generation, then prints `<mean_ns> <stddev_ns>`. The driver tabulates mean ± stddev and the
 Kirito slowdown factor.
 

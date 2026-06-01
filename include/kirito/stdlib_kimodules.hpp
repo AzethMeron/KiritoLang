@@ -168,7 +168,7 @@ var pairwise = Function(iterable):
         first = False
     return out
 
-var zip_longest = Function(lists, fillvalue = None):
+var ziplongest = Function(lists, fillvalue = None):
     var longest = 0
     for lst in lists:
         if len(lst) > longest:
@@ -280,7 +280,7 @@ class Counter:
         return self._counts.get(x, 0)
     var items = Function(self):
         return self._counts.items()
-    var most_common = Function(self):
+    var mostcommon = Function(self):
         var pairs = self._counts.items()
         return sorted(pairs, Function(p): return p[1], True)
     var _getitem_ = Function(self, x):
@@ -534,10 +534,10 @@ var decode = Function(s):
     return out
 
 # URL-safe variant: '+' -> '-', '/' -> '_'. Encodes/decodes by translating to/from the standard form.
-var urlsafe_encode = Function(data) -> String:
+var urlsafeencode = Function(data) -> String:
     return encode(data).replace("+", "-").replace("/", "_")
 
-var urlsafe_decode = Function(s):
+var urlsafedecode = Function(s):
     return decode(s.replace("-", "+").replace("_", "/"))
 )KI";
 
@@ -546,7 +546,7 @@ inline constexpr std::string_view csv = R"KI(
 var _needsQuote = Function(field) -> Bool:
     return "," in field or "\"" in field or "\n" in field
 
-var format_row = Function(fields) -> String:
+var formatrow = Function(fields) -> String:
     var parts = []
     for f in fields:
         var s = String(f)
@@ -555,7 +555,7 @@ var format_row = Function(fields) -> String:
         parts.append(s)
     return ",".join(parts)
 
-var parse_row = Function(line):
+var parserow = Function(line):
     var fields = []
     var current = ""
     var inQuotes = False
@@ -586,14 +586,14 @@ var parse_row = Function(line):
 var format = Function(rows) -> String:
     var lines = []
     for row in rows:
-        lines.append(format_row(row))
+        lines.append(formatrow(row))
     return "\n".join(lines)
 
 var parse = Function(text):
     var rows = []
     for line in text.split("\n"):
         if len(line) > 0:
-            rows.append(parse_row(line))
+            rows.append(parserow(line))
     return rows
 )KI";
 
@@ -684,7 +684,7 @@ var merge = Function(lists):
 
 // --- bisect (binary search on a sorted List) ---------------------------------------------------
 inline constexpr std::string_view bisect = R"KI(
-var bisect_left = Function(a, x) -> Integer:
+var bisectleft = Function(a, x) -> Integer:
     var lo = 0
     var hi = len(a)
     while lo < hi:
@@ -695,7 +695,7 @@ var bisect_left = Function(a, x) -> Integer:
             hi = mid
     return lo
 
-var bisect_right = Function(a, x) -> Integer:
+var bisectright = Function(a, x) -> Integer:
     var lo = 0
     var hi = len(a)
     while lo < hi:
@@ -706,11 +706,11 @@ var bisect_right = Function(a, x) -> Integer:
             lo = mid + 1
     return lo
 
-var insort_left = Function(a, x):
-    a.insert(bisect_left(a, x), x)
+var insortleft = Function(a, x):
+    a.insert(bisectleft(a, x), x)
 
-var insort_right = Function(a, x):
-    a.insert(bisect_right(a, x), x)
+var insortright = Function(a, x):
+    a.insert(bisectright(a, x), x)
 )KI";
 
 // --- copy (shallow / deep) ---------------------------------------------------------------------
@@ -760,7 +760,7 @@ class Enum:
         if name not in self._byName:
             throw "no such enum member: " + name
         return self._byName[name]
-    var name_of = Function(self, value):
+    var nameof = Function(self, value):
         return self._byValue[value]
     var names = Function(self):
         return self._byName.keys()

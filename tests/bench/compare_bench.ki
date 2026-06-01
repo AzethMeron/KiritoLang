@@ -101,9 +101,9 @@ var sink = once()  # warmup
 var samples = []
 var r = 0
 while r < reps:
-    var t0 = t.perf_counter_ns()
+    var t0 = t.perfcounterns()
     sink = sink + once()
-    var t1 = t.perf_counter_ns()
+    var t1 = t.perfcounterns()
     samples.append(t1 - t0)
     r = r + 1
 

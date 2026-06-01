@@ -87,26 +87,99 @@ NativeFn demo = [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Ha
 // Kirito:  greet(&quot;Ada&quot;)  /  greet(name=&quot;Ada&quot;, loud=True)  /  inspect(greet)</code></pre>
 <p>Inside a module&#x27;s <code>setup</code>, the <code>ModuleBuilder</code> has the same overload: <code>m.fn(&quot;open&quot;, {{&quot;path&quot;, &quot;String&quot;}, {&quot;mode&quot;, &quot;String&quot;, m.vm().makeString(&quot;r&quot;)}}, &quot;File&quot;, impl);</code>.</p>
 <h2 id="adding-a-module">Adding a module</h2>
-<p>Subclass <code>NativeModule</code>, override <a class="xref" href="stdlib.html#sym-name"><code>name()</code></a> and <code>setup()</code>, and register with <a class="xref" href="embedding.html#sym-install"><code>install&lt;T&gt;()</code></a>. Inside <code>setup</code>, declare functions and values via the <code>ModuleBuilder</code>:</p>
-<pre><code>class StatsModule : public NativeModule {
-public:
+<p>Subclass <code>NativeModule</code>, override <a class="xref" href="stdlib.html#sym-name"><code>name()</code></a> and <code>setup()</code>, and register the whole thing with one <a class="xref" href="embedding.html#sym-install"><code>install&lt;T&gt;()</code></a>. Inside <code>setup</code>, declare members through the <code>ModuleBuilder</code> — <code>fn</code> for functions, <code>value</code> for constants. This is a complete <code>stats</code> module (it is also the embedding integration test, <code>tests/integration/embed_demo.cpp</code>, so it is guaranteed to compile and run):</p>
+<pre><code>struct StatsModule : NativeModule {
     std::string name() const override { return &quot;stats&quot;; }
+
     void setup(ModuleBuilder&amp; m) override {
-        m.fn(&quot;clamp&quot;, [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; a) -&gt; Handle {
-            /* ... */ return vm.none();
+        // mean(xs: List) -&gt; Float — iterate any iterable, read each element as a number.
+        m.fn(&quot;mean&quot;, {{&quot;xs&quot;, &quot;List&quot;}}, &quot;Float&quot;, [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; a) -&gt; Handle {
+            Args args(vm, a, &quot;mean&quot;);
+            double sum = 0; int64_t n = 0;
+            for (Value x : args.at(0).items()) { sum += x.asFloat(&quot;mean element&quot;); ++n; }
+            if (n == 0) throw KiritoError(&quot;mean of empty list&quot;);
+            return val(vm, sum / static_cast&lt;double&gt;(n));
         });
-        m.value(&quot;VERSION&quot;, vm_value);   // bind a constant
+
+        // clamp(x, lo, hi) -&gt; Integer — signatured, so it accepts keyword arguments and defaults.
+        m.fn(&quot;clamp&quot;, {{&quot;x&quot;, &quot;Integer&quot;}, {&quot;lo&quot;, &quot;Integer&quot;}, {&quot;hi&quot;, &quot;Integer&quot;}}, &quot;Integer&quot;,
+             [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; a) -&gt; Handle {
+                 Args args(vm, a, &quot;clamp&quot;);
+                 int64_t x = args.at(0).asInt(&quot;x&quot;), lo = args.at(1).asInt(&quot;lo&quot;), hi = args.at(2).asInt(&quot;hi&quot;);
+                 return val(vm, std::max(lo, std::min(x, hi)));
+             });
+
+        m.value(&quot;VERSION&quot;, val(m.vm(), &quot;1.0&quot;));   // a plain constant member
     }
 };
 
-// register once on the VM (e.g. just after construction):
-vm.install&lt;StatsModule&gt;();
-// Kirito: var s = import(&quot;stats&quot;)   then   s.clamp(...)</code></pre>
-<p>A third party adds their own module exactly the way the bundled stdlib does: <code>#include</code> the header, call <a class="xref" href="embedding.html#sym-install"><code>install&lt;T&gt;()</code></a>, no global state.</p>
+vm.install&lt;StatsModule&gt;();   // register once; then import(&quot;stats&quot;) works from Kirito</code></pre>
+<pre><code><span class="kw">var</span> stats = <span class="kw">import</span>(<span class="str">&quot;stats&quot;</span>)
+stats.mean([<span class="num">2</span>, <span class="num">4</span>, <span class="num">6</span>, <span class="num">8</span>])      <span class="com"># 5.0</span>
+stats.clamp(<span class="num">12</span>, lo=<span class="num">0</span>, hi=<span class="num">9</span>)   <span class="com"># 9   — keyword args come straight from the signature</span>
+stats.VERSION                 # <span class="str">&quot;1.0&quot;</span>
+<span class="builtin">inspect</span>(stats)                <span class="com"># lists mean/clamp with their parameter types and returns</span></code></pre>
+<p>A third party adds a module exactly the way the bundled stdlib does: <code>#include</code> the header, call <a class="xref" href="embedding.html#sym-install"><code>install&lt;T&gt;()</code></a>, no global state.</p>
 <h2 id="adding-a-type">Adding a type</h2>
-<p>Subclass <code>NativeClass&lt;Derived&gt;</code> (a CRTP convenience that fills in sane defaults) and override only the protocol slots your type needs:</p>
-<table><thead><tr><th>Slot</th><th>Triggered by</th></tr></thead><tbody><tr id="sym-binary"><td><a class="xref" href="extending.html#sym-binary"><code>binary(vm, op, self, rhs)</code></a></td><td><code>a + b</code>, <code>a &lt; b</code>, ...</td></tr><tr id="sym-unary"><td><a class="xref" href="extending.html#sym-unary"><code>unary(vm, op, self)</code></a></td><td><code>-a</code>, <code>not a</code></td></tr><tr id="sym-call"><td><a class="xref" href="extending.html#sym-call"><code>call(vm, args)</code></a></td><td><code>obj(...)</code></td></tr><tr id="sym-getAttr"><td><a class="xref" href="extending.html#sym-getAttr"><code>getAttr(vm, self, name)</code></a> / <code>setAttr(...)</code></td><td><code>obj.field</code></td></tr><tr id="sym-getItem"><td><a class="xref" href="extending.html#sym-getItem"><code>getItem(vm, keys)</code></a> / <code>setItem(...)</code></td><td><code>obj[i]</code>, <code>obj[i] = v</code></td></tr><tr id="sym-iterate"><td><a class="xref" href="extending.html#sym-iterate"><code>iterate(vm)</code></a></td><td><code>for x in obj</code></td></tr><tr id="sym-length"><td><a class="xref" href="extending.html#sym-length"><code>length(vm)</code></a></td><td><a class="xref" href="builtins.html#sym-len"><code>len(obj)</code></a></td></tr><tr id="sym-contains"><td><a class="xref" href="extending.html#sym-contains"><code>contains(vm, value)</code></a></td><td><code>x in obj</code></td></tr><tr id="sym-str"><td><a class="xref" href="extending.html#sym-str"><code>str(ctx)</code></a> / <code>equals(...)</code> / <a class="xref" href="stdlib.html#hash"><code>hash()</code></a></td><td>stringify / <code>==</code> / hashing</td></tr></tbody></table>
-<p>Register a constructor name so <code>MyType(args)</code> works from Kirito. The bundled <a class="xref" href="stdlib.html#matrix"><code>matrix</code></a>, <code>io.open</code>, <a class="xref" href="stdlib.html#sym-BytesIO"><code>BytesIO</code></a>, and socket types are all <code>NativeClass</code>es authored this way — read <code>stdlib_matrix.hpp</code> for a full worked example.</p>
+<p>When returning built-in values isn&#x27;t enough — you need a value with its own identity, methods, and operators — subclass <code>NativeClass&lt;Derived&gt;</code>. The CRTP base fills in <code>kind</code>/<code>typeName</code>/<code>truthy</code>/ <code>equals</code>; you define <code>static constexpr const char* kTypeName</code> and override only the protocol slots your type uses. Here is a complete 2-D vector — attributes, methods, an overloaded <code>+</code>, and a custom <a class="xref" href="extending.html#sym-str"><code>str</code></a> (also verified in <code>tests/integration/embed_demo.cpp</code>):</p>
+<pre><code>struct Vec2 : NativeClass&lt;Vec2&gt; {
+    static constexpr const char* kTypeName = &quot;Vec2&quot;;
+    double x, y;
+    Vec2(double x, double y) : x(x), y(y) {}
+
+    std::string str(StringifyCtx&amp;) const override {        // how print / str(v) show it
+        return &quot;Vec2(&quot; + std::to_string(x) + &quot;, &quot; + std::to_string(y) + &quot;)&quot;;
+    }
+
+    // Attribute reads return values directly; a method name returns a NativeFunction with `self`
+    // bound, so v.length() / v.dot(o) arrive with the receiver already in hand.
+    Handle getAttr(KiritoVM&amp; vm, Handle self, std::string_view name) override {
+        if (name == &quot;x&quot;) return val(vm, x);
+        if (name == &quot;y&quot;) return val(vm, y);
+        if (name == &quot;length&quot;)
+            return vm.alloc(std::make_unique&lt;NativeFunction&gt;(&quot;length&quot;,
+                [self](KiritoVM&amp; vm, std::span&lt;const Handle&gt;) -&gt; Handle {
+                    auto&amp; v = static_cast&lt;Vec2&amp;&gt;(vm.arena().deref(self));
+                    return val(vm, std::sqrt(v.x * v.x + v.y * v.y));
+                }, std::vector&lt;Handle&gt;{self}));            // &lt;-- bind self into the method
+        if (name == &quot;dot&quot;)
+            return vm.alloc(std::make_unique&lt;NativeFunction&gt;(&quot;dot&quot;,
+                [self](KiritoVM&amp; vm, std::span&lt;const Handle&gt; a) -&gt; Handle {
+                    Args args(vm, a, &quot;dot&quot;);
+                    auto&amp; v = static_cast&lt;Vec2&amp;&gt;(vm.arena().deref(self));
+                    auto* o = dynamic_cast&lt;const Vec2*&gt;(&amp;vm.arena().deref(args.at(0)));
+                    if (!o) throw KiritoError(&quot;dot expects a Vec2&quot;);
+                    return val(vm, v.x * o-&gt;x + v.y * o-&gt;y);
+                }, std::vector&lt;Handle&gt;{self}));
+        return Object::getAttr(vm, self, name);            // unknown attr -&gt; a clear error
+    }
+
+    // Operator overloading: Vec2 + Vec2 -&gt; Vec2; anything else falls back to the default error.
+    Handle binary(KiritoVM&amp; vm, BinOp op, Handle self, Handle rhs) override {
+        if (op == BinOp::Add)
+            if (auto* o = dynamic_cast&lt;const Vec2*&gt;(&amp;vm.arena().deref(rhs)))
+                return vm.alloc(std::make_unique&lt;Vec2&gt;(x + o-&gt;x, y + o-&gt;y));
+        return Object::binary(vm, op, self, rhs);
+    }
+};
+
+// A constructor name so `Vec2(x, y)` builds one from Kirito (signatured -&gt; keyword args + inspect).
+vm.registerGlobal(&quot;Vec2&quot;, vm.alloc(std::make_unique&lt;NativeFunction&gt;(
+    &quot;Vec2&quot;, std::vector&lt;NativeParam&gt;{{&quot;x&quot;, &quot;Number&quot;}, {&quot;y&quot;, &quot;Number&quot;}}, &quot;Vec2&quot;,
+    [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; a) -&gt; Handle {
+        Args args(vm, a, &quot;Vec2&quot;);
+        return vm.alloc(std::make_unique&lt;Vec2&gt;(args.at(0).asFloat(&quot;x&quot;), args.at(1).asFloat(&quot;y&quot;)));
+    })));</code></pre>
+<pre><code><span class="kw">var</span> a = Vec2(<span class="num">3</span>, <span class="num">4</span>)
+a.x                       <span class="com"># 3.0</span>
+a.length()                <span class="com"># 5.0</span>
+a.dot(Vec2(<span class="num">1</span>, <span class="num">0</span>))         <span class="com"># 3.0</span>
+<span class="builtin">String</span>(a + Vec2(<span class="num">1</span>, <span class="num">1</span>))    # <span class="str">&quot;Vec2(4, 5)&quot;</span></code></pre>
+<p><code>vm.alloc(std::make_unique&lt;T&gt;(...))</code> boxes any <code>Object</code> (a built-in <em>or</em> a <code>NativeClass</code>) into the arena and returns a <code>Handle</code>. The bound-<code>self</code> third argument to <code>NativeFunction</code> is exactly how built-in methods such as <code>list.append</code> carry their receiver.</p>
+<h3 id="the-protocol-slots">The protocol slots</h3>
+<p>Override only what your type supports; every slot defaults to a clear &quot;unsupported&quot; <code>KiritoError</code>.</p>
+<table><thead><tr><th>Slot</th><th>Triggered by</th></tr></thead><tbody><tr id="sym-binary"><td><a class="xref" href="extending.html#sym-binary"><code>binary(vm, op, self, rhs)</code></a></td><td><code>a + b</code>, <code>a &lt; b</code>, … (<code>BinOp::Add/Sub/Mul/Div/FloorDiv/Mod/Pow/Eq/Ne/Lt/Le/Gt/Ge</code>)</td></tr><tr id="sym-unary"><td><a class="xref" href="extending.html#sym-unary"><code>unary(vm, op, self)</code></a></td><td><code>-a</code>, <code>not a</code> (<code>UnOp::Neg/Not</code>)</td></tr><tr id="sym-call"><td><a class="xref" href="extending.html#sym-call"><code>call(vm, args)</code></a></td><td><code>obj(...)</code> — makes the value itself callable</td></tr><tr id="sym-getAttr"><td><a class="xref" href="extending.html#sym-getAttr"><code>getAttr(vm, self, name)</code></a> / <code>setAttr(vm, name, value)</code></td><td><code>obj.field</code>, <code>obj.field = v</code></td></tr><tr id="sym-getItem"><td><a class="xref" href="extending.html#sym-getItem"><code>getItem(vm, keys)</code></a> / <code>setItem(vm, keys, value)</code></td><td><code>obj[i]</code>, <code>obj[i, j] = v</code> (keys are variadic)</td></tr><tr id="sym-iterate"><td><a class="xref" href="extending.html#sym-iterate"><code>iterate(vm)</code></a></td><td><code>for x in obj</code> — return the elements as a vector of <code>Handle</code></td></tr><tr id="sym-length"><td><a class="xref" href="extending.html#sym-length"><code>length(vm)</code></a></td><td><a class="xref" href="builtins.html#sym-len"><code>len(obj)</code></a></td></tr><tr id="sym-contains"><td><a class="xref" href="extending.html#sym-contains"><code>contains(vm, value)</code></a></td><td><code>x in obj</code></td></tr><tr id="sym-str"><td><a class="xref" href="extending.html#sym-str"><code>str(ctx)</code></a> / <code>equals(arena, other)</code> / <a class="xref" href="stdlib.html#hash"><code>hash()</code></a></td><td>stringify / <code>==</code> / use as a Set/Dict key</td></tr><tr id="sym-children"><td><a class="xref" href="extending.html#sym-children"><code>children(out)</code></a></td><td>GC reachability — push every <code>Handle</code> your object owns</td></tr></tbody></table>
+<p>If your type holds Kirito values (e.g. a container), implement <a class="xref" href="extending.html#sym-children"><code>children()</code></a> so the garbage collector can trace them. The bundled <a class="xref" href="stdlib.html#matrix"><code>matrix</code></a>, <code>io.open</code> (File), <a class="xref" href="stdlib.html#sym-BytesIO"><code>BytesIO</code></a>, <a class="xref" href="stdlib.html#sym-Random"><code>Random</code></a>, and socket types are all <code>NativeClass</code>es — read <code>stdlib_matrix.hpp</code> or <code>stdlib_random.hpp</code> for production examples.</p>
 <h2 id="authoring-a-module-in-kirito">Authoring a module in Kirito</h2>
 <p>If your module is pure logic (no new C++ primitives), it&#x27;s often cleaner to write it in Kirito and freeze the source into the binary:</p>
 <pre><code>inline constexpr std::string_view mymod = R&quot;KI(
@@ -117,6 +190,8 @@ var double = Function(x):
 vm.registerSourceModule(&quot;mymod&quot;, mymod);</code></pre>
 <p>The source is compiled once per VM on first <a class="xref" href="builtins.html#sym-import"><code>import(&quot;mymod&quot;)</code></a>; its top-level <code>var</code>s become the module&#x27;s members (names starting with <code>_</code> stay private). The bundled <a class="xref" href="stdlib.html#itertools"><code>itertools</code></a>, <a class="xref" href="stdlib.html#collections"><code>collections</code></a>, <a class="xref" href="stdlib.html#statistics"><code>statistics</code></a>, etc. are built this way — see <code>stdlib_kimodules.hpp</code>.</p>
 <h2 id="design-rules">Design rules</h2>
+<ul><li><strong>Naming</strong>: Kirito&#x27;s public functions and methods are <strong>all lowercase, no underscores</strong></li></ul>
+<p>  (<a class="xref" href="stdlib.html#sym-gettempdir"><code>gettempdir</code></a>, <a class="xref" href="stdlib.html#sym-joinpath"><code>joinpath</code></a>, <code>startswith</code>, <code>symmetricdifference</code>) — match that when you add your own.</p>
 <ul><li><strong>No global mutable state</strong> — everything is VM-scoped, so multiple VMs stay isolated.</li><li><strong>Never expose raw pointers</strong> across the boundary; hold <code>Handle</code>s, deref at point of use.</li><li><strong>Header-only ODR</strong>: everything <code>inline</code>/templated, <code>#ifndef</code> include guards (never <code>#pragma once</code>).</li><li>Raise <code>KiritoError</code> with a clear, actionable message for bad arguments — errors are part of the</li></ul>
 <p>  language, not an afterthought.</p>
 <p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>

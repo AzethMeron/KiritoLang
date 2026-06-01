@@ -28,7 +28,7 @@ int main() {
         CHECK(run(vm, "String({1, 2, 3}.issuperset({1, 2}))") == "True");
         CHECK(run(vm, "String({1, 2}.isdisjoint({3, 4}))") == "True");
         CHECK(run(vm, "String({1, 2}.isdisjoint({2, 3}))") == "False");
-        CHECK(run(vm, "len({1, 2, 3}.symmetric_difference({2, 3, 4}))") == "2");  // {1, 4}
+        CHECK(run(vm, "len({1, 2, 3}.symmetricdifference({2, 3, 4}))") == "2");  // {1, 4}
         CHECK(run(vm, "var s = {7}\ns.pop()") == "7");
     }
 
@@ -61,7 +61,7 @@ int main() {
         KiritoVM vm;
         CHECK(run(vm, "var it = import(\"itertools\")\nString(it.takewhile(Function(x): return x < 3, [1, 2, 3, 1]))") == "[1, 2]");
         CHECK(run(vm, "var it = import(\"itertools\")\nString(it.dropwhile(Function(x): return x < 3, [1, 2, 3, 1]))") == "[3, 1]");
-        CHECK(run(vm, "var it = import(\"itertools\")\nString(it.zip_longest([[1, 2], [3, 4, 5]], 0))") == "[[1, 3], [2, 4], [0, 5]]");
+        CHECK(run(vm, "var it = import(\"itertools\")\nString(it.ziplongest([[1, 2], [3, 4, 5]], 0))") == "[[1, 3], [2, 4], [0, 5]]");
         CHECK(run(vm, "var it = import(\"itertools\")\nString(it.pairwise([1, 2, 3]))") == "[[1, 2], [2, 3]]");
         CHECK(run(vm, "var it = import(\"itertools\")\nString(it.groupby([1, 1, 2, 3, 3]))") == "[[1, [1, 1]], [2, [2]], [3, [3, 3]]]");
         CHECK(run(vm, "var it = import(\"itertools\")\nString(it.compress([1, 2, 3, 4], [1, 0, 1, 0]))") == "[1, 3]");
@@ -86,7 +86,7 @@ int main() {
     // --- base64 urlsafe round-trip ---
     {
         KiritoVM vm;
-        CHECK(run(vm, "var b = import(\"base64\")\nString(b.urlsafe_decode(b.urlsafe_encode([251, 255, 191]))) == String([251, 255, 191])") == "True");
+        CHECK(run(vm, "var b = import(\"base64\")\nString(b.urlsafedecode(b.urlsafeencode([251, 255, 191]))) == String([251, 255, 191])") == "True");
     }
 
     // --- statistics additions ---

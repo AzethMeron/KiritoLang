@@ -39,8 +39,6 @@ rebindable stream objects — assign a `File`, a `BytesIO`, another stream, or a
 - `rename(src: String, dst: String) → None` — rename/move a path (raises on failure).
 - `mkdir(path: String) → Bool` — create a directory (and parents); returns success.
 - `getcwd() → String` — the current working directory.
-- `gettempdir() → String` — the system temp directory (honors `TMPDIR`/`TMP`/`TEMP`, falls back to
-  `/tmp`), like Python's `tempfile.gettempdir` — a stable scratch location for temporary files.
 - `listdir(path: String) → List` — the entry names directly under `path`.
 - `walk(dir: String) → List` — every file path under `dir`, recursively (flattened).
 
@@ -170,11 +168,11 @@ Compact **binary** serialization, preserving references and cycles (like a porta
 TCP sockets, a minimal HTTP/1.1 client, and URL helpers.
 
 - `Socket() → Socket` — a new TCP socket.
-- `http_get(url: String) → String` — perform an HTTP GET and return the response body.
-- `http_post(url: String, body: String, content_type: String = "text/plain") → String` — HTTP POST.
+- `httpget(url: String) → String` — perform an HTTP GET and return the response body.
+- `httppost(url: String, body: String, contenttype: String = "text/plain") → String` — HTTP POST.
 - `quote(s: String) → String` / `unquote(s: String) → String` — percent-encode / -decode.
 - `urlencode(params: Dict) → String` — build a `k=v&...` query string (keys and values encoded).
-- `parse_qs(query: String) → Dict` — parse `k=v&...` into a Dict (values decoded).
+- `parseqs(query: String) → Dict` — parse `k=v&...` into a Dict (values decoded).
 - `urlsplit(url: String) → Dict` — split a URL into `scheme`/`host`/`port`/`path`/`query`/`fragment`.
 
 ### Socket object
@@ -185,7 +183,7 @@ TCP sockets, a minimal HTTP/1.1 client, and URL helpers.
 - `s.accept() → Socket` — accept the next connection (a new Socket).
 - `s.send(data: String) → Integer` — send all of `data`; returns the byte count.
 - `s.recv([n: Integer]) → String` — receive up to `n` bytes (default 4096).
-- `s.recv_all() → String` — receive until the peer closes.
+- `s.recvall() → String` — receive until the peer closes.
 - `s.close() → None` — close the socket.
 
 ## sys
@@ -197,6 +195,11 @@ Process environment and platform.
 - `setenv(name: String, value: String) → None` — set a variable.
 - `unsetenv(name: String) → None` — remove a variable.
 - `environ() → Dict` — all environment variables.
+- `gettempdir() → String` — the system temp directory (honors `TMPDIR`/`TMP`/`TEMP`, falls back to
+  `/tmp`), like Python's `tempfile.gettempdir`. Pairs with `io` to build scratch file paths:
+  `io.open(sys.joinpath(sys.gettempdir(), "scratch.txt"), "w")`.
+- `joinpath(*parts) → String` — join path components with the platform separator (`os.path.join`
+  semantics: a later component that is absolute resets the result). Needs at least one part.
 - `exit(code: Integer = 0)` — terminate the process with the given exit code.
 
 ## time
@@ -204,9 +207,9 @@ Process environment and platform.
 Clocks and calendar time.
 
 - `time() → Float` — seconds since the Unix epoch (wall clock).
-- `time_ns() → Integer` — nanoseconds since the epoch.
+- `timens() → Integer` — nanoseconds since the epoch.
 - `monotonic() → Float` — seconds from a steady clock (for measuring intervals).
-- `perf_counter_ns() → Integer` — nanoseconds from the highest-resolution clock.
+- `perfcounterns() → Integer` — nanoseconds from the highest-resolution clock.
 - `sleep(seconds: Number) → None` — pause execution.
 - `now() → DateTime` — current UTC time.
 - `datetime([timestamp: Number]) → DateTime` — a `DateTime` from epoch seconds (current time if omitted).
@@ -260,7 +263,7 @@ their Python namesakes. Because Kirito has no lazy generators yet, the `itertool
 - `compress(data, selectors) → List` — `data` elements where the matching selector is truthy.
 - `starmap(func, argtuples) → List` — `func(*args)` for each argument tuple.
 - `pairwise(iterable) → List` — consecutive overlapping pairs.
-- `zip_longest(lists, fillvalue = None) → List` — zip a list-of-iterables, padding short ones with `fillvalue`.
+- `ziplongest(lists, fillvalue = None) → List` — zip a list-of-iterables, padding short ones with `fillvalue`.
 - `groupby(iterable[, key]) → List` — group consecutive elements sharing a key.
 
 ## functools
@@ -272,7 +275,7 @@ their Python namesakes. Because Kirito has no lazy generators yet, the `itertool
 ## collections
 
 - `deque([iterable]) → deque` — a double-ended queue with `append`, `appendleft`, `pop`, `popleft`, `len`, indexing, and iteration.
-- `Counter([iterable]) → Counter` — a multiset/tally with `add`, `get`, `items`, `most_common`, and indexing.
+- `Counter([iterable]) → Counter` — a multiset/tally with `add`, `get`, `items`, `mostcommon`, and indexing.
 - `defaultdict(factory) → defaultdict` — a Dict that fills a missing key by calling `factory()`.
 
 ## statistics
@@ -302,14 +305,14 @@ Operates on **byte values** as a `List` of Integers (0–255), not text strings.
 
 - `encode(data: List) → String` — Base64-encode a list of byte values.
 - `decode(s: String) → List` — decode Base64 text back to a list of byte values.
-- `urlsafe_encode(data: List) → String` / `urlsafe_decode(s: String) → List` — same, with the URL-safe alphabet (`-_`).
+- `urlsafeencode(data: List) → String` / `urlsafedecode(s: String) → List` — same, with the URL-safe alphabet (`-_`).
 
 ## csv
 
 - `parse(text)` — parse CSV text into a List of rows (each a List of fields).
-- `parse_row(line)` — parse one CSV line into a List of fields.
+- `parserow(line)` — parse one CSV line into a List of fields.
 - `format(rows) → String` — serialize a List of rows to CSV text.
-- `format_row(fields) → String` — serialize one row.
+- `formatrow(fields) → String` — serialize one row.
 
 ## heapq
 
@@ -326,8 +329,8 @@ A min-heap maintained inside an ordinary List.
 
 Binary search / ordered insertion into a sorted List.
 
-- `bisect_left(a, x) → Integer` / `bisect_right(a, x) → Integer` — leftmost / rightmost insertion index keeping `a` sorted.
-- `insort_left(a, x) → None` / `insort_right(a, x) → None` — insert `x` into the sorted List `a`.
+- `bisectleft(a, x) → Integer` / `bisectright(a, x) → Integer` — leftmost / rightmost insertion index keeping `a` sorted.
+- `insortleft(a, x) → None` / `insortright(a, x) → None` — insert `x` into the sorted List `a`.
 
 ## copy
 
@@ -341,6 +344,6 @@ Binary search / ordered insertion into a sorted List.
 ### Enum object
 
 - `e.get(name) → Integer` / `e[name]` — the value (index) of a member; raises on an unknown name.
-- `e.name_of(value) → String` — the name for a value.
+- `e.nameof(value) → String` — the name for a value.
 - `e.names() → List` / `e.values() → List` — all member names / values.
 - `name in e` — membership test.

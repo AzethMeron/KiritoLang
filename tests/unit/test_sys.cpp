@@ -72,5 +72,15 @@ sys.setenv("KIRITO_OVER", "second")
 sys.getenv("KIRITO_OVER")
 )") == "second");
 
+    // gettempdir: an existing directory (honors TMPDIR), pairs with io for scratch files
+    CHECK(evalStr(vm, "var sys = import(\"sys\")\nimport(\"io\").isdir(sys.gettempdir()) and len(sys.gettempdir()) > 0") == "True");
+
+    // joinpath: os.path.join semantics
+    CHECK(evalStr(vm, "import(\"sys\").joinpath(\"a\", \"b\", \"c\")") == "a/b/c");
+    CHECK(evalStr(vm, "import(\"sys\").joinpath(\"dir\")") == "dir");          // single component
+    CHECK(evalStr(vm, "import(\"sys\").joinpath(\"a\", \"/abs\", \"b\")") == "/abs/b");  // absolute resets
+    CHECK_THROWS(vm.runSource("import(\"sys\").joinpath()"));                 // needs >=1 part
+    CHECK_THROWS(vm.runSource("import(\"sys\").joinpath(1, 2)"));             // non-String parts
+
     return RUN_TESTS();
 }

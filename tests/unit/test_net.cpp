@@ -57,7 +57,7 @@ int main() {
             "var s = net.Socket()\n"
             "s.connect(\"127.0.0.1\", " + std::to_string(port) + ")\n"
             "s.send(\"ping\")\n"
-            "var reply = s.recv_all()\n"
+            "var reply = s.recvall()\n"
             "s.close()\n"
             "reply\n";
         CHECK(evalStr(vm, src) == "echo:ping");
@@ -80,7 +80,7 @@ int main() {
             ::close(srv);
         });
         std::string src =
-            "var r = import(\"net\").http_get(\"http://127.0.0.1:" + std::to_string(port) + "/\")\n"
+            "var r = import(\"net\").httpget(\"http://127.0.0.1:" + std::to_string(port) + "/\")\n"
             "var status = r[\"status\"]\n"
             "var body = r[\"body\"]\n"
             "var ct = r[\"headers\"][\"X-Test\"]\n"
@@ -89,10 +89,37 @@ int main() {
         server.join();
     }
 
+    // --- httppost: a real request carries the POST method, body, and content-type over the wire ---
+    {
+        int port = 0;
+        int srv = makeListener(port);
+        CHECK(srv >= 0);
+        std::string request;  // captured by the loopback server; read after join()
+        std::thread server([srv, &request] {
+            int c = ::accept(srv, nullptr, nullptr);
+            char buf[4096];
+            ssize_t n = ::recv(c, buf, sizeof(buf), 0);
+            if (n > 0) request.assign(buf, static_cast<std::size_t>(n));
+            std::string resp = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nposted";
+            ::send(c, resp.data(), resp.size(), 0);
+            ::close(c);
+            ::close(srv);
+        });
+        std::string src =
+            "var r = import(\"net\").httppost(\"http://127.0.0.1:" + std::to_string(port) + "/\", "
+            "\"name=ada\", contenttype=\"application/x-form\")\n"
+            "String(r[\"status\"]) + \"|\" + r[\"body\"]\n";
+        CHECK(evalStr(vm, src) == "200|posted");
+        server.join();
+        CHECK(request.rfind("POST ", 0) == 0);                               // method line
+        CHECK(request.find("name=ada") != std::string::npos);                // body transmitted
+        CHECK(request.find("Content-Type: application/x-form") != std::string::npos);  // contenttype keyword
+    }
+
     // --- URL validation errors ---
-    CHECK_THROWS(vm.runSource("import(\"net\").http_get(\"https://example.com\")\n"));
-    CHECK_THROWS(vm.runSource("import(\"net\").http_get(\"ftp://example.com\")\n"));
-    CHECK_THROWS(vm.runSource("import(\"net\").http_get(\"not a url\")\n"));
+    CHECK_THROWS(vm.runSource("import(\"net\").httpget(\"https://example.com\")\n"));
+    CHECK_THROWS(vm.runSource("import(\"net\").httpget(\"ftp://example.com\")\n"));
+    CHECK_THROWS(vm.runSource("import(\"net\").httpget(\"not a url\")\n"));
 
     return RUN_TESTS();
 }

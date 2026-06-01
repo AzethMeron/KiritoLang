@@ -27,7 +27,7 @@ int main() {
     // --- file io: write then read back ---
     CHECK(evalStr(vm, R"(
 var io = import("io")
-var p = io.gettempdir() + "/kirito_stdlib_test.txt"
+var p = import("sys").gettempdir() + "/kirito_stdlib_test.txt"
 var f = io.open(p, "w")
 f.write("hello\n")
 f.write("world\n")
@@ -41,7 +41,7 @@ content
     // --- file as a context manager (auto-close on exit) ---
     CHECK(evalStr(vm, R"(
 var io = import("io")
-var p = io.gettempdir() + "/kirito_stdlib_test2.txt"
+var p = import("sys").gettempdir() + "/kirito_stdlib_test2.txt"
 with io.open(p, "w") as f:
     f.write("data 123")
 var c = ""
@@ -53,7 +53,7 @@ c
     // --- readline ---
     CHECK(evalStr(vm, R"(
 var io = import("io")
-var p = io.gettempdir() + "/kirito_stdlib_test3.txt"
+var p = import("sys").gettempdir() + "/kirito_stdlib_test3.txt"
 var f = io.open(p, "w")
 f.write("line1\nline2\n")
 f.close()
@@ -63,8 +63,12 @@ g.close()
 first
 )") == "line1");
 
-    // --- gettempdir returns an existing directory (honors TMPDIR) ---
-    CHECK(evalStr(vm, "var io = import(\"io\")\nio.isdir(io.gettempdir()) and len(io.gettempdir()) > 0") == "True");
+    // --- sys.gettempdir returns an existing directory (honors TMPDIR) ---
+    CHECK(evalStr(vm, "var sys = import(\"sys\")\nvar io = import(\"io\")\nio.isdir(sys.gettempdir()) and len(sys.gettempdir()) > 0") == "True");
+    // --- sys.joinpath: os.path.join semantics (separator join; absolute part resets) ---
+    CHECK(evalStr(vm, "import(\"sys\").joinpath(\"a\", \"b\", \"c\")") == "a/b/c");
+    CHECK(evalStr(vm, "import(\"sys\").joinpath(\"/usr\", \"local\", \"bin\")") == "/usr/local/bin");
+    CHECK(evalStr(vm, "import(\"sys\").joinpath(\"a\", \"/b\")") == "/b");
 
     return RUN_TESTS();
 }

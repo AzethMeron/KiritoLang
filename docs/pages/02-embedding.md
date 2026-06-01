@@ -29,7 +29,8 @@ A `KiritoVM` owns its arena, global environment, and module registry. Key method
 | `runSource(src [, chunkName])` | Lex+parse+eval a chunk in a fresh module scope; returns the last value's `Handle`. |
 | `runRepl(src)` | Like `runSource` but reuses one persistent module scope across calls. |
 | `stringify(Handle)` | The `str()` of a value (what `print` shows). |
-| `makeInt / makeFloat / makeString / makeBool / none()` | Construct values from C++. |
+| `makeInt / makeFloat / makeString / makeBool / none()` | Construct primitive values (or use `val(vm, x)` from the Value API). |
+| `alloc(unique_ptr<Object>)` | Box any `Object` (a built-in or a `NativeClass`) into the arena, returning its `Handle`. |
 | `registerGlobal(name, Handle)` | Bind a global name (e.g. inject a value or function). |
 | `install<Module>()` | Register a C++-authored module (see *Extending*). |
 | `registerSourceModule(name, src)` | Register a module whose body is Kirito source. |
@@ -38,14 +39,24 @@ A `KiritoVM` owns its arena, global environment, and module registry. Key method
 ## Values and handles
 
 Every Kirito value is an `Object` owned by the VM's arena; your C++ code holds lightweight `Handle`s
-(slot + generation) and calls `vm.arena().deref(h)` to reach the object. Reference-assignment in
-Kirito means two names share one handle. You never own raw `Object` pointers.
+(slot + generation). Reference-assignment in Kirito means two names share one handle. You never own
+raw `Object` pointers.
+
+The ergonomic way to read and build values is the **`Value` API** (`value.hpp`, pulled in by
+`kirito.hpp`): a `Value{vm, handle}` facade with typed accessors, plus `val(vm, x)` constructors and
+`List`/`Dict`/`Set` builders. It converts implicitly to/from `Handle`, so it drops in anywhere.
 
 ```cpp
-Handle list = vm.runSource("[1, 2, 3]\n");
-const Object& o = vm.arena().deref(list);
-std::printf("len = %lld\n", (long long)o.length(vm).value());   // 3
+Value list = Value(vm, vm.runSource("[1, 2, 3]\n"));
+std::printf("len = %lld\n", (long long)list.len());   // 3
+std::printf("first = %lld\n", (long long)list.at(0).asInt());   // 1
+
+Value d = Value(vm, vm.runSource("{\"a\": 1}\n"));
+if (d.has("a")) std::printf("a = %lld\n", (long long)d.get("a").asInt());   // 1
 ```
+
+The full `Value`/`Args`/builder reference — and how to author your own functions, modules, and types
+with it — is in [Extending Kirito](extending.html).
 
 ## Errors
 
@@ -62,17 +73,24 @@ try {
 
 ## Injecting a C++ function
 
-Use `registerGlobal` with a `NativeFunction`:
+Use `registerGlobal` with a `NativeFunction`. Read arguments through `Args` + `Value` and build the
+result with `val(...)`, so a bad argument becomes a clear `KiritoError` instead of a cast crash:
 
 ```cpp
-vm.registerGlobal("now_ms", vm.arena().alloc(std::make_unique<NativeFunction>(
-    "now_ms", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-        return vm.makeInt(static_cast<int64_t>(ms));
+vm.registerGlobal("repeat", vm.alloc(std::make_unique<NativeFunction>(
+    "repeat", [](KiritoVM& vm, std::span<const Handle> raw) -> Handle {
+        Args a(vm, raw, "repeat");
+        std::string s = a.at(0).asString("s");
+        int64_t n     = a.at(1).asInt("n");
+        std::string out;
+        for (int64_t i = 0; i < n; ++i) out += s;
+        return val(vm, out);
     })));
-// Kirito: var t = now_ms()
+// Kirito: repeat("ab", 3)   ->   "ababab"
 ```
+
+For functions that should accept keyword arguments and defaults, give them a signature — see
+[Extending Kirito](extending.html).
 
 ## Isolation
 

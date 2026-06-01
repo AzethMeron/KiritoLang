@@ -1,76 +1,134 @@
-// Demonstrates embedding Kirito in a C++ program: registering a custom module and a custom
-// native object type, driving them from Kirito source, and reading values back.
+// Worked example of embedding & extending Kirito from C++ via the Value API. This file is the
+// source of truth for the "Embedding" and "Extending" docs: a C++-authored module (`stats`) and a
+// C++-authored value type (`Vec2`, with attributes, methods, an overloaded operator, and a custom
+// str), both driven from Kirito source and indistinguishable from built-ins to the evaluator.
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <span>
+#include <string>
 
 #include "../check.hpp"
 #include "kirito.hpp"
 
 using namespace kirito;
 
-static double num(KiritoVM& vm, Handle h) {
-    const Object& o = vm.arena().deref(h);
-    if (o.kind() == ValueKind::Integer) return static_cast<double>(static_cast<const IntVal&>(o).value());
-    if (o.kind() == ValueKind::Float) return static_cast<const FloatVal&>(o).value();
-    throw KiritoError("expected a number");
-}
-
-// A C++-authored module computing simple statistics over a Kirito iterable.
+// ---- a C++-authored module ----------------------------------------------------------------------
+// Subclass NativeModule, register members in setup() via the ModuleBuilder. Signatured functions
+// (a param list + return type) gain keyword arguments, defaults, and `inspect` for free.
 struct StatsModule : NativeModule {
     std::string name() const override { return "stats"; }
+
     void setup(ModuleBuilder& m) override {
-        m.fn("mean", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            auto items = vm.arena().deref(a[0]).iterate(vm);
+        // mean(xs: List) -> Float — iterate any iterable, read each element as a number.
+        m.fn("mean", {{"xs", "List"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Args args(vm, a, "mean");
             double sum = 0;
-            std::size_t n = 0;
-            for (Handle h : items.value()) { sum += num(vm, h); ++n; }
-            return vm.makeFloat(n ? sum / static_cast<double>(n) : 0.0);
+            int64_t n = 0;
+            for (Value x : args.at(0).items()) { sum += x.asFloat("mean element"); ++n; }
+            if (n == 0) throw KiritoError("mean of empty list");
+            return val(vm, sum / static_cast<double>(n));
         });
+
+        // clamp(x, lo, hi) -> Integer — three typed args; callable with keywords thanks to the sig.
+        m.fn("clamp", {{"x", "Integer"}, {"lo", "Integer"}, {"hi", "Integer"}}, "Integer",
+             [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                 Args args(vm, a, "clamp");
+                 int64_t x = args.at(0).asInt("x"), lo = args.at(1).asInt("lo"), hi = args.at(2).asInt("hi");
+                 return val(vm, std::max(lo, std::min(x, hi)));
+             });
+
+        m.value("VERSION", val(m.vm(), "1.0"));  // a plain constant member
     }
 };
 
-// A C++-authored value type usable from Kirito like a built-in.
+// ---- a C++-authored value type ------------------------------------------------------------------
+// Subclass NativeClass<Derived> (it fills in kind/typeName/truthy/equals); override only the
+// protocol slots you need. Here: a custom str, attribute + method access (getAttr), and operator+.
 struct Vec2 : NativeClass<Vec2> {
     static constexpr const char* kTypeName = "Vec2";
     double x, y;
     Vec2(double x, double y) : x(x), y(y) {}
+
+    static std::string numstr(double d) {  // tidy: integral values print without a trailing ".0"
+        return d == static_cast<int64_t>(d) ? std::to_string(static_cast<int64_t>(d)) : std::to_string(d);
+    }
+    std::string str(StringifyCtx&) const override { return "Vec2(" + numstr(x) + ", " + numstr(y) + ")"; }
+
+    // Attribute reads (v.x, v.y) return values directly; method names return a NativeFunction with
+    // `self` bound, so `v.length()` / `v.dot(o)` arrive with the receiver already in hand.
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
-        if (name == "x") return vm.makeFloat(x);
-        if (name == "y") return vm.makeFloat(y);
+        if (name == "x") return val(vm, x);
+        if (name == "y") return val(vm, y);
         if (name == "length")
             return vm.alloc(std::make_unique<NativeFunction>(
                 "length",
                 [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
                     auto& v = static_cast<Vec2&>(vm.arena().deref(self));
-                    return vm.makeFloat(std::sqrt(v.x * v.x + v.y * v.y));
+                    return val(vm, std::sqrt(v.x * v.x + v.y * v.y));
                 },
                 std::vector<Handle>{self}));
-        return Object::getAttr(vm, self, name);
+        if (name == "dot")
+            return vm.alloc(std::make_unique<NativeFunction>(
+                "dot",
+                [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                    Args args(vm, a, "dot");
+                    auto& v = static_cast<Vec2&>(vm.arena().deref(self));
+                    auto* o = dynamic_cast<const Vec2*>(&vm.arena().deref(args.at(0)));
+                    if (!o) throw KiritoError("dot expects a Vec2");
+                    return val(vm, v.x * o->x + v.y * o->y);
+                },
+                std::vector<Handle>{self}));
+        return Object::getAttr(vm, self, name);  // anything else -> a clear "no attribute" error
+    }
+
+    // Operator overloading: Vec2 + Vec2 -> Vec2. Fall back to the base for anything unsupported.
+    Handle binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) override {
+        if (op == BinOp::Add)
+            if (auto* o = dynamic_cast<const Vec2*>(&vm.arena().deref(rhs)))
+                return vm.alloc(std::make_unique<Vec2>(x + o->x, y + o->y));
+        return Object::binary(vm, op, self, rhs);
     }
 };
 
 int main() {
     KiritoVM vm;
+
+    // register the module (one call) ...
     vm.install<StatsModule>();
+    // ... and a constructor so `Vec2(x, y)` works from Kirito (signatured -> keyword args + inspect).
     vm.registerGlobal("Vec2", vm.alloc(std::make_unique<NativeFunction>(
-        "Vec2", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.alloc(std::make_unique<Vec2>(num(vm, a[0]), num(vm, a[1])));
+        "Vec2", std::vector<NativeParam>{{"x", "Number"}, {"y", "Number"}}, "Vec2",
+        [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Args args(vm, a, "Vec2");
+            return vm.alloc(std::make_unique<Vec2>(args.at(0).asFloat("x"), args.at(1).asFloat("y")));
         })));
 
-    // Kirito source drives the C++-registered module and type, indistinguishable from built-ins.
+    // ---- drive the C++-registered module and type from Kirito ----
     CHECK(vm.stringify(vm.runSource("import(\"stats\").mean([2, 4, 6, 8])")) == "5.0");
-    CHECK(vm.stringify(vm.runSource("var v = Vec2(3, 4)\nv.length()")) == "5.0");
-    CHECK(vm.stringify(vm.runSource("Vec2(3, 4).x + Vec2(3, 4).y")) == "7.0");
+    CHECK(vm.stringify(vm.runSource("import(\"stats\").clamp(12, lo=0, hi=9)")) == "9");  // keyword args
+    CHECK(vm.stringify(vm.runSource("import(\"stats\").VERSION")) == "1.0");
 
-    // The embedder reads a computed value back out.
+    CHECK(vm.stringify(vm.runSource("Vec2(3, 4).x")) == "3.0");
+    CHECK(vm.stringify(vm.runSource("Vec2(3, 4).length()")) == "5.0");
+    CHECK(vm.stringify(vm.runSource("Vec2(1, 2).dot(Vec2(3, 4))")) == "11.0");
+    CHECK(vm.stringify(vm.runSource("var s = Vec2(1, 2) + Vec2(3, 4)\nString(s)")) == "Vec2(4, 6)");
+    CHECK(vm.stringify(vm.runSource("Vec2(x=3, y=4).length()")) == "5.0");  // constructor keyword args
+
+    // bad arguments raise clean, catchable errors (never a crash)
+    CHECK_THROWS(vm.runSource("import(\"stats\").mean(5)"));        // not a list
+    CHECK_THROWS(vm.runSource("Vec2(1, 2).dot(42)"));              // dot wants a Vec2
+    CHECK_THROWS(vm.runSource("Vec2(1, 2).nope"));                 // unknown attribute
+
+    // the embedder reads a computed value back out
     Handle r = vm.runSource("6 * 7");
     CHECK(vm.arena().deref(r).kind() == ValueKind::Integer);
     CHECK(static_cast<const IntVal&>(vm.arena().deref(r)).value() == 42);
 
-    // A second VM is fully independent: it never saw the 'stats' module.
+    // a second VM is fully independent: it never saw the 'stats' module or the Vec2 global
     KiritoVM vm2;
     CHECK_THROWS(vm2.runSource("import(\"stats\")"));
+    CHECK_THROWS(vm2.runSource("Vec2(1, 2)"));
 
     return RUN_TESTS();
 }

@@ -99,7 +99,7 @@ a stability fuzzer, and a benchmark). Working today:
   guard (configurable) that raises a catchable error instead of overflowing the native stack.
 - `List`/`Set`/`Dict` with literals, indexing, slicing, iteration, `in`, and methods (append/pop/
   reverse/insert/remove/index/extend/copy/clear/count; keys/values/items/get/pop/update/setdefault/
-  popitem/clear; add/discard/contains/union/intersection/difference/symmetric_difference/issubset/
+  popitem/clear; add/discard/contains/union/intersection/difference/symmetricdifference/issubset/
   issuperset/isdisjoint/pop/clear/...); `len`. Lists support lexicographic ordering (`<`/`<=`/`>`/`>=`,
   element-by-element then by length, like Python) and `+` concatenation (and `*` Integer repetition,
   guarded against huge counts), enabling multi-key sorts via
@@ -168,10 +168,10 @@ a stability fuzzer, and a benchmark). Working today:
   - `dump` — compact BINARY serialization (a `Dump` blob value) preserving references and cycles;
     dumps/loads, Dump(bytes), save/load.
   - `net` — TCP sockets (connect/bind/listen/accept/send/recv), an HTTP/1.1 client
-    (http_get/http_post; HTTPS optional via `-DKIRITO_ENABLE_TLS=ON`, links OpenSSL), and URL
-    helpers (quote/unquote/urlencode/parse_qs/urlsplit).
+    (httpget/httppost; HTTPS optional via `-DKIRITO_ENABLE_TLS=ON`, links OpenSSL), and URL
+    helpers (quote/unquote/urlencode/parseqs/urlsplit).
   - `sys` — environment (getenv/setenv/unsetenv/environ), `platform`, `exit`.
-  - `time` — high-precision clocks (time/time_ns/monotonic/perf_counter_ns), sleep, and Python-like
+  - `time` — high-precision clocks (time/timens/monotonic/perfcounterns), sleep, and Python-like
     calendar time (`now`/`datetime`/`make`/`strptime`; `DateTime` with fields, iso/format,
     add/sub/diff arithmetic).
   - `zlib` — compress/decompress (standard zlib streams), raw deflate/inflate, adler32 — a
@@ -180,7 +180,7 @@ a stability fuzzer, and a benchmark). Working today:
   - **Kirito-authored, frozen-source modules** (registered via `vm.registerSourceModule(name, src)`;
     bodies live in `stdlib_kimodules.hpp`, compiled once per VM on first import): `itertools`
     (chain/repeat/cycle/islice/accumulate/product/permutations/combinations/count/takewhile/
-    dropwhile/filterfalse/compress/starmap/pairwise/zip_longest/groupby), `functools`
+    dropwhile/filterfalse/compress/starmap/pairwise/ziplongest/groupby), `functools`
     (reduce/partial/cache), `collections` (deque/Counter/defaultdict), `statistics`
     (mean/median/mode/variance/stdev/multimode/quantiles/...), `string` (constants + capwords),
     `textwrap` (wrap/fill/indent/dedent), `base64` (+urlsafe), `csv`, `heapq`
@@ -284,6 +284,11 @@ Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
 - **Keep code DRY**. If you do something three Times or more, it should probably be a 
   separate function.
 - Match the style of surrounding code: naming, structure, idiom.
+- **Kirito's public surface uses lowercase, no-underscore names** — every Kirito-visible function and
+  method (builtins, stdlib module functions, type methods) is all lowercase with no underscores or
+  camelCase (`gettempdir`, `joinpath`, `startswith`, `symmetricdifference`, `httpget`, `timens`).
+  This is the language convention; keep new names consistent with it. (C++ identifiers still follow
+  ordinary C++ style; this rule is about names exposed to Kirito code.)
 - Clear diagnostics: lexer/parser/runtime errors should carry line and column and a
   message a user can act on. Errors are part of the language, not an afterthought.
 - Prefer the standard library and plain data structures over cleverness.

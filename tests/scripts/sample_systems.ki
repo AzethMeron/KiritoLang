@@ -4,7 +4,7 @@ var C = import("complex")
 var cm = import("cmatrix")
 var solver = import("linsolve")
 
-var dir = io.gettempdir() + "/kirito_systems_test"
+var dir = import("sys").gettempdir() + "/kirito_systems_test"
 io.mkdir(dir)
 
 # --- generator: write a system to a file as "re im" pairs per row ---

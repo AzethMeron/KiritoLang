@@ -91,49 +91,142 @@ Inside a module's `setup`, the `ModuleBuilder` has the same overload:
 
 ## Adding a module
 
-Subclass `NativeModule`, override `name()` and `setup()`, and register with `install<T>()`. Inside
-`setup`, declare functions and values via the `ModuleBuilder`:
+Subclass `NativeModule`, override `name()` and `setup()`, and register the whole thing with one
+`install<T>()`. Inside `setup`, declare members through the `ModuleBuilder` — `fn` for functions,
+`value` for constants. This is a complete `stats` module (it is also the embedding integration test,
+`tests/integration/embed_demo.cpp`, so it is guaranteed to compile and run):
 
 ```cpp
-class StatsModule : public NativeModule {
-public:
+struct StatsModule : NativeModule {
     std::string name() const override { return "stats"; }
+
     void setup(ModuleBuilder& m) override {
-        m.fn("clamp", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            /* ... */ return vm.none();
+        // mean(xs: List) -> Float — iterate any iterable, read each element as a number.
+        m.fn("mean", {{"xs", "List"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Args args(vm, a, "mean");
+            double sum = 0; int64_t n = 0;
+            for (Value x : args.at(0).items()) { sum += x.asFloat("mean element"); ++n; }
+            if (n == 0) throw KiritoError("mean of empty list");
+            return val(vm, sum / static_cast<double>(n));
         });
-        m.value("VERSION", vm_value);   // bind a constant
+
+        // clamp(x, lo, hi) -> Integer — signatured, so it accepts keyword arguments and defaults.
+        m.fn("clamp", {{"x", "Integer"}, {"lo", "Integer"}, {"hi", "Integer"}}, "Integer",
+             [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                 Args args(vm, a, "clamp");
+                 int64_t x = args.at(0).asInt("x"), lo = args.at(1).asInt("lo"), hi = args.at(2).asInt("hi");
+                 return val(vm, std::max(lo, std::min(x, hi)));
+             });
+
+        m.value("VERSION", val(m.vm(), "1.0"));   // a plain constant member
     }
 };
 
-// register once on the VM (e.g. just after construction):
-vm.install<StatsModule>();
-// Kirito: var s = import("stats")   then   s.clamp(...)
+vm.install<StatsModule>();   // register once; then import("stats") works from Kirito
 ```
 
-A third party adds their own module exactly the way the bundled stdlib does: `#include` the header,
-call `install<T>()`, no global state.
+```kirito
+var stats = import("stats")
+stats.mean([2, 4, 6, 8])      # 5.0
+stats.clamp(12, lo=0, hi=9)   # 9   — keyword args come straight from the signature
+stats.VERSION                 # "1.0"
+inspect(stats)                # lists mean/clamp with their parameter types and returns
+```
+
+A third party adds a module exactly the way the bundled stdlib does: `#include` the header, call
+`install<T>()`, no global state.
 
 ## Adding a type
 
-Subclass `NativeClass<Derived>` (a CRTP convenience that fills in sane defaults) and override only
-the protocol slots your type needs:
+When returning built-in values isn't enough — you need a value with its own identity, methods, and
+operators — subclass `NativeClass<Derived>`. The CRTP base fills in `kind`/`typeName`/`truthy`/
+`equals`; you define `static constexpr const char* kTypeName` and override only the protocol slots
+your type uses. Here is a complete 2-D vector — attributes, methods, an overloaded `+`, and a custom
+`str` (also verified in `tests/integration/embed_demo.cpp`):
+
+```cpp
+struct Vec2 : NativeClass<Vec2> {
+    static constexpr const char* kTypeName = "Vec2";
+    double x, y;
+    Vec2(double x, double y) : x(x), y(y) {}
+
+    std::string str(StringifyCtx&) const override {        // how print / str(v) show it
+        return "Vec2(" + std::to_string(x) + ", " + std::to_string(y) + ")";
+    }
+
+    // Attribute reads return values directly; a method name returns a NativeFunction with `self`
+    // bound, so v.length() / v.dot(o) arrive with the receiver already in hand.
+    Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
+        if (name == "x") return val(vm, x);
+        if (name == "y") return val(vm, y);
+        if (name == "length")
+            return vm.alloc(std::make_unique<NativeFunction>("length",
+                [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                    auto& v = static_cast<Vec2&>(vm.arena().deref(self));
+                    return val(vm, std::sqrt(v.x * v.x + v.y * v.y));
+                }, std::vector<Handle>{self}));            // <-- bind self into the method
+        if (name == "dot")
+            return vm.alloc(std::make_unique<NativeFunction>("dot",
+                [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                    Args args(vm, a, "dot");
+                    auto& v = static_cast<Vec2&>(vm.arena().deref(self));
+                    auto* o = dynamic_cast<const Vec2*>(&vm.arena().deref(args.at(0)));
+                    if (!o) throw KiritoError("dot expects a Vec2");
+                    return val(vm, v.x * o->x + v.y * o->y);
+                }, std::vector<Handle>{self}));
+        return Object::getAttr(vm, self, name);            // unknown attr -> a clear error
+    }
+
+    // Operator overloading: Vec2 + Vec2 -> Vec2; anything else falls back to the default error.
+    Handle binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) override {
+        if (op == BinOp::Add)
+            if (auto* o = dynamic_cast<const Vec2*>(&vm.arena().deref(rhs)))
+                return vm.alloc(std::make_unique<Vec2>(x + o->x, y + o->y));
+        return Object::binary(vm, op, self, rhs);
+    }
+};
+
+// A constructor name so `Vec2(x, y)` builds one from Kirito (signatured -> keyword args + inspect).
+vm.registerGlobal("Vec2", vm.alloc(std::make_unique<NativeFunction>(
+    "Vec2", std::vector<NativeParam>{{"x", "Number"}, {"y", "Number"}}, "Vec2",
+    [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        Args args(vm, a, "Vec2");
+        return vm.alloc(std::make_unique<Vec2>(args.at(0).asFloat("x"), args.at(1).asFloat("y")));
+    })));
+```
+
+```kirito
+var a = Vec2(3, 4)
+a.x                       # 3.0
+a.length()                # 5.0
+a.dot(Vec2(1, 0))         # 3.0
+String(a + Vec2(1, 1))    # "Vec2(4, 5)"
+```
+
+`vm.alloc(std::make_unique<T>(...))` boxes any `Object` (a built-in *or* a `NativeClass`) into the
+arena and returns a `Handle`. The bound-`self` third argument to `NativeFunction` is exactly how
+built-in methods such as `list.append` carry their receiver.
+
+### The protocol slots
+
+Override only what your type supports; every slot defaults to a clear "unsupported" `KiritoError`.
 
 | Slot | Triggered by |
 |------|-------------|
-| `binary(vm, op, self, rhs)` | `a + b`, `a < b`, ... |
-| `unary(vm, op, self)` | `-a`, `not a` |
-| `call(vm, args)` | `obj(...)` |
-| `getAttr(vm, self, name)` / `setAttr(...)` | `obj.field` |
-| `getItem(vm, keys)` / `setItem(...)` | `obj[i]`, `obj[i] = v` |
-| `iterate(vm)` | `for x in obj` |
+| `binary(vm, op, self, rhs)` | `a + b`, `a < b`, … (`BinOp::Add/Sub/Mul/Div/FloorDiv/Mod/Pow/Eq/Ne/Lt/Le/Gt/Ge`) |
+| `unary(vm, op, self)` | `-a`, `not a` (`UnOp::Neg/Not`) |
+| `call(vm, args)` | `obj(...)` — makes the value itself callable |
+| `getAttr(vm, self, name)` / `setAttr(vm, name, value)` | `obj.field`, `obj.field = v` |
+| `getItem(vm, keys)` / `setItem(vm, keys, value)` | `obj[i]`, `obj[i, j] = v` (keys are variadic) |
+| `iterate(vm)` | `for x in obj` — return the elements as a vector of `Handle` |
 | `length(vm)` | `len(obj)` |
 | `contains(vm, value)` | `x in obj` |
-| `str(ctx)` / `equals(...)` / `hash()` | stringify / `==` / hashing |
+| `str(ctx)` / `equals(arena, other)` / `hash()` | stringify / `==` / use as a Set/Dict key |
+| `children(out)` | GC reachability — push every `Handle` your object owns |
 
-Register a constructor name so `MyType(args)` works from Kirito. The bundled `matrix`, `io.open`,
-`BytesIO`, and socket types are all `NativeClass`es authored this way — read `stdlib_matrix.hpp` for
-a full worked example.
+If your type holds Kirito values (e.g. a container), implement `children()` so the garbage collector
+can trace them. The bundled `matrix`, `io.open` (File), `BytesIO`, `Random`, and socket types are all
+`NativeClass`es — read `stdlib_matrix.hpp` or `stdlib_random.hpp` for production examples.
 
 ## Authoring a module in Kirito
 
@@ -155,6 +248,8 @@ module's members (names starting with `_` stay private). The bundled `itertools`
 
 ## Design rules
 
+- **Naming**: Kirito's public functions and methods are **all lowercase, no underscores**
+  (`gettempdir`, `joinpath`, `startswith`, `symmetricdifference`) — match that when you add your own.
 - **No global mutable state** — everything is VM-scoped, so multiple VMs stay isolated.
 - **Never expose raw pointers** across the boundary; hold `Handle`s, deref at point of use.
 - **Header-only ODR**: everything `inline`/templated, `#ifndef` include guards (never `#pragma once`).

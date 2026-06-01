@@ -474,13 +474,6 @@ public:
             std::error_code ec;
             return val(vm, std::filesystem::current_path(ec).string());
         });
-        m.fn("gettempdir", {}, "String", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
-            // The system temp directory (honors TMPDIR/TMP/TEMP, falls back to /tmp), like
-            // Python's tempfile.gettempdir — a stable scratch location for files.
-            std::error_code ec;
-            auto p = std::filesystem::temp_directory_path(ec);
-            return val(vm, ec ? std::string("/tmp") : p.string());
-        });
         m.fn("listdir", {{"path", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             List out(vm);
             std::error_code ec;

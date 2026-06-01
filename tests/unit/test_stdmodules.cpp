@@ -83,8 +83,8 @@ int main() {
     // --- csv ---
     {
         KiritoVM vm;
-        CHECK(run(vm, "var c = import(\"csv\")\nc.format_row([\"a\", \"b,c\", \"d\"])") == "a,\"b,c\",d");
-        CHECK(run(vm, "var c = import(\"csv\")\nString(c.parse_row(\"x,\\\"y,z\\\",w\"))") == "[x, y,z, w]");
+        CHECK(run(vm, "var c = import(\"csv\")\nc.formatrow([\"a\", \"b,c\", \"d\"])") == "a,\"b,c\",d");
+        CHECK(run(vm, "var c = import(\"csv\")\nString(c.parserow(\"x,\\\"y,z\\\",w\"))") == "[x, y,z, w]");
     }
 
     // --- heapq ---
@@ -97,9 +97,9 @@ int main() {
     // --- bisect ---
     {
         KiritoVM vm;
-        CHECK(run(vm, "import(\"bisect\").bisect_left([1, 3, 5, 7], 4)") == "2");
-        CHECK(run(vm, "import(\"bisect\").bisect_right([1, 3, 3, 5], 3)") == "3");
-        CHECK(run(vm, "var b = import(\"bisect\")\nvar a = [1, 3, 5]\nb.insort_left(a, 4)\nString(a)") == "[1, 3, 4, 5]");
+        CHECK(run(vm, "import(\"bisect\").bisectleft([1, 3, 5, 7], 4)") == "2");
+        CHECK(run(vm, "import(\"bisect\").bisectright([1, 3, 3, 5], 3)") == "3");
+        CHECK(run(vm, "var b = import(\"bisect\")\nvar a = [1, 3, 5]\nb.insortleft(a, 4)\nString(a)") == "[1, 3, 4, 5]");
     }
 
     // --- copy ---
@@ -113,7 +113,7 @@ int main() {
     {
         KiritoVM vm;
         CHECK(run(vm, "var e = import(\"enum\")\nvar C = e.Enum([\"A\", \"B\", \"C\"])\nString(C.get(\"B\"))") == "1");
-        CHECK(run(vm, "var e = import(\"enum\")\nvar C = e.Enum([\"A\", \"B\"])\nC.name_of(0)") == "A");
+        CHECK(run(vm, "var e = import(\"enum\")\nvar C = e.Enum([\"A\", \"B\"])\nC.nameof(0)") == "A");
         CHECK(run(vm, "var e = import(\"enum\")\nvar C = e.Enum([\"A\"])\nString(\"A\" in C)") == "True");
     }
 

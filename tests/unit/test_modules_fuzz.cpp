@@ -67,7 +67,7 @@ int main() {
         "import(\"math\").factorial(%N)",
         "import(\"matrix\").identity(%N)",
         "import(\"matrix\").zeros(%N, %N)",
-        "import(\"net\").parse_qs(%S)",
+        "import(\"net\").parseqs(%S)",
         "import(\"net\").unquote(%S)",
         "import(\"serialize\").loads(%S)",
         "import(\"time\").make(%N, %N, %N)",

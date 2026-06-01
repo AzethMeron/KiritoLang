@@ -24,7 +24,7 @@ int main() {
         CHECK(run(vm, "round(2.71828, ndigits=3)") == "2.718");
         // module function `io.open` with a default mode.
         CHECK(run(vm,
-            "var io = import(\"io\")\nvar p = io.gettempdir() + \"/kirito_namedargs_native.txt\"\n"
+            "var io = import(\"io\")\nvar p = import(\"sys\").gettempdir() + \"/kirito_namedargs_native.txt\"\n"
             "var f = io.open(p, mode=\"w\")\ndiscard f.write(\"yo\")\nf.close()\n"
             "var g = io.open(p)\nvar s = g.read()\ng.close()\nio.remove(p)\ns") == "yo");
     }

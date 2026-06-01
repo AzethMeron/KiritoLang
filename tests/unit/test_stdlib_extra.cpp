@@ -43,8 +43,8 @@ int main() {
         CHECK(run(vm, "var n = import(\"net\")\nvar p = n.urlsplit(\"https://h.com:8080/x?a=1#f\")\np[\"port\"]") == "8080");
         CHECK(run(vm, "var n = import(\"net\")\nvar p = n.urlsplit(\"https://h.com/x?a=1#f\")\np[\"query\"]") == "a=1");
         CHECK(run(vm, "var n = import(\"net\")\nvar p = n.urlsplit(\"http://h/p?x=1#frag\")\np[\"fragment\"]") == "frag");
-        CHECK(run(vm, "var n = import(\"net\")\nvar q = n.parse_qs(\"name=Ada+L&id=42\")\nq[\"name\"]") == "Ada L");
-        CHECK(run(vm, "var n = import(\"net\")\nvar q = n.parse_qs(\"name=Ada&id=42\")\nq[\"id\"]") == "42");
+        CHECK(run(vm, "var n = import(\"net\")\nvar q = n.parseqs(\"name=Ada+L&id=42\")\nq[\"name\"]") == "Ada L");
+        CHECK(run(vm, "var n = import(\"net\")\nvar q = n.parseqs(\"name=Ada&id=42\")\nq[\"id\"]") == "42");
         // round-trip quote/unquote on tricky bytes
         CHECK(run(vm, "var n = import(\"net\")\nn.unquote(n.quote(\"100% & more?\"))") == "100% & more?");
     }

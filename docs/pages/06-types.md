@@ -144,7 +144,7 @@ io.print(a.union(b), a.intersection(b))   # {1, 2, 3, 4} {3}
 | `s.union(other)` | Elements in either set. |
 | `s.intersection(other)` | Elements in both. |
 | `s.difference(other)` | Elements in `s` but not `other`. |
-| `s.symmetric_difference(other)` | Elements in exactly one set. |
+| `s.symmetricdifference(other)` | Elements in exactly one set. |
 | `s.issubset(other)` / `s.issuperset(other)` | Containment tests. |
 | `s.isdisjoint(other)` | True if the sets share no element. |
 | `s.copy()` / `s.clear()` | Shallow copy / remove all. |

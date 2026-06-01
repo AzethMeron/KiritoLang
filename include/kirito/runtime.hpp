@@ -690,7 +690,7 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             throw KiritoError("pop from an empty Set");
         });
     if (name == "union" || name == "intersection" || name == "difference" ||
-        name == "symmetric_difference") {
+        name == "symmetricdifference") {
         std::string op(name);
         return bind(op.c_str(), [self, set_of, op](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             RootScope rs(vm);
@@ -709,7 +709,7 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
                 SetVal otherSet;
                 for (Handle e : other.value()) otherSet.add(vm.arena(), e);
                 for (Handle e : s.items()) if (!otherSet.contains(vm.arena(), e)) result->add(vm.arena(), e);
-            } else {  // symmetric_difference: in one but not both
+            } else {  // symmetricdifference: in one but not both
                 SetVal otherSet;
                 for (Handle e : other.value()) otherSet.add(vm.arena(), e);
                 for (Handle e : s.items()) if (!otherSet.contains(vm.arena(), e)) result->add(vm.arena(), e);

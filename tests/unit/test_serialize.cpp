@@ -68,7 +68,7 @@ d[0] == d
     // save / load to a file
     CHECK(evalStr(vm, R"(
 var s = import("serialize")
-var p = import("io").gettempdir() + "/kirito_serialize_test.dat"
+var p = import("sys").gettempdir() + "/kirito_serialize_test.dat"
 var data = {"name": "Kirito", "scores": [10, 20, 30]}
 s.save(data, p)
 var loaded = s.load(p)

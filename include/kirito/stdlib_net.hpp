@@ -362,8 +362,8 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             if (got < 0) throw KiritoError("recv failed: " + netcompat::lastError());
             return vm.makeString(std::string(buf.data(), static_cast<std::size_t>(got)));
         });
-    if (name == "recv_all")
-        return bind("recv_all", [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
+    if (name == "recvall")
+        return bind("recvall", [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
             return vm.makeString(net::recvAll(sock(vm, self).fd));
         });
     if (name == "close" || name == "_exit_")
@@ -384,12 +384,12 @@ public:
         m.fn("Socket", {}, "Socket", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             return vm.alloc(std::make_unique<SocketVal>());
         });
-        m.fn("http_get", {{"url", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return net::httpRequest(vm, "GET", Args(vm, a, "http_get")[0].asString("url"), "", "");
+        m.fn("httpget", {{"url", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return net::httpRequest(vm, "GET", Args(vm, a, "httpget")[0].asString("url"), "", "");
         });
-        m.fn("http_post", {{"url", "String"}, {"body", "String"}, {"content_type", "String", vm.makeString("text/plain")}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            Args args(vm, a, "http_post");
-            std::string ct = args.size() > 2 ? args[2].asString("content_type") : "text/plain";
+        m.fn("httppost", {{"url", "String"}, {"body", "String"}, {"contenttype", "String", vm.makeString("text/plain")}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Args args(vm, a, "httppost");
+            std::string ct = args.size() > 2 ? args[2].asString("contenttype") : "text/plain";
             return net::httpRequest(vm, "POST", args[0].asString("url"), args[1].asString("body"), ct);
         });
 
@@ -410,9 +410,9 @@ public:
             }
             return val(vm, out);
         });
-        // parse_qs("a=1&b=2") -> {"a": "1", "b": "2"} (values percent-decoded).
-        m.fn("parse_qs", {{"query", "String"}}, "Dict", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::string q = Args(vm, a, "parse_qs")[0].asString("parse_qs");
+        // parseqs("a=1&b=2") -> {"a": "1", "b": "2"} (values percent-decoded).
+        m.fn("parseqs", {{"query", "String"}}, "Dict", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::string q = Args(vm, a, "parseqs")[0].asString("parseqs");
             Dict d(vm);
             std::size_t i = 0;
             while (i < q.size()) {

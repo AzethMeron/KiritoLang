@@ -1,6 +1,6 @@
 # File I/O via context-managed files.
 var io = import("io")
-var path = io.gettempdir() + "/kirito_script_io.txt"
+var path = import("sys").gettempdir() + "/kirito_script_io.txt"
 
 with io.open(path, "w") as f:
     f.write("first line\n")

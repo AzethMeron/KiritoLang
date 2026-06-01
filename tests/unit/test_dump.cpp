@@ -84,7 +84,7 @@ r[0] == r
     // save / load to a binary file
     CHECK(evalStr(vm, R"(
 var d = import("dump")
-var f = import("io").gettempdir() + "/kirito_dump_test.bin"
+var f = import("sys").gettempdir() + "/kirito_dump_test.bin"
 var data = {"name": "Kirito", "scores": [10, 20, 30], "nested": {"x": [1, 2]}}
 d.dumps(data).save(f)
 var loaded = d.load(f)
