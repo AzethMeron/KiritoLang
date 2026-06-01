@@ -222,6 +222,21 @@ class Matrix:
             col = col + 1
         return Matrix(inv)
 
+    var _eq_ = Function(self, o):
+        if type(o) != "Matrix":
+            return False
+        if self._r != o._r or self._c != o._c:
+            return False
+        var i = 0
+        while i < self._r:
+            var j = 0
+            while j < self._c:
+                if self._data[i][j] != o._data[i][j]:
+                    return False
+                j = j + 1
+            i = i + 1
+        return True
+
     var _str_ = Function(self):
         return "Matrix(" + String(self._data) + ")"
 

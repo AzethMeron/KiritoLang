@@ -2118,6 +2118,11 @@ inline void KiritoVM::installBuiltins() {
     defSig("type", {{"x"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         return vm.makeString(vm.arena().deref(a[0]).typeName());
     });
+    defSig("id", {{"x"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        // Identity of an object: its arena slot — stable and unique for a live object (interned
+        // scalars share one). Lets reference/cycle-aware code (e.g. a serializer) detect aliasing.
+        return vm.makeInt(static_cast<int64_t>(a[0].slot));
+    });
     defSig("inspect", {{"x"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 1) throw KiritoError("inspect expected 1 argument");
         return vm.makeString(inspectValue(vm, a[0]));

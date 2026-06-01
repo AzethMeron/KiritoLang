@@ -1,0 +1,25 @@
+# The `dump` module in pure Kirito: reference/cycle-preserving serialization to a compact blob (a
+# Dump value). It reuses serialize's graph encoding; Dump wraps the encoded bytes and exposes them
+# via bytes(), so a pipeline can compress/hash/store the blob and reconstruct it later.
+
+var serialize = import("serialize")
+
+class Dump:
+    var _init_ = Function(self, data):
+        self._data = data
+    var bytes = Function(self):
+        return self._data
+    var _str_ = Function(self):
+        return "Dump(" + String(len(self._data)) + " bytes)"
+
+var dumps = Function(v):
+    return Dump(serialize.dumps(v))
+
+var loads = Function(d):
+    return serialize.loads(d.bytes())
+
+var save = Function(v, path):
+    serialize.save(v, path)
+
+var load = Function(path):
+    return serialize.load(path)

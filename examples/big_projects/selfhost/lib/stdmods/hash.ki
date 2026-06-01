@@ -174,6 +174,69 @@ var md5 = Function(s):
         chunk = chunk + 64
     return _hexLE(a0) + _hexLE(b0) + _hexLE(c0) + _hexLE(d0)
 
+# --- sha1 ----------------------------------------------------------------------------------------
+var sha1 = Function(s):
+    var msg = _bytesOf(s)
+    var origLenBits = len(msg) * 8
+    msg.append(128)
+    while len(msg) % 64 != 56:
+        msg.append(0)
+    var lb = 7
+    while lb >= 0:
+        msg.append((origLenBits // _pow2(lb * 8)) % 256)
+        lb = lb - 1
+    var h0 = 1732584193
+    var h1 = 4023233417
+    var h2 = 2562383102
+    var h3 = 271733878
+    var h4 = 3285377520
+    var chunk = 0
+    while chunk < len(msg):
+        var w = []
+        var t = 0
+        while t < 16:
+            w.append(_be32(msg, chunk + t * 4))
+            t = t + 1
+        t = 16
+        while t < 80:
+            w.append(_rotl(_xor(_xor(w[t - 3], w[t - 8]), _xor(w[t - 14], w[t - 16])), 1))
+            t = t + 1
+        var a = h0
+        var b = h1
+        var c = h2
+        var d = h3
+        var e = h4
+        var i = 0
+        while i < 80:
+            var f = 0
+            var k = 0
+            if i < 20:
+                f = _or(_and(b, c), _and(_not(b), d))
+                k = 1518500249
+            elif i < 40:
+                f = _xor(_xor(b, c), d)
+                k = 1859775393
+            elif i < 60:
+                f = _or(_or(_and(b, c), _and(b, d)), _and(c, d))
+                k = 2400959708
+            else:
+                f = _xor(_xor(b, c), d)
+                k = 3395469782
+            var tmp = _add(_add(_rotl(a, 5), f), _add(_add(e, k), w[i]))
+            e = d
+            d = c
+            c = _rotl(b, 30)
+            b = a
+            a = tmp
+            i = i + 1
+        h0 = _add(h0, a)
+        h1 = _add(h1, b)
+        h2 = _add(h2, c)
+        h3 = _add(h3, d)
+        h4 = _add(h4, e)
+        chunk = chunk + 64
+    return _hex8(h0) + _hex8(h1) + _hex8(h2) + _hex8(h3) + _hex8(h4)
+
 # --- sha256 --------------------------------------------------------------------------------------
 var _SHA_K = [1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993,
               2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987,

@@ -1769,6 +1769,8 @@ var builtinDictC = Function(St, a, k):
     return Dict(a[0])
 var builtinImport = Function(St, a, k):
     return importModule(St, a[0])
+var builtinId = Function(St, a, k):
+    return id(a[0])
 var builtinInspect = Function(St, a, k):
     var v = a[0]
     var kind = boxKind(v)
@@ -1880,6 +1882,7 @@ var makeGlobal = Function(St):
     def("Set", builtinSetC)
     def("Dict", builtinDictC)
     def("import", builtinImport)
+    def("id", builtinId)
     def("inspect", builtinInspect)
     def("bitand", builtinBitand)
     def("bitor", builtinBitor)

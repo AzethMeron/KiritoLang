@@ -1,0 +1,79 @@
+# The `serialize` module in pure Kirito: a text graph format that preserves shared references and
+# survives cycles. Containers are flattened into a node table addressed by index; an object's first
+# visit (detected via id()) records its node, later visits become references. The node table is
+# encoded as JSON text for transport. Reconstruction builds empty shells first, then fills them, so
+# cyclic and shared structure is restored exactly.
+
+var json = import("json")
+var io = import("io")
+
+var _isContainer = Function(v):
+    var t = type(v)
+    return t == "List" or t == "Dict"
+
+# encode v -> a small tagged form; containers register into `reg` (id->idx) / `nodes`
+var _encode = Function(v, reg, nodes):
+    if _isContainer(v):
+        var key = id(v)
+        if key in reg:
+            return ["ref", reg[key]]
+        var idx = len(nodes)
+        reg[key] = idx
+        nodes.append(None)
+        if type(v) == "List":
+            var items = []
+            for x in v:
+                items.append(_encode(x, reg, nodes))
+            nodes[idx] = ["list", items]
+        else:
+            var pairs = []
+            for k in v:
+                pairs.append([_encode(k, reg, nodes), _encode(v[k], reg, nodes)])
+            nodes[idx] = ["dict", pairs]
+        return ["ref", idx]
+    return ["val", v]
+
+var dumps = Function(v):
+    var reg = {}
+    var nodes = []
+    var root = _encode(v, reg, nodes)
+    return json.dumps({"root": root, "nodes": nodes})
+
+var _resolve = Function(enc, shells):
+    if enc[0] == "ref":
+        return shells[enc[1]]
+    return enc[1]
+
+var loads = Function(s):
+    var top = json.loads(s)
+    var nodes = top["nodes"]
+    # create empty shells so references (incl. cycles) can point at them before they are filled
+    var shells = []
+    for node in nodes:
+        if node[0] == "list":
+            shells.append([])
+        else:
+            shells.append({})
+    var i = 0
+    while i < len(nodes):
+        var node = nodes[i]
+        var shell = shells[i]
+        if node[0] == "list":
+            for child in node[1]:
+                shell.append(_resolve(child, shells))
+        else:
+            for pair in node[1]:
+                shell[_resolve(pair[0], shells)] = _resolve(pair[1], shells)
+        i = i + 1
+    return _resolve(top["root"], shells)
+
+var save = Function(v, path):
+    var fh = io.open(path, "w")
+    fh.write(dumps(v))
+    fh.close()
+
+var load = Function(path):
+    var fh = io.open(path, "r")
+    var data = fh.read()
+    fh.close()
+    return loads(data)
