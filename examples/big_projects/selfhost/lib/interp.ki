@@ -663,6 +663,11 @@ var materialize = Function(St, value):
         if m != None:
             return materialize(St, callValue(St, mkBound(value, m), [], []))
         rtError("'" + value["cls"]["name"] + "' object is not iterable")
+    if boxKind(value) == "hostobj" and value["kind"] == "file":
+        var lines = []
+        for ln in value["h"]:
+            lines.append(ln)
+        return lines
     var out = []
     for x in value:
         out.append(x)
@@ -1891,9 +1896,12 @@ var makeGlobal = Function(St):
 # evaluates *through itself* — true self-hosting — exposing its top-level names as members. The
 # only host primitive involved is reading the module's source text (a thin syscall, below).
 
-# THE thin syscall layer: the one host facility the pure-Kirito std modules are allowed to lean on,
-# for things that genuinely require the OS (here: reading a source file off disk). Marked _sys_.
+# THE thin syscall layer: the host facilities the pure-Kirito std modules are allowed to lean on,
+# for things that genuinely require the OS — reading a source file, file I/O, clocks, environment.
+# All marked _sys_. Module *logic* (path handling, datetime math, RNG, JSON, matrices, ...) is Kirito.
 var _sys_hostIo = import("io")
+var _sys_hostSys = import("sys")
+var _sys_hostTime = import("time")
 var _sys_readFile = Function(path):
     var fh = _sys_hostIo.open(path, "r")
     var data = fh.read()
@@ -1906,6 +1914,8 @@ var importModule = Function(St, name):
     var mod = None
     if name == "io":
         mod = bridgeIo(St)
+    elif name == "_os":
+        mod = bridgeOs(St)
     else:
         mod = evalModule(St, name)
     St["modules"][name] = mod
@@ -1988,6 +1998,13 @@ var ioInput = Function(St2, args, kwargs):
 var ioBytesIO = Function(St2, args, kwargs):
     return mkBytesIO()
 
+# io file open (thin syscall): wraps a host file in a "file" box; methods dispatched in hostObjMethod.
+var ioOpen = Function(St2, a, k):
+    var mode = "r"
+    if len(a) >= 2:
+        mode = a[1]
+    return {"sk": "hostobj", "kind": "file", "h": _sys_hostIo.open(a[0], mode)}
+
 var bridgeIo = Function(St):
     var members = {}
     members["stdout"] = mkStream("stdout")
@@ -1999,7 +2016,49 @@ var bridgeIo = Function(St):
     members["write"] = mkNative("write", ioWrite)
     members["input"] = mkNative("input", ioInput)
     members["BytesIO"] = mkNative("BytesIO", ioBytesIO)
+    members["open"] = mkNative("open", ioOpen)
+    members["exists"] = mkNative("exists", Function(St2, a, k): return _sys_hostIo.exists(a[0]))
+    members["isfile"] = mkNative("isfile", Function(St2, a, k): return _sys_hostIo.isfile(a[0]))
+    members["isdir"] = mkNative("isdir", Function(St2, a, k): return _sys_hostIo.isdir(a[0]))
+    members["remove"] = mkNative("remove", Function(St2, a, k): return _sys_hostIo.remove(a[0]))
+    members["mkdir"] = mkNative("mkdir", Function(St2, a, k): return _sys_hostIo.mkdir(a[0]))
+    members["getsize"] = mkNative("getsize", Function(St2, a, k): return _sys_hostIo.getsize(a[0]))
+    members["listdir"] = mkNative("listdir", Function(St2, a, k): return _sys_hostIo.listdir(a[0]))
+    members["getcwd"] = mkNative("getcwd", Function(St2, a, k): return _sys_hostIo.getcwd())
+    members["rename"] = mkNative("rename", Function(St2, a, k): return _sys_hostIo.rename(a[0], a[1]))
+    members["walk"] = mkNative("walk", Function(St2, a, k): return _sys_hostIo.walk(a[0]))
+    members["dirname"] = mkNative("dirname", Function(St2, a, k): return _sys_hostIo.dirname(a[0]))
+    members["basename"] = mkNative("basename", Function(St2, a, k): return _sys_hostIo.basename(a[0]))
+    members["splitext"] = mkNative("splitext", Function(St2, a, k): return _sys_hostIo.splitext(a[0]))
+    members["join"] = mkNative("join", _ioJoinHost)
     return mkModule("io", members)
+
+var _ioJoinHost = Function(St2, a, k):
+    var out = a[0]
+    var i = 1
+    while i < len(a):
+        out = _sys_hostIo.join(out, a[i])
+        i = i + 1
+    return out
+
+# The native _os syscall module: the minimal OS surface (clocks + environment) that the pure-Kirito
+# sys/time modules build on. Thin — no logic here.
+var bridgeOs = Function(St):
+    var m = {}
+    m["getenv"] = mkNative("getenv", _osGetenv)
+    m["getcwd"] = mkNative("getcwd", Function(St2, a, k): return _sys_hostIo.getcwd())
+    m["gettempdir"] = mkNative("gettempdir", Function(St2, a, k): return _sys_hostSys.gettempdir())
+    m["platform"] = _sys_hostSys.platform
+    m["time"] = mkNative("time", Function(St2, a, k): return _sys_hostTime.time())
+    m["timens"] = mkNative("timens", Function(St2, a, k): return _sys_hostTime.timens())
+    m["monotonic"] = mkNative("monotonic", Function(St2, a, k): return _sys_hostTime.monotonic())
+    m["perfcounterns"] = mkNative("perfcounterns", Function(St2, a, k): return _sys_hostTime.perfcounterns())
+    return mkModule("_os", m)
+
+var _osGetenv = Function(St2, a, k):
+    if len(a) == 2:
+        return _sys_hostSys.getenv(a[0], a[1])
+    return _sys_hostSys.getenv(a[0])
 
 var hostObjMethod = Function(St, recv, name, args, kwargs):
     if recv["kind"] == "bytesio":
@@ -2010,6 +2069,8 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
             return "".join(recv["buf"])
         if name == "read":
             return "".join(recv["buf"])
+        if name == "size":
+            return len("".join(recv["buf"]))
         if name == "close":
             return None
     if recv["kind"] == "stdout" or recv["kind"] == "stderr":
@@ -2018,12 +2079,41 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
             return None
         if name == "flush":
             return None
+    if recv["kind"] == "file":
+        return _fileMethod(recv["h"], name, args)
     rtError("host object ('" + recv["kind"] + "') has no method '" + name + "'")
+
+var _fileMethod = Function(fh, name, args):
+    if name == "read":
+        if len(args) == 1:
+            return fh.read(args[0])
+        return fh.read()
+    if name == "readline":
+        return fh.readline()
+    if name == "readlines":
+        return fh.readlines()
+    if name == "write":
+        return fh.write(args[0])
+    if name == "writelines":
+        return fh.writelines(args[0])
+    if name == "seek":
+        if len(args) == 2:
+            return fh.seek(args[0], args[1])
+        return fh.seek(args[0])
+    if name == "tell":
+        return fh.tell()
+    if name == "flush":
+        return fh.flush()
+    if name == "close":
+        return fh.close()
+    rtError("file object has no method '" + name + "'")
 
 var withEnterHost = Function(St, ctx):
     return ctx
 
 var withExitHost = Function(St, ctx):
+    if boxKind(ctx) == "hostobj" and ctx["kind"] == "file":
+        ctx["h"].close()
     return None
 
 # --- top-level entry points -----------------------------------------------------------------------
