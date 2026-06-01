@@ -45,14 +45,15 @@ if(NOT MSVC)
     target_compile_options(ki PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-# Windows defaults to a 1 MB stack (vs ~8 MB on Linux), so the recursion / nesting depth guard —
-# tuned to trip well within a typical Unix stack — could be beaten to it by a raw stack overflow.
-# Reserve a Linux-sized stack so the catchable guard error fires first, consistently across platforms.
+# Windows defaults to a small stack (1 MB MSVC / 2 MB mingw) vs ~8 MB on Linux, and reaching the
+# parser's nesting guard (kMaxParseDepth) descends the full precedence chain per level — a few MB of
+# frames. So reserve a generous 64 MB stack on Windows (just address space, not committed) and the
+# catchable "nested too deeply" guard fires first, exactly as on Linux, instead of a raw overflow.
 if(WIN32)
     if(MSVC)
-        target_link_options(ki PRIVATE /STACK:16777216)
+        target_link_options(ki PRIVATE /STACK:67108864)
     else()
-        target_link_options(ki PRIVATE -Wl,--stack,16777216)
+        target_link_options(ki PRIVATE -Wl,--stack,67108864)
     endif()
 endif()
 
