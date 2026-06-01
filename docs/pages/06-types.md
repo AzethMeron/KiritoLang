@@ -37,18 +37,26 @@ or sum truth values.
 
 ## Integer
 
-Signed 64-bit integers. Arithmetic wraps on overflow (well-defined two's complement, never undefined
-behavior). Literals may be decimal, hex (`0xFF`), or binary (`0b1010`).
+Signed 64-bit integers. Arithmetic wraps on overflow with well-defined two's-complement semantics —
+never undefined behavior. Literals may be decimal (`42`, `-7`), hexadecimal (`0xFF`), or binary
+(`0b1010`).
 
-- `/` always produces a `Float` (`7 / 2 == 3.5`); use `//` for floor division.
-- `//`, `%`, and `divmod` follow Python floor semantics: `divmod(-7, 3) == [-3, 2]`.
-- `**` is exponentiation (`2 ** 10 == 1024`).
-- Bitwise operators and `bin`/`oct`/`hex` work on Integers.
+The arithmetic operators are `+`, `-`, `*`, the three division forms below, and `**`
+(exponentiation, right-associative: `2 ** 3 ** 2 == 512`). Kirito has **no** bitwise operators.
+
+- `/` always produces a `Float` — even when the operands divide evenly (`7 / 2 == 3.5`,
+  `4 / 2 == 2.0`); use `//` when you want an Integer result.
+- `//` (floor division), `%` (modulo), and `divmod(a, b)` follow Python's floor semantics, so the
+  remainder takes the sign of the divisor: `divmod(-7, 3) == [-3, 2]`.
+- `**` raises to a power (`2 ** 10 == 1024`).
+- `bin(n)` / `oct(n)` / `hex(n)` render an Integer in base 2 / 8 / 16 as a `String`
+  (`hex(255) == "0xff"`).
 
 ```kirito
 var n = 255
-io.print(hex(n))        # "0xff"
-io.print(n // 10, n % 10)   # 25 5
+io.print(hex(n), bin(5))      # "0xff" "0b101"
+io.print(n // 10, n % 10)     # 25 5
+io.print(2 ** 10, 7 / 2)      # 1024 3.5
 ```
 
 ## Float

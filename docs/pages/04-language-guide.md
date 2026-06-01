@@ -149,6 +149,21 @@ second `default`, and an empty body are rejected at parse/first-run time. `break
 inside an arm propagate to the enclosing loop/function as usual; a `switch` with no matching case and
 no `default` is a no-op.
 
+### `assert`
+
+`assert CONDITION[, message]` raises a catchable error when `CONDITION` is falsy, and does nothing
+when it is truthy — a compact way to state an invariant at the point it must hold. The optional
+`message` (any expression) becomes the error text; without one it reads `"assertion failed"`. The
+error is an ordinary exception, so a surrounding `try`/`catch` (see [Exceptions](#exceptions)) can
+intercept it.
+
+```kirito
+var withdraw = Function(balance, amount):
+    assert amount > 0, "amount must be positive"
+    assert amount <= balance, "insufficient funds"
+    return balance - amount
+```
+
 ## Functions
 
 First-class values created with `Function`. Parameters take **keyword arguments**, **default

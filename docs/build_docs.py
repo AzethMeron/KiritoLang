@@ -195,12 +195,21 @@ def linkify(body):
 
 
 def render_inline(text):
-    # Order matters: escape first, then re-inject markup.
+    # Order matters: escape first, then re-inject markup. Inline-code spans are stashed behind
+    # placeholders *before* bold/italic/link rules run, so operators inside `code` (e.g. `2 ** 10`,
+    # `*args`, `a[0]`) are never mistaken for Markdown emphasis. They are restored last.
     text = html.escape(text)
-    text = re.sub(r"`([^`]+)`", lambda m: f"<code>{m.group(1)}</code>", text)
+    spans = []
+
+    def stash(m):
+        spans.append(m.group(1))
+        return f"\x00{len(spans) - 1}\x00"
+
+    text = re.sub(r"`([^`]+)`", stash, text)
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", text)
     text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
+    text = re.sub(r"\x00(\d+)\x00", lambda m: f"<code>{spans[int(m.group(1))]}</code>", text)
     return text
 
 
