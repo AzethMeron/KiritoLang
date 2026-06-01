@@ -105,10 +105,16 @@ inline int64_t ipow(int64_t base, int64_t exp) {
 inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
     const Object& a = vm.arena().deref(aH);
     const Object& b = vm.arena().deref(bH);
-    if (!isNumeric(b)) {
+    // Both operands must be numeric. The operator path only reaches here via a numeric left
+    // operand's binary(), but builtins (pow / round / divmod) call this directly with raw args, so
+    // a non-numeric `a` is possible — guard it, otherwise asDouble() would downcast it to FloatVal
+    // (type-confusion UB) instead of raising a clean error.
+    if (!isNumeric(a) || !isNumeric(b)) {
         bool cmp = op == BinOp::Lt || op == BinOp::Le || op == BinOp::Gt || op == BinOp::Ge;
-        throw KiritoError("unsupported operand type '" + b.typeName() + "' for " +
-                          (cmp ? "comparison" : "arithmetic") + " with '" + a.typeName() + "'");
+        const Object& bad = !isNumeric(a) ? a : b;
+        const Object& other = !isNumeric(a) ? b : a;
+        throw KiritoError("unsupported operand type '" + bad.typeName() + "' for " +
+                          (cmp ? "comparison" : "arithmetic") + " with '" + other.typeName() + "'");
     }
 
     if (op == BinOp::Div) {
@@ -1986,11 +1992,18 @@ inline void KiritoVM::installBuiltins() {
         if (step == 0) throw KiritoError("range step cannot be zero");
         // range materializes a List (no lazy generators yet), so reject a count that would exhaust
         // memory up front rather than OOM mid-build.
+        // Compute the span and count entirely in unsigned 64-bit: a signed `stop - start` overflows
+        // when the endpoints straddle the int64 range (e.g. stop>0, start=INT64_MIN), and `-step`
+        // overflows for step==INT64_MIN. The unsigned differences are exact since the true span fits
+        // in uint64.
         uint64_t count = 0;
-        if (step > 0 && stop > start)
-            count = (static_cast<uint64_t>(stop - start) + static_cast<uint64_t>(step) - 1) / static_cast<uint64_t>(step);
-        else if (step < 0 && stop < start)
-            count = (static_cast<uint64_t>(start - stop) + static_cast<uint64_t>(-step) - 1) / static_cast<uint64_t>(-step);
+        if (step > 0 && stop > start) {
+            uint64_t us = static_cast<uint64_t>(step);
+            count = ((static_cast<uint64_t>(stop) - static_cast<uint64_t>(start)) + us - 1) / us;
+        } else if (step < 0 && stop < start) {
+            uint64_t negstep = 0u - static_cast<uint64_t>(step);  // |step|, valid even for INT64_MIN
+            count = ((static_cast<uint64_t>(start) - static_cast<uint64_t>(stop)) + negstep - 1) / negstep;
+        }
         if (count > kMaxRepeat) throw KiritoError("range too large");
         RootScope rs(vm);
         auto list = std::make_unique<ListVal>();
@@ -2007,7 +2020,7 @@ inline void KiritoVM::installBuiltins() {
         for (Handle h : items.value()) {
             const Object& o = vm.arena().deref(h);
             if (o.kind() == ValueKind::Float) { isFloat = true; f += static_cast<const FloatVal&>(o).value(); }
-            else if (o.kind() == ValueKind::Integer) { int64_t v = static_cast<const IntVal&>(o).value(); n += v; f += static_cast<double>(v); }
+            else if (o.kind() == ValueKind::Integer) { int64_t v = static_cast<const IntVal&>(o).value(); n = wadd(n, v); f += static_cast<double>(v); }
             else throw KiritoError("sum expects numbers");
         }
         return isFloat ? vm.makeFloat(f) : vm.makeInt(n);
