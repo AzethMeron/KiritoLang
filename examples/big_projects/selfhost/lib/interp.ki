@@ -1,0 +1,1617 @@
+# Tree-walking evaluator for Kirito-in-Kirito.
+#
+# Values flow through as *host* Kirito values wherever possible: an interpreted Integer is a host
+# Integer, an interpreted List is a host List, and so on — so arithmetic, comparison and collection
+# stringification reuse the host language directly. Only the things the host has no native value for
+# are boxed as tagged Dicts (key "sk" = self-host kind): functions, native functions, bound methods,
+# classes, instances and modules.
+#
+# Control flow (return/break/continue) is carried as a small signal Dict returned up through
+# statement execution. Interpreted `throw` and runtime errors use the host's own exceptions so they
+# unwind to the nearest interpreted `try` (or out of the program).
+
+var lexerMod = import("lexer")
+var parserMod = import("parser")
+
+# --- boxed (self-host) values ---------------------------------------------------------------------
+var isBox = Function(v):
+    return isinstance(v, "Dict") and ("sk" in v)
+
+var boxKind = Function(v):
+    if isinstance(v, "Dict") and ("sk" in v):
+        return v["sk"]
+    return ""
+
+var mkFunc = Function(name, params, body, env, ret):
+    return {"sk": "function", "name": name, "params": params, "body": body, "env": env, "ret": ret}
+
+var mkNative = Function(name, fn):
+    return {"sk": "native", "name": name, "fn": fn}
+
+var mkClass = Function(name, base, methods):
+    return {"sk": "class", "name": name, "base": base, "methods": methods}
+
+var mkInstance = Function(cls):
+    return {"sk": "instance", "cls": cls, "attrs": {}}
+
+var mkModule = Function(name, members):
+    return {"sk": "module", "name": name, "members": members}
+
+# --- runtime errors / control signals -------------------------------------------------------------
+# A runtime error is a host throw of a tagged Dict so it is distinguishable from an interpreted
+# `throw` (which carries an arbitrary value) and from control signals.
+var rtError = Function(msg):
+    throw {"err": msg}
+
+var CTL_RETURN = "return"
+var CTL_BREAK = "break"
+var CTL_CONTINUE = "continue"
+var NORMAL = {"flow": "normal"}
+
+# --- environments: {"vars": Dict, "parent": env|None} ---------------------------------------------
+var newEnv = Function(parent):
+    return {"vars": {}, "parent": parent}
+
+var envDefine = Function(env, name, val):
+    env["vars"][name] = val
+
+var envLookup = Function(env, name):
+    var e = env
+    while e != None:
+        if name in e["vars"]:
+            return e["vars"][name]
+        e = e["parent"]
+    rtError("NameError: name '" + name + "' is not defined")
+
+var envHas = Function(env, name):
+    var e = env
+    while e != None:
+        if name in e["vars"]:
+            return True
+        e = e["parent"]
+    return False
+
+var envAssign = Function(env, name, val):
+    var e = env
+    while e != None:
+        if name in e["vars"]:
+            e["vars"][name] = val
+            return None
+        e = e["parent"]
+    rtError("NameError: name '" + name + "' is not defined")
+
+# --- type name + stringify ------------------------------------------------------------------------
+var typeName = Function(v):
+    var k = boxKind(v)
+    if k == "function" or k == "native" or k == "bound" or k == "boundnative":
+        return "Function"
+    if k == "class":
+        return "Type"
+    if k == "instance":
+        return v["cls"]["name"]
+    if k == "module":
+        return "Module"
+    return type(v)
+
+# Find a method along the class chain; returns the func value or None.
+var classLookup = Function(cls, name):
+    var c = cls
+    while c != None:
+        if name in c["methods"]:
+            return c["methods"][name]
+        c = c["base"]
+    return None
+
+# Like classLookup but also returns the class the method was found in (for _super_ chaining).
+var classLookupC = Function(cls, name):
+    var c = cls
+    while c != None:
+        if name in c["methods"]:
+            return [c["methods"][name], c]
+        c = c["base"]
+    return None
+
+var stringify = Function(St, v):
+    var k = boxKind(v)
+    if k == "":
+        return String(v)
+    if k == "instance":
+        var m = classLookup(v["cls"], "_str_")
+        if m != None:
+            return callValue(St, mkBound(v, m), [], [])
+        return "<" + v["cls"]["name"] + " object>"
+    if k == "function" or k == "native":
+        return "<function " + v["name"] + ">"
+    if k == "class":
+        return "<class " + v["name"] + ">"
+    if k == "module":
+        return "<module " + v["name"] + ">"
+    return "<object>"
+
+var mkBound = Function(self, func):
+    return {"sk": "bound", "self": self, "func": func, "defcls": None}
+
+# A bound method that also records the class it was found in, so the method's body can resolve
+# self._super_() one level up.
+var mkBoundD = Function(self, func, defcls):
+    return {"sk": "bound", "self": self, "func": func, "defcls": defcls}
+
+# A zero-arg native that just hands back a fixed value (used to make self._super_() callable).
+var mkThunk = Function(v):
+    return mkNative("thunk", Function(St2, a, k): return v)
+
+# Identity equality for instances without _eq_: two boxes are equal iff they are the same Dict.
+# Host Dict `==` is deep, so compare by an injected unique id instead.
+var _identityEq = Function(l, r, op):
+    var same = False
+    if isBox(l) and isBox(r) and ("id" in l) and ("id" in r):
+        same = l["id"] == r["id"]
+    if op == "==":
+        return same
+    return not same
+
+var truthy = Function(St, v):
+    var k = boxKind(v)
+    if k == "instance":
+        var m = classLookup(v["cls"], "_bool_")
+        if m != None:
+            return truthy(St, callValue(St, mkBound(v, m), [], []))
+        var lm = classLookup(v["cls"], "_len_")
+        if lm != None:
+            return callValue(St, mkBound(v, lm), [], []) != 0
+        return True
+    if k != "":
+        return True
+    return Bool(v)
+
+# --- expression evaluation ------------------------------------------------------------------------
+var DUNDER = {"+": "_add_", "-": "_sub_", "*": "_mul_", "/": "_div_", "//": "_floordiv_",
+              "%": "_mod_", "**": "_pow_", "==": "_eq_", "!=": "_ne_", "<": "_lt_",
+              "<=": "_le_", ">": "_gt_", ">=": "_ge_"}
+
+var evalBinary = Function(St, op, l, r):
+    # operator overloading when the left side is an interpreted instance
+    if boxKind(l) == "instance":
+        var m = classLookup(l["cls"], DUNDER[op])
+        if m != None:
+            return callValue(St, mkBound(l, m), [r], [])
+        # _ne_ falls back to `not _eq_`; == / != without either use object identity
+        if op == "==" or op == "!=":
+            var em = classLookup(l["cls"], "_eq_")
+            if em != None:
+                var eq = truthy(St, callValue(St, mkBound(l, em), [r], []))
+                if op == "==":
+                    return eq
+                return not eq
+            return _identityEq(l, r, op)
+        rtError("'" + l["cls"]["name"] + "' has no operator " + op)
+    if boxKind(r) == "instance":
+        if op == "==":
+            return _identityEq(l, r, op)
+        if op == "!=":
+            return _identityEq(l, r, op)
+        rtError("unsupported operand type(s) for " + op)
+    if op == "+":
+        return l + r
+    if op == "-":
+        return l - r
+    if op == "*":
+        return l * r
+    if op == "/":
+        return l / r
+    if op == "//":
+        return l // r
+    if op == "%":
+        return l % r
+    if op == "**":
+        return l ** r
+    if op == "==":
+        return l == r
+    if op == "!=":
+        return l != r
+    if op == "<":
+        return l < r
+    if op == "<=":
+        return l <= r
+    if op == ">":
+        return l > r
+    if op == ">=":
+        return l >= r
+    rtError("unknown operator " + op)
+
+var evalCompare = Function(St, op, l, r):
+    if op == "in":
+        return _contains(St, r, l)
+    if op == "notin":
+        return not _contains(St, r, l)
+    if op == "is":
+        return l == r
+    if op == "isnot":
+        return not (l == r)
+    return evalBinary(St, op, l, r)
+
+var _contains = Function(St, container, item):
+    if boxKind(container) == "instance":
+        var m = classLookup(container["cls"], "_contains_")
+        if m != None:
+            return truthy(St, callValue(St, mkBound(container, m), [item], []))
+    return item in container
+
+var evalUnary = Function(St, op, v):
+    if op == "-":
+        if boxKind(v) == "instance":
+            var m = classLookup(v["cls"], "_neg_")
+            if m != None:
+                return callValue(St, mkBound(v, m), [], [])
+        return -v
+    if op == "not":
+        return not truthy(St, v)
+    rtError("unknown unary operator " + op)
+
+# Evaluate a slice index component (may be None).
+var _sliceClamp = Function(node, St, env):
+    if node == None:
+        return None
+    return evalExpr(St, env, node)
+
+var evalExpr = Function(St, env, node):
+    var k = node["k"]
+    if k == "int" or k == "float" or k == "str" or k == "bool":
+        return node["v"]
+    if k == "none":
+        return None
+    if k == "name":
+        return envLookup(env, node["v"])
+    if k == "list":
+        var out = []
+        for it in node["items"]:
+            out.append(evalExpr(St, env, it))
+        return out
+    if k == "tuple":
+        var t = []
+        for it in node["items"]:
+            t.append(evalExpr(St, env, it))
+        return t
+    if k == "set":
+        var s = Set()
+        for it in node["items"]:
+            s.add(evalExpr(St, env, it))
+        return s
+    if k == "dict":
+        var d = {}
+        for pair in node["pairs"]:
+            d[evalExpr(St, env, pair[0])] = evalExpr(St, env, pair[1])
+        return d
+    if k == "unary":
+        return evalUnary(St, node["op"], evalExpr(St, env, node["e"]))
+    if k == "binary":
+        return evalBinary(St, node["op"], evalExpr(St, env, node["l"]), evalExpr(St, env, node["r"]))
+    if k == "compare":
+        return evalCompare(St, node["op"], evalExpr(St, env, node["l"]), evalExpr(St, env, node["r"]))
+    if k == "logical":
+        var lv = evalExpr(St, env, node["l"])
+        if node["op"] == "and":
+            if not truthy(St, lv):
+                return lv
+            return evalExpr(St, env, node["r"])
+        if truthy(St, lv):
+            return lv
+        return evalExpr(St, env, node["r"])
+    if k == "func":
+        return mkFunc("<anonymous>", node["params"], node["body"], env, node["ret"])
+    if k == "call":
+        return evalCall(St, env, node)
+    if k == "index":
+        var obj = evalExpr(St, env, node["obj"])
+        var keys = []
+        for kn in node["keys"]:
+            keys.append(evalExpr(St, env, kn))
+        return doIndex(St, obj, keys)
+    if k == "slice":
+        var so = evalExpr(St, env, node["obj"])
+        return doSlice(so, _sliceClamp(node["lo"], St, env), _sliceClamp(node["hi"], St, env), _sliceClamp(node["step"], St, env))
+    if k == "member":
+        return evalMember(St, env, node)
+    if k == "fstr":
+        return evalFstr(St, env, node)
+    rtError("cannot evaluate node kind '" + k + "'")
+
+var doIndex = Function(St, obj, keys):
+    if boxKind(obj) == "instance":
+        var m = classLookup(obj["cls"], "_getitem_")
+        if m != None:
+            return callValue(St, mkBound(obj, m), keys, [])
+        rtError("'" + obj["cls"]["name"] + "' object is not subscriptable")
+    return obj[keys[0]]
+
+# Slicing with optional components, delegating to host slice semantics by reconstructing the call.
+var doSlice = Function(obj, lo, hi, step):
+    var n = len(obj)
+    var st = 1
+    if step != None:
+        st = step
+    if st == 0:
+        rtError("slice step cannot be zero")
+    # Normalise to concrete indices then build the result, mirroring host slice behaviour.
+    var lo2 = lo
+    var hi2 = hi
+    if st > 0:
+        if lo2 == None:
+            lo2 = 0
+        if hi2 == None:
+            hi2 = n
+    else:
+        if lo2 == None:
+            lo2 = n - 1
+        if hi2 == None:
+            hi2 = -n - 1
+    return _sliceBuild(obj, lo2, hi2, st, n)
+
+var _norm = Function(i, n):
+    if i < 0:
+        i = i + n
+    if i < 0:
+        return 0
+    if i > n:
+        return n
+    return i
+
+var _sliceBuild = Function(obj, lo, hi, st, n):
+    var isStr = isinstance(obj, "String")
+    var parts = []
+    if st > 0:
+        var i = _norm(lo, n)
+        var hiN = _norm(hi, n)
+        while i < hiN:
+            parts.append(obj[i])
+            i = i + st
+    else:
+        # negative step: clamp manually
+        var i2 = lo
+        if i2 < 0:
+            i2 = i2 + n
+        if i2 > n - 1:
+            i2 = n - 1
+        var hj = hi
+        if hj < -n:
+            hj = -1
+        elif hj < 0:
+            hj = hj + n
+        while i2 > hj and i2 >= 0:
+            parts.append(obj[i2])
+            i2 = i2 + st
+    if isStr:
+        return "".join(parts)
+    return parts
+
+# A name is private if it has a single leading underscore and no trailing underscore (so dunders
+# like _init_ are public).
+var _isPrivate = Function(name):
+    if len(name) < 1:
+        return False
+    if name[0] != "_":
+        return False
+    return name[len(name) - 1] != "_"
+
+var evalMember = Function(St, env, node):
+    var obj = evalExpr(St, env, node["obj"])
+    var name = node["name"]
+    var k = boxKind(obj)
+    if k == "module":
+        if name in obj["members"]:
+            return obj["members"][name]
+        rtError("module '" + obj["name"] + "' has no member '" + name + "'")
+    if k == "instance":
+        if name == "_super_":
+            return _makeSuper(St, env, obj)
+        # private members (single leading underscore, no trailing) are reachable only from inside a
+        # method body — detected by the presence of __defcls__ in the active scope chain.
+        if _isPrivate(name) and not envHas(env, "__defcls__"):
+            rtError("private member '" + name + "' of '" + obj["cls"]["name"] + "' is not accessible here")
+        if name in obj["attrs"]:
+            return obj["attrs"][name]
+        var pair = classLookupC(obj["cls"], name)
+        if pair != None:
+            if boxKind(pair[0]) == "function":
+                return mkBoundD(obj, pair[0], pair[1])
+            return pair[0]
+        rtError("'" + obj["cls"]["name"] + "' object has no attribute '" + name + "'")
+    if k == "super":
+        var sp = classLookupC(obj["cls"], name)
+        if sp != None:
+            return mkBoundD(obj["inst"], sp[0], sp[1])
+        rtError("super object has no method '" + name + "'")
+    if k == "class":
+        if name in obj["methods"]:
+            return obj["methods"][name]
+        rtError("class '" + obj["name"] + "' has no member '" + name + "'")
+    # a host value (List/String/Dict/Set/...) — member access yields a bound native method
+    return {"sk": "boundnative", "recv": obj, "name": name}
+
+# Build the parent-view returned by self._super_(): method lookup starts at the base of the class
+# whose method is currently running (recorded as __defcls__ in the active method's scope).
+var _makeSuper = Function(St, env, obj):
+    var defcls = envLookup(env, "__defcls__")
+    var base = defcls["base"]
+    if base == None:
+        rtError("_super_(): class '" + defcls["name"] + "' has no base class")
+    return mkThunk({"sk": "super", "inst": obj, "cls": base})
+
+var evalFstr = Function(St, env, node):
+    var out = ""
+    for part in node["parts"]:
+        if part["t"] == "lit":
+            out = out + part["v"]
+        else:
+            var v = evalExpr(St, env, part["e"])
+            if part["spec"] == "":
+                out = out + stringify(St, v)
+            else:
+                out = out + format(v, part["spec"])
+    return out
+
+# --- calls ----------------------------------------------------------------------------------------
+var evalCall = Function(St, env, node):
+    var fn = evalExpr(St, env, node["fn"])
+    var args = []
+    for a in node["args"]:
+        args.append(evalExpr(St, env, a))
+    var kwargs = []
+    for kw in node["kwargs"]:
+        kwargs.append([kw[0], evalExpr(St, env, kw[1])])
+    return callValue(St, fn, args, kwargs)
+
+var callValue = Function(St, fn, args, kwargs):
+    var k = boxKind(fn)
+    if k == "native":
+        return fn["fn"](St, args, kwargs)
+    if k == "function":
+        return callFunction(St, fn, args, kwargs, None)
+    if k == "bound":
+        var a2 = [fn["self"]]
+        for x in args:
+            a2.append(x)
+        return callFunction(St, fn["func"], a2, kwargs, fn["defcls"])
+    if k == "boundnative":
+        return callMethod(St, fn["recv"], fn["name"], args, kwargs)
+    if k == "class":
+        return instantiate(St, fn, args, kwargs)
+    if k == "instance":
+        var pair = classLookupC(fn["cls"], "_call_")
+        if pair != None:
+            return callFunction(St, pair[0], _prepend(fn, args), kwargs, pair[1])
+        rtError("'" + fn["cls"]["name"] + "' object is not callable")
+    rtError("'" + typeName(fn) + "' object is not callable")
+
+var _prepend = Function(x, xs):
+    var out = [x]
+    for e in xs:
+        out.append(e)
+    return out
+
+var callFunction = Function(St, fn, args, kwargs, defcls):
+    var callEnv = newEnv(fn["env"])
+    if defcls != None:
+        envDefine(callEnv, "__defcls__", defcls)
+    bindArgs(St, fn, args, kwargs, callEnv)
+    var sig = execBlock(St, callEnv, fn["body"])
+    var result = None
+    if sig["flow"] == CTL_RETURN:
+        result = sig["value"]
+    if fn["ret"] != None and not _typeMatches(St, result, fn["ret"]):
+        rtError(fn["name"] + "() return value must be " + fn["ret"] + ", got " + typeName(result))
+    return result
+
+# An argument/return value satisfies an annotation if it is exactly that type, or (for instances)
+# an instance of that class or a subclass.
+var _typeMatches = Function(St, v, annName):
+    if annName == "Any":
+        return True
+    if boxKind(v) == "instance":
+        return instanceOf(v, annName)
+    return type(v) == annName
+
+var bindArgs = Function(St, fn, args, kwargs, callEnv):
+    var params = fn["params"]
+    var np = len(params)
+    if len(args) > np:
+        rtError(fn["name"] + "() takes " + String(np) + " positional arguments but " + String(len(args)) + " were given")
+    # map keyword args by name
+    var kwmap = {}
+    for kw in kwargs:
+        kwmap[kw[0]] = kw[1]
+    for i in range(np):
+        var p = params[i]
+        var nm = p["name"]
+        var v = None
+        if i < len(args):
+            v = args[i]
+        elif nm in kwmap:
+            v = kwmap[nm]
+            kwmap.pop(nm)
+        elif p["has"]:
+            v = evalExpr(St, fn["env"], p["default"])
+        else:
+            rtError(fn["name"] + "() missing required argument '" + nm + "'")
+        if p["ann"] != None and not _typeMatches(St, v, p["ann"]):
+            rtError(fn["name"] + "() argument '" + nm + "' must be " + p["ann"] + ", got " + typeName(v))
+        envDefine(callEnv, nm, v)
+    if len(kwmap) > 0:
+        var extra = ""
+        for key in kwmap.keys():
+            extra = key
+        rtError(fn["name"] + "() got an unexpected keyword argument '" + extra + "'")
+
+var instantiate = Function(St, cls, args, kwargs):
+    var inst = mkInstance(cls)
+    inst["id"] = St["nextid"]
+    St["nextid"] = St["nextid"] + 1
+    var init = classLookupC(cls, "_init_")
+    if init != None:
+        callFunction(St, init[0], _prepend(inst, args), kwargs, init[1])
+    return inst
+
+# --- statement execution --------------------------------------------------------------------------
+# A statement returns a "flow" Dict: {"flow": "normal"} or {"flow": "return"/"break"/"continue", ...}.
+var execBlock = Function(St, env, stmts):
+    for s in stmts:
+        var sig = evalStmt(St, env, s)
+        if sig["flow"] != "normal":
+            return sig
+    return NORMAL
+
+# Assign `value` to a target node, declaring (var) or rebinding (=) names along the way.
+var assignTo = Function(St, env, target, value, isVar):
+    var k = target["k"]
+    if k == "name":
+        if isVar:
+            envDefine(env, target["v"], value)
+        else:
+            envAssign(env, target["v"], value)
+        return None
+    if k == "index":
+        var obj = evalExpr(St, env, target["obj"])
+        var keys = []
+        for kn in target["keys"]:
+            keys.append(evalExpr(St, env, kn))
+        doSetIndex(St, obj, keys, value)
+        return None
+    if k == "member":
+        var o = evalExpr(St, env, target["obj"])
+        setMember(St, o, target["name"], value)
+        return None
+    if k == "tuple":
+        unpackInto(St, env, target["items"], value, isVar)
+        return None
+    rtError("cannot assign to this target")
+
+var unpackInto = Function(St, env, targets, value, isVar):
+    # value must be iterable; supports a single starred target absorbing the surplus
+    var items = materialize(St, value)
+    var starAt = -1
+    var i = 0
+    for t in targets:
+        if t["k"] == "name" and len(t["v"]) > 0 and t["v"][0] == "*":
+            starAt = i
+        i = i + 1
+    if starAt < 0:
+        if len(items) != len(targets):
+            rtError("unpack count mismatch: expected " + String(len(targets)) + ", got " + String(len(items)))
+        var j = 0
+        for t2 in targets:
+            assignTo(St, env, t2, items[j], isVar)
+            j = j + 1
+        return None
+    var before = starAt
+    var after = len(targets) - starAt - 1
+    if len(items) < before + after:
+        rtError("not enough values to unpack")
+    var idx = 0
+    while idx < before:
+        assignTo(St, env, targets[idx], items[idx], isVar)
+        idx = idx + 1
+    var midEnd = len(items) - after
+    var mid = items[before:midEnd]
+    var starName = targets[starAt]["v"][1:]
+    if isVar:
+        envDefine(env, starName, mid)
+    else:
+        envAssign(env, starName, mid)
+    var t3 = 0
+    while t3 < after:
+        assignTo(St, env, targets[starAt + 1 + t3], items[midEnd + t3], isVar)
+        t3 = t3 + 1
+    return None
+
+var doSetIndex = Function(St, obj, keys, value):
+    if boxKind(obj) == "instance":
+        var m = classLookup(obj["cls"], "_setitem_")
+        if m != None:
+            var allk = []
+            for kk in keys:
+                allk.append(kk)
+            allk.append(value)
+            callValue(St, mkBound(obj, m), allk, [])
+            return None
+        rtError("'" + obj["cls"]["name"] + "' object does not support item assignment")
+    obj[keys[0]] = value
+    return None
+
+var setMember = Function(St, obj, name, value):
+    var k = boxKind(obj)
+    if k == "instance":
+        obj["attrs"][name] = value
+        return None
+    if k == "module":
+        obj["members"][name] = value
+        return None
+    rtError("cannot set attribute '" + name + "' on " + typeName(obj))
+
+# Turn any iterable into a host List (for unpacking / iteration over instances).
+var materialize = Function(St, value):
+    if boxKind(value) == "instance":
+        var m = classLookup(value["cls"], "_iter_")
+        if m != None:
+            return materialize(St, callValue(St, mkBound(value, m), [], []))
+        rtError("'" + value["cls"]["name"] + "' object is not iterable")
+    var out = []
+    for x in value:
+        out.append(x)
+    return out
+
+var evalStmt = Function(St, env, node):
+    var k = node["k"]
+    if k == "exprstmt":
+        evalExpr(St, env, node["e"])
+        return NORMAL
+    if k == "var":
+        var v = evalExpr(St, env, node["e"])
+        assignTo(St, env, node["target"], v, True)
+        return NORMAL
+    if k == "assign":
+        var v2 = evalExpr(St, env, node["e"])
+        assignTo(St, env, node["target"], v2, False)
+        return NORMAL
+    if k == "if":
+        for br in node["branches"]:
+            if truthy(St, evalExpr(St, env, br[0])):
+                return execBlock(St, env, br[1])
+        if node["else"] != None:
+            return execBlock(St, env, node["else"])
+        return NORMAL
+    if k == "while":
+        while truthy(St, evalExpr(St, env, node["cond"])):
+            var sig = execBlock(St, env, node["body"])
+            if sig["flow"] == "break":
+                break
+            if sig["flow"] == "return":
+                return sig
+        return NORMAL
+    if k == "for":
+        var iterable = evalExpr(St, env, node["iter"])
+        var items = materialize(St, iterable)
+        for item in items:
+            assignTo(St, env, node["target"], item, True)
+            var s2 = execBlock(St, env, node["body"])
+            if s2["flow"] == "break":
+                break
+            if s2["flow"] == "return":
+                return s2
+        return NORMAL
+    if k == "return":
+        var rv = None
+        if node["e"] != None:
+            rv = evalExpr(St, env, node["e"])
+        return {"flow": "return", "value": rv}
+    if k == "break":
+        return {"flow": "break"}
+    if k == "continue":
+        return {"flow": "continue"}
+    if k == "pass":
+        return NORMAL
+    if k == "assert":
+        if not truthy(St, evalExpr(St, env, node["cond"])):
+            var msg = "assertion failed"
+            if node["msg"] != None:
+                msg = stringify(St, evalExpr(St, env, node["msg"]))
+            rtError(msg)
+        return NORMAL
+    if k == "throw":
+        throw {"exc": evalExpr(St, env, node["e"])}
+    if k == "try":
+        return execTry(St, env, node)
+    if k == "class":
+        return execClass(St, env, node)
+    if k == "with":
+        return execWith(St, env, node)
+    if k == "switch":
+        var subj = evalExpr(St, env, node["subject"])
+        for case in node["cases"]:
+            for vn in case["values"]:
+                var cv = evalExpr(St, env, vn)
+                if typeName(subj) == typeName(cv) and subj == cv:
+                    return execBlock(St, env, case["body"])
+        if node["default"] != None:
+            return execBlock(St, env, node["default"])
+        return NORMAL
+    if k == "del":
+        return NORMAL
+    rtError("cannot execute statement kind '" + k + "'")
+
+var instanceOf = Function(inst, typeName):
+    if boxKind(inst) != "instance":
+        return False
+    var c = inst["cls"]
+    while c != None:
+        if c["name"] == typeName:
+            return True
+        c = c["base"]
+    return False
+
+var execTry = Function(St, env, node):
+    var result = NORMAL
+    var caught = None
+    var rethrow = None
+    try:
+        result = execBlock(St, env, node["body"])
+    catch as e:
+        caught = e
+    if caught != None:
+        # determine the thrown value and whether it is a typed (interpreted) exception
+        var thrownVal = None
+        var isTyped = False
+        if isinstance(caught, "Dict") and ("exc" in caught):
+            thrownVal = caught["exc"]
+            isTyped = boxKind(thrownVal) == "instance"
+        elif isinstance(caught, "Dict") and ("err" in caught):
+            thrownVal = caught["err"]
+        else:
+            thrownVal = caught
+        var matched = False
+        for clause in node["catches"]:
+            var ok = False
+            if clause["type"] == None:
+                ok = True                                  # bare catch: matches anything
+            elif isTyped and instanceOf(thrownVal, clause["type"]):
+                ok = True                                  # typed catch matches the class chain
+            if ok:
+                if clause["name"] != None:
+                    envDefine(env, clause["name"], thrownVal)
+                result = execBlock(St, env, clause["body"])
+                matched = True
+                break
+        if not matched:
+            rethrow = caught
+    if node["finally"] != None:
+        var fsig = execBlock(St, env, node["finally"])
+        if fsig["flow"] != "normal":
+            return fsig
+    if rethrow != None:
+        throw rethrow
+    return result
+
+var execClass = Function(St, env, node):
+    var base = None
+    if node["base"] != None:
+        base = envLookup(env, node["base"])
+    var methods = {}
+    var classEnv = newEnv(env)
+    for stmt in node["body"]:
+        if stmt["k"] == "var":
+            methods[stmt["target"]["v"]] = evalExpr(St, classEnv, stmt["e"])
+        elif stmt["k"] == "assign":
+            methods[stmt["target"]["v"]] = evalExpr(St, classEnv, stmt["e"])
+    var cls = mkClass(node["name"], base, methods)
+    envDefine(env, node["name"], cls)
+    return NORMAL
+
+var execWith = Function(St, env, node):
+    var ctx = evalExpr(St, env, node["ctx"])
+    var entered = ctx
+    if boxKind(ctx) == "instance":
+        var em = classLookup(ctx["cls"], "_enter_")
+        if em != None:
+            entered = callValue(St, mkBound(ctx, em), [], [])
+    else:
+        entered = withEnterHost(St, ctx)
+    if node["name"] != None:
+        envDefine(env, node["name"], entered)
+    var result = NORMAL
+    var err = None
+    try:
+        result = execBlock(St, env, node["body"])
+    catch as e:
+        err = e
+    if boxKind(ctx) == "instance":
+        var xm = classLookup(ctx["cls"], "_exit_")
+        if xm != None:
+            callValue(St, mkBound(ctx, xm), [], [])
+    else:
+        withExitHost(St, ctx)
+    if err != None:
+        throw err
+    return result
+
+# --- host-value method dispatch -------------------------------------------------------------------
+var callMethod = Function(St, recv, name, args, kwargs):
+    var t = boxKind(recv)
+    if t == "hostfile" or t == "hostobj":
+        return hostObjMethod(St, recv, name, args, kwargs)
+    var tn = type(recv)
+    if tn == "List":
+        return listMethod(St, recv, name, args, kwargs)
+    if tn == "String":
+        return strMethod(St, recv, name, args)
+    if tn == "Dict":
+        return dictMethod(St, recv, name, args)
+    if tn == "Set":
+        return setMethod(St, recv, name, args)
+    rtError("'" + tn + "' object has no method '" + name + "'")
+
+var listMethod = Function(St, recv, name, args, kwargs):
+    if name == "append":
+        recv.append(args[0])
+        return None
+    if name == "pop":
+        if len(args) == 0:
+            return recv.pop()
+        return recv.pop(args[0])
+    if name == "insert":
+        recv.insert(args[0], args[1])
+        return None
+    if name == "remove":
+        recv.remove(args[0])
+        return None
+    if name == "index":
+        return recv.index(args[0])
+    if name == "count":
+        return recv.count(args[0])
+    if name == "reverse":
+        recv.reverse()
+        return None
+    if name == "extend":
+        recv.extend(args[0])
+        return None
+    if name == "copy":
+        return recv.copy()
+    if name == "clear":
+        recv.clear()
+        return None
+    if name == "sort":
+        var keyFn = None
+        var rev = False
+        if len(args) >= 1 and args[0] != None:
+            keyFn = args[0]
+        if len(args) >= 2:
+            rev = args[1]
+        for kw in kwargs:
+            if kw[0] == "key":
+                keyFn = kw[1]
+            if kw[0] == "reverse":
+                rev = kw[1]
+        var sorted2 = mergeSort(St, recv, keyFn, rev)
+        recv.clear()
+        recv.extend(sorted2)
+        return None
+    rtError("'List' object has no method '" + name + "'")
+
+var strMethod = Function(St, recv, name, args):
+    if name == "upper":
+        return recv.upper()
+    if name == "lower":
+        return recv.lower()
+    if name == "strip":
+        if len(args) == 1:
+            return recv.strip(args[0])
+        return recv.strip()
+    if name == "lstrip":
+        return recv.lstrip()
+    if name == "rstrip":
+        return recv.rstrip()
+    if name == "split":
+        if len(args) == 0:
+            return recv.split()
+        if len(args) == 1:
+            return recv.split(args[0])
+        return recv.split(args[0], args[1])
+    if name == "join":
+        return recv.join(args[0])
+    if name == "replace":
+        if len(args) == 3:
+            return recv.replace(args[0], args[1], args[2])
+        return recv.replace(args[0], args[1])
+    if name == "startswith":
+        return recv.startswith(args[0])
+    if name == "endswith":
+        return recv.endswith(args[0])
+    if name == "find":
+        if len(args) == 2:
+            return recv.find(args[0], args[1])
+        return recv.find(args[0])
+    if name == "rfind":
+        return recv.rfind(args[0])
+    if name == "index":
+        return recv.index(args[0])
+    if name == "count":
+        return recv.count(args[0])
+    if name == "isdigit":
+        return recv.isdigit()
+    if name == "isalpha":
+        return recv.isalpha()
+    if name == "isalnum":
+        return recv.isalnum()
+    if name == "isspace":
+        return recv.isspace()
+    if name == "islower":
+        return recv.islower()
+    if name == "isupper":
+        return recv.isupper()
+    if name == "ljust":
+        if len(args) == 2:
+            return recv.ljust(args[0], args[1])
+        return recv.ljust(args[0])
+    if name == "rjust":
+        if len(args) == 2:
+            return recv.rjust(args[0], args[1])
+        return recv.rjust(args[0])
+    if name == "center":
+        if len(args) == 2:
+            return recv.center(args[0], args[1])
+        return recv.center(args[0])
+    if name == "zfill":
+        return recv.zfill(args[0])
+    if name == "removeprefix":
+        return recv.removeprefix(args[0])
+    if name == "removesuffix":
+        return recv.removesuffix(args[0])
+    if name == "startswith":
+        return recv.startswith(args[0])
+    if name == "format":
+        return strFormat(St, recv, args)
+    if name == "partition":
+        return recv.partition(args[0])
+    if name == "rpartition":
+        return recv.rpartition(args[0])
+    rtError("'String' object has no method '" + name + "'")
+
+var dictMethod = Function(St, recv, name, args):
+    if name == "get":
+        if len(args) == 2:
+            return recv.get(args[0], args[1])
+        return recv.get(args[0])
+    if name == "keys":
+        return recv.keys()
+    if name == "values":
+        return recv.values()
+    if name == "items":
+        return recv.items()
+    if name == "pop":
+        if len(args) == 2:
+            return recv.pop(args[0], args[1])
+        return recv.pop(args[0])
+    if name == "update":
+        recv.update(args[0])
+        return None
+    if name == "setdefault":
+        if len(args) == 2:
+            return recv.setdefault(args[0], args[1])
+        return recv.setdefault(args[0])
+    if name == "popitem":
+        return recv.popitem()
+    if name == "clear":
+        recv.clear()
+        return None
+    if name == "copy":
+        return recv.copy()
+    rtError("'Dict' object has no method '" + name + "'")
+
+var setMethod = Function(St, recv, name, args):
+    if name == "add":
+        recv.add(args[0])
+        return None
+    if name == "discard":
+        recv.discard(args[0])
+        return None
+    if name == "remove":
+        recv.remove(args[0])
+        return None
+    if name == "contains":
+        return recv.contains(args[0])
+    if name == "union":
+        return recv.union(args[0])
+    if name == "intersection":
+        return recv.intersection(args[0])
+    if name == "difference":
+        return recv.difference(args[0])
+    if name == "symmetricdifference":
+        return recv.symmetricdifference(args[0])
+    if name == "issubset":
+        return recv.issubset(args[0])
+    if name == "issuperset":
+        return recv.issuperset(args[0])
+    if name == "isdisjoint":
+        return recv.isdisjoint(args[0])
+    if name == "pop":
+        return recv.pop()
+    if name == "clear":
+        recv.clear()
+        return None
+    if name == "copy":
+        return recv.copy()
+    rtError("'Set' object has no method '" + name + "'")
+
+# str.format with {} / {n} positional fields and optional :spec.
+var strFormat = Function(St, fmt, args):
+    var out = ""
+    var i = 0
+    var n = len(fmt)
+    var auto = 0
+    while i < n:
+        var c = fmt[i]
+        if c == "{":
+            if i + 1 < n and fmt[i + 1] == "{":
+                out = out + "{"
+                i = i + 2
+            else:
+                i = i + 1
+                var field = ""
+                while i < n and fmt[i] != "}":
+                    field = field + fmt[i]
+                    i = i + 1
+                i = i + 1
+                var spec = ""
+                var colon = field.find(":")
+                if colon >= 0:
+                    spec = field[colon + 1:]
+                    field = field[0:colon]
+                var idx = auto
+                if len(field) > 0:
+                    idx = Integer(field)
+                else:
+                    auto = auto + 1
+                var v = args[idx]
+                if spec == "":
+                    out = out + stringify(St, v)
+                else:
+                    out = out + format(v, spec)
+        elif c == "}":
+            if i + 1 < n and fmt[i + 1] == "}":
+                out = out + "}"
+                i = i + 2
+            else:
+                i = i + 1
+        else:
+            out = out + c
+            i = i + 1
+    return out
+
+# Stable merge sort using the interpreted `<` (so _lt_ drives ordering); key precomputed once.
+var mergeSort = Function(St, items, keyFn, rev):
+    var n = len(items)
+    var keyed = []
+    for x in items:
+        if keyFn != None:
+            keyed.append([callValue(St, keyFn, [x], []), x])
+        else:
+            keyed.append([x, x])
+    var arr = _msort(St, keyed, rev)
+    var out = []
+    for pair in arr:
+        out.append(pair[1])
+    return out
+
+# Stable merge sort. For reverse, the comparison is flipped (not the output) so equal elements keep
+# their original relative order, matching the host's stable sort.
+var _msort = Function(St, arr, rev):
+    var n = len(arr)
+    if n <= 1:
+        return arr
+    var mid = n // 2
+    var left = _msort(St, arr[0:mid], rev)
+    var right = _msort(St, arr[mid:n], rev)
+    var out = []
+    var i = 0
+    var j = 0
+    while i < len(left) and j < len(right):
+        var pickRight = False
+        if rev:
+            pickRight = truthy(St, evalBinary(St, ">", right[j][0], left[i][0]))
+        else:
+            pickRight = truthy(St, evalBinary(St, "<", right[j][0], left[i][0]))
+        if pickRight:
+            out.append(right[j])
+            j = j + 1
+        else:
+            out.append(left[i])
+            i = i + 1
+    while i < len(left):
+        out.append(left[i])
+        i = i + 1
+    while j < len(right):
+        out.append(right[j])
+        j = j + 1
+    return out
+
+# --- builtins -------------------------------------------------------------------------------------
+var _iterCount = Function(St, x):
+    return len(materialize(St, x))
+
+var builtinLen = Function(St, args, kwargs):
+    var x = args[0]
+    if boxKind(x) == "instance":
+        var m = classLookup(x["cls"], "_len_")
+        if m != None:
+            return callValue(St, mkBound(x, m), [], [])
+        rtError("object of type '" + x["cls"]["name"] + "' has no len()")
+    return len(x)
+
+var builtinRange = Function(St, args, kwargs):
+    if len(args) == 1:
+        return range(args[0])
+    if len(args) == 2:
+        return range(args[0], args[1])
+    return range(args[0], args[1], args[2])
+
+var builtinSorted = Function(St, args, kwargs):
+    var items = materialize(St, args[0])
+    var keyFn = None
+    var rev = False
+    for kw in kwargs:
+        if kw[0] == "key":
+            keyFn = kw[1]
+        if kw[0] == "reverse":
+            rev = kw[1]
+    return mergeSort(St, items, keyFn, rev)
+
+var builtinReduceMinMax = Function(St, args, kwargs, wantMax):
+    var items = None
+    if len(args) == 1:
+        items = materialize(St, args[0])
+    else:
+        items = args
+    var keyFn = None
+    for kw in kwargs:
+        if kw[0] == "key":
+            keyFn = kw[1]
+    if len(items) == 0:
+        rtError("min/max of empty sequence")
+    var best = items[0]
+    var bestKey = best
+    if keyFn != None:
+        bestKey = callValue(St, keyFn, [best], [])
+    var i = 1
+    while i < len(items):
+        var cur = items[i]
+        var curKey = cur
+        if keyFn != None:
+            curKey = callValue(St, keyFn, [cur], [])
+        var take = False
+        if wantMax:
+            take = truthy(St, evalBinary(St, ">", curKey, bestKey))
+        else:
+            take = truthy(St, evalBinary(St, "<", curKey, bestKey))
+        if take:
+            best = cur
+            bestKey = curKey
+        i = i + 1
+    return best
+
+var builtinEnumerate = Function(St, args, kwargs):
+    var items = materialize(St, args[0])
+    var start = 0
+    if len(args) == 2:
+        start = args[1]
+    var out = []
+    var i = 0
+    for x in items:
+        out.append([start + i, x])
+        i = i + 1
+    return out
+
+var builtinZip = Function(St, args, kwargs):
+    var lists = []
+    var shortest = -1
+    for a in args:
+        var m = materialize(St, a)
+        lists.append(m)
+        if shortest < 0 or len(m) < shortest:
+            shortest = len(m)
+    if shortest < 0:
+        shortest = 0
+    var out = []
+    var i = 0
+    while i < shortest:
+        var row = []
+        for lst in lists:
+            row.append(lst[i])
+        out.append(row)
+        i = i + 1
+    return out
+
+var builtinMap = Function(St, args, kwargs):
+    var fn = args[0]
+    var out = []
+    for x in materialize(St, args[1]):
+        out.append(callValue(St, fn, [x], []))
+    return out
+
+var builtinFilter = Function(St, args, kwargs):
+    var fn = args[0]
+    var out = []
+    for x in materialize(St, args[1]):
+        if truthy(St, callValue(St, fn, [x], [])):
+            out.append(x)
+    return out
+
+var builtinReversed = Function(St, args, kwargs):
+    var items = materialize(St, args[0])
+    items.reverse()
+    return items
+
+var builtinAll = Function(St, args, kwargs):
+    for x in materialize(St, args[0]):
+        if not truthy(St, x):
+            return False
+    return True
+
+var builtinAny = Function(St, args, kwargs):
+    for x in materialize(St, args[0]):
+        if truthy(St, x):
+            return True
+    return False
+
+var builtinSum = Function(St, args, kwargs):
+    var acc = 0
+    if len(args) == 2:
+        acc = args[1]
+    for x in materialize(St, args[0]):
+        acc = acc + x
+    return acc
+
+var builtinIsinstance = Function(St, args, kwargs):
+    var x = args[0]
+    var t = args[1]
+    var name = t
+    if boxKind(t) == "class":
+        if boxKind(x) == "instance":
+            return instanceOf(x, t["name"])
+        return False
+    if boxKind(x) == "instance":
+        return instanceOf(x, name)
+    return type(x) == name
+
+var builtinType = Function(St, args, kwargs):
+    return typeName(args[0])
+
+# Conversion constructors: String() honours _str_; the rest delegate to the host.
+var builtinString = Function(St, args, kwargs):
+    if len(args) == 0:
+        return ""
+    return stringify(St, args[0])
+
+# Named builtins (Kirito forbids multi-line inline functions as call arguments, so anything that
+# needs more than a single expression lives here as its own function).
+var builtinMin = Function(St, a, k):
+    return builtinReduceMinMax(St, a, k, False)
+var builtinMax = Function(St, a, k):
+    return builtinReduceMinMax(St, a, k, True)
+var builtinAbs = Function(St, a, k):
+    return abs(a[0])
+var builtinRound = Function(St, a, k):
+    if len(a) == 2:
+        return round(a[0], a[1])
+    return round(a[0])
+var builtinDivmod = Function(St, a, k):
+    return divmod(a[0], a[1])
+var builtinPow = Function(St, a, k):
+    if len(a) == 3:
+        return pow(a[0], a[1], a[2])
+    return pow(a[0], a[1])
+var builtinBin = Function(St, a, k):
+    return bin(a[0])
+var builtinOct = Function(St, a, k):
+    return oct(a[0])
+var builtinHex = Function(St, a, k):
+    return hex(a[0])
+var builtinOrd = Function(St, a, k):
+    return ord(a[0])
+var builtinChr = Function(St, a, k):
+    return chr(a[0])
+var builtinFormat = Function(St, a, k):
+    if len(a) == 2:
+        return format(a[0], a[1])
+    return format(a[0])
+var builtinInteger = Function(St, a, k):
+    if len(a) == 0:
+        return 0
+    return Integer(a[0])
+var builtinFloat = Function(St, a, k):
+    if len(a) == 0:
+        return 0.0
+    return Float(a[0])
+var builtinBoolC = Function(St, a, k):
+    return truthy(St, a[0])
+var builtinListC = Function(St, a, k):
+    if len(a) == 0:
+        return []
+    return materialize(St, a[0])
+var builtinSetC = Function(St, a, k):
+    if len(a) == 0:
+        return Set()
+    return Set(materialize(St, a[0]))
+var builtinDictC = Function(St, a, k):
+    if len(a) == 0:
+        return {}
+    return Dict(a[0])
+var builtinImport = Function(St, a, k):
+    return importModule(St, a[0])
+var builtinInspect = Function(St, a, k):
+    var v = a[0]
+    var kind = boxKind(v)
+    if kind == "module":
+        var names = []
+        for nm in v["members"].keys():
+            names.append(nm)
+        return "module " + v["name"] + ": " + ", ".join(sorted(names))
+    if kind == "class":
+        var ms = []
+        for nm in v["methods"].keys():
+            ms.append(nm)
+        return "class " + v["name"] + ": " + ", ".join(sorted(ms))
+    if kind == "instance":
+        return "instance of " + v["cls"]["name"]
+    return typeName(v) + " value"
+var builtinBitand = Function(St, a, k):
+    return bitand(a[0], a[1])
+var builtinBitor = Function(St, a, k):
+    return bitor(a[0], a[1])
+var builtinBitxor = Function(St, a, k):
+    return bitxor(a[0], a[1])
+var builtinBitnot = Function(St, a, k):
+    return bitnot(a[0])
+var builtinShl = Function(St, a, k):
+    return shl(a[0], a[1])
+var builtinShr = Function(St, a, k):
+    return shr(a[0], a[1])
+
+var makeGlobal = Function(St):
+    var g = newEnv(None)
+    var def = Function(name, fn):
+        envDefine(g, name, mkNative(name, fn))
+    def("len", builtinLen)
+    def("range", builtinRange)
+    def("sorted", builtinSorted)
+    def("enumerate", builtinEnumerate)
+    def("zip", builtinZip)
+    def("map", builtinMap)
+    def("filter", builtinFilter)
+    def("reversed", builtinReversed)
+    def("all", builtinAll)
+    def("any", builtinAny)
+    def("sum", builtinSum)
+    def("isinstance", builtinIsinstance)
+    def("type", builtinType)
+    def("min", builtinMin)
+    def("max", builtinMax)
+    def("abs", builtinAbs)
+    def("round", builtinRound)
+    def("divmod", builtinDivmod)
+    def("pow", builtinPow)
+    def("bin", builtinBin)
+    def("oct", builtinOct)
+    def("hex", builtinHex)
+    def("ord", builtinOrd)
+    def("chr", builtinChr)
+    def("format", builtinFormat)
+    def("String", builtinString)
+    def("Integer", builtinInteger)
+    def("Float", builtinFloat)
+    def("Bool", builtinBoolC)
+    def("List", builtinListC)
+    def("Set", builtinSetC)
+    def("Dict", builtinDictC)
+    def("import", builtinImport)
+    def("inspect", builtinInspect)
+    def("bitand", builtinBitand)
+    def("bitor", builtinBitor)
+    def("bitxor", builtinBitxor)
+    def("bitnot", builtinBitnot)
+    def("shl", builtinShl)
+    def("shr", builtinShr)
+    return g
+
+# --- module bridge: stdlib modules forwarded to the host ------------------------------------------
+var _hostMath = import("math")
+
+var importModule = Function(St, name):
+    if name in St["modules"]:
+        return St["modules"][name]
+    var mod = None
+    if name == "io":
+        mod = bridgeIo(St)
+    elif name == "math":
+        mod = bridgeMath(St)
+    else:
+        rtError("no module named '" + name + "' (self-host bridge)")
+    St["modules"][name] = mod
+    return mod
+
+# Streams are tiny host-object boxes; writing routes to the right per-VM buffer (or an in-memory
+# BytesIO). io.stdout / io.stderr are rebindable module members, so I/O redirection is assignment.
+var mkStream = Function(kind):
+    return {"sk": "hostobj", "kind": kind}
+
+var mkBytesIO = Function():
+    return {"sk": "hostobj", "kind": "bytesio", "buf": []}
+
+var streamWrite = Function(St, stream, text):
+    var kind = stream["kind"]
+    if kind == "stdout":
+        St["out"].append(text)
+    elif kind == "stderr":
+        St["err"].append(text)
+    elif kind == "bytesio":
+        stream["buf"].append(text)
+    else:
+        rtError("cannot write to stream of kind '" + kind + "'")
+    return None
+
+var _renderArgs = Function(St2, args, kwargs):
+    var sep = " "
+    var end = "\n"
+    for kw in kwargs:
+        if kw[0] == "sep":
+            sep = kw[1]
+        if kw[0] == "end":
+            end = kw[1]
+    var parts = []
+    for a in args:
+        parts.append(stringify(St2, a))
+    return sep.join(parts) + end
+
+var ioPrint = Function(St2, args, kwargs):
+    streamWrite(St2, St2["modules"]["io"]["members"]["stdout"], _renderArgs(St2, args, kwargs))
+    return None
+
+var ioEprint = Function(St2, args, kwargs):
+    streamWrite(St2, St2["modules"]["io"]["members"]["stderr"], _renderArgs(St2, args, kwargs))
+    return None
+
+var ioWrite = Function(St2, args, kwargs):
+    streamWrite(St2, St2["modules"]["io"]["members"]["stdout"], stringify(St2, args[0]))
+    return None
+
+var ioInput = Function(St2, args, kwargs):
+    if len(args) >= 1:
+        streamWrite(St2, St2["modules"]["io"]["members"]["stdout"], stringify(St2, args[0]))
+    if St2["inpos"] >= len(St2["inlines"]):
+        return ""
+    var line = St2["inlines"][St2["inpos"]]
+    St2["inpos"] = St2["inpos"] + 1
+    return line
+
+var ioBytesIO = Function(St2, args, kwargs):
+    return mkBytesIO()
+
+var bridgeIo = Function(St):
+    var members = {}
+    members["stdout"] = mkStream("stdout")
+    members["__stdout__"] = members["stdout"]
+    members["stderr"] = mkStream("stderr")
+    members["__stderr__"] = members["stderr"]
+    members["print"] = mkNative("print", ioPrint)
+    members["eprint"] = mkNative("eprint", ioEprint)
+    members["write"] = mkNative("write", ioWrite)
+    members["input"] = mkNative("input", ioInput)
+    members["BytesIO"] = mkNative("BytesIO", ioBytesIO)
+    return mkModule("io", members)
+
+var _mathFn1 = Function(name, fn):
+    return mkNative(name, Function(St2, a, k): return fn(a[0]))
+
+var _mathLog = Function(St2, a, k):
+    if len(a) == 2:
+        return _hostMath.log(a[0], a[1])
+    return _hostMath.log(a[0])
+
+var bridgeMath = Function(St):
+    var m = {}
+    m["pi"] = _hostMath.pi
+    m["e"] = _hostMath.e
+    m["tau"] = _hostMath.tau
+    m["inf"] = _hostMath.inf
+    m["nan"] = _hostMath.nan
+    m["sqrt"] = _mathFn1("sqrt", Function(x): return _hostMath.sqrt(x))
+    m["sin"] = _mathFn1("sin", Function(x): return _hostMath.sin(x))
+    m["cos"] = _mathFn1("cos", Function(x): return _hostMath.cos(x))
+    m["tan"] = _mathFn1("tan", Function(x): return _hostMath.tan(x))
+    m["exp"] = _mathFn1("exp", Function(x): return _hostMath.exp(x))
+    m["log2"] = _mathFn1("log2", Function(x): return _hostMath.log2(x))
+    m["log10"] = _mathFn1("log10", Function(x): return _hostMath.log10(x))
+    m["floor"] = _mathFn1("floor", Function(x): return _hostMath.floor(x))
+    m["ceil"] = _mathFn1("ceil", Function(x): return _hostMath.ceil(x))
+    m["trunc"] = _mathFn1("trunc", Function(x): return _hostMath.trunc(x))
+    m["fabs"] = _mathFn1("fabs", Function(x): return _hostMath.fabs(x))
+    m["factorial"] = _mathFn1("factorial", Function(x): return _hostMath.factorial(x))
+    m["isnan"] = _mathFn1("isnan", Function(x): return _hostMath.isnan(x))
+    m["isinf"] = _mathFn1("isinf", Function(x): return _hostMath.isinf(x))
+    m["log"] = mkNative("log", _mathLog)
+    m["pow"] = mkNative("pow", Function(St2, a, k): return _hostMath.pow(a[0], a[1]))
+    m["hypot"] = mkNative("hypot", Function(St2, a, k): return _hostMath.hypot(a[0], a[1]))
+    m["gcd"] = mkNative("gcd", Function(St2, a, k): return _hostMath.gcd(a[0], a[1]))
+    m["lcm"] = mkNative("lcm", Function(St2, a, k): return _hostMath.lcm(a[0], a[1]))
+    m["prod"] = mkNative("prod", Function(St2, a, k): return _hostMath.prod(a[0]))
+    m["asin"] = _mathFn1("asin", Function(x): return _hostMath.asin(x))
+    m["acos"] = _mathFn1("acos", Function(x): return _hostMath.acos(x))
+    m["atan"] = _mathFn1("atan", Function(x): return _hostMath.atan(x))
+    m["sinh"] = _mathFn1("sinh", Function(x): return _hostMath.sinh(x))
+    m["cosh"] = _mathFn1("cosh", Function(x): return _hostMath.cosh(x))
+    m["tanh"] = _mathFn1("tanh", Function(x): return _hostMath.tanh(x))
+    m["cbrt"] = _mathFn1("cbrt", Function(x): return _hostMath.cbrt(x))
+    m["erf"] = _mathFn1("erf", Function(x): return _hostMath.erf(x))
+    m["gamma"] = _mathFn1("gamma", Function(x): return _hostMath.gamma(x))
+    m["expm1"] = _mathFn1("expm1", Function(x): return _hostMath.expm1(x))
+    m["log1p"] = _mathFn1("log1p", Function(x): return _hostMath.log1p(x))
+    m["degrees"] = _mathFn1("degrees", Function(x): return _hostMath.degrees(x))
+    m["radians"] = _mathFn1("radians", Function(x): return _hostMath.radians(x))
+    m["isfinite"] = _mathFn1("isfinite", Function(x): return _hostMath.isfinite(x))
+    m["atan2"] = mkNative("atan2", Function(St2, a, k): return _hostMath.atan2(a[0], a[1]))
+    m["copysign"] = mkNative("copysign", Function(St2, a, k): return _hostMath.copysign(a[0], a[1]))
+    m["fmod"] = mkNative("fmod", Function(St2, a, k): return _hostMath.fmod(a[0], a[1]))
+    m["comb"] = mkNative("comb", Function(St2, a, k): return _hostMath.comb(a[0], a[1]))
+    m["perm"] = mkNative("perm", Function(St2, a, k): return _hostMath.perm(a[0], a[1]))
+    return mkModule("math", m)
+
+# host context-manager protocol for `with` over bridged objects (no-ops for now)
+var withEnterHost = Function(St, ctx):
+    return ctx
+
+var withExitHost = Function(St, ctx):
+    return None
+
+var hostObjMethod = Function(St, recv, name, args, kwargs):
+    if recv["kind"] == "bytesio":
+        if name == "write":
+            recv["buf"].append(args[0])
+            return len(args[0])
+        if name == "getvalue":
+            return "".join(recv["buf"])
+        if name == "read":
+            return "".join(recv["buf"])
+        if name == "close":
+            return None
+    if recv["kind"] == "stdout" or recv["kind"] == "stderr":
+        if name == "write":
+            streamWrite(St, recv, args[0])
+            return None
+        if name == "flush":
+            return None
+    rtError("host object ('" + recv["kind"] + "') has no method '" + name + "'")
+
+# --- top-level entry points -----------------------------------------------------------------------
+var run = Function(src):
+    return runWithInput(src, "")
+
+var runWithInput = Function(src, inputText):
+    var inlines = []
+    if len(inputText) > 0:
+        inlines = inputText.split("\n")
+    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0}
+    var g = makeGlobal(St)
+    St["global"] = g
+    var toks = lexerMod.tokenize(src)
+    var ast = parserMod.parseProgram(toks)
+    var modEnv = newEnv(g)
+    var failed = None
+    try:
+        execBlock(St, modEnv, ast)
+    catch as e:
+        if isinstance(e, "Dict") and ("exc" in e):
+            failed = "uncaught exception: " + stringify(St, e["exc"])
+        elif isinstance(e, "Dict") and ("err" in e):
+            failed = e["err"]
+        else:
+            failed = String(e)
+    if failed != None:
+        throw {"selfhost_error": failed, "out": "".join(St["out"])}
+    return "".join(St["out"])

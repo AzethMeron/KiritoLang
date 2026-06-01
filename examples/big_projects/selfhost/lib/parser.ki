@@ -65,7 +65,13 @@ var parseBlock = Function(P):
         if _ty(P) == "dedent":
             P["i"] = P["i"] + 1
         return body
-    return [parseStatement(P)]
+    # inline single-statement body (e.g. Function(x): return x*x). A top-level comma here belongs to
+    # the enclosing call/expression, not to a packing return — so suppress packing while parsing it.
+    var prev = P["inlineBody"]
+    P["inlineBody"] = True
+    var stmt = parseStatement(P)
+    P["inlineBody"] = prev
+    return [stmt]
 
 # --- expressions: precedence climbing -------------------------------------------------------------
 var parseExpr = Function(P):
@@ -171,15 +177,23 @@ var _parseCallArgs = Function(P):
     _expectOp(P, ")")
     return [args, kwargs]
 
-# index or slice inside [ ... ]
+# index ([k]), variadic index ([i, j]), or slice ([lo:hi:step]) inside [ ... ]
 var _parseSubscript = Function(P, obj):
-    # slice components: [lo : hi : step] with any part optional
     var lo = None
     var hi = None
     var step = None
     var isSlice = False
     if not _isOp(P, ":"):
         lo = parseExpr(P)
+        # variadic subscript:  obj[i, j, ...]  -> keys list (drives _getitem_/_setitem_)
+        if _isOp(P, ","):
+            var keys = [lo]
+            while _eatOp(P, ","):
+                if _isOp(P, "]"):
+                    break
+                keys.append(parseExpr(P))
+            _expectOp(P, "]")
+            return {"k": "index", "obj": obj, "keys": keys}
     if _isOp(P, ":"):
         isSlice = True
         P["i"] = P["i"] + 1
@@ -192,7 +206,7 @@ var _parseSubscript = Function(P, obj):
     _expectOp(P, "]")
     if isSlice:
         return {"k": "slice", "obj": obj, "lo": lo, "hi": hi, "step": step}
-    return {"k": "index", "obj": obj, "idx": lo}
+    return {"k": "index", "obj": obj, "keys": [lo]}
 
 var parsePostfix = Function(P):
     var e = parsePrimary(P)
@@ -225,28 +239,37 @@ var _parseFunc = Function(P):
             if _ty(P) != "name":
                 parseError(_peek(P), "expected a parameter name")
             var pname = _adv(P)["v"]
-            # optional ': Type' annotation — parsed and ignored (this subset does not enforce types)
+            # optional ': Type' annotation — captured as a type-name string and enforced at call time
+            var ann = None
             if _isOp(P, ":"):
                 P["i"] = P["i"] + 1
-                parsePostfix(P)
+                ann = _annName(parsePostfix(P))
             var default = None
             var hasDefault = False
             if _isOp(P, "="):
                 P["i"] = P["i"] + 1
                 default = parseExpr(P)
                 hasDefault = True
-            params.append({"name": pname, "default": default, "has": hasDefault})
+            params.append({"name": pname, "default": default, "has": hasDefault, "ann": ann})
             more = _eatOp(P, ",")
         _expectOp(P, ")")
     else:
         P["i"] = P["i"] + 1
     # optional return annotation
+    var ret = None
     if _isOp(P, "->"):
         P["i"] = P["i"] + 1
-        parsePostfix(P)
+        ret = _annName(parsePostfix(P))
     _expectOp(P, ":")
     var body = parseBlock(P)
-    return {"k": "func", "params": params, "body": body}
+    return {"k": "func", "params": params, "body": body, "ret": ret}
+
+# Reduce an annotation expression to a type-name string (only simple names are enforced; anything
+# more complex is treated as Any / unchecked).
+var _annName = Function(node):
+    if node["k"] == "name":
+        return node["v"]
+    return None
 
 var _parseListLiteral = Function(P):
     var items = []
@@ -356,16 +379,27 @@ var _buildFstr = Function(P, parts):
     return {"k": "fstr", "parts": out}
 
 # --- statements -----------------------------------------------------------------------------------
+# An expression, or a starred unpack target (*name) when one leads the item.
+var _parseMaybeStar = Function(P):
+    if _isOp(P, "*"):
+        P["i"] = P["i"] + 1
+        if _ty(P) != "name":
+            parseError(_peek(P), "expected a name after '*'")
+        return {"k": "name", "v": "*" + _adv(P)["v"]}
+    return parseExpr(P)
+
 # A comma-separated series of expressions: a single expr, or a tuple (used for packing/unpacking).
 var _parseExprList = Function(P):
-    var first = parseExpr(P)
+    var first = _parseMaybeStar(P)
+    if P["inlineBody"]:
+        return first
     if not _isOp(P, ","):
         return first
     var items = [first]
     while _eatOp(P, ","):
         if _ty(P) == "newline" or _isOp(P, "=") or _ty(P) == "eof":
             break
-        items.append(parseExpr(P))
+        items.append(_parseMaybeStar(P))
     return {"k": "tuple", "items": items}
 
 var _parseVar = Function(P):
@@ -489,6 +523,38 @@ var _parseWith = Function(P):
     _expectOp(P, ":")
     return {"k": "with", "ctx": ctx, "name": name, "body": parseBlock(P)}
 
+var _parseSwitch = Function(P):
+    P["i"] = P["i"] + 1
+    var subject = parseExpr(P)
+    _expectOp(P, ":")
+    if _ty(P) != "newline":
+        parseError(_peek(P), "expected a newline after switch")
+    P["i"] = P["i"] + 1
+    if _ty(P) != "indent":
+        parseError(_peek(P), "expected an indented switch body")
+    P["i"] = P["i"] + 1
+    var cases = []
+    var dflt = None
+    while _ty(P) != "dedent" and _ty(P) != "eof":
+        var t = _peek(P)
+        if t["t"] == "name" and t["v"] == "case":
+            P["i"] = P["i"] + 1
+            var values = [parseExpr(P)]
+            while _eatOp(P, ","):
+                values.append(parseExpr(P))
+            _expectOp(P, ":")
+            cases.append({"values": values, "body": parseBlock(P)})
+        elif t["t"] == "name" and t["v"] == "default":
+            P["i"] = P["i"] + 1
+            _expectOp(P, ":")
+            dflt = parseBlock(P)
+        else:
+            parseError(t, "expected 'case' or 'default' in switch body")
+        _skipNewlines(P)
+    if _ty(P) == "dedent":
+        P["i"] = P["i"] + 1
+    return {"k": "switch", "subject": subject, "cases": cases, "default": dflt}
+
 var parseStatement = Function(P):
     var t = _peek(P)
     if t["t"] == "kw":
@@ -524,6 +590,13 @@ var parseStatement = Function(P):
         if t["v"] == "del":
             P["i"] = P["i"] + 1
             return {"k": "del", "e": parsePostfix(P)}
+    # `discard EXPR` — evaluate and intentionally drop the value (a soft keyword)
+    if t["t"] == "name" and t["v"] == "discard":
+        P["i"] = P["i"] + 1
+        return {"k": "exprstmt", "e": _parseExprList(P)}
+    # `switch SUBJECT:` with `case`/`default` arms (all soft keywords)
+    if t["t"] == "name" and t["v"] == "switch":
+        return _parseSwitch(P)
     # expression statement, or an assignment
     var lhs = _parseExprList(P)
     if _isOp(P, "="):
@@ -534,7 +607,7 @@ var parseStatement = Function(P):
 
 # --- top-level entry points -----------------------------------------------------------------------
 var parseProgram = Function(toks):
-    var P = {"toks": toks, "i": 0}
+    var P = {"toks": toks, "i": 0, "inlineBody": False}
     var stmts = []
     _skipNewlines(P)
     while _ty(P) != "eof":
@@ -546,6 +619,6 @@ var parseProgram = Function(toks):
 var parseExprString = Function(s):
     var lex = import("lexer")
     var toks = lex.tokenize(s)
-    var P = {"toks": toks, "i": 0}
+    var P = {"toks": toks, "i": 0, "inlineBody": False}
     _skipNewlines(P)
     return parseExpr(P)

@@ -83,7 +83,9 @@ var _readNumber = Function(src, n, i, line, col):
     var text = src[start:i]
     if isFloat:
         return [{"t": "float", "v": Float(text), "line": line, "col": col}, i]
-    return [{"t": "int", "v": Integer(text), "line": line, "col": col}, i]
+    # decimal via the radix folder so out-of-range literals wrap (two's complement) like the real
+    # lexer, instead of the host Integer() raising on values past INT64_MAX.
+    return [{"t": "int", "v": _parseRadix(text, 10), "line": line, "col": col}, i]
 
 # Decode the body of a string literal (no surrounding quotes) honouring escape sequences.
 var _decodeEscapes = Function(raw, line, col):
@@ -142,6 +144,23 @@ var _readQuoted = Function(src, n, i, line, col):
         lexError(line, col, "unterminated string literal")
     return [raw, i + 1]
 
+# Index of the format-spec ':' in an f-string hole — the first colon at bracket depth 0, so a
+# colon inside a slice (xs[1:]) or call is not mistaken for the spec separator. -1 if none.
+var _topLevelColon = Function(expr):
+    var depth = 0
+    var i = 0
+    var n = len(expr)
+    while i < n:
+        var c = expr[i]
+        if c == "[" or c == "(" or c == "{":
+            depth = depth + 1
+        elif c == "]" or c == ")" or c == "}":
+            depth = depth - 1
+        elif c == ":" and depth == 0:
+            return i
+        i = i + 1
+    return -1
+
 # Parse an f-string body into parts (literal text vs {hole[:spec]}); braces escape as {{ }}.
 var _parseFstring = Function(raw, line, col):
     var parts = []
@@ -174,7 +193,7 @@ var _parseFstring = Function(raw, line, col):
                     lexError(line, col, "unmatched '{' in f-string")
                 i = i + 1
                 var spec = ""
-                var colonAt = expr.rfind(":")
+                var colonAt = _topLevelColon(expr)
                 if colonAt >= 0:
                     spec = expr[colonAt + 1:]
                     expr = expr[0:colonAt]
@@ -190,6 +209,10 @@ var _parseFstring = Function(raw, line, col):
             i = i + 1
     if lit != "":
         parts.append({"t": "lit", "v": lit})
+    # decode escape sequences (\n, \t, ...) in the literal text segments (not inside holes)
+    for p in parts:
+        if p["t"] == "lit":
+            p["v"] = _decodeEscapes(p["v"], line, col)
     return parts
 
 # The main entry point: source -> list of tokens.

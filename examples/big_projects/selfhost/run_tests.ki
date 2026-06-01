@@ -1,0 +1,85 @@
+# Run the main project's own .ki test suite through the self-hosted interpreter and check each one
+# produces exactly the output recorded in its .expected file. This is the acceptance test for
+# Kirito-in-Kirito: it must reproduce the real interpreter's behaviour on these programs.
+#
+#   ki --lib examples/big_projects/selfhost/lib examples/big_projects/selfhost/run_tests.ki
+#
+# (run from the repository root, so "tests/scripts" resolves).
+
+var io = import("io")
+var kirito = import("kirito")
+
+var SCRIPTS = "tests/scripts"
+
+# Tests the self-host is expected to reproduce. These use only language features plus io/math, both
+# of which the self-host implements (math/io are bridged to the host). Tests needing native modules
+# (net, zlib, hash, time, matrix, complex, random, json, serialize, dump and the stdlib .ki modules)
+# are intentionally out of scope here.
+var CASES = ["arithmetic", "greeting", "fizzbuzz", "control_flow", "functions", "scoping",
+             "collections", "strings", "classes", "exceptions", "mathdemo",
+             "sample_rpn", "sample_wordcount",
+             "spec_numbers", "spec_builtins", "spec_control", "spec_functions",
+             "spec_collections", "spec_strings", "spec_fstrings", "spec_classes",
+             "spec_exceptions", "spec_edges", "spec_references", "spec_repr",
+             "spec_scoping", "spec_math"]
+
+var readFile = Function(path):
+    var fh = io.open(path, "r")
+    var data = fh.read()
+    fh.close()
+    return data
+
+var passed = 0
+var failed = 0
+var failures = []
+
+for name in CASES:
+    var srcPath = SCRIPTS + "/" + name + ".ki"
+    var expPath = SCRIPTS + "/" + name + ".expected"
+    var src = readFile(srcPath)
+    var expected = readFile(expPath)
+    var inputText = ""
+    if io.exists(SCRIPTS + "/" + name + ".in"):
+        inputText = readFile(SCRIPTS + "/" + name + ".in")
+    var ok = False
+    var detail = ""
+    try:
+        var got = kirito.runWithInput(src, inputText)
+        if got == expected:
+            ok = True
+        else:
+            detail = "output mismatch"
+            # show first differing line for quick diagnosis
+            var gl = got.split("\n")
+            var el = expected.split("\n")
+            var i = 0
+            var lim = len(gl)
+            if len(el) < lim:
+                lim = len(el)
+            while i < lim:
+                if gl[i] != el[i]:
+                    detail = "line " + String(i + 1) + ": got " + String(gl[i]) + " want " + String(el[i])
+                    i = lim
+                i = i + 1
+    catch as e:
+        if isinstance(e, "Dict") and ("selfhost_error" in e):
+            detail = e["selfhost_error"]
+        else:
+            detail = String(e)
+    if ok:
+        passed = passed + 1
+        io.print("  PASS  " + name)
+    else:
+        failed = failed + 1
+        failures.append(name + ": " + detail)
+        io.print("  FAIL  " + name + "  (" + detail + ")")
+
+io.print("")
+io.print("self-host: " + String(passed) + " passed, " + String(failed) + " failed, of " + String(len(CASES)))
+if failed == 0:
+    io.print("ALL SELF-HOST TESTS PASSED")
+else:
+    io.print("SELF-HOST FAILURES:")
+    for f in failures:
+        io.print("  - " + f)
+    assert False, "self-host suite had failures"
