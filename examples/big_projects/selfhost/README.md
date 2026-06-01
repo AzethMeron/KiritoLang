@@ -72,16 +72,20 @@ A tree-walking interpreter must bottom out somewhere. The self-host leans on the
 
 - **scalar arithmetic / comparison operators** on Integer and Float (an inner Integer *is* a host
   Integer; `+` *is* the host `+`). Note float `==` is the host's relative-epsilon comparison.
-- **container storage**: List/Dict/Set creation, indexing, `append`/`pop`/`get`/`keys`/`add`, `len`,
-  iteration — the interpreter's memory model.
+- **container storage**: List/Dict/Set creation, `append`/`pop`/`add`/`discard`/`popitem`, indexing
+  and key access/assignment, membership, `len`, iteration — the interpreter's memory model.
 - **`ord` / `chr`** (character ↔ code point) — genuinely irreducible.
-- **number ↔ text and float ↔ int conversions** (`Integer`/`Float`/`String` on scalars) — the
-  IEEE formatting/parsing primitives (the analogue of libc's `strtod`/`snprintf`).
-- **one thin syscall** (`_sys_readFile`, built on `io.open`) used only to load a std module's source
-  off disk.
+- **the IEEE formatting/parsing primitives**: float → text (shortest-round-trip repr and the `:.2f`
+  format spec), text → float, float ↔ int truncation, cycle-safe container repr, and the single
+  most-negative integer's decimal form — the analogue of libc's `strtod`/`snprintf` plus the object
+  identity needed to print a cyclic structure as `[...]`.
+- **one thin syscall** (`_sys_readFile`, built on `io.open`) used only to load a std module's source.
 
-Everything else — the lexer, parser, evaluator, every statement and operator, the class/exception/
-`with` machinery, and the `math` module — is pure Kirito.
+Everything else is pure Kirito: the lexer, parser and evaluator; the class/exception/`with`/`switch`
+machinery; the `math` module; **every builtin** (`range`, `sorted`, `map`, `abs`, `round`, `divmod`,
+`pow`, `bin`/`oct`/`hex`, the bitwise ops, `Integer`-of-string, integer `String()`, …); and **every
+type method** of String (`upper`/`split`/`replace`/`find`/`strip`/`center`/…), List, Dict and Set
+(`index`/`count`/`reverse`/`extend`/`union`/`intersection`/`items`/`update`/…).
 
 ## Test coverage
 

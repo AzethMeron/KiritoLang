@@ -114,6 +114,10 @@ var classLookupC = Function(cls, name):
 var stringify = Function(St, v):
     var k = boxKind(v)
     if k == "":
+        # Integers are formatted in Kirito; Float/collection repr stays on the host primitive
+        # (shortest-round-trip float formatting and cycle-safe container repr are irreducible).
+        if type(v) == "Integer":
+            return _intToBase(v, 10, "")
         return String(v)
     if k == "instance":
         var m = classLookup(v["cls"], "_str_")
@@ -848,6 +852,8 @@ var callMethod = Function(St, recv, name, args, kwargs):
         return setMethod(St, recv, name, args)
     rtError("'" + tn + "' object has no method '" + name + "'")
 
+# List methods. The storage primitives are append and pop (and index get/set via []); everything
+# else is built on them. Equality uses evalBinary so a class's _eq_ drives count/index/remove.
 var listMethod = Function(St, recv, name, args, kwargs):
     if name == "append":
         recv.append(args[0])
@@ -856,26 +862,64 @@ var listMethod = Function(St, recv, name, args, kwargs):
         if len(args) == 0:
             return recv.pop()
         return recv.pop(args[0])
-    if name == "insert":
-        recv.insert(args[0], args[1])
-        return None
-    if name == "remove":
-        recv.remove(args[0])
-        return None
-    if name == "index":
-        return recv.index(args[0])
     if name == "count":
-        return recv.count(args[0])
+        var c = 0
+        for x in recv:
+            if truthy(St, evalBinary(St, "==", x, args[0])):
+                c = c + 1
+        return c
+    if name == "index":
+        var idx = 0
+        for x in recv:
+            if truthy(St, evalBinary(St, "==", x, args[0])):
+                return idx
+            idx = idx + 1
+        rtError("value is not in list")
+    if name == "remove":
+        var k2 = 0
+        for x in recv:
+            if truthy(St, evalBinary(St, "==", x, args[0])):
+                recv.pop(k2)
+                return None
+            k2 = k2 + 1
+        rtError("list.remove(x): x not in list")
     if name == "reverse":
-        recv.reverse()
+        var n = len(recv)
+        var i = 0
+        while i < n // 2:
+            var t = recv[i]
+            recv[i] = recv[n - 1 - i]
+            recv[n - 1 - i] = t
+            i = i + 1
         return None
     if name == "extend":
-        recv.extend(args[0])
+        for x in args[0]:
+            recv.append(x)
         return None
     if name == "copy":
-        return recv.copy()
+        var out = []
+        for x in recv:
+            out.append(x)
+        return out
     if name == "clear":
-        recv.clear()
+        while len(recv) > 0:
+            recv.pop()
+        return None
+    if name == "insert":
+        var n2 = len(recv)
+        var pos = args[0]
+        if pos < 0:
+            pos = pos + n2
+        if pos < 0:
+            pos = 0
+        if pos > n2:
+            pos = n2
+        recv.append(None)
+        var j = len(recv) - 1
+        while j > pos:
+            recv[j] = recv[j - 1]
+            j = j - 1
+        recv[pos] = args[1]
         return None
     if name == "sort":
         var keyFn = None
@@ -890,8 +934,10 @@ var listMethod = Function(St, recv, name, args, kwargs):
             if kw[0] == "reverse":
                 rev = kw[1]
         var sorted2 = mergeSort(St, recv, keyFn, rev)
-        recv.clear()
-        recv.extend(sorted2)
+        var w = 0
+        while w < len(sorted2):
+            recv[w] = sorted2[w]
+            w = w + 1
         return None
     rtError("'List' object has no method '" + name + "'")
 
@@ -1192,37 +1238,62 @@ var _hasCasedAllUpper = Function(s):
             cased = True
     return cased
 
+# Dict methods. Storage primitives: key indexing/assignment (recv[k] / recv[k]=v), membership,
+# key iteration, and deletion (pop/popitem). Everything else is built on those.
 var dictMethod = Function(St, recv, name, args):
     if name == "get":
+        if args[0] in recv:
+            return recv[args[0]]
         if len(args) == 2:
-            return recv.get(args[0], args[1])
-        return recv.get(args[0])
+            return args[1]
+        return None
     if name == "keys":
-        return recv.keys()
+        var ks = []
+        for k in recv:
+            ks.append(k)
+        return ks
     if name == "values":
-        return recv.values()
+        var vs = []
+        for k in recv:
+            vs.append(recv[k])
+        return vs
     if name == "items":
-        return recv.items()
+        var it = []
+        for k in recv:
+            it.append([k, recv[k]])
+        return it
+    if name == "update":
+        var other = args[0]
+        for k in other:
+            recv[k] = other[k]
+        return None
+    if name == "setdefault":
+        if args[0] in recv:
+            return recv[args[0]]
+        var dv = None
+        if len(args) == 2:
+            dv = args[1]
+        recv[args[0]] = dv
+        return dv
+    if name == "copy":
+        var d2 = {}
+        for k in recv:
+            d2[k] = recv[k]
+        return d2
     if name == "pop":
         if len(args) == 2:
             return recv.pop(args[0], args[1])
         return recv.pop(args[0])
-    if name == "update":
-        recv.update(args[0])
-        return None
-    if name == "setdefault":
-        if len(args) == 2:
-            return recv.setdefault(args[0], args[1])
-        return recv.setdefault(args[0])
     if name == "popitem":
         return recv.popitem()
     if name == "clear":
-        recv.clear()
+        while len(recv) > 0:
+            recv.popitem()
         return None
-    if name == "copy":
-        return recv.copy()
     rtError("'Dict' object has no method '" + name + "'")
 
+# Set methods. Storage primitives: add, discard, pop, membership, iteration. The algebra (union/
+# intersection/.../subset tests) is built by iterating and rebuilding fresh sets.
 var setMethod = Function(St, recv, name, args):
     if name == "add":
         recv.add(args[0])
@@ -1231,31 +1302,66 @@ var setMethod = Function(St, recv, name, args):
         recv.discard(args[0])
         return None
     if name == "remove":
-        recv.remove(args[0])
-        return None
+        if args[0] in recv:
+            recv.discard(args[0])
+            return None
+        rtError("set.remove(x): x not in set")
     if name == "contains":
-        return recv.contains(args[0])
+        return args[0] in recv
     if name == "union":
-        return recv.union(args[0])
+        var u = Set()
+        for x in recv:
+            u.add(x)
+        for x in args[0]:
+            u.add(x)
+        return u
     if name == "intersection":
-        return recv.intersection(args[0])
+        var ii = Set()
+        for x in recv:
+            if x in args[0]:
+                ii.add(x)
+        return ii
     if name == "difference":
-        return recv.difference(args[0])
+        var dd = Set()
+        for x in recv:
+            if not (x in args[0]):
+                dd.add(x)
+        return dd
     if name == "symmetricdifference":
-        return recv.symmetricdifference(args[0])
+        var sd = Set()
+        for x in recv:
+            if not (x in args[0]):
+                sd.add(x)
+        for x in args[0]:
+            if not (x in recv):
+                sd.add(x)
+        return sd
     if name == "issubset":
-        return recv.issubset(args[0])
+        for x in recv:
+            if not (x in args[0]):
+                return False
+        return True
     if name == "issuperset":
-        return recv.issuperset(args[0])
+        for x in args[0]:
+            if not (x in recv):
+                return False
+        return True
     if name == "isdisjoint":
-        return recv.isdisjoint(args[0])
+        for x in recv:
+            if x in args[0]:
+                return False
+        return True
     if name == "pop":
         return recv.pop()
     if name == "clear":
-        recv.clear()
+        while len(recv) > 0:
+            recv.pop()
         return None
     if name == "copy":
-        return recv.copy()
+        var c2 = Set()
+        for x in recv:
+            c2.add(x)
+        return c2
     rtError("'Set' object has no method '" + name + "'")
 
 # str.format with {} / {n} positional fields and optional :spec.
@@ -1570,6 +1676,10 @@ var _intToBase = Function(n, base, prefix):
     var m = n
     if neg:
         m = -m
+        if m < 0:
+            # INT64_MIN: its magnitude is not representable (negation overflows), so this single
+            # most-negative value defers to the host integer-formatting primitive.
+            return String(n)
     var digits = ""
     while m > 0:
         digits = _digitChar(m % base) + digits
@@ -1591,9 +1701,39 @@ var builtinFormat = Function(St, a, k):
     if len(a) == 2:
         return format(a[0], a[1])
     return format(a[0])
+# Parse a decimal integer string in Kirito (digit folding); wraps like int64 on overflow.
+var _parseIntStr = Function(s):
+    var t = s
+    var i = 0
+    var n = len(t)
+    while i < n and (t[i] in " \t\n\r"):
+        i = i + 1
+    var neg = False
+    if i < n and (t[i] == "-" or t[i] == "+"):
+        neg = t[i] == "-"
+        i = i + 1
+    if i >= n:
+        throw "invalid literal for Integer(): '" + s + "'"
+    var v = 0
+    while i < n:
+        var c = t[i]
+        if c == " " or c == "\t" or c == "\n" or c == "\r":
+            i = i + 1
+        else:
+            var d = ord(c) - 48
+            if d < 0 or d > 9:
+                throw "invalid literal for Integer(): '" + s + "'"
+            v = v * 10 + d
+            i = i + 1
+    if neg:
+        return -v
+    return v
+
 var builtinInteger = Function(St, a, k):
     if len(a) == 0:
         return 0
+    if type(a[0]) == "String":
+        return _parseIntStr(a[0])
     return Integer(a[0])
 var builtinFloat = Function(St, a, k):
     if len(a) == 0:
