@@ -684,7 +684,7 @@ private:
         switch (t.type) {
             case TokenType::Integer: {
                 advance();
-                return literal(static_cast<int64_t>(std::stoll(t.text)), t.span);
+                return literal(intLiteral(t.text), t.span);
             }
             case TokenType::Float: {
                 advance();
@@ -849,6 +849,30 @@ private:
         }
         flush();
         return node;
+    }
+
+    // Decode an Integer literal's text into an int64. Decimal goes through std::stoll; a base prefix
+    // (0x / 0b / 0o, validated by the lexer) is accumulated in unsigned 64-bit space, so a full-width
+    // bit pattern like 0xFFFFFFFFFFFFFFFF wraps to -1 (the language's two's-complement rule) instead
+    // of overflowing.
+    static int64_t intLiteral(const std::string& s) {
+        int base = 0;
+        if (s.size() >= 2 && s[0] == '0') {
+            char b = s[1];
+            if (b == 'x' || b == 'X') base = 16;
+            else if (b == 'b' || b == 'B') base = 2;
+            else if (b == 'o' || b == 'O') base = 8;
+        }
+        if (base == 0) return static_cast<int64_t>(std::stoll(s));
+        uint64_t v = 0;
+        for (std::size_t i = 2; i < s.size(); ++i) {
+            char c = s[i];
+            int d = (c >= '0' && c <= '9') ? c - '0'
+                  : (c >= 'a' && c <= 'f') ? c - 'a' + 10
+                  : (c >= 'A' && c <= 'F') ? c - 'A' + 10 : 0;
+            v = v * static_cast<uint64_t>(base) + static_cast<uint64_t>(d);
+        }
+        return static_cast<int64_t>(v);
     }
 
     template <typename T>

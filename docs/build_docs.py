@@ -65,7 +65,7 @@ KW = set("var Function if elif else while for in break continue return and or no
          "class try catch finally throw with as pass assert import discard True False None".split())
 BUILTINS = set("print input len range sum min max abs round sorted enumerate zip map filter type "
                "inspect all any reversed divmod isinstance ord chr bin oct hex pow Integer Float "
-               "String Bool List Set Dict".split())
+               "bitand bitor bitxor bitnot shl shr String Bool List Set Dict".split())
 
 
 def highlight_kirito(code):

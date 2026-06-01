@@ -52,8 +52,10 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   `a, b = b, a` (swap), `for k, v in d.items()` — with a single **starred** target absorbing the
   surplus (`var first, *rest = xs`, `var *init, last = xs`). Counts are checked (a clear error on
   mismatch); unpack targets may be names, indices, or members (`a[0], a[1] = x, y`).
-- **Numerics**: separate `Integer` (int64) and `Float` (double); float literals allow scientific
-  notation (`1e10`, `1.5e3`, `2e-3`). **Python-3 division** — `/` always yields `Float`, `//` is
+- **Numerics**: separate `Integer` (int64) and `Float` (double); integer literals may be decimal,
+  hex (`0xFF`), octal (`0o17`), or binary (`0b1010`) (case-insensitive prefix, full-width
+  two's-complement), and float literals allow scientific notation (`1e10`, `1.5e3`, `2e-3`).
+  **Python-3 division** — `/` always yields `Float`, `//` is
   floor division, `%` modulo, `**` right-assoc exponentiation. Integer arithmetic is fixed-width
   int64 with **well-defined two's-complement wraparound** on overflow (no UB); arbitrary-precision
   integers are a future enrichment. Resource guards: huge string/list repetition, padding, and
@@ -132,7 +134,9 @@ a stability fuzzer, and a benchmark). Working today:
   Module-level names (exports) and class members are never flagged.
 - **Builtins**: `range`, `sum`, `min`, `max`, `abs`, `round`, `sorted`, `enumerate`, `zip`, `map`,
   `filter`, `len`, `type`, `import`, `inspect`, `all`, `any`, `reversed`, `divmod`, `isinstance`,
-  `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), `format` (Python mini-format-spec:
+  `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), `bitand`/`bitor`/`bitxor`/`bitnot`
+  and `shl`/`shr` (bitwise ops + shifts on Integers — Kirito has no `&`/`|`/`^`/`~`/`<<`/`>>`
+  operators), `format` (Python mini-format-spec:
   fill/align/sign/width/`,`/precision/type), and the
   `Integer`/`Float`/`String`/`Bool`/`List`/`Set`/`Dict` constructors/converters. `inspect(x)` returns
   a String describing the public methods/attributes (with signatures + annotations) of a class,

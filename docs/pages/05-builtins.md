@@ -47,6 +47,9 @@ function's parameters, types, and return type. Genuinely variadic builtins (`min
 | `divmod(a, b)` | `[a // b, a % b]`. |
 | `pow(b, e)` / `pow(b, e, m)` | Exponentiation; 3-arg form is modular `(b**e) % m`. |
 | `bin(n)` / `oct(n)` / `hex(n)` | Base-2/8/16 string with `0b`/`0o`/`0x` prefix (sign-aware). |
+| `bitand(a, b)` / `bitor(a, b)` / `bitxor(a, b)` | Bitwise AND / OR / XOR of two Integers. |
+| `bitnot(a)` | Bitwise NOT (`~a`, i.e. `-a - 1`). |
+| `shl(a, n)` / `shr(a, n)` | Shift `a` left / right by `n` bits (`n ≥ 0`). `shr` is arithmetic (sign-preserving). |
 | `ord(ch)` | Unicode code point of a single-character String. |
 | `chr(cp)` | Single-character String for a code point. |
 | `format(value[, spec])` | Format a value with a Python mini-format-spec (see below). |

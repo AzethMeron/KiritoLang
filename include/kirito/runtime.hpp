@@ -2199,6 +2199,37 @@ inline void KiritoVM::installBuiltins() {
     defSig("bin", {{"n", "Integer"}}, "String", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 2, "0b", "bin"); });
     defSig("oct", {{"n", "Integer"}}, "String", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 8, "0o", "oct"); });
     defSig("hex", {{"n", "Integer"}}, "String", [radix](KiritoVM& vm, std::span<const Handle> a) { return radix(vm, a, 16, "0x", "hex"); });
+    // --- bitwise integer ops (Kirito has no &/|/^/~/<</>> operators; these builtins fill that role
+    //     on Integers, operating on the full 64-bit two's-complement value) ---
+    auto bint = [](KiritoVM& vm, Handle h, const char* fn, const char* who) -> int64_t {
+        const Object& o = vm.arena().deref(h);
+        if (o.kind() != ValueKind::Integer) throw KiritoError(std::string(fn) + ": " + who + " must be an Integer");
+        return static_cast<const IntVal&>(o).value();
+    };
+    defSig("bitand", {{"a", "Integer"}, {"b", "Integer"}}, "Integer", [bint](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return vm.makeInt(bint(vm, a[0], "bitand", "a") & bint(vm, a[1], "bitand", "b"));
+    });
+    defSig("bitor", {{"a", "Integer"}, {"b", "Integer"}}, "Integer", [bint](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return vm.makeInt(bint(vm, a[0], "bitor", "a") | bint(vm, a[1], "bitor", "b"));
+    });
+    defSig("bitxor", {{"a", "Integer"}, {"b", "Integer"}}, "Integer", [bint](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return vm.makeInt(bint(vm, a[0], "bitxor", "a") ^ bint(vm, a[1], "bitxor", "b"));
+    });
+    defSig("bitnot", {{"a", "Integer"}}, "Integer", [bint](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return vm.makeInt(~bint(vm, a[0], "bitnot", "a"));  // ~a == -(a) - 1
+    });
+    defSig("shl", {{"a", "Integer"}, {"n", "Integer"}}, "Integer", [bint](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        int64_t x = bint(vm, a[0], "shl", "a"), n = bint(vm, a[1], "shl", "n");
+        if (n < 0) throw KiritoError("shl: negative shift count");
+        if (n >= 64) return vm.makeInt(0);  // all bits shifted out
+        return vm.makeInt(static_cast<int64_t>(static_cast<uint64_t>(x) << n));  // wraps, no signed UB
+    });
+    defSig("shr", {{"a", "Integer"}, {"n", "Integer"}}, "Integer", [bint](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        int64_t x = bint(vm, a[0], "shr", "a"), n = bint(vm, a[1], "shr", "n");
+        if (n < 0) throw KiritoError("shr: negative shift count");
+        if (n >= 64) return vm.makeInt(x < 0 ? -1 : 0);  // arithmetic (sign-filling) shift
+        return vm.makeInt(x >> n);  // C++20 guarantees arithmetic right shift for signed types
+    });
     defSig("pow", {{"base"}, {"exp"}, {"mod", "", none()}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         // pow(base, exp) -> base**exp; pow(base, exp, mod) -> modular exponentiation. A None mod
         // (the default) means the plain two-argument form.

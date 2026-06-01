@@ -38,11 +38,11 @@ or sum truth values.
 ## Integer
 
 Signed 64-bit integers. Arithmetic wraps on overflow with well-defined two's-complement semantics —
-never undefined behavior. Literals may be decimal (`42`, `-7`), hexadecimal (`0xFF`), or binary
-(`0b1010`).
+never undefined behavior. Literals may be decimal (`42`, `-7`), hexadecimal (`0xFF`), octal (`0o17`),
+or binary (`0b1010`); the base prefix is case-insensitive.
 
 The arithmetic operators are `+`, `-`, `*`, the three division forms below, and `**`
-(exponentiation, right-associative: `2 ** 3 ** 2 == 512`). Kirito has **no** bitwise operators.
+(exponentiation, right-associative: `2 ** 3 ** 2 == 512`).
 
 - `/` always produces a `Float` — even when the operands divide evenly (`7 / 2 == 3.5`,
   `4 / 2 == 2.0`); use `//` when you want an Integer result.
@@ -51,6 +51,9 @@ The arithmetic operators are `+`, `-`, `*`, the three division forms below, and 
 - `**` raises to a power (`2 ** 10 == 1024`).
 - `bin(n)` / `oct(n)` / `hex(n)` render an Integer in base 2 / 8 / 16 as a `String`
   (`hex(255) == "0xff"`).
+- Kirito has no bitwise *operators*; the builtins `bitand` / `bitor` / `bitxor` / `bitnot` and
+  `shl` / `shr` provide bitwise and/or/xor/not and left/right shifts on Integers
+  (`bitand(0xFF, 0x0F) == 15`, `shl(1, 8) == 256`).
 
 ```kirito
 var n = 255

@@ -57,6 +57,19 @@ right-associative exponentiation.
 ```
 
 Integer overflow wraps (well-defined), it does not trap; arbitrary precision is a future enrichment.
+Integer literals may be written in decimal, hex (`0xFF`), octal (`0o17`), or binary (`0b1010`).
+
+There are no bitwise *operators*; use the builtins `bitand`, `bitor`, `bitxor`, `bitnot` and the
+shifts `shl`, `shr` for bit manipulation on Integers:
+
+```kirito
+bitand(0xF0, 0x3C)   # 48   (0x30)
+bitor(0b1000, 0b0001)  # 9
+bitxor(5, 1)         # 4
+bitnot(0)            # -1
+shl(1, 8)            # 256
+shr(-8, 1)           # -4   (arithmetic, sign-preserving)
+```
 
 ## Strings
 

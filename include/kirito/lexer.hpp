@@ -148,6 +148,26 @@ private:
         uint32_t line = line_, col = col_;
         std::string text;
         bool isFloat = false;
+        // Base-prefixed integer literals: 0x.. (hex), 0b.. (binary), 0o.. (octal). The prefix and
+        // digits are kept in `text`; the parser decodes the base. At least one base digit is required.
+        if (peek() == '0' && (peek(1) == 'x' || peek(1) == 'X' || peek(1) == 'b' ||
+                              peek(1) == 'B' || peek(1) == 'o' || peek(1) == 'O')) {
+            char base = peek(1);
+            bool hex = (base == 'x' || base == 'X'), bin = (base == 'b' || base == 'B');
+            text += peek(); advance();   // 0
+            text += peek(); advance();   // x / b / o
+            auto isBaseDigit = [&](char c) {
+                if (hex) return std::isxdigit(static_cast<unsigned char>(c)) != 0;
+                if (bin) return c == '0' || c == '1';
+                return c >= '0' && c <= '7';
+            };
+            bool any = false;
+            while (isBaseDigit(peek())) { text += peek(); advance(); any = true; }
+            if (!any)
+                throw KiritoError("invalid numeric literal '" + text + "'",
+                                  SourceSpan{line, col, static_cast<uint32_t>(text.size())});
+            return make(TokenType::Integer, line, col, std::move(text));
+        }
         while (std::isdigit(static_cast<unsigned char>(peek()))) { text += peek(); advance(); }
         if (peek() == '.' && std::isdigit(static_cast<unsigned char>(peek(1)))) {
             isFloat = true;

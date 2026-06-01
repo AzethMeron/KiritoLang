@@ -55,5 +55,23 @@ int main() {
     CHECK(evalStr(vm, "import(\"math\").isnan(0.0)") == "False");
     CHECK(evalStr(vm, "import(\"math\").copysign(3.0, -1.0)") == "-3.0");
 
+    // --- bitwise integer builtins ---
+    CHECK(evalStr(vm, "bitand(12, 10)") == "8");
+    CHECK(evalStr(vm, "bitor(12, 10)") == "14");
+    CHECK(evalStr(vm, "bitxor(12, 10)") == "6");
+    CHECK(evalStr(vm, "bitnot(0)") == "-1");
+    CHECK(evalStr(vm, "bitnot(5)") == "-6");
+    CHECK(evalStr(vm, "shl(1, 8)") == "256");
+    CHECK(evalStr(vm, "shr(256, 4)") == "16");
+    CHECK(evalStr(vm, "shr(-8, 1)") == "-4");         // arithmetic (sign-preserving) right shift
+    CHECK(evalStr(vm, "shl(1, 64)") == "0");          // shifting past the width is well-defined
+    CHECK(evalStr(vm, "shr(1, 64)") == "0");
+    CHECK(evalStr(vm, "shr(-1, 100)") == "-1");       // sign fill
+    CHECK(evalStr(vm, "hex(bitor(15, 240))") == "0xff");
+    CHECK(evalStr(vm, "bitand(a=12, b=10)") == "8");  // signatured -> keyword args
+    CHECK_THROWS(vm.runSource("bitand(1.5, 2)"));     // non-Integer rejected
+    CHECK_THROWS(vm.runSource("bitor(\"x\", 1)"));
+    CHECK_THROWS(vm.runSource("shl(1, -2)"));         // negative shift rejected
+
     return RUN_TESTS();
 }

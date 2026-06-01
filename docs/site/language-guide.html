@@ -59,7 +59,14 @@ a = a + <span class="num">1</span>          <span class="com"># rebinds a</span>
 <span class="num">7</span> // <span class="num">2</span>      <span class="com"># 3</span>
 -<span class="num">7</span> // <span class="num">2</span>     <span class="com"># -4   (floors toward negative infinity)</span>
 <span class="num">2</span> ** <span class="num">10</span>     <span class="com"># 1024</span></code></pre>
-<p>Integer overflow wraps (well-defined), it does not trap; arbitrary precision is a future enrichment.</p>
+<p>Integer overflow wraps (well-defined), it does not trap; arbitrary precision is a future enrichment. Integer literals may be written in decimal, hex (<code>0xFF</code>), octal (<code>0o17</code>), or binary (<code>0b1010</code>).</p>
+<p>There are no bitwise <em>operators</em>; use the builtins <a class="xref" href="builtins.html#sym-bitand"><code>bitand</code></a>, <code>bitor</code>, <code>bitxor</code>, <a class="xref" href="builtins.html#sym-bitnot"><code>bitnot</code></a> and the shifts <a class="xref" href="builtins.html#sym-shl"><code>shl</code></a>, <code>shr</code> for bit manipulation on Integers:</p>
+<pre><code><span class="builtin">bitand</span>(0xF0, 0x3C)   <span class="com"># 48   (0x30)</span>
+<span class="builtin">bitor</span>(0b1000, 0b0001)  <span class="com"># 9</span>
+<span class="builtin">bitxor</span>(<span class="num">5</span>, <span class="num">1</span>)         <span class="com"># 4</span>
+<span class="builtin">bitnot</span>(<span class="num">0</span>)            <span class="com"># -1</span>
+<span class="builtin">shl</span>(<span class="num">1</span>, <span class="num">8</span>)            <span class="com"># 256</span>
+<span class="builtin">shr</span>(-<span class="num">8</span>, <span class="num">1</span>)           <span class="com"># -4   (arithmetic, sign-preserving)</span></code></pre>
 <h2 id="strings">Strings</h2>
 <p>Unicode strings, indexed and sliced by <strong>code point</strong> (not byte). Concatenate with <code>+</code>, repeat with <code>*</code>. f-strings interpolate expressions:</p>
 <pre><code><span class="kw">var</span> s = <span class="str">&quot;chrząszcz&quot;</span>
