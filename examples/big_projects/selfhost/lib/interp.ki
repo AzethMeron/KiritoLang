@@ -895,84 +895,302 @@ var listMethod = Function(St, recv, name, args, kwargs):
         return None
     rtError("'List' object has no method '" + name + "'")
 
+# String methods, implemented from the char substrate (ord/chr, indexing, slicing, concat, repeat).
+# upper/lower are ASCII-only (the suite only cases ASCII; non-ASCII code points pass through).
+var _WS = " " + chr(9) + chr(10) + chr(13) + chr(12) + chr(11)
+
+var _isDigitCh = Function(c):
+    var o = ord(c)
+    return o >= 48 and o <= 57
+var _isUpperCh = Function(c):
+    var o = ord(c)
+    return o >= 65 and o <= 90
+var _isLowerCh = Function(c):
+    var o = ord(c)
+    return o >= 97 and o <= 122
+var _isAlphaCh = Function(c):
+    return _isUpperCh(c) or _isLowerCh(c)
+
+var _strUpper = Function(s):
+    var out = ""
+    for c in s:
+        if _isLowerCh(c):
+            out = out + chr(ord(c) - 32)
+        else:
+            out = out + c
+    return out
+var _strLower = Function(s):
+    var out = ""
+    for c in s:
+        if _isUpperCh(c):
+            out = out + chr(ord(c) + 32)
+        else:
+            out = out + c
+    return out
+
+var _strip = Function(s, chars, left, right):
+    var i = 0
+    var j = len(s)
+    if left:
+        while i < j and (s[i] in chars):
+            i = i + 1
+    if right:
+        while j > i and (s[j - 1] in chars):
+            j = j - 1
+    return s[i:j]
+
+var _find = Function(s, sub, start):
+    var n = len(s)
+    var m = len(sub)
+    if m == 0:
+        if start <= n:
+            return start
+        return n
+    var i = start
+    if i < 0:
+        i = 0
+    while i + m <= n:
+        if s[i:i + m] == sub:
+            return i
+        i = i + 1
+    return -1
+
+var _rfind = Function(s, sub):
+    var n = len(s)
+    var m = len(sub)
+    if m == 0:
+        return n
+    var i = n - m
+    while i >= 0:
+        if s[i:i + m] == sub:
+            return i
+        i = i - 1
+    return -1
+
+var _count = Function(s, sub):
+    var m = len(sub)
+    if m == 0:
+        return 0
+    var c = 0
+    var i = 0
+    var n = len(s)
+    while i + m <= n:
+        if s[i:i + m] == sub:
+            c = c + 1
+            i = i + m
+        else:
+            i = i + 1
+    return c
+
+var _split = Function(s, sep, maxsplit):
+    var out = []
+    var start = 0
+    var done = 0
+    var m = len(sep)
+    var go = True
+    while go:
+        if maxsplit >= 0 and done >= maxsplit:
+            go = False
+        else:
+            var idx = _find(s, sep, start)
+            if idx < 0:
+                go = False
+            else:
+                out.append(s[start:idx])
+                start = idx + m
+                done = done + 1
+    out.append(s[start:])
+    return out
+
+var _splitWs = Function(s):
+    var out = []
+    var cur = ""
+    for c in s:
+        if c in _WS:
+            if len(cur) > 0:
+                out.append(cur)
+                cur = ""
+        else:
+            cur = cur + c
+    if len(cur) > 0:
+        out.append(cur)
+    return out
+
+var _replace = Function(s, old, new, count):
+    if len(old) == 0:
+        return s
+    var out = ""
+    var start = 0
+    var done = 0
+    var m = len(old)
+    var go = True
+    while go:
+        if count >= 0 and done >= count:
+            go = False
+        else:
+            var idx = _find(s, old, start)
+            if idx < 0:
+                go = False
+            else:
+                out = out + s[start:idx] + new
+                start = idx + m
+                done = done + 1
+    return out + s[start:]
+
+var _allChars = Function(s, pred):
+    if len(s) == 0:
+        return False
+    for c in s:
+        if not pred(c):
+            return False
+    return True
+
 var strMethod = Function(St, recv, name, args):
     if name == "upper":
-        return recv.upper()
+        return _strUpper(recv)
     if name == "lower":
-        return recv.lower()
+        return _strLower(recv)
     if name == "strip":
         if len(args) == 1:
-            return recv.strip(args[0])
-        return recv.strip()
+            return _strip(recv, args[0], True, True)
+        return _strip(recv, _WS, True, True)
     if name == "lstrip":
-        return recv.lstrip()
+        if len(args) == 1:
+            return _strip(recv, args[0], True, False)
+        return _strip(recv, _WS, True, False)
     if name == "rstrip":
-        return recv.rstrip()
+        if len(args) == 1:
+            return _strip(recv, args[0], False, True)
+        return _strip(recv, _WS, False, True)
     if name == "split":
         if len(args) == 0:
-            return recv.split()
-        if len(args) == 1:
-            return recv.split(args[0])
-        return recv.split(args[0], args[1])
+            return _splitWs(recv)
+        var maxs = -1
+        if len(args) == 2:
+            maxs = args[1]
+        return _split(recv, args[0], maxs)
     if name == "join":
-        return recv.join(args[0])
+        var out = ""
+        var first = True
+        for x in args[0]:
+            if first:
+                out = x
+                first = False
+            else:
+                out = out + recv + x
+        return out
     if name == "replace":
+        var cnt = -1
         if len(args) == 3:
-            return recv.replace(args[0], args[1], args[2])
-        return recv.replace(args[0], args[1])
+            cnt = args[2]
+        return _replace(recv, args[0], args[1], cnt)
     if name == "startswith":
-        return recv.startswith(args[0])
+        var p = args[0]
+        return recv[0:len(p)] == p
     if name == "endswith":
-        return recv.endswith(args[0])
+        var suf = args[0]
+        if len(suf) > len(recv):
+            return False
+        return recv[len(recv) - len(suf):] == suf
     if name == "find":
-        if len(args) == 2:
-            return recv.find(args[0], args[1])
-        return recv.find(args[0])
+        if len(args) >= 2:
+            return _find(recv, args[0], args[1])
+        return _find(recv, args[0], 0)
     if name == "rfind":
-        return recv.rfind(args[0])
+        return _rfind(recv, args[0])
     if name == "index":
-        return recv.index(args[0])
+        var fi = _find(recv, args[0], 0)
+        if fi < 0:
+            rtError("substring not found")
+        return fi
     if name == "count":
-        return recv.count(args[0])
+        return _count(recv, args[0])
     if name == "isdigit":
-        return recv.isdigit()
+        return _allChars(recv, _isDigitCh)
     if name == "isalpha":
-        return recv.isalpha()
+        return _allChars(recv, _isAlphaCh)
     if name == "isalnum":
-        return recv.isalnum()
+        return _allChars(recv, _isAlnumCh)
     if name == "isspace":
-        return recv.isspace()
+        return _allChars(recv, _isSpaceCh)
     if name == "islower":
-        return recv.islower()
+        return _hasCasedAllLower(recv)
     if name == "isupper":
-        return recv.isupper()
+        return _hasCasedAllUpper(recv)
     if name == "ljust":
+        var fc = " "
         if len(args) == 2:
-            return recv.ljust(args[0], args[1])
-        return recv.ljust(args[0])
+            fc = args[1]
+        if len(recv) >= args[0]:
+            return recv
+        return recv + fc * (args[0] - len(recv))
     if name == "rjust":
+        var fc2 = " "
         if len(args) == 2:
-            return recv.rjust(args[0], args[1])
-        return recv.rjust(args[0])
+            fc2 = args[1]
+        if len(recv) >= args[0]:
+            return recv
+        return fc2 * (args[0] - len(recv)) + recv
     if name == "center":
+        var fc3 = " "
         if len(args) == 2:
-            return recv.center(args[0], args[1])
-        return recv.center(args[0])
+            fc3 = args[1]
+        if len(recv) >= args[0]:
+            return recv
+        var pad = args[0] - len(recv)
+        var lft = pad // 2
+        return fc3 * lft + recv + fc3 * (pad - lft)
     if name == "zfill":
-        return recv.zfill(args[0])
+        var w = args[0]
+        if len(recv) >= w:
+            return recv
+        if len(recv) > 0 and (recv[0] == "-" or recv[0] == "+"):
+            return recv[0] + "0" * (w - len(recv)) + recv[1:]
+        return "0" * (w - len(recv)) + recv
     if name == "removeprefix":
-        return recv.removeprefix(args[0])
+        var pp = args[0]
+        if recv[0:len(pp)] == pp:
+            return recv[len(pp):]
+        return recv
     if name == "removesuffix":
-        return recv.removesuffix(args[0])
-    if name == "startswith":
-        return recv.startswith(args[0])
+        var ss = args[0]
+        if len(ss) <= len(recv) and recv[len(recv) - len(ss):] == ss:
+            return recv[0:len(recv) - len(ss)]
+        return recv
     if name == "format":
         return strFormat(St, recv, args)
     if name == "partition":
-        return recv.partition(args[0])
+        var pi = _find(recv, args[0], 0)
+        if pi < 0:
+            return [recv, "", ""]
+        return [recv[0:pi], args[0], recv[pi + len(args[0]):]]
     if name == "rpartition":
-        return recv.rpartition(args[0])
+        var ri = _rfind(recv, args[0])
+        if ri < 0:
+            return ["", "", recv]
+        return [recv[0:ri], args[0], recv[ri + len(args[0]):]]
     rtError("'String' object has no method '" + name + "'")
+
+var _isAlnumCh = Function(c):
+    return _isAlphaCh(c) or _isDigitCh(c)
+var _isSpaceCh = Function(c):
+    return c in _WS
+var _hasCasedAllLower = Function(s):
+    var cased = False
+    for c in s:
+        if _isUpperCh(c):
+            return False
+        if _isLowerCh(c):
+            cased = True
+    return cased
+var _hasCasedAllUpper = Function(s):
+    var cased = False
+    for c in s:
+        if _isLowerCh(c):
+            return False
+        if _isUpperCh(c):
+            cased = True
+    return cased
 
 var dictMethod = Function(St, recv, name, args):
     if name == "get":
