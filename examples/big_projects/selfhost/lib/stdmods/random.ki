@@ -1,0 +1,77 @@
+# The `random` module in pure Kirito: an object-based PRNG (no global state). A 64-bit LCG drives a
+# prime modulus to produce uniform doubles; this is deterministic and seed-sensitive, which is all
+# the suite checks (it never asserts exact host values).
+
+var math = import("math")
+
+var _A = 6364136223846793005
+var _C = 1442695040888963407
+var _M = 9007199254740881            # a prime below 2^53, for the [0,1) mantissa
+
+class Random:
+    var _init_ = Function(self, seed = 0):
+        # mix the seed so small/zero seeds still scatter
+        self._state = seed * 2862933555777941757 + 3037000493
+
+    var _step = Function(self):
+        # int64 multiply/add wrap (two's complement) — well-defined in Kirito
+        self._state = self._state * _A + _C
+        return self._state
+
+    var random = Function(self):
+        var s = self._step()
+        return Float(s % _M) / Float(_M)
+
+    var uniform = Function(self, a, b):
+        return a + (b - a) * self.random()
+
+    var randint = Function(self, a, b):
+        return a + Integer(self.random() * Float(b - a + 1))
+
+    var randrange = Function(self, a, b = None, step = None):
+        var lo = 0
+        var hi = a
+        var st = 1
+        if b != None:
+            lo = a
+            hi = b
+        if step != None:
+            st = step
+        var nchoices = (hi - lo + st - 1) // st
+        return lo + st * Integer(self.random() * Float(nchoices))
+
+    var choice = Function(self, seq):
+        if len(seq) == 0:
+            throw "choice from empty sequence"
+        return seq[self.randint(0, len(seq) - 1)]
+
+    var shuffle = Function(self, lst):
+        var i = len(lst) - 1
+        while i > 0:
+            var j = self.randint(0, i)
+            var t = lst[i]
+            lst[i] = lst[j]
+            lst[j] = t
+            i = i - 1
+
+    var sample = Function(self, pop, k):
+        var copy = []
+        for x in pop:
+            copy.append(x)
+        self.shuffle(copy)
+        return copy[0:k]
+
+    var gauss = Function(self, mu, sigma):
+        # Box–Muller transform
+        var u1 = self.random()
+        if u1 < 1.0e-12:
+            u1 = 1.0e-12
+        var u2 = self.random()
+        var z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
+        return mu + sigma * z
+
+    var expovariate = Function(self, lam):
+        var u = self.random()
+        if u < 1.0e-12:
+            u = 1.0e-12
+        return -math.log(u) / lam

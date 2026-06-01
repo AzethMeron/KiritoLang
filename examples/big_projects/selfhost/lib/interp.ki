@@ -1946,8 +1946,16 @@ var evalModule = Function(St, name):
 var mkStream = Function(kind):
     return {"sk": "hostobj", "kind": kind}
 
-var mkBytesIO = Function():
-    return {"sk": "hostobj", "kind": "bytesio", "buf": []}
+var mkBytesIO = Function(initial):
+    return {"sk": "hostobj", "kind": "bytesio", "data": initial, "pos": len(initial)}
+
+# Write `text` into a BytesIO at its current position (overwriting/extending), advancing pos.
+var _bytesWrite = Function(stream, text):
+    var d = stream["data"]
+    var p = stream["pos"]
+    stream["data"] = d[0:p] + text + d[p + len(text):]
+    stream["pos"] = p + len(text)
+    return len(text)
 
 var streamWrite = Function(St, stream, text):
     var kind = stream["kind"]
@@ -1956,7 +1964,7 @@ var streamWrite = Function(St, stream, text):
     elif kind == "stderr":
         St["err"].append(text)
     elif kind == "bytesio":
-        stream["buf"].append(text)
+        _bytesWrite(stream, text)
     else:
         rtError("cannot write to stream of kind '" + kind + "'")
     return None
@@ -1996,7 +2004,9 @@ var ioInput = Function(St2, args, kwargs):
     return line
 
 var ioBytesIO = Function(St2, args, kwargs):
-    return mkBytesIO()
+    if len(args) >= 1:
+        return mkBytesIO(args[0])
+    return mkBytesIO("")
 
 # io file open (thin syscall): wraps a host file in a "file" box; methods dispatched in hostObjMethod.
 var ioOpen = Function(St2, a, k):
@@ -2063,14 +2073,24 @@ var _osGetenv = Function(St2, a, k):
 var hostObjMethod = Function(St, recv, name, args, kwargs):
     if recv["kind"] == "bytesio":
         if name == "write":
-            recv["buf"].append(args[0])
-            return len(args[0])
+            return _bytesWrite(recv, args[0])
         if name == "getvalue":
-            return "".join(recv["buf"])
-        if name == "read":
-            return "".join(recv["buf"])
+            return recv["data"]
         if name == "size":
-            return len("".join(recv["buf"]))
+            return len(recv["data"])
+        if name == "seek":
+            recv["pos"] = args[0]
+            return None
+        if name == "tell":
+            return recv["pos"]
+        if name == "read":
+            var d = recv["data"]
+            var p = recv["pos"]
+            var r = d[p:]
+            if len(args) >= 1:
+                r = d[p:p + args[0]]
+            recv["pos"] = p + len(r)
+            return r
         if name == "close":
             return None
     if recv["kind"] == "stdout" or recv["kind"] == "stderr":
