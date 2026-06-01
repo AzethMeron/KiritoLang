@@ -25,27 +25,17 @@ class DataLoader:
     # produce the full list of batches for this epoch (eager — Kirito has no lazy generators).
     var _iter_ = Function(self):
         var n = len(self.dataset)
-        var order = []
-        var i = 0
-        while i < n:
-            order.append(i)
-            i = i + 1
+        var order = range(n)
         if self.shuffle:
             self.rng.shuffle(order)
         var batches = []
-        var start = 0
-        while start < n:
-            var stop = start + self.batch_size
-            if stop > n:
-                stop = n
+        for start in range(0, n, self.batch_size):
+            var stop = min(start + self.batch_size, n)
             var Xb = []
             var yb = []
-            var k = start
-            while k < stop:
+            for k in range(start, stop):
                 var item = self.dataset[order[k]]
                 Xb.append(item[0])
                 yb.append(item[1])
-                k = k + 1
             batches.append([Xb, yb])
-            start = stop
         return batches

@@ -61,14 +61,11 @@ class App:
         if len(pattern) != len(segs):
             return None
         var params = {}
-        var i = 0
-        while i < len(pattern):
-            var p = pattern[i]
+        for p, s in zip(pattern, segs):
             if len(p) > 0 and p[0:1] == ":":
-                params[p[1:]] = segs[i]
-            elif p != segs[i]:
+                params[p[1:]] = s
+            elif p != s:
                 return None
-            i = i + 1
         return params
 
     var _serve_static = Function(self, req):
@@ -79,11 +76,9 @@ class App:
             if len(segs) < len(prefix):
                 continue
             var matched = True
-            var i = 0
-            while i < len(prefix):
-                if prefix[i] != segs[i]:
+            for p, s in zip(prefix, segs):
+                if p != s:
                     matched = False
-                i = i + 1
             if not matched:
                 continue
             var rest = segs[len(prefix):]

@@ -118,10 +118,8 @@ class Conv2d(nn.Module):
         # weight (out, in, kH, kW)
         var wbuf = []
         var n = out_channels * fan_in
-        var i = 0
-        while i < n:
+        for i in range(n):
             wbuf.append(rng.uniform(-k, k))
-            i = i + 1
         self.weight = self.register_param("weight",
             ag.from_nd(nd.from_flat(wbuf, [out_channels, in_channels, kernel_size, kernel_size]), True))
         self.bias = self.register_param("bias", ag.tensor(nd.zeros([out_channels]).to_nested(), True))

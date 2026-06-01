@@ -44,18 +44,23 @@ Building: `val(vm, 42)`, `val(vm, 3.14)`, `val(vm, "hi")`, `val(vm, true)`, `non
 `makeList(vm, {h1, h2})`, and the `List`/`Dict`/`Set` builders (each owns a `RootScope`, so a GC
 during construction can never reclaim a half-built value).
 
+Every bundled stdlib module — `io`, `math`, `random`, `matrix`, `json`, `serialize`, `dump`, `net`,
+`sys`, `time`, `zlib`, `hash` — is authored against this `Value` API, so their headers double as
+worked examples of idiomatic native code.
+
 ## Adding a function
 
-The lightest extension. A `NativeFunction` wraps a `std::function<Handle(KiritoVM&, std::span<const Handle>)>`:
+The lightest extension. A `NativeFunction` wraps a `std::function<Handle(KiritoVM&, std::span<const Handle>)>`.
+Reach through `Args` + `Value` so a bad argument becomes a clear `KiritoError` instead of a cast crash:
 
 ```cpp
 vm.registerGlobal("clamp", vm.arena().alloc(std::make_unique<NativeFunction>(
-    "clamp", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-        if (a.size() != 3) throw KiritoError("clamp expected 3 arguments");
-        int64_t x  = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
-        int64_t lo = static_cast<const IntVal&>(vm.arena().deref(a[1])).value();
-        int64_t hi = static_cast<const IntVal&>(vm.arena().deref(a[2])).value();
-        return vm.makeInt(std::max(lo, std::min(x, hi)));
+    "clamp", [](KiritoVM& vm, std::span<const Handle> raw) -> Handle {
+        Args a(vm, raw, "clamp");                       // checks arity on access, labels errors
+        int64_t x  = a.at(0).asInt("x");
+        int64_t lo = a.at(1).asInt("lo");
+        int64_t hi = a.at(2).asInt("hi");
+        return val(vm, std::max(lo, std::min(x, hi)));
     })));
 ```
 
@@ -72,9 +77,11 @@ vm.registerGlobal("greet", vm.arena().alloc(std::make_unique<NativeFunction>(
     "greet",
     std::vector<NativeParam>{{"name", "String"}, {"loud", "Bool", vm.makeBool(false)}},
     "String",
-    [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    [](KiritoVM& vm, std::span<const Handle> raw) -> Handle {
+        Args a(vm, raw, "greet");
         // a[0] is `name`; a[1] is `loud`, defaulted to False when the caller omits it.
-        return vm.makeString("Hello, " + static_cast<const StrVal&>(vm.arena().deref(a[0])).value());
+        std::string msg = "Hello, " + a.at(0).asString("name");
+        return val(vm, a.at(1).asBool("loud") ? msg + "!" : msg);
     })));
 // Kirito:  greet("Ada")  /  greet(name="Ada", loud=True)  /  inspect(greet)
 ```

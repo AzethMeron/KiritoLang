@@ -55,20 +55,21 @@ class Parser:
         if t["type"] != "keyword":
             throw SqlParseError("expected a statement keyword, found '" + t["value"] + "'")
         var kw = t["value"]
-        if kw == "select":
-            stmt = self._parse_select()
-        elif kw == "insert":
-            stmt = self._parse_insert()
-        elif kw == "create":
-            stmt = self._parse_create()
-        elif kw == "drop":
-            stmt = self._parse_drop()
-        elif kw == "update":
-            stmt = self._parse_update()
-        elif kw == "delete":
-            stmt = self._parse_delete()
-        else:
-            throw SqlParseError("unsupported statement: " + kw)
+        switch kw:
+            case "select":
+                stmt = self._parse_select()
+            case "insert":
+                stmt = self._parse_insert()
+            case "create":
+                stmt = self._parse_create()
+            case "drop":
+                stmt = self._parse_drop()
+            case "update":
+                stmt = self._parse_update()
+            case "delete":
+                stmt = self._parse_delete()
+            default:
+                throw SqlParseError("unsupported statement: " + kw)
         discard self._accept("punct", ";")
         if not self._at_end():
             throw SqlParseError("trailing tokens after statement: '" + self._peek()["value"] + "'")

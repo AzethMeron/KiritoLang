@@ -23,15 +23,11 @@ var _init_matrix = Function(fan_in, fan_out):
     var k = 1.0 / math.sqrt(Float(fan_in))
     var rng = RNG[0]
     var rows = []
-    var i = 0
-    while i < fan_in:
+    for i in range(fan_in):
         var row = []
-        var j = 0
-        while j < fan_out:
+        for j in range(fan_out):
             row.append(rng.uniform(-k, k))
-            j = j + 1
         rows.append(row)
-        i = i + 1
     return rows
 
 class Module:
@@ -184,10 +180,8 @@ class Sequential(Module):
     var _init_ = Function(self, layers):
         discard self._super_()._init_()
         self.layers = layers
-        var i = 0
-        while i < len(layers):
-            discard self.register_module(String(i), layers[i])
-            i = i + 1
+        for i, layer in enumerate(layers):
+            discard self.register_module(String(i), layer)
     var forward = Function(self, x):
         var h = x
         for layer in self.layers:
@@ -201,10 +195,8 @@ var _one_hot = Function(targets, classes):
     var rows = len(targets)
     var oh = nd.zeros([rows, classes])
     var buf = oh.buf
-    var i = 0
-    while i < rows:
-        buf[i * classes + targets[i]] = 1.0
-        i = i + 1
+    for i, t in enumerate(targets):
+        buf[i * classes + t] = 1.0
     return oh
 
 var mse_loss = Function(pred, target):

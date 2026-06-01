@@ -37,12 +37,10 @@ var unbroadcast = Function(grad, shape):
     while g.ndim() > len(shape):
         g = nd.sum_axis(g, 0)
     # 2) sum axes that were size-1 in the target (broadcast), keeping rank
-    var i = 0
-    while i < len(shape):
+    for i in range(len(shape)):
         if shape[i] == 1 and g.shape[i] != 1:
             var s = nd.sum_axis(g, i)
             g = s.reshape(_with_one(g.shape, i))
-        i = i + 1
     return g
 
 var _with_one = Function(shape, axis):
@@ -113,12 +111,9 @@ class Tensor:
         _build_topo(self, topo)
         if self.grad == None:
             self.grad = nd.ones(self.data.shape)
-        var i = len(topo) - 1
-        while i >= 0:
-            var node = topo[i]
+        for node in reversed(topo):
             if node.grad_fn != None:
                 node.grad_fn()
-            i = i - 1
         # clear visit marks so the graph can be traversed again (retain-graph)
         for node in topo:
             node.visited_ = False

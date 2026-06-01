@@ -15,14 +15,12 @@ var _norm = Function(v):
 
 var _power_iteration = Function(cov, d, iters):
     var v = nd.full([d, 1], 1.0 / math.sqrt(Float(d)))
-    var it = 0
-    while it < iters:
+    for it in range(iters):
         var w = nd.matmul(cov, v)             # (d,1)
         var nrm = _norm(w)
         if nrm < 0.000000001:
             return v
         v = nd.mul_scalar(w, 1.0 / nrm)
-        it = it + 1
     return v
 
 class PCA:
@@ -43,22 +41,16 @@ class PCA:
         var comps = []
         var eig = []
         var c = cov
-        var ci = 0
-        while ci < self.k:
+        for ci in range(self.k):
             var v = _power_iteration(c, d, 100)      # (d,1) unit eigenvector
             var cv = nd.matmul(c, v)                 # (d,1)
             var lam = 0.0
-            var vb = v.contiguous().buf
-            var cvb = cv.contiguous().buf
-            var t = 0
-            while t < d:
-                lam = lam + vb[t] * cvb[t]
-                t = t + 1
+            for a, b in zip(v.contiguous().buf, cv.contiguous().buf):
+                lam = lam + a * b
             comps.append(v.reshape([d]).to_nested())
             eig.append(lam)
             var vv = nd.matmul(v, v.transpose(0, 1)) # (d,d)
             c = nd.sub(c, nd.mul_scalar(vv, lam))
-            ci = ci + 1
         self.components = nd.array(comps)            # (k, d)
         self.explained_variance = eig
         return self

@@ -26,8 +26,6 @@ var broadcast_shapes = Function(a, b):
     while i < n:
         var da = 1
         var db = 1
-        if i < n - na + na:
-            pass
         var ia = na - n + i
         var ib = nb - n + i
         if ia >= 0:
@@ -354,14 +352,15 @@ var _reduce_axis = Function(a, axis, op):
         var j = 0
         while j < axlen:
             var v = perm.buf[base + j]
-            if op == "sum" or op == "mean":
-                acc = acc + v
-            elif op == "max":
-                if j == 0 or v > acc:
-                    acc = v
-            elif op == "min":
-                if j == 0 or v < acc:
-                    acc = v
+            switch op:
+                case "sum", "mean":
+                    acc = acc + v
+                case "max":
+                    if j == 0 or v > acc:
+                        acc = v
+                case "min":
+                    if j == 0 or v < acc:
+                        acc = v
             j = j + 1
         if op == "mean":
             acc = acc / Float(axlen)

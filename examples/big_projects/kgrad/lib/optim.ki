@@ -18,9 +18,7 @@ class SGD:
             p.zero_grad()
 
     var step = Function(self):
-        var i = 0
-        while i < len(self.params):
-            var p = self.params[i]
+        for i, p in enumerate(self.params):
             if p.grad != None:
                 var g = p.grad
                 if self.momentum > 0.0:
@@ -30,7 +28,6 @@ class SGD:
                         self.vel[i] = nd.add(nd.mul_scalar(self.vel[i], self.momentum), g)
                     g = self.vel[i]
                 p.data = nd.sub(p.data, nd.mul_scalar(g, self.lr))
-            i = i + 1
 
 class Adam:
     var _init_ = Function(self, params, lr, beta1, beta2, eps):
@@ -54,9 +51,7 @@ class Adam:
         self.t = self.t + 1
         var bc1 = 1.0 - self.beta1 ** self.t
         var bc2 = 1.0 - self.beta2 ** self.t
-        var i = 0
-        while i < len(self.params):
-            var p = self.params[i]
+        for i, p in enumerate(self.params):
             if p.grad != None:
                 var g = p.grad
                 if self.m[i] == None:
@@ -68,7 +63,6 @@ class Adam:
                 var vhat = nd.mul_scalar(self.v[i], 1.0 / bc2)
                 var denom = nd.add_scalar(nd.sqrt(vhat), self.eps)
                 p.data = nd.sub(p.data, nd.mul_scalar(nd.div(mhat, denom), self.lr))
-            i = i + 1
 
 var sgd = Function(params, lr, momentum):
     return SGD(params, lr, momentum)

@@ -61,15 +61,16 @@ NativeFn demo = [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Ha
         .build();
 };</code></pre>
 <p>Reading: <code>v.asInt()</code> / <code>asFloat()</code> (accepts Integer or Float) / <code>asString()</code> / <code>asBool()</code>; <code>v.isInt()</code>/<code>isString()</code>/<code>isList()</code>/…; <code>v.len()</code>, <code>v.at(i)</code> (list index, negatives allowed), <code>v.items()</code> (iterate), and for Dicts <code>v.get(key)</code>, <code>v.get(key, default)</code>, <code>v.has(key)</code>, <code>v.pairs()</code>. Building: <code>val(vm, 42)</code>, <code>val(vm, 3.14)</code>, <code>val(vm, &quot;hi&quot;)</code>, <code>val(vm, true)</code>, <code>none(vm)</code>, <code>makeList(vm, {h1, h2})</code>, and the <a class="xref" href="types.html#list"><code>List</code></a>/<a class="xref" href="types.html#dict"><code>Dict</code></a>/<a class="xref" href="types.html#set"><code>Set</code></a> builders (each owns a <code>RootScope</code>, so a GC during construction can never reclaim a half-built value).</p>
+<p>Every bundled stdlib module — <a class="xref" href="stdlib.html#io"><code>io</code></a>, <a class="xref" href="stdlib.html#math"><code>math</code></a>, <a class="xref" href="stdlib.html#random"><code>random</code></a>, <a class="xref" href="stdlib.html#matrix"><code>matrix</code></a>, <a class="xref" href="stdlib.html#json"><code>json</code></a>, <a class="xref" href="stdlib.html#serialize"><code>serialize</code></a>, <a class="xref" href="stdlib.html#dump"><code>dump</code></a>, <a class="xref" href="stdlib.html#net"><code>net</code></a>, <a class="xref" href="stdlib.html#sys"><code>sys</code></a>, <a class="xref" href="stdlib.html#time"><code>time</code></a>, <a class="xref" href="stdlib.html#zlib"><code>zlib</code></a>, <a class="xref" href="stdlib.html#hash"><code>hash</code></a> — is authored against this <code>Value</code> API, so their headers double as worked examples of idiomatic native code.</p>
 <h2 id="adding-a-function">Adding a function</h2>
-<p>The lightest extension. A <code>NativeFunction</code> wraps a <code>std::function&lt;Handle(KiritoVM&amp;, std::span&lt;const Handle&gt;)&gt;</code>:</p>
+<p>The lightest extension. A <code>NativeFunction</code> wraps a <code>std::function&lt;Handle(KiritoVM&amp;, std::span&lt;const Handle&gt;)&gt;</code>. Reach through <code>Args</code> + <code>Value</code> so a bad argument becomes a clear <code>KiritoError</code> instead of a cast crash:</p>
 <pre><code>vm.registerGlobal(&quot;clamp&quot;, vm.arena().alloc(std::make_unique&lt;NativeFunction&gt;(
-    &quot;clamp&quot;, [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; a) -&gt; Handle {
-        if (a.size() != 3) throw KiritoError(&quot;clamp expected 3 arguments&quot;);
-        int64_t x  = static_cast&lt;const IntVal&amp;&gt;(vm.arena().deref(a[0])).value();
-        int64_t lo = static_cast&lt;const IntVal&amp;&gt;(vm.arena().deref(a[1])).value();
-        int64_t hi = static_cast&lt;const IntVal&amp;&gt;(vm.arena().deref(a[2])).value();
-        return vm.makeInt(std::max(lo, std::min(x, hi)));
+    &quot;clamp&quot;, [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Handle {
+        Args a(vm, raw, &quot;clamp&quot;);                       // checks arity on access, labels errors
+        int64_t x  = a.at(0).asInt(&quot;x&quot;);
+        int64_t lo = a.at(1).asInt(&quot;lo&quot;);
+        int64_t hi = a.at(2).asInt(&quot;hi&quot;);
+        return val(vm, std::max(lo, std::min(x, hi)));
     })));</code></pre>
 <h3 id="declaring-a-signature-keyword-arguments-inspect">Declaring a signature (keyword arguments + <a class="xref" href="builtins.html#sym-inspect"><code>inspect</code></a>)</h3>
 <p>Give a native function a signature and it gains exactly what Kirito functions have: callers may pass <strong>keyword arguments</strong> and rely on <strong>defaults</strong>, and <a class="xref" href="builtins.html#sym-inspect"><code>inspect</code></a> shows its parameters, types, and return type. The implementation still receives a flat positional <code>span</code> — the runtime binds keywords and fills defaults before calling it. Construct params as <code>{&quot;name&quot;}</code>, <code>{&quot;name&quot;, &quot;Type&quot;}</code>, or <code>{&quot;name&quot;, &quot;Type&quot;, defaultHandle}</code>:</p>
@@ -77,9 +78,11 @@ NativeFn demo = [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Ha
     &quot;greet&quot;,
     std::vector&lt;NativeParam&gt;{{&quot;name&quot;, &quot;String&quot;}, {&quot;loud&quot;, &quot;Bool&quot;, vm.makeBool(false)}},
     &quot;String&quot;,
-    [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; a) -&gt; Handle {
+    [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Handle {
+        Args a(vm, raw, &quot;greet&quot;);
         // a[0] is `name`; a[1] is `loud`, defaulted to False when the caller omits it.
-        return vm.makeString(&quot;Hello, &quot; + static_cast&lt;const StrVal&amp;&gt;(vm.arena().deref(a[0])).value());
+        std::string msg = &quot;Hello, &quot; + a.at(0).asString(&quot;name&quot;);
+        return val(vm, a.at(1).asBool(&quot;loud&quot;) ? msg + &quot;!&quot; : msg);
     })));
 // Kirito:  greet(&quot;Ada&quot;)  /  greet(name=&quot;Ada&quot;, loud=True)  /  inspect(greet)</code></pre>
 <p>Inside a module&#x27;s <code>setup</code>, the <code>ModuleBuilder</code> has the same overload: <code>m.fn(&quot;open&quot;, {{&quot;path&quot;, &quot;String&quot;}, {&quot;mode&quot;, &quot;String&quot;, m.vm().makeString(&quot;r&quot;)}}, &quot;File&quot;, impl);</code>.</p>

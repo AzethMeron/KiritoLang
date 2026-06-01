@@ -72,19 +72,21 @@ class Database:
 
     var execute = Function(self, stmt):
         var kind = stmt["kind"]
-        if kind == "create":
-            return self._exec_create(stmt)
-        if kind == "drop":
-            return self._exec_drop(stmt)
-        if kind == "insert":
-            return self._exec_insert(stmt)
-        if kind == "select":
-            return self._exec_select(stmt)
-        if kind == "update":
-            return self._exec_update(stmt)
-        if kind == "delete":
-            return self._exec_delete(stmt)
-        throw SqlError("unknown statement kind: " + kind)
+        switch kind:
+            case "create":
+                return self._exec_create(stmt)
+            case "drop":
+                return self._exec_drop(stmt)
+            case "insert":
+                return self._exec_insert(stmt)
+            case "select":
+                return self._exec_select(stmt)
+            case "update":
+                return self._exec_update(stmt)
+            case "delete":
+                return self._exec_delete(stmt)
+            default:
+                throw SqlError("unknown statement kind: " + kind)
 
     var run = Function(self, sql : String):
         return self.execute(parser.parse(sql))
@@ -122,10 +124,8 @@ class Database:
             # default every column to NULL, then fill provided ones
             for cn in tbl.col_names:
                 row[cn] = None
-            var idx = 0
-            while idx < len(cols):
-                row[cols[idx]] = tbl.coerce(cols[idx], vals[idx])
-                idx = idx + 1
+            for c, v in zip(cols, vals):
+                row[c] = tbl.coerce(c, v)
             tbl.check_pk(row)
             tbl.rows.append(row)
             inserted = inserted + 1
@@ -208,42 +208,46 @@ class Database:
     #     (NULL comparisons are False), which is enough for the test surface. ---
     var _eval_where = Function(self, node, row, tbl) -> Bool:
         var op = node["op"]
-        if op == "and":
-            return self._eval_where(node["left"], row, tbl) and self._eval_where(node["right"], row, tbl)
-        if op == "or":
-            return self._eval_where(node["left"], row, tbl) or self._eval_where(node["right"], row, tbl)
-        if op == "not":
-            return not self._eval_where(node["child"], row, tbl)
-        if op == "isnull":
-            self._require_col(node["column"], tbl)
-            return row[node["column"]] == None
-        if op == "isnotnull":
-            self._require_col(node["column"], tbl)
-            return row[node["column"]] != None
-        if op == "cmp":
-            self._require_col(node["column"], tbl)
-            var lhs = row[node["column"]]
-            var rhs = node["value"]["value"]
-            if lhs == None or node["value"]["vtype"] == "null":
-                return False    # comparisons with NULL are never true
-            return self._compare(lhs, rhs, node["cmp"])
-        throw SqlError("unknown WHERE operator: " + op)
+        switch op:
+            case "and":
+                return self._eval_where(node["left"], row, tbl) and self._eval_where(node["right"], row, tbl)
+            case "or":
+                return self._eval_where(node["left"], row, tbl) or self._eval_where(node["right"], row, tbl)
+            case "not":
+                return not self._eval_where(node["child"], row, tbl)
+            case "isnull":
+                self._require_col(node["column"], tbl)
+                return row[node["column"]] == None
+            case "isnotnull":
+                self._require_col(node["column"], tbl)
+                return row[node["column"]] != None
+            case "cmp":
+                self._require_col(node["column"], tbl)
+                var lhs = row[node["column"]]
+                var rhs = node["value"]["value"]
+                if lhs == None or node["value"]["vtype"] == "null":
+                    return False    # comparisons with NULL are never true
+                return self._compare(lhs, rhs, node["cmp"])
+            default:
+                throw SqlError("unknown WHERE operator: " + op)
 
     var _require_col = Function(self, col, tbl):
         if not tbl.has_column(col):
             throw SqlError("no such column '" + col + "' in WHERE")
 
     var _compare = Function(self, lhs, rhs, opv) -> Bool:
-        if opv == "=":
-            return lhs == rhs
-        if opv == "!=" or opv == "<>":
-            return lhs != rhs
-        if opv == "<":
-            return lhs < rhs
-        if opv == "<=":
-            return lhs <= rhs
-        if opv == ">":
-            return lhs > rhs
-        if opv == ">=":
-            return lhs >= rhs
-        throw SqlError("unknown comparison operator: " + opv)
+        switch opv:
+            case "=":
+                return lhs == rhs
+            case "!=", "<>":
+                return lhs != rhs
+            case "<":
+                return lhs < rhs
+            case "<=":
+                return lhs <= rhs
+            case ">":
+                return lhs > rhs
+            case ">=":
+                return lhs >= rhs
+            default:
+                throw SqlError("unknown comparison operator: " + opv)
