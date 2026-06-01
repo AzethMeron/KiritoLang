@@ -180,6 +180,114 @@ io.print(d.get("z", 0))    # 0 (default)
 ## User-defined classes
 
 A `class` defines a new type in the same value model as the built-ins — see the
-[Language Guide](language-guide.html#classes). Instances support the same operator and protocol
-methods (`_add_`, `_getitem_`, `_iter_`, …), so a class can behave exactly like a built-in
-collection. `inspect(x)` prints a class/instance/module's public API.
+[Language Guide](language-guide.html#classes) for syntax, inheritance, and `self._super_()`.
+A class plugs into the evaluator's operator/protocol dispatch by defining **special methods** (the
+single-underscore dunders below), so a user type can behave exactly like a built-in. `inspect(x)`
+prints a class/instance/module's public API.
+
+## Special methods (operator overloading)
+
+Define any of these as methods on a class to control how instances respond to operators, built-ins,
+and language constructs. Each takes `self` as its first parameter. A method that isn't defined means
+the corresponding operator raises a clear "no operator" / "not supported" error (except `_ne_`, which
+falls back to `not _eq_`). Names use **single** leading/trailing underscores (`_add_`, not `__add__`).
+
+### Construction and display
+
+| Method | Invoked by | Returns |
+|--------|-----------|---------|
+| `_init_(self, ...)` | `ClassName(...)` (instance creation) | nothing (initializes `self`) |
+| `_str_(self)` | `String(x)`, `io.print(x)`, f-strings, nested in a collection's text | a `String` |
+
+### Arithmetic operators
+
+Each is invoked as `x OP y` → `x._op_(y)` (left operand's method); `self` is the left operand, the
+argument is the right operand. Return the result value (any type).
+
+| Method | Operator | Method | Operator |
+|--------|----------|--------|----------|
+| `_add_(self, other)` | `x + y` | `_mod_(self, other)` | `x % y` |
+| `_sub_(self, other)` | `x - y` | `_pow_(self, other)` | `x ** y` |
+| `_mul_(self, other)` | `x * y` | `_div_(self, other)` | `x / y` |
+| `_floordiv_(self, other)` | `x // y` | | |
+
+### Comparison operators
+
+Invoked as `x OP y` → `x._op_(y)`; return a `Bool` (or any truthy/falsy value).
+
+| Method | Operator | Notes |
+|--------|----------|-------|
+| `_eq_(self, other)` | `x == y` | also drives `in`, `index`, `count`, `remove` on Lists |
+| `_ne_(self, other)` | `x != y` | optional — defaults to `not self._eq_(other)` |
+| `_lt_(self, other)` | `x < y` | also drives `sorted()`, `min()`, `max()` |
+| `_le_(self, other)` | `x <= y` | |
+| `_gt_(self, other)` | `x > y` | |
+| `_ge_(self, other)` | `x >= y` | |
+
+### Unary operators
+
+| Method | Invoked by | Returns |
+|--------|-----------|---------|
+| `_neg_(self)` | `-x` | the negated value |
+| `_not_(self)` | `not x` | a truth value |
+
+### Container / indexing protocol
+
+| Method | Invoked by | Returns |
+|--------|-----------|---------|
+| `_getitem_(self, key)` | `x[key]` (variadic: `x[i, j]` passes `i, j`) | the element |
+| `_setitem_(self, key, value)` | `x[key] = value` (variadic keys: `m[i, j] = v`) | nothing |
+| `_len_(self)` | `len(x)` | an `Integer` |
+| `_contains_(self, item)` | `item in x` / `item not in x` | a truth value |
+| `_iter_(self)` | `for v in x:`, and any iteration (unpacking, `List(x)`, …) | a List of the elements to yield |
+
+### Callable and context-manager protocol
+
+| Method | Invoked by | Returns |
+|--------|-----------|---------|
+| `_call_(self, ...)` | `x(...)` (calling an instance) | the call result |
+| `_enter_(self)` | entering a `with x as v:` block | the value bound to `v` |
+| `_exit_(self)` | leaving a `with` block (normally or via an exception) | ignored |
+
+### Inheritance
+
+| Method | Invoked by | Returns |
+|--------|-----------|---------|
+| `_super_(self)` | `self._super_()` inside a method | a parent view of `self` whose lookup starts at the base of the current method's class |
+
+`_super_` is provided automatically; defining it is possible but discouraged (it breaks every
+`self._super_()` call in the class). See the [Language Guide](language-guide.html#super-the-parent-view).
+
+### Worked example
+
+```kirito
+class Vec:
+    var _init_ = Function(self, x, y):
+        self.x = x
+        self.y = y
+    var _add_ = Function(self, o):
+        return Vec(self.x + o.x, self.y + o.y)
+    var _mul_ = Function(self, k):           # scalar multiply
+        return Vec(self.x * k, self.y * k)
+    var _eq_ = Function(self, o):
+        return self.x == o.x and self.y == o.y
+    var _lt_ = Function(self, o):            # order by magnitude², enables sorting
+        return self.x ** 2 + self.y ** 2 < o.x ** 2 + o.y ** 2
+    var _getitem_ = Function(self, i):
+        if i == 0:
+            return self.x
+        return self.y
+    var _len_ = Function(self):
+        return 2
+    var _str_ = Function(self):
+        return f"Vec({self.x}, {self.y})"
+
+var a = Vec(1, 2)
+var b = Vec(3, 4)
+io.print(a + b)                  # Vec(4, 6)   (via _add_ + _str_)
+io.print(a * 3)                  # Vec(3, 6)
+io.print(a == Vec(1, 2))         # True
+io.print(b[0], len(b))           # 3 2
+io.print(sorted([b, a])[0])      # Vec(1, 2)   (smaller magnitude first, via _lt_)
+```
+

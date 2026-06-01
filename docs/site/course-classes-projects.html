@@ -39,7 +39,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 </style></head>
 <body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-basics.html">Course 1 — Basics</a><a href="course-data-functions.html">Course 2 — Data and Functions</a><a href="course-classes-projects.html" class="active">Course 3 — Classes, Errors, and a Capstone</a></nav><main id="content"><h1 id="course-3-classes-errors-and-a-capstone">Course 3 — Classes, Errors, and a Capstone</h1>
 <h2 id="lesson-3-1-your-own-types">Lesson 3.1 — Your own types</h2>
-<p>A <code>class</code> bundles data (attributes) with behavior (methods). The first parameter of every method is the receiver, by convention <code>self</code>. <code>_init_</code> runs when you call the class to construct an instance:</p>
+<p>A <code>class</code> bundles data (attributes) with behavior (methods). The first parameter of every method is the receiver, by convention <code>self</code>. <a class="xref" href="types.html#sym-_init_"><code>_init_</code></a> runs when you call the class to construct an instance:</p>
 <pre><code><span class="kw">class</span> Point:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, x, y):
         self.x = x
@@ -65,7 +65,7 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(a.dist
 
 <span class="kw">var</span> v = Vec(<span class="num">1</span>, <span class="num">2</span>) + Vec(<span class="num">3</span>, <span class="num">4</span>)
 io.<span class="builtin">print</span>(<span class="builtin">String</span>(v))                 <span class="com"># Vec(4, 6)</span></code></pre>
-<p>Useful ones: <code>_eq_</code>, <code>_lt_</code> (sorting/comparison), <code>_getitem_</code>/<code>_setitem_</code> (indexing), <code>_len_</code>, <code>_contains_</code> (<code>in</code>), <code>_iter_</code> (<code>for</code>), <code>_call_</code> (make instances callable).</p>
+<p>Useful ones: <a class="xref" href="types.html#sym-_eq_"><code>_eq_</code></a>, <a class="xref" href="types.html#sym-_lt_"><code>_lt_</code></a> (sorting/comparison), <a class="xref" href="types.html#sym-_getitem_"><code>_getitem_</code></a>/<a class="xref" href="types.html#sym-_setitem_"><code>_setitem_</code></a> (indexing), <a class="xref" href="types.html#sym-_len_"><code>_len_</code></a>, <a class="xref" href="types.html#sym-_contains_"><code>_contains_</code></a> (<code>in</code>), <a class="xref" href="types.html#sym-_iter_"><code>_iter_</code></a> (<code>for</code>), <a class="xref" href="types.html#sym-_call_"><code>_call_</code></a> (make instances callable).</p>
 <h2 id="lesson-3-3-inheritance">Lesson 3.3 — Inheritance</h2>
 <p>A subclass reuses and overrides:</p>
 <pre><code><span class="kw">class</span> Shape:
@@ -90,7 +90,7 @@ io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span 
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, r):
         self._super_()._init_(<span class="str">&quot;circle&quot;</span>)    <span class="com"># reuse Shape&#x27;s constructor</span>
         self.r = r</code></pre>
-<p><code>_super_()</code> only works when the class inherits (it throws otherwise) and climbs one level per call, so it composes through multi-level hierarchies.</p>
+<p><a class="xref" href="types.html#sym-_super_"><code>_super_()</code></a> only works when the class inherits (it throws otherwise) and climbs one level per call, so it composes through multi-level hierarchies.</p>
 <h2 id="lesson-3-4-errors">Lesson 3.4 — Errors</h2>
 <p>Signal a problem with <code>throw</code>; handle it with <code>try</code>/<code>catch</code>/<code>finally</code>:</p>
 <pre><code><span class="kw">class</span> RangeError:
