@@ -68,7 +68,7 @@ first + "|" + second
         KiritoVM vm;
         CHECK(run(vm, R"(
 var io = import("io")
-var path = "/tmp/kirito_stream_test.txt"
+var path = io.gettempdir() + "/kirito_stream_test.txt"
 var f = io.open(path, "w")
 io.stdout = f
 io.print("into the file")

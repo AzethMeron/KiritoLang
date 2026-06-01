@@ -2,6 +2,7 @@
 // Goals: round-trip invariants (compress/serialize/hash/json), correct error behavior on bad input
 // (wrong types, wrong arity, bad keywords), and survival of randomized/hostile inputs without
 // crashing (every failure must be a catchable KiritoError, never a segfault/UB — run under ASan).
+#include <memory>
 #include <random>
 #include <string>
 
@@ -71,8 +72,14 @@ int main() {
         "import(\"serialize\").loads(%S)",
         "import(\"time\").make(%N, %N, %N)",
     };
+    // The fuzz deliberately triggers large/abusive allocations (huge matrices, string repeats,
+    // decompression). Reusing a single VM for all 4000 iterations would let unreclaimed
+    // intermediates pile up into gigabytes; recycle the VM every batch so peak memory stays small
+    // and each batch is independent. (Each input is still meant to fail cleanly, never crash.)
+    auto fuzzVm = std::make_unique<KiritoVM>();
     int crashes = 0, ran = 0;
     for (int i = 0; i < 4000; ++i) {
+        if (i % 100 == 0) fuzzVm = std::make_unique<KiritoVM>();
         std::string tmpl = ops[rng() % (sizeof(ops) / sizeof(ops[0]))];
         std::string src;
         for (std::size_t k = 0; k < tmpl.size(); ++k) {
@@ -99,7 +106,7 @@ int main() {
         }
         ++ran;
         try {
-            vm.runSource(src);
+            fuzzVm->runSource(src);
         } catch (const KiritoError&) {
             // expected for hostile / ill-typed input
         } catch (...) {

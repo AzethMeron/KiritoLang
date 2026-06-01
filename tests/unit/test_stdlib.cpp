@@ -27,11 +27,12 @@ int main() {
     // --- file io: write then read back ---
     CHECK(evalStr(vm, R"(
 var io = import("io")
-var f = io.open("/tmp/kirito_stdlib_test.txt", "w")
+var p = io.gettempdir() + "/kirito_stdlib_test.txt"
+var f = io.open(p, "w")
 f.write("hello\n")
 f.write("world\n")
 f.close()
-var g = io.open("/tmp/kirito_stdlib_test.txt", "r")
+var g = io.open(p, "r")
 var content = g.read()
 g.close()
 content
@@ -40,10 +41,11 @@ content
     // --- file as a context manager (auto-close on exit) ---
     CHECK(evalStr(vm, R"(
 var io = import("io")
-with io.open("/tmp/kirito_stdlib_test2.txt", "w") as f:
+var p = io.gettempdir() + "/kirito_stdlib_test2.txt"
+with io.open(p, "w") as f:
     f.write("data 123")
 var c = ""
-with io.open("/tmp/kirito_stdlib_test2.txt", "r") as g:
+with io.open(p, "r") as g:
     c = g.read()
 c
 )") == "data 123");
@@ -51,14 +53,18 @@ c
     // --- readline ---
     CHECK(evalStr(vm, R"(
 var io = import("io")
-var f = io.open("/tmp/kirito_stdlib_test3.txt", "w")
+var p = io.gettempdir() + "/kirito_stdlib_test3.txt"
+var f = io.open(p, "w")
 f.write("line1\nline2\n")
 f.close()
-var g = io.open("/tmp/kirito_stdlib_test3.txt", "r")
+var g = io.open(p, "r")
 var first = g.readline()
 g.close()
 first
 )") == "line1");
+
+    // --- gettempdir returns an existing directory (honors TMPDIR) ---
+    CHECK(evalStr(vm, "var io = import(\"io\")\nio.isdir(io.gettempdir()) and len(io.gettempdir()) > 0") == "True");
 
     return RUN_TESTS();
 }

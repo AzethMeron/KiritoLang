@@ -84,12 +84,13 @@ r[0] == r
     // save / load to a binary file
     CHECK(evalStr(vm, R"(
 var d = import("dump")
+var f = import("io").gettempdir() + "/kirito_dump_test.bin"
 var data = {"name": "Kirito", "scores": [10, 20, 30], "nested": {"x": [1, 2]}}
-d.dumps(data).save("/tmp/kirito_dump_test.bin")
-var loaded = d.load("/tmp/kirito_dump_test.bin")
+d.dumps(data).save(f)
+var loaded = d.load(f)
 String(loaded["name"]) + ":" + String(loaded["scores"][2]) + ":" + String(loaded["nested"]["x"][0])
 )") == "Kirito:30:1");
-    std::filesystem::remove("/tmp/kirito_dump_test.bin");
+    std::filesystem::remove(std::filesystem::temp_directory_path() / "kirito_dump_test.bin");
 
     // a large/deep structure
     CHECK(evalStr(vm, R"(

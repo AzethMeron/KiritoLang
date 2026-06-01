@@ -39,6 +39,8 @@ rebindable stream objects — assign a `File`, a `BytesIO`, another stream, or a
 - `rename(src: String, dst: String) → None` — rename/move a path (raises on failure).
 - `mkdir(path: String) → Bool` — create a directory (and parents); returns success.
 - `getcwd() → String` — the current working directory.
+- `gettempdir() → String` — the system temp directory (honors `TMPDIR`/`TMP`/`TEMP`, falls back to
+  `/tmp`), like Python's `tempfile.gettempdir` — a stable scratch location for temporary files.
 - `listdir(path: String) → List` — the entry names directly under `path`.
 - `walk(dir: String) → List` — every file path under `dir`, recursively (flattened).
 

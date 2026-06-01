@@ -68,12 +68,13 @@ d[0] == d
     // save / load to a file
     CHECK(evalStr(vm, R"(
 var s = import("serialize")
+var p = import("io").gettempdir() + "/kirito_serialize_test.dat"
 var data = {"name": "Kirito", "scores": [10, 20, 30]}
-s.save(data, "/tmp/kirito_serialize_test.dat")
-var loaded = s.load("/tmp/kirito_serialize_test.dat")
+s.save(data, p)
+var loaded = s.load(p)
 String(loaded["name"]) + ":" + String(loaded["scores"][2])
 )") == "Kirito:30");
-    std::filesystem::remove("/tmp/kirito_serialize_test.dat");
+    std::filesystem::remove(std::filesystem::temp_directory_path() / "kirito_serialize_test.dat");
 
     // unsupported types raise
     CHECK_THROWS(vm.runSource("var s = import(\"serialize\")\ns.dumps(Function(x): return x)\n"));

@@ -1,9 +1,21 @@
 # One small executable per test file (one behavior-area each), linking the header-only core.
 find_package(Threads REQUIRED)
+
+# Shared precompiled header. Every test TU does `#include "kirito.hpp"`, which pulls in the entire
+# header-only interpreter — parsing it once per TU dominates the build. This carrier compiles that
+# umbrella into a PCH ONCE; each test reuses it (REUSE_FROM below), so a clean build parses the core
+# a single time instead of ~60 times. The carrier carries the exact compile setup the tests use
+# (same warnings, same kirito/Threads usage requirements) so the PCH is binary-compatible to reuse.
+add_library(kirito_pch STATIC pch_carrier.cpp)
+target_link_libraries(kirito_pch PRIVATE kirito Threads::Threads)
+target_compile_options(kirito_pch PRIVATE -Wall -Wextra -Wpedantic)
+target_precompile_headers(kirito_pch PRIVATE ${CMAKE_SOURCE_DIR}/include/kirito.hpp)
+
 function(kirito_test name)
     add_executable(${name} ${ARGN})
     target_link_libraries(${name} PRIVATE kirito Threads::Threads)
     target_compile_options(${name} PRIVATE -Wall -Wextra -Wpedantic)
+    target_precompile_headers(${name} REUSE_FROM kirito_pch)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
