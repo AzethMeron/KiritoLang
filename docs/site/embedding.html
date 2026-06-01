@@ -61,7 +61,7 @@ std::printf(&quot;first = %lld\n&quot;, (long long)list.at(0).asInt());   // 1
 
 Value d = Value(vm, vm.runSource(&quot;{\&quot;a\&quot;: 1}\n&quot;));
 if (d.has(&quot;a&quot;)) std::printf(&quot;a = %lld\n&quot;, (long long)d.get(&quot;a&quot;).asInt());   // 1</code></pre>
-<p>The full <code>Value</code>/<code>Args</code>/builder reference — and how to author your own functions, modules, and types with it — is in <a href="extending.html">Extending Kirito</a>.</p>
+<p>The full <code>Value</code>/<a class="xref" href="extending.html#sym-Args"><code>Args</code></a>/builder reference — and how to author your own functions, modules, and types with it — is in <a href="extending.html">Extending Kirito</a>.</p>
 <h2 id="errors">Errors</h2>
 <p>Runtime and parse problems are thrown as <code>KiritoError</code>, which carries a <code>SourceSpan{line, col}</code> and a message. An uncaught Kirito <code>throw</code> surfaces to the embedder as a <code>KiritoError</code> too.</p>
 <pre><code>try {
@@ -70,7 +70,7 @@ if (d.has(&quot;a&quot;)) std::printf(&quot;a = %lld\n&quot;, (long long)d.get(&
     std::fprintf(stderr, &quot;%d:%d: %s\n&quot;, e.span.line, e.span.col, e.what());
 }</code></pre>
 <h2 id="injecting-a-c-function">Injecting a C++ function</h2>
-<p>Use <a class="xref" href="embedding.html#sym-registerGlobal"><code>registerGlobal</code></a> with a <code>NativeFunction</code>. Read arguments through <code>Args</code> + <code>Value</code> and build the result with <code>val(...)</code>, so a bad argument becomes a clear <code>KiritoError</code> instead of a cast crash:</p>
+<p>Use <a class="xref" href="embedding.html#sym-registerGlobal"><code>registerGlobal</code></a> with a <code>NativeFunction</code>. Read arguments through <a class="xref" href="extending.html#sym-Args"><code>Args</code></a> + <code>Value</code> and build the result with <code>val(...)</code>, so a bad argument becomes a clear <code>KiritoError</code> instead of a cast crash:</p>
 <pre><code>vm.registerGlobal(&quot;repeat&quot;, vm.alloc(std::make_unique&lt;NativeFunction&gt;(
     &quot;repeat&quot;, [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Handle {
         Args a(vm, raw, &quot;repeat&quot;);

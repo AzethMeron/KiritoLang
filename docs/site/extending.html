@@ -41,29 +41,47 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Kirito&#x27;s whole object model is one uniform <code>Object</code> protocol. Built-ins, your C++ types, and Kirito-level classes all derive from the same base and dispatch through the same slots — so anything you add is indistinguishable from a built-in to the evaluator. You extend Kirito by subclassing two convenience bases and registering with one call.</p>
 <blockquote><strong>Reach for the built-in types first.</strong> Returning Integers, Floats, Strings, Bools, <a class="xref" href="types.html#none"><code>None</code></a>, Lists, Dicts, and Sets covers the vast majority of modules. Defining a <em>new</em> <code>NativeClass</code> is the fallback — only for genuinely new behaviour (a file handle, a socket, a matrix). The <code>Value</code> API below makes working with the built-in types the easy, default path.</blockquote>
 <h2 id="working-with-built-in-types-the-value-api">Working with built-in types — the <code>Value</code> API</h2>
-<p><code>#include &quot;kirito.hpp&quot;</code> brings in <code>value.hpp</code>: a <code>Value</code> facade <code>(vm, handle)</code> with typed accessors, GC-safe builders (<a class="xref" href="types.html#list"><code>List</code></a>/<a class="xref" href="types.html#dict"><code>Dict</code></a>/<a class="xref" href="types.html#set"><code>Set</code></a>), <code>val(...)</code> constructors, and an <code>Args</code> view over a function&#x27;s arguments. <code>Value</code> converts implicitly to/from <code>Handle</code>, so it drops straight into a <code>NativeFn</code>.</p>
+<p><code>#include &quot;kirito.hpp&quot;</code> brings in <code>value.hpp</code>. Three facts about how the evaluator calls a native function make every line of the example below concrete:</p>
+<ul><li><strong>A native function has the signature <code>Handle fn(KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw)</code>.</strong></li></ul>
+<p>  <code>vm</code> is the interpreter this call belongs to. <code>raw</code> is the list of <em>positional argument handles</em>   the caller passed — for <code>demo(10, 20, [1, 2])</code>, <code>raw</code> holds three entries. The function returns one   <code>Handle</code>: the result value.</p>
+<ul><li><strong>A <code>Handle</code> is an opaque reference</strong> (an arena slot + generation), <em>not</em> a value you can read</li></ul>
+<p>  directly — Kirito owns the actual object. You reach the object through the VM, and the <code>Value</code>   facade (<code>Value{vm, handle}</code>) does exactly that: it lets you ask a handle&#x27;s type, read it as a C++   number/string, index it, or iterate it.</p>
+<ul><li><strong>You create new values with <code>val(vm, x)</code></strong> (for <a class="xref" href="types.html#integer"><code>Integer</code></a>/<a class="xref" href="types.html#float"><code>Float</code></a>/<a class="xref" href="types.html#string"><code>String</code></a>/<a class="xref" href="types.html#bool"><code>Bool</code></a>) and the</li></ul>
+<p>  <a class="xref" href="types.html#list"><code>List</code></a>/<a class="xref" href="types.html#dict"><code>Dict</code></a>/<a class="xref" href="types.html#set"><code>Set</code></a> builders (for collections). Each yields a <code>Handle</code> you can return. <code>Value</code>   converts implicitly to and from <code>Handle</code>, so these all interoperate.</p>
 <pre><code>using namespace kirito;
 
-// A function that takes (a: Integer, b: Integer, items: List) and returns a Dict.
+// demo(a: Integer, b: Integer, items: List) -&gt; Dict   (returns {&quot;sum&quot;, &quot;items&quot;, &quot;ok&quot;})
 NativeFn demo = [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Handle {
-    Args a(vm, raw, &quot;demo&quot;);
-    int64_t x = a.at(0).asInt(&quot;a&quot;);                 // typed read, clear error on mismatch
-    int64_t y = a.at(1).asInt(&quot;b&quot;);
+    Args a(vm, raw, &quot;demo&quot;);          // wrap the raw arg handles; &quot;demo&quot; labels this fn in errors
+    int64_t x = a.at(0).asInt(&quot;a&quot;);   // 1st arg, required, must be an Integer
+    int64_t y = a.at(1).asInt(&quot;b&quot;);   // 2nd arg, required, must be an Integer
 
-    List items(vm);                                 // builder roots intermediates for the GC
-    for (Value e : a[2].items()) items.add(e);      // iterate any iterable
-    items.add(x + y);
+    List items(vm);                   // a GC-safe List builder (roots its contents while building)
+    for (Value e : a.at(2).items())   // a.at(2) is the 3rd arg; .items() iterates any iterable
+        items.add(e);                 //   copy each element into the new list
+    items.add(x + y);                 //   then append the sum
 
-    return Dict(vm)                                 // fluent build; -&gt; Handle implicitly
-        .set(&quot;sum&quot;, x + y)
-        .set(&quot;items&quot;, items.build())
-        .set(&quot;ok&quot;, true)
-        .build();
+    return Dict(vm)                   // build the result Dict, fluent style
+        .set(&quot;sum&quot;, x + y)            //   &quot;sum&quot;   -&gt; an Integer (val() is applied for you)
+        .set(&quot;items&quot;, items.build())  //   &quot;items&quot; -&gt; the List we just built
+        .set(&quot;ok&quot;, true)              //   &quot;ok&quot;    -&gt; a Bool
+        .build();                     // finalize -&gt; Handle (Dict converts implicitly)
 };</code></pre>
-<p>Reading: <code>v.asInt()</code> / <code>asFloat()</code> (accepts Integer or Float) / <code>asString()</code> / <code>asBool()</code>; <code>v.isInt()</code>/<code>isString()</code>/<code>isList()</code>/…; <code>v.len()</code>, <code>v.at(i)</code> (list index, negatives allowed), <code>v.items()</code> (iterate), and for Dicts <code>v.get(key)</code>, <code>v.get(key, default)</code>, <code>v.has(key)</code>, <code>v.pairs()</code>. Building: <code>val(vm, 42)</code>, <code>val(vm, 3.14)</code>, <code>val(vm, &quot;hi&quot;)</code>, <code>val(vm, true)</code>, <code>none(vm)</code>, <code>makeList(vm, {h1, h2})</code>, and the <a class="xref" href="types.html#list"><code>List</code></a>/<a class="xref" href="types.html#dict"><code>Dict</code></a>/<a class="xref" href="types.html#set"><code>Set</code></a> builders (each owns a <code>RootScope</code>, so a GC during construction can never reclaim a half-built value).</p>
+<p><strong>Line by line:</strong></p>
+<ul><li id="sym-Args"><a class="xref" href="extending.html#sym-Args"><code>Args a(vm, raw, &quot;demo&quot;)</code></a> — wraps the raw handle span in a small checked view. The string <code>&quot;demo&quot;</code></li></ul>
+<p>  is cosmetic: it is the function name spliced into argument-error messages.</p>
+<ul><li id="sym-a.at"><a class="xref" href="extending.html#sym-a.at"><code>a.at(0)</code></a> — returns the first argument <strong>as a <code>Value</code></strong>, bounds-checked. If the caller passed too</li></ul>
+<p>  few arguments it throws <em>&quot;demo missing argument 1&quot;</em>. (<code>a[0]</code> is the same read but <em>unchecked</em> — use   it only after testing <code>a.size()</code>; <code>a.opt(i, dflt)</code> substitutes a default when the argument is   absent.)</p>
+<ul><li><code>.asInt(&quot;a&quot;)</code> — reads that <code>Value</code> as an <code>int64_t</code>, requiring an <a class="xref" href="types.html#integer"><code>Integer</code></a>; on a mismatch it throws</li></ul>
+<p>  <em>&quot;a expected Integer, got &#x27;Float&#x27;&quot;</em>. You pass the <strong>parameter&#x27;s name</strong> as the label so the message   points at the offending argument. <code>asFloat</code> / <code>asString</code> / <code>asBool</code> behave the same (<code>asFloat</code> also   accepts an <a class="xref" href="types.html#integer"><code>Integer</code></a>).</p>
+<ul><li><code>.items()</code> — turns any iterable argument (List, Set, String, Dict, …) into a <code>std::vector&lt;Value&gt;</code></li></ul>
+<p>  you can range over; it throws if the argument isn&#x27;t iterable.</p>
+<ul><li>The <a class="xref" href="types.html#list"><code>List</code></a> / <a class="xref" href="types.html#dict"><code>Dict</code></a> / <a class="xref" href="types.html#set"><code>Set</code></a> builders own a GC root scope, so an allocation midway through</li></ul>
+<p>  construction can never collect the half-built value. <code>.set(key, v)</code> takes a C++ primitive directly   (calling <code>val()</code> for you) or a <code>Handle</code>; <code>.build()</code> returns the finished <code>Handle</code>.</p>
+<p><strong>Reading a <code>Value</code>:</strong> <code>v.asInt()</code> / <code>asFloat()</code> (accepts Integer or Float) / <code>asString()</code> / <code>asBool()</code>; the type tests <code>v.isInt()</code> / <code>isString()</code> / <code>isList()</code> / …; <code>v.len()</code>, <code>v.at(i)</code> (list index, negative counts from the end), <code>v.items()</code> (iterate); and for Dicts <code>v.get(key)</code>, <code>v.get(key, default)</code>, <code>v.has(key)</code>, <code>v.pairs()</code>. <strong>Building a value:</strong> <code>val(vm, 42)</code>, <code>val(vm, 3.14)</code>, <code>val(vm, &quot;hi&quot;)</code>, <code>val(vm, true)</code>, <code>none(vm)</code>, <code>makeList(vm, {h1, h2})</code>, and the <a class="xref" href="types.html#list"><code>List</code></a> / <a class="xref" href="types.html#dict"><code>Dict</code></a> / <a class="xref" href="types.html#set"><code>Set</code></a> builders.</p>
 <p>Every bundled stdlib module — <a class="xref" href="stdlib.html#io"><code>io</code></a>, <a class="xref" href="stdlib.html#math"><code>math</code></a>, <a class="xref" href="stdlib.html#random"><code>random</code></a>, <a class="xref" href="stdlib.html#matrix"><code>matrix</code></a>, <a class="xref" href="stdlib.html#json"><code>json</code></a>, <a class="xref" href="stdlib.html#serialize"><code>serialize</code></a>, <a class="xref" href="stdlib.html#dump"><code>dump</code></a>, <a class="xref" href="stdlib.html#net"><code>net</code></a>, <a class="xref" href="stdlib.html#sys"><code>sys</code></a>, <a class="xref" href="stdlib.html#time"><code>time</code></a>, <a class="xref" href="stdlib.html#zlib"><code>zlib</code></a>, <a class="xref" href="stdlib.html#hash"><code>hash</code></a> — is authored against this <code>Value</code> API, so their headers double as worked examples of idiomatic native code.</p>
 <h2 id="adding-a-function">Adding a function</h2>
-<p>The lightest extension. A <code>NativeFunction</code> wraps a <code>std::function&lt;Handle(KiritoVM&amp;, std::span&lt;const Handle&gt;)&gt;</code>. Reach through <code>Args</code> + <code>Value</code> so a bad argument becomes a clear <code>KiritoError</code> instead of a cast crash:</p>
+<p>The lightest extension. A <code>NativeFunction</code> wraps a <code>std::function&lt;Handle(KiritoVM&amp;, std::span&lt;const Handle&gt;)&gt;</code>. Reach through <a class="xref" href="extending.html#sym-Args"><code>Args</code></a> + <code>Value</code> so a bad argument becomes a clear <code>KiritoError</code> instead of a cast crash:</p>
 <pre><code>vm.registerGlobal(&quot;clamp&quot;, vm.arena().alloc(std::make_unique&lt;NativeFunction&gt;(
     &quot;clamp&quot;, [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Handle {
         Args a(vm, raw, &quot;clamp&quot;);                       // checks arity on access, labels errors

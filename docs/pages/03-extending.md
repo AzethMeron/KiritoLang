@@ -12,37 +12,67 @@ convenience bases and registering with one call.
 
 ## Working with built-in types — the `Value` API
 
-`#include "kirito.hpp"` brings in `value.hpp`: a `Value` facade `(vm, handle)` with typed accessors,
-GC-safe builders (`List`/`Dict`/`Set`), `val(...)` constructors, and an `Args` view over a function's
-arguments. `Value` converts implicitly to/from `Handle`, so it drops straight into a `NativeFn`.
+`#include "kirito.hpp"` brings in `value.hpp`. Three facts about how the evaluator calls a native
+function make every line of the example below concrete:
+
+- **A native function has the signature `Handle fn(KiritoVM& vm, std::span<const Handle> raw)`.**
+  `vm` is the interpreter this call belongs to. `raw` is the list of *positional argument handles*
+  the caller passed — for `demo(10, 20, [1, 2])`, `raw` holds three entries. The function returns one
+  `Handle`: the result value.
+- **A `Handle` is an opaque reference** (an arena slot + generation), *not* a value you can read
+  directly — Kirito owns the actual object. You reach the object through the VM, and the `Value`
+  facade (`Value{vm, handle}`) does exactly that: it lets you ask a handle's type, read it as a C++
+  number/string, index it, or iterate it.
+- **You create new values with `val(vm, x)`** (for `Integer`/`Float`/`String`/`Bool`) and the
+  `List`/`Dict`/`Set` builders (for collections). Each yields a `Handle` you can return. `Value`
+  converts implicitly to and from `Handle`, so these all interoperate.
 
 ```cpp
 using namespace kirito;
 
-// A function that takes (a: Integer, b: Integer, items: List) and returns a Dict.
+// demo(a: Integer, b: Integer, items: List) -> Dict   (returns {"sum", "items", "ok"})
 NativeFn demo = [](KiritoVM& vm, std::span<const Handle> raw) -> Handle {
-    Args a(vm, raw, "demo");
-    int64_t x = a.at(0).asInt("a");                 // typed read, clear error on mismatch
-    int64_t y = a.at(1).asInt("b");
+    Args a(vm, raw, "demo");          // wrap the raw arg handles; "demo" labels this fn in errors
+    int64_t x = a.at(0).asInt("a");   // 1st arg, required, must be an Integer
+    int64_t y = a.at(1).asInt("b");   // 2nd arg, required, must be an Integer
 
-    List items(vm);                                 // builder roots intermediates for the GC
-    for (Value e : a[2].items()) items.add(e);      // iterate any iterable
-    items.add(x + y);
+    List items(vm);                   // a GC-safe List builder (roots its contents while building)
+    for (Value e : a.at(2).items())   // a.at(2) is the 3rd arg; .items() iterates any iterable
+        items.add(e);                 //   copy each element into the new list
+    items.add(x + y);                 //   then append the sum
 
-    return Dict(vm)                                 // fluent build; -> Handle implicitly
-        .set("sum", x + y)
-        .set("items", items.build())
-        .set("ok", true)
-        .build();
+    return Dict(vm)                   // build the result Dict, fluent style
+        .set("sum", x + y)            //   "sum"   -> an Integer (val() is applied for you)
+        .set("items", items.build())  //   "items" -> the List we just built
+        .set("ok", true)              //   "ok"    -> a Bool
+        .build();                     // finalize -> Handle (Dict converts implicitly)
 };
 ```
 
-Reading: `v.asInt()` / `asFloat()` (accepts Integer or Float) / `asString()` / `asBool()`;
-`v.isInt()`/`isString()`/`isList()`/…; `v.len()`, `v.at(i)` (list index, negatives allowed),
-`v.items()` (iterate), and for Dicts `v.get(key)`, `v.get(key, default)`, `v.has(key)`, `v.pairs()`.
-Building: `val(vm, 42)`, `val(vm, 3.14)`, `val(vm, "hi")`, `val(vm, true)`, `none(vm)`,
-`makeList(vm, {h1, h2})`, and the `List`/`Dict`/`Set` builders (each owns a `RootScope`, so a GC
-during construction can never reclaim a half-built value).
+**Line by line:**
+
+- `Args a(vm, raw, "demo")` — wraps the raw handle span in a small checked view. The string `"demo"`
+  is cosmetic: it is the function name spliced into argument-error messages.
+- `a.at(0)` — returns the first argument **as a `Value`**, bounds-checked. If the caller passed too
+  few arguments it throws *"demo missing argument 1"*. (`a[0]` is the same read but *unchecked* — use
+  it only after testing `a.size()`; `a.opt(i, dflt)` substitutes a default when the argument is
+  absent.)
+- `.asInt("a")` — reads that `Value` as an `int64_t`, requiring an `Integer`; on a mismatch it throws
+  *"a expected Integer, got 'Float'"*. You pass the **parameter's name** as the label so the message
+  points at the offending argument. `asFloat` / `asString` / `asBool` behave the same (`asFloat` also
+  accepts an `Integer`).
+- `.items()` — turns any iterable argument (List, Set, String, Dict, …) into a `std::vector<Value>`
+  you can range over; it throws if the argument isn't iterable.
+- The `List` / `Dict` / `Set` builders own a GC root scope, so an allocation midway through
+  construction can never collect the half-built value. `.set(key, v)` takes a C++ primitive directly
+  (calling `val()` for you) or a `Handle`; `.build()` returns the finished `Handle`.
+
+**Reading a `Value`:** `v.asInt()` / `asFloat()` (accepts Integer or Float) / `asString()` /
+`asBool()`; the type tests `v.isInt()` / `isString()` / `isList()` / …; `v.len()`, `v.at(i)` (list
+index, negative counts from the end), `v.items()` (iterate); and for Dicts `v.get(key)`,
+`v.get(key, default)`, `v.has(key)`, `v.pairs()`.
+**Building a value:** `val(vm, 42)`, `val(vm, 3.14)`, `val(vm, "hi")`, `val(vm, true)`, `none(vm)`,
+`makeList(vm, {h1, h2})`, and the `List` / `Dict` / `Set` builders.
 
 Every bundled stdlib module — `io`, `math`, `random`, `matrix`, `json`, `serialize`, `dump`, `net`,
 `sys`, `time`, `zlib`, `hash` — is authored against this `Value` API, so their headers double as
