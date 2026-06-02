@@ -140,14 +140,24 @@ def collect_symbols(pages):
                     SYMBOLS[title] = (fn, _slug(title))
                     heading_syms.add(title)
     # Phase 2 — the first `code` token of a table row or list item defines that symbol, unless a
-    # heading already owns the name. A name defined this way in two different places is ambiguous.
+    # heading already owns the name. A name defined this way in two different places is ambiguous —
+    # including the same `sym-` name under two different *sections* of one page (e.g. `dumps`/`loads`
+    # in both `json` and `serialize`, or `parse` in `json` and `csv`): such generic names must not
+    # auto-cross-link to whichever module happened to render first. They keep their anchor but are
+    # not auto-linked, so a stray inline mention never points at the wrong entry.
+    defined_section = {}  # name -> (file, section-heading) where it was first defined
     for _, _, fn, text in pages:
         in_fence = False
+        section = None
         for line in text.split("\n"):
             if line.startswith("```"):
                 in_fence = not in_fence
                 continue
-            if in_fence or re.match(r"^#{1,4}\s", line):
+            h = re.match(r"^#{1,4}\s+(.*)$", line)
+            if h:
+                section = (fn, h.group(1).strip())
+                continue
+            if in_fence:
                 continue
             cell = None
             if line.lstrip().startswith("|") and "|" in line.strip().strip("|"):
@@ -159,10 +169,12 @@ def collect_symbols(pages):
                 if not name or name in heading_syms:
                     continue
                 target = (fn, "sym-" + name)
-                if name in SYMBOLS and SYMBOLS[name] != target:
+                prev = defined_section.get(name)
+                if (name in SYMBOLS and SYMBOLS[name] != target) or (prev is not None and prev != section):
                     _AMBIGUOUS.add(name)
                 else:
                     SYMBOLS[name] = target
+                    defined_section.setdefault(name, section)
 
 
 def _row_anchor(first_cell):

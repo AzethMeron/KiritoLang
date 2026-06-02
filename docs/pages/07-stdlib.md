@@ -152,10 +152,13 @@ Dense real matrices (no complex numbers).
 
 ## json
 
-JSON parsing and serialization. `loads`/`dumps` are aliases of `parse`/`stringify`.
+JSON parsing and serialization (flat data interchange — for reference/cycle-preserving snapshots see
+`serialize` / `dump` below). `loads` and `dumps` are aliases of `parse` and `stringify`.
 
-- `parse(text: String)` / `loads(text: String)` — parse JSON text into Kirito values (objects → Dict, arrays → List, decodes `\u` escapes and surrogate pairs). Raises a clear error on malformed input.
-- `stringify(value, indent: Integer = 0) → String` / `dumps(value, indent = 0) → String` — serialize a value to JSON; compact by default, pretty-printed with `indent > 0`.
+- `parse(text: String)` — parse JSON text into Kirito values (objects → Dict, arrays → List, decodes `\u` escapes and surrogate pairs). Raises a clear error on malformed input.
+- `loads(text: String)` — an alias of `parse`.
+- `stringify(value, indent: Integer = 0) → String` — serialize a value to JSON; compact by default, pretty-printed when the indent width is greater than zero.
+- `dumps(value, indent: Integer = 0) → String` — an alias of `stringify`.
 
 ---
 
