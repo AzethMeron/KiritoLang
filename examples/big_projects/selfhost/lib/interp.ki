@@ -2162,11 +2162,11 @@ var run4 = Function(src, inputText, importdirs):
     var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0, "importdirs": importdirs}
     var g = makeGlobal(St)
     St["global"] = g
-    var toks = lexerMod.tokenize(src)
-    var ast = parserMod.parseProgram(toks)
-    var modEnv = newEnv(g)
     var failed = None
     try:
+        var toks = lexerMod.tokenize(src)
+        var ast = parserMod.parseProgram(toks)
+        var modEnv = newEnv(g)
         execBlock(St, modEnv, ast)
     catch as e:
         if isinstance(e, "Dict") and ("exc" in e):
