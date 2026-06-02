@@ -148,6 +148,12 @@ private:
     Node parseQuantified() {
         Node atom = parseAtom();
         int32_t c = peek();
+        // A quantifier needs a repeatable atom: a zero-width anchor or an empty inline-flag group
+        // has "nothing to repeat" (matching Python). Note an empty *group* `(?:)*` is a Group node,
+        // so it stays repeatable.
+        bool zeroWidth = atom.kind == Node::Anchor || atom.kind == Node::Empty;
+        if (zeroWidth && (c == '*' || c == '+' || c == '?'))
+            throw RegexError("nothing to repeat");
         if (c == '*' || c == '+' || c == '?') {
             ++pos_;
             bool greedy = !eat('?');
@@ -174,6 +180,7 @@ private:
                 hi = lo;  // {n}
             }
             if (ok && eat('}')) {
+                if (zeroWidth) throw RegexError("nothing to repeat");
                 if (hi != -1 && hi < lo) throw RegexError("bad repetition bounds {" + std::to_string(lo) + "," + std::to_string(hi) + "}");
                 if (lo > 1000 || hi > 1000) throw RegexError("repetition count too large (max 1000)");
                 bool greedy = !eat('?');
@@ -258,7 +265,37 @@ private:
         while (pos_ < s_.size() && peek() != close) { utf8Encode(static_cast<unsigned>(next()), out); }
         if (!eat(close)) throw RegexError("malformed group name");
         if (out.empty()) throw RegexError("empty group name");
+        // A group name must be an identifier: a letter or '_' then letters/digits/'_'.
+        auto ident = [](unsigned char ch) {
+            return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || ch == '_';
+        };
+        if (!ident(static_cast<unsigned char>(out[0])))
+            throw RegexError("bad group name '" + out + "'");
+        for (unsigned char ch : out)
+            if (!ident(ch) && !(ch >= '0' && ch <= '9'))
+                throw RegexError("bad group name '" + out + "'");
         return out;
+    }
+
+    // Read an octal escape continuing from `firstVal` (the value of the first octal digit, already
+    // consumed): up to two further octal digits. Octal escapes are plain literal code points.
+    int32_t readOctalAfter(int32_t firstVal) {
+        int32_t v = firstVal;
+        for (int i = 0; i < 2; ++i) {
+            int32_t d = peek();
+            if (d < '0' || d > '7') break;
+            v = v * 8 + (d - '0');
+            ++pos_;
+        }
+        return v;
+    }
+
+    // Decode a single-character escape appearing INSIDE a character class. Unlike outside a class,
+    // here `\b` is a backspace (not a word boundary) and `\0`-`\7` begin an octal escape.
+    int32_t classSingleEscape(int32_t e) {
+        if (e == 'b') return 0x08;                         // backspace
+        if (e >= '0' && e <= '7') return readOctalAfter(e - '0');
+        return decodeEscapeChar(e);
     }
 
     // \d \w \s and their negations, anchors, and escaped characters.
@@ -286,7 +323,8 @@ private:
     int32_t decodeEscapeChar(int32_t c) {
         switch (c) {
             case 'n': return '\n'; case 't': return '\t'; case 'r': return '\r';
-            case 'f': return '\f'; case 'v': return '\v'; case 'a': return '\a'; case '0': return 0;
+            case 'f': return '\f'; case 'v': return '\v'; case 'a': return '\a';
+            case '0': return readOctalAfter(0);   // \0, \012, ... octal escape
             case 'x': return readHex(2);
             case 'u': return readHex(4);
             case 'U': return readHex(8);
@@ -335,8 +373,7 @@ private:
                 if (e == 'D') { addRanges(cc, complement(digitRanges())); continue; }
                 if (e == 'W') { addRanges(cc, complement(wordRanges())); continue; }
                 if (e == 'S') { addRanges(cc, complement(spaceRanges())); continue; }
-                int32_t lo = decodeEscapeChar(e);
-                c = lo;
+                c = classSingleEscape(e);
             } else {
                 ++pos_;
             }
@@ -344,7 +381,7 @@ private:
             if (peek() == '-' && pos_ + 1 < s_.size() && s_[pos_ + 1] != ']') {
                 ++pos_;  // consume '-'
                 int32_t hi = peek();
-                if (hi == '\\') { ++pos_; hi = decodeEscapeChar(next()); }
+                if (hi == '\\') { ++pos_; hi = classSingleEscape(next()); }
                 else ++pos_;
                 if (hi < c) throw RegexError("bad character range in class");
                 cc.ranges.push_back({c, hi});

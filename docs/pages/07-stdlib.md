@@ -382,7 +382,12 @@ Literals and `.` (any char except newline; `\n` too under DOTALL); character cla
 `[^...]`, ranges `a-z`; shorthands `\d \D \w \W \s \S` (ASCII); anchors `^ $`, `\b \B`, `\A \z \Z`;
 groups `(...)`, non-capturing `(?:...)`, named `(?P<name>...)` or `(?<name>...)`; alternation `|`;
 quantifiers `* + ?`, `{n}`, `{n,}`, `{n,m}`, each greedy or **lazy** with a trailing `?`; escapes
-`\n \t \r \f \v \xHH \uHHHH` and any escaped metacharacter; inline flags `(?i)` / `(?m)` / `(?s)`.
+`\n \t \r \f \v \a \xHH \uHHHH`, octal `\0`/`\NNN` (and `\b` is a backspace *inside* a class), and
+any escaped metacharacter; inline flags `(?i)` / `(?m)` / `(?s)`.
+
+The engine is validated against the full classic Spencer/PCRE/Python-`re` test corpus (run through
+Kirito in `tests/scripts/spec_regex_corpus.ki`): zero false positives/negatives, and every
+unsupported-feature or invalid pattern is rejected with a clean error rather than crashing.
 
 ### Module functions
 
