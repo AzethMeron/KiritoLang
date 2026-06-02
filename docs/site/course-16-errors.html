@@ -1,0 +1,143 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 16 — Errors and Exceptions — Kirito</title><style>
+:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
+--border:#e3e3e8;--side:#f7f7fa}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:#ececf2;text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#fff}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
+.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
+.builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values.html">Lesson 2 — Values and Variables</a><a href="course-03-numbers.html">Lesson 3 — Numbers and Arithmetic</a><a href="course-04-strings.html">Lesson 4 — Strings</a><a href="course-05-control-flow.html">Lesson 5 — Booleans and Control Flow</a><a href="course-06-loops.html">Lesson 6 — Loops and Iteration</a><a href="course-07-lists.html">Lesson 7 — Lists</a><a href="course-08-sets-dicts.html">Lesson 8 — Sets and Dictionaries</a><a href="course-09-unpacking.html">Lesson 9 — Packing and Unpacking</a><a href="course-10-functions.html">Lesson 10 — Functions</a><a href="course-11-closures.html">Lesson 11 — Closures and First-Class Functions</a><a href="course-12-annotations.html">Lesson 12 — Type Annotations and Runtime Checks</a><a href="course-13-classes.html">Lesson 13 — Classes I: Data and Behavior</a><a href="course-14-operators.html">Lesson 14 — Classes II: Operators and Protocols</a><a href="course-15-inheritance.html">Lesson 15 — Classes III: Inheritance and super</a><a href="course-16-errors.html" class="active">Lesson 16 — Errors and Exceptions</a><a href="course-17-context-managers.html">Lesson 17 — Context Managers and with</a><a href="course-18-files-io.html">Lesson 18 — Files, I/O, and Streams</a><a href="course-19-stdlib-tour.html">Lesson 19 — A Tour of the Standard Library</a><a href="course-20-capstone.html">Lesson 20 — Capstone: A Contact Book</a></nav><main id="content"><h1 id="lesson-16-errors-and-exceptions">Lesson 16 — Errors and Exceptions</h1>
+<p>Things go wrong: a file is missing, input is malformed, a divisor is zero. <strong>Exceptions</strong> let you signal such problems where they&#x27;re detected and handle them where you can do something about it — without threading error codes through every return value. Kirito uses Python-style indented blocks but C++-style keyword names: <a class="xref" href="course-16-errors.html#sym-throw"><code>throw</code></a> to raise, <a class="xref" href="course-16-errors.html#sym-try"><code>try</code></a>/<code>catch</code>/<a class="xref" href="course-16-errors.html#sym-finally"><code>finally</code></a> to handle.</p>
+<h2 id="raising-with-throw">Raising with <a class="xref" href="course-16-errors.html#sym-throw"><code>throw</code></a></h2>
+<p><a class="xref" href="course-16-errors.html#sym-throw"><code>throw</code></a> raises an exception, which unwinds the program until a matching <code>catch</code> handles it (or, if none does, stops the program with a message):</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> safe_divide = <span class="kw">Function</span>(a, b) -&gt; <span class="builtin">Float</span>:
+    <span class="kw">if</span> b == <span class="num">0</span>:
+        <span class="kw">throw</span> <span class="str">&quot;cannot divide by zero&quot;</span>      <span class="com"># you can throw any value, even a String</span>
+    <span class="kw">return</span> a / b
+
+io.<span class="builtin">print</span>(safe_divide(<span class="num">10</span>, <span class="num">2</span>))               <span class="com"># =&gt; 5.0</span></code></pre>
+<h2 id="handling-with-try-catch">Handling with <a class="xref" href="course-16-errors.html#sym-try"><code>try</code></a> / <code>catch</code></h2>
+<p>Wrap risky code in <a class="xref" href="course-16-errors.html#sym-try"><code>try:</code></a>; put the recovery in <code>catch:</code>. A bare <code>catch</code> handles anything thrown:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">try</span>:
+    <span class="kw">var</span> result = safe_divide(<span class="num">10</span>, <span class="num">0</span>)
+    io.<span class="builtin">print</span>(result)                        <span class="com"># skipped — the throw jumps past it</span>
+<span class="kw">catch</span> <span class="kw">as</span> e:
+    io.<span class="builtin">print</span>(f<span class="str">&quot;handled: {e}&quot;</span>)               <span class="com"># =&gt; handled: cannot divide by zero</span></code></pre>
+<p><code>catch as e</code> binds the thrown value to <code>e</code> so you can inspect or report it.</p>
+<h2 id="custom-exception-types">Custom exception types</h2>
+<p>Throwing a String works, but a <strong>class</strong> carries structured data and lets callers catch <em>specific</em> kinds of error. Define a class, throw an instance, and catch by type:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">class</span> ValidationError:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, field, message):
+        self.field = field
+        self.message = message
+
+<span class="kw">var</span> validate_age = <span class="kw">Function</span>(age):
+    <span class="kw">if</span> age &lt; <span class="num">0</span>:
+        <span class="kw">throw</span> ValidationError(<span class="str">&quot;age&quot;</span>, <span class="str">&quot;must not be negative&quot;</span>)
+    <span class="kw">if</span> age &gt; <span class="num">150</span>:
+        <span class="kw">throw</span> ValidationError(<span class="str">&quot;age&quot;</span>, <span class="str">&quot;is implausibly large&quot;</span>)
+    <span class="kw">return</span> age
+
+<span class="kw">try</span>:
+    <span class="kw">discard</span> validate_age(-<span class="num">5</span>)
+<span class="kw">catch</span> ValidationError <span class="kw">as</span> err:               <span class="com"># catch only this type (and subclasses)</span>
+    io.<span class="builtin">print</span>(f<span class="str">&quot;invalid {err.field}: {err.message}&quot;</span>)
+<span class="com"># =&gt; invalid age: must not be negative</span></code></pre>
+<p><code>catch ValidationError as err</code> matches that class and any subclass of it; other exception types would sail past this handler to an outer one. (The <a class="xref" href="course-10-functions.html#sym-discard"><code>discard</code></a> marks that we call <code>validate_age</code> only to trigger the error and don&#x27;t need its return value.)</p>
+<h2 id="finally-cleanup-that-always-runs"><a class="xref" href="course-16-errors.html#sym-finally"><code>finally</code></a>: cleanup that always runs</h2>
+<p>A <a class="xref" href="course-16-errors.html#sym-finally"><code>finally:</code></a> block runs whether or not an exception occurred — perfect for releasing resources:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> attempt = <span class="kw">Function</span>(should_fail):
+    <span class="kw">try</span>:
+        <span class="kw">if</span> should_fail:
+            <span class="kw">throw</span> <span class="str">&quot;boom&quot;</span>
+        io.<span class="builtin">print</span>(<span class="str">&quot;work succeeded&quot;</span>)
+    <span class="kw">catch</span> <span class="kw">as</span> e:
+        io.<span class="builtin">print</span>(f<span class="str">&quot;work failed: {e}&quot;</span>)
+    <span class="kw">finally</span>:
+        io.<span class="builtin">print</span>(<span class="str">&quot;cleanup runs no matter what&quot;</span>)
+
+attempt(<span class="kw">False</span>)    <span class="com"># =&gt; work succeeded / cleanup runs no matter what</span>
+attempt(<span class="kw">True</span>)     <span class="com"># =&gt; work failed: boom / cleanup runs no matter what</span></code></pre>
+<h2 id="multiple-specific-handlers">Multiple, specific handlers</h2>
+<p>Order handlers from specific to general. List several <code>catch</code> clauses to react differently per type:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">class</span> NotFound:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, key):
+        self.key = key
+<span class="kw">class</span> Forbidden:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self):
+        self.dummy = <span class="num">0</span>
+
+<span class="kw">var</span> lookup = <span class="kw">Function</span>(key):
+    <span class="kw">if</span> key == <span class="str">&quot;secret&quot;</span>:
+        <span class="kw">throw</span> Forbidden()
+    <span class="kw">if</span> key == <span class="str">&quot;missing&quot;</span>:
+        <span class="kw">throw</span> NotFound(key)
+    <span class="kw">return</span> f<span class="str">&quot;value for {key}&quot;</span>
+
+<span class="kw">var</span> fetch = <span class="kw">Function</span>(key):
+    <span class="kw">try</span>:
+        io.<span class="builtin">print</span>(lookup(key))
+    <span class="kw">catch</span> NotFound <span class="kw">as</span> e:
+        io.<span class="builtin">print</span>(f<span class="str">&quot;404: {e.key} not found&quot;</span>)
+    <span class="kw">catch</span> Forbidden <span class="kw">as</span> e:
+        io.<span class="builtin">print</span>(<span class="str">&quot;403: access denied&quot;</span>)
+
+fetch(<span class="str">&quot;ok&quot;</span>)        <span class="com"># =&gt; value for ok</span>
+fetch(<span class="str">&quot;missing&quot;</span>)   <span class="com"># =&gt; 404: missing not found</span>
+fetch(<span class="str">&quot;secret&quot;</span>)    <span class="com"># =&gt; 403: access denied</span></code></pre>
+<h2 id="assert-for-invariants"><a class="xref" href="language-guide.html#assert"><code>assert</code></a> for invariants</h2>
+<p><a class="xref" href="language-guide.html#assert"><code>assert</code></a> checks a condition you believe must hold; if it&#x27;s false it throws with your message. Use it to catch programming mistakes early (not for ordinary input validation, which deserves real exceptions):</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> average = <span class="kw">Function</span>(numbers) -&gt; <span class="builtin">Float</span>:
+    <span class="kw">assert</span> <span class="builtin">len</span>(numbers) &gt; <span class="num">0</span>, <span class="str">&quot;average of an empty list is undefined&quot;</span>
+    <span class="kw">return</span> <span class="builtin">sum</span>(numbers) / <span class="builtin">len</span>(numbers)
+
+io.<span class="builtin">print</span>(average([<span class="num">2</span>, <span class="num">4</span>, <span class="num">6</span>]))     <span class="com"># =&gt; 4.0</span></code></pre>
+<h2 id="try-it">Try it</h2>
+<p>Write <code>parse_positive_int(text)</code> that converts <code>text</code> to an Integer and <a class="xref" href="course-16-errors.html#sym-throw"><code>throw</code></a>s a custom <code>ParseError</code> (with the offending text) if the result is negative or the conversion fails. Call it inside a <a class="xref" href="course-16-errors.html#sym-try"><code>try</code></a>/<code>catch ParseError as e</code> and print a friendly message. (Hint: wrap the <a class="xref" href="types.html#integer"><code>Integer(text)</code></a> call in its own <a class="xref" href="course-16-errors.html#sym-try"><code>try</code></a> to turn a conversion failure into your <code>ParseError</code>.)</p>
+<h2 id="what-you-learned">What you learned</h2>
+<ul><li id="sym-throw"><a class="xref" href="course-16-errors.html#sym-throw"><code>throw</code></a> raises any value; uncaught exceptions stop the program with a message.</li><li id="sym-try"><a class="xref" href="course-16-errors.html#sym-try"><code>try</code></a> / <code>catch as e</code> handles errors; <code>catch Type as e</code> handles a specific type (and subclasses).</li><li>Custom exception classes carry structured data; list multiple handlers specific-to-general.</li><li id="sym-finally"><a class="xref" href="course-16-errors.html#sym-finally"><code>finally</code></a> always runs (cleanup); <a class="xref" href="language-guide.html#assert"><code>assert</code></a> checks invariants.</li></ul>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

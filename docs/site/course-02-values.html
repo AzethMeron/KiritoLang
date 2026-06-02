@@ -1,0 +1,99 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 2 — Values and Variables — Kirito</title><style>
+:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
+--border:#e3e3e8;--side:#f7f7fa}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:#ececf2;text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#fff}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
+.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
+.builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values.html" class="active">Lesson 2 — Values and Variables</a><a href="course-03-numbers.html">Lesson 3 — Numbers and Arithmetic</a><a href="course-04-strings.html">Lesson 4 — Strings</a><a href="course-05-control-flow.html">Lesson 5 — Booleans and Control Flow</a><a href="course-06-loops.html">Lesson 6 — Loops and Iteration</a><a href="course-07-lists.html">Lesson 7 — Lists</a><a href="course-08-sets-dicts.html">Lesson 8 — Sets and Dictionaries</a><a href="course-09-unpacking.html">Lesson 9 — Packing and Unpacking</a><a href="course-10-functions.html">Lesson 10 — Functions</a><a href="course-11-closures.html">Lesson 11 — Closures and First-Class Functions</a><a href="course-12-annotations.html">Lesson 12 — Type Annotations and Runtime Checks</a><a href="course-13-classes.html">Lesson 13 — Classes I: Data and Behavior</a><a href="course-14-operators.html">Lesson 14 — Classes II: Operators and Protocols</a><a href="course-15-inheritance.html">Lesson 15 — Classes III: Inheritance and super</a><a href="course-16-errors.html">Lesson 16 — Errors and Exceptions</a><a href="course-17-context-managers.html">Lesson 17 — Context Managers and with</a><a href="course-18-files-io.html">Lesson 18 — Files, I/O, and Streams</a><a href="course-19-stdlib-tour.html">Lesson 19 — A Tour of the Standard Library</a><a href="course-20-capstone.html">Lesson 20 — Capstone: A Contact Book</a></nav><main id="content"><h1 id="lesson-2-values-and-variables">Lesson 2 — Values and Variables</h1>
+<p>Every program shuffles <strong>values</strong> around. Kirito has a small set of built-in value types, and a clear, predictable model for the <strong>names</strong> that refer to them. Getting this model straight now saves confusion later.</p>
+<h2 id="the-basic-values">The basic values</h2>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> age = <span class="num">30</span>            <span class="com"># Integer  — whole numbers</span>
+<span class="kw">var</span> price = <span class="num">9.99</span>        <span class="com"># Float    — numbers with a fractional part</span>
+<span class="kw">var</span> name = <span class="str">&quot;Ada&quot;</span>        <span class="com"># String   — text</span>
+<span class="kw">var</span> is_admin = <span class="kw">True</span>     <span class="com"># Bool     — True or False</span>
+<span class="kw">var</span> nothing = <span class="kw">None</span>      # <span class="kw">None</span>     — the <span class="str">&quot;no value&quot;</span> value
+
+io.<span class="builtin">print</span>(<span class="builtin">type</span>(age), <span class="builtin">type</span>(price), <span class="builtin">type</span>(name), <span class="builtin">type</span>(is_admin), <span class="builtin">type</span>(nothing))
+<span class="com"># =&gt; Integer Float String Bool None</span></code></pre>
+<p><code>type(x)</code> returns the name of a value&#x27;s type as a String — useful when you&#x27;re not sure what you&#x27;re holding.</p>
+<h2 id="var-declares-updates"><a class="xref" href="course-02-values.html#sym-var"><code>var</code></a> declares, <code>=</code> updates</h2>
+<p><a class="xref" href="course-02-values.html#sym-var"><code>var name = value</code></a> <strong>declares</strong> a new name in the current scope. Once declared, a plain <code>=</code> (no <a class="xref" href="course-02-values.html#sym-var"><code>var</code></a>) <strong>updates</strong> the existing binding:</p>
+<pre><code><span class="kw">var</span> counter = <span class="num">0</span>         <span class="com"># declare</span>
+counter = counter + <span class="num">1</span>   <span class="com"># update — counter is now 1</span>
+counter = counter + <span class="num">1</span>   <span class="com"># update — counter is now 2</span>
+io.<span class="builtin">print</span>(counter)       <span class="com"># =&gt; 2</span></code></pre>
+<p>Using <code>=</code> on a name that was never declared is an error (a <code>NameError</code>), not a silent new variable — this catches typos early:</p>
+<p>&lt;!--norun (demonstrates an intentional error)--&gt;</p>
+<pre><code>total = <span class="num">5</span>               <span class="com"># NameError: &#x27;total&#x27; is not defined  (you meant `var total = 5`)</span></code></pre>
+<h2 id="truthiness">Truthiness</h2>
+<p>Every value is either &quot;truthy&quot; or &quot;falsy&quot; when used as a condition. The falsy values are <code>False</code>, <a class="xref" href="types.html#none"><code>None</code></a>, zero (<code>0</code>, <code>0.0</code>), the empty String <code>&quot;&quot;</code>, and any empty collection. Everything else is truthy:</p>
+<pre><code><span class="kw">var</span> name = <span class="str">&quot;&quot;</span>
+<span class="kw">if</span> name:
+    io.<span class="builtin">print</span>(<span class="str">&quot;got a name&quot;</span>)
+<span class="kw">else</span>:
+    io.<span class="builtin">print</span>(<span class="str">&quot;name is empty&quot;</span>)     <span class="com"># =&gt; name is empty (an empty String is falsy)</span></code></pre>
+<p><a class="xref" href="types.html#bool"><code>Bool(x)</code></a> makes this explicit, returning the truthiness of any value:</p>
+<pre><code>io.<span class="builtin">print</span>(<span class="builtin">Bool</span>(<span class="num">0</span>), <span class="builtin">Bool</span>(<span class="num">42</span>), <span class="builtin">Bool</span>(<span class="str">&quot;&quot;</span>), <span class="builtin">Bool</span>(<span class="str">&quot;hi&quot;</span>), <span class="builtin">Bool</span>([]))
+<span class="com"># =&gt; False True False True False</span></code></pre>
+<h2 id="names-are-bindings-not-boxes">Names are bindings, not boxes</h2>
+<p>This is the one idea to internalize. Assignment <strong>binds a name to a value</strong>; it does not copy the value. When two names are bound to the same mutable value, they see each other&#x27;s changes:</p>
+<pre><code><span class="kw">var</span> first = [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>]   <span class="com"># a List (covered in Lesson 7)</span>
+<span class="kw">var</span> second = first      <span class="com"># second is bound to the SAME list, not a copy</span>
+second.append(<span class="num">4</span>)
+io.<span class="builtin">print</span>(first)         <span class="com"># =&gt; [1, 2, 3, 4]   — first sees the change too</span></code></pre>
+<p>For immutable values (Integer, Float, String, Bool, None) this never surprises you, because you can never change the value in place — you only ever rebind the name:</p>
+<pre><code><span class="kw">var</span> x = <span class="num">10</span>
+<span class="kw">var</span> y = x
+x = <span class="num">99</span>                  <span class="com"># rebinds x; y still refers to the original 10</span>
+io.<span class="builtin">print</span>(x, y)          <span class="com"># =&gt; 99 10</span></code></pre>
+<p>When you genuinely want an independent copy of a mutable value, ask for one explicitly (the <a class="xref" href="stdlib.html#copy"><code>copy</code></a> module and <code>.copy()</code> methods, covered later).</p>
+<h2 id="converting-between-types">Converting between types</h2>
+<p>The type names double as converters. Each takes a value and returns the converted form:</p>
+<pre><code>io.<span class="builtin">print</span>(<span class="builtin">Integer</span>(<span class="str">&quot;42&quot;</span>) + <span class="num">1</span>)     <span class="com"># =&gt; 43   (String -&gt; Integer)</span>
+io.<span class="builtin">print</span>(<span class="builtin">Float</span>(<span class="num">7</span>))              <span class="com"># =&gt; 7.0  (Integer -&gt; Float)</span>
+io.<span class="builtin">print</span>(<span class="builtin">String</span>(<span class="num">3.5</span>) + <span class="str">&quot;!&quot;</span>)     <span class="com"># =&gt; 3.5! (anything -&gt; String)</span>
+io.<span class="builtin">print</span>(<span class="builtin">Integer</span>(<span class="num">3.9</span>))          <span class="com"># =&gt; 3    (Float -&gt; Integer, truncates toward zero)</span></code></pre>
+<p>A conversion that can&#x27;t succeed raises a clear error rather than guessing:</p>
+<p>&lt;!--norun (intentional conversion error)--&gt;</p>
+<pre><code><span class="builtin">Integer</span>(<span class="str">&quot;not a number&quot;</span>)         <span class="com"># error: cannot convert String to Integer</span></code></pre>
+<h2 id="try-it">Try it</h2>
+<p>Declare <code>temp_celsius = 100</code>, convert it to Fahrenheit (<code>c * 9 / 5 + 32</code>), and print a sentence like <code>100C is 212.0F</code>. Notice which operations give you an Integer and which give a Float — the next lesson explains exactly why.</p>
+<h2 id="what-you-learned">What you learned</h2>
+<ul><li>The built-in values: <a class="xref" href="types.html#integer"><code>Integer</code></a>, <a class="xref" href="types.html#float"><code>Float</code></a>, <a class="xref" href="types.html#string"><code>String</code></a>, <a class="xref" href="types.html#bool"><code>Bool</code></a>, <a class="xref" href="types.html#none"><code>None</code></a>.</li><li id="sym-var"><a class="xref" href="course-02-values.html#sym-var"><code>var</code></a> declares; <code>=</code> updates an existing name (and errors if it doesn&#x27;t exist).</li><li>Assignment binds names to values — mutable values are shared, not copied.</li><li>Truthiness rules, and the type-name converters.</li></ul>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

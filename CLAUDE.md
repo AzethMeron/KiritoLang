@@ -244,7 +244,7 @@ calling a change done.
 the dependency-free `docs/build_docs.py` into `docs/site/` (intro, build, embedding, extending,
 language guide, a built-in **types + special-methods/operator-overloading** reference, builtins
 reference, a **comprehensive per-function stdlib reference** with signatures/inputs/outputs, recipes,
-and a 3-part course with worked sample projects). `build_docs.py` auto-anchors every documented
+and a 20-lesson course). `build_docs.py` auto-anchors every documented
 symbol and turns later `inline code` mentions into clickable cross-links.
 Documentation is authored in those `.md` files, NOT scraped from code comments.
 

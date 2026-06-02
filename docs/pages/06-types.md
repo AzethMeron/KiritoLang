@@ -182,6 +182,7 @@ io.print(d.get("z", 0))    # 0 (default)
 | `d.items()` | List of `[key, value]` pairs. |
 | `d.get(key[, default])` | Value for `key`, or `default` (or `None`) if missing. |
 | `d.pop(key[, default])` | Remove and return `key`'s value. |
+| `d.remove(key)` | Delete `key` (raises if absent; like `pop` but returns nothing). |
 | `d.popitem()` | Remove and return the last `[key, value]` pair. |
 | `d.setdefault(key[, default])` | Get `key`, inserting `default` first if absent. |
 | `d.update(other)` | Merge another Dict (or `[key, value]` pairs) in. |

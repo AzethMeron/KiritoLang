@@ -140,12 +140,15 @@ Dense real matrices (no complex numbers).
 ### Matrix object
 
 - `m[i, j]` / `m[i, j] = v` — element access / assignment.
+- `m.get(i, j) → Float` / `m.set(i, j, v) → None` — explicit element access / assignment (the method form of `m[i, j]`).
 - `m.rows() → Integer` / `m.cols() → Integer` / `m.shape() → List` — dimensions.
+- `m.row(i) → List` — the `i`-th row as a List of its elements.
 - `m + n`, `m - n`, `m * n` — matrix addition/subtraction, and matrix or scalar multiplication.
 - `m.transpose() → Matrix` — the transpose.
 - `m.determinant() → Float` — determinant (square matrices).
 - `m.inverse() → Matrix` — inverse (raises if singular).
 - `m.trace() → Float` — sum of the diagonal.
+- `m.sum() → Float` — sum of every element.
 - `m.apply(fn) → Matrix` — a new matrix with `fn` applied to each element.
 
 ---
@@ -344,7 +347,7 @@ rather than a lazy sequence.
 
 - `deque([iterable]) → deque` — a double-ended queue with `append`, `appendleft`, `pop`, `popleft`, `len`, indexing, and iteration.
 - `Counter([iterable]) → Counter` — a multiset/tally with `add`, `get`, `items`, `mostcommon`, and indexing.
-- `defaultdict(factory) → defaultdict` — a Dict that fills a missing key by calling `factory()`.
+- `defaultdict(factory) → defaultdict` — a Dict that fills a missing key by calling `factory()`. Supports `d[k]` / `d[k] = v`, `k in d`, and `keys()` / `values()` / `items()`.
 
 ---
 

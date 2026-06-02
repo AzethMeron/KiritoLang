@@ -1,0 +1,142 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 14 — Classes II: Operators and Protocols — Kirito</title><style>
+:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
+--border:#e3e3e8;--side:#f7f7fa}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:#ececf2;text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#fff}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
+.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
+.builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values.html">Lesson 2 — Values and Variables</a><a href="course-03-numbers.html">Lesson 3 — Numbers and Arithmetic</a><a href="course-04-strings.html">Lesson 4 — Strings</a><a href="course-05-control-flow.html">Lesson 5 — Booleans and Control Flow</a><a href="course-06-loops.html">Lesson 6 — Loops and Iteration</a><a href="course-07-lists.html">Lesson 7 — Lists</a><a href="course-08-sets-dicts.html">Lesson 8 — Sets and Dictionaries</a><a href="course-09-unpacking.html">Lesson 9 — Packing and Unpacking</a><a href="course-10-functions.html">Lesson 10 — Functions</a><a href="course-11-closures.html">Lesson 11 — Closures and First-Class Functions</a><a href="course-12-annotations.html">Lesson 12 — Type Annotations and Runtime Checks</a><a href="course-13-classes.html">Lesson 13 — Classes I: Data and Behavior</a><a href="course-14-operators.html" class="active">Lesson 14 — Classes II: Operators and Protocols</a><a href="course-15-inheritance.html">Lesson 15 — Classes III: Inheritance and super</a><a href="course-16-errors.html">Lesson 16 — Errors and Exceptions</a><a href="course-17-context-managers.html">Lesson 17 — Context Managers and with</a><a href="course-18-files-io.html">Lesson 18 — Files, I/O, and Streams</a><a href="course-19-stdlib-tour.html">Lesson 19 — A Tour of the Standard Library</a><a href="course-20-capstone.html">Lesson 20 — Capstone: A Contact Book</a></nav><main id="content"><h1 id="lesson-14-classes-ii-operators-and-protocols">Lesson 14 — Classes II: Operators and Protocols</h1>
+<p>In Lesson 13 your classes had named methods. Now you&#x27;ll make them feel like <em>built-in</em> types — usable with <code>+</code>, <code>==</code>, <code>[]</code>, <a class="xref" href="builtins.html#sym-len"><code>len</code></a>, <code>in</code>, <a class="xref" href="course-09-unpacking.html#sym-for"><code>for</code></a>, and even called like functions. You do this by defining <strong>special methods</strong>: methods whose names have a single underscore on each side (<a class="xref" href="types.html#sym-_add_"><code>_add_</code></a>, <code>_str_</code>, <code>_getitem_</code>, …). The evaluator calls them automatically when the corresponding operator or builtin is used.</p>
+<h2 id="printing-str">Printing: <code>_str_</code></h2>
+<p><code>_str_</code> controls how your instance turns into text for <a class="xref" href="course-18-files-io.html#sym-io.print"><code>io.print</code></a>, <a class="xref" href="types.html#string"><code>String(x)</code></a>, and f-strings:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">class</span> Money:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, cents):
+        self.cents = cents
+    <span class="kw">var</span> _str_ = <span class="kw">Function</span>(self) -&gt; <span class="builtin">String</span>:
+        <span class="kw">return</span> f<span class="str">&quot;${self.cents / 100.0}&quot;</span>
+
+io.<span class="builtin">print</span>(Money(<span class="num">1599</span>))            <span class="com"># =&gt; $15.99   (io.print calls _str_)</span>
+io.<span class="builtin">print</span>(f<span class="str">&quot;price: {Money(500)}&quot;</span>) <span class="com"># =&gt; price: $5.0</span></code></pre>
+<h2 id="arithmetic-add-sub-mul">Arithmetic: <a class="xref" href="types.html#sym-_add_"><code>_add_</code></a>, <a class="xref" href="types.html#sym-_sub_"><code>_sub_</code></a>, <a class="xref" href="types.html#sym-_mul_"><code>_mul_</code></a>, …</h2>
+<p>Define <a class="xref" href="types.html#sym-_add_"><code>_add_(self, other)</code></a> to make <code>+</code> work on your type. The left operand is <code>self</code>, the right is <code>other</code>. Return the result (usually a new instance):</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">class</span> Vec:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, x, y):
+        self.x = x
+        self.y = y
+    <span class="kw">var</span> _add_ = <span class="kw">Function</span>(self, other):
+        <span class="kw">return</span> Vec(self.x + other.x, self.y + other.y)
+    <span class="kw">var</span> _mul_ = <span class="kw">Function</span>(self, scalar):
+        <span class="kw">return</span> Vec(self.x * scalar, self.y * scalar)
+    <span class="kw">var</span> _str_ = <span class="kw">Function</span>(self) -&gt; <span class="builtin">String</span>:
+        <span class="kw">return</span> f<span class="str">&quot;Vec({self.x}, {self.y})&quot;</span>
+
+io.<span class="builtin">print</span>(Vec(<span class="num">1</span>, <span class="num">2</span>) + Vec(<span class="num">3</span>, <span class="num">4</span>))  <span class="com"># =&gt; Vec(4, 6)</span>
+io.<span class="builtin">print</span>(Vec(<span class="num">1</span>, <span class="num">2</span>) * <span class="num">3</span>)          <span class="com"># =&gt; Vec(3, 6)</span></code></pre>
+<p>The full arithmetic set is <a class="xref" href="types.html#sym-_add_"><code>_add_</code></a>, <a class="xref" href="types.html#sym-_sub_"><code>_sub_</code></a>, <a class="xref" href="types.html#sym-_mul_"><code>_mul_</code></a>, <a class="xref" href="types.html#sym-_div_"><code>_div_</code></a>, <a class="xref" href="types.html#sym-_floordiv_"><code>_floordiv_</code></a>, <a class="xref" href="types.html#sym-_mod_"><code>_mod_</code></a>, <a class="xref" href="types.html#sym-_pow_"><code>_pow_</code></a>.</p>
+<h2 id="comparison-and-equality-eq-lt">Comparison and equality: <a class="xref" href="types.html#sym-_eq_"><code>_eq_</code></a>, <a class="xref" href="types.html#sym-_lt_"><code>_lt_</code></a>, …</h2>
+<p><a class="xref" href="types.html#sym-_eq_"><code>_eq_</code></a> defines <code>==</code> (and drives <code>in</code> and <code>.index</code> on lists); <a class="xref" href="types.html#sym-_lt_"><code>_lt_</code></a> defines <code>&lt;</code> (and drives <a class="xref" href="builtins.html#sym-sorted"><code>sorted</code></a>, <code>min</code>, <code>max</code>):</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">class</span> Version:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, major, minor):
+        self.major = major
+        self.minor = minor
+    <span class="kw">var</span> _eq_ = <span class="kw">Function</span>(self, other) -&gt; <span class="builtin">Bool</span>:
+        <span class="kw">return</span> self.major == other.major <span class="kw">and</span> self.minor == other.minor
+    <span class="kw">var</span> _lt_ = <span class="kw">Function</span>(self, other) -&gt; <span class="builtin">Bool</span>:
+        <span class="kw">if</span> self.major != other.major:
+            <span class="kw">return</span> self.major &lt; other.major
+        <span class="kw">return</span> self.minor &lt; other.minor
+    <span class="kw">var</span> _str_ = <span class="kw">Function</span>(self) -&gt; <span class="builtin">String</span>:
+        <span class="kw">return</span> f<span class="str">&quot;{self.major}.{self.minor}&quot;</span>
+
+<span class="kw">var</span> versions = [Version(<span class="num">1</span>, <span class="num">4</span>), Version(<span class="num">1</span>, <span class="num">2</span>), Version(<span class="num">2</span>, <span class="num">0</span>)]
+io.<span class="builtin">print</span>(<span class="builtin">sorted</span>(versions))                 <span class="com"># =&gt; [1.2, 1.4, 2.0]   (sorted uses _lt_)</span>
+io.<span class="builtin">print</span>(Version(<span class="num">1</span>, <span class="num">2</span>) == Version(<span class="num">1</span>, <span class="num">2</span>))   <span class="com"># =&gt; True             (uses _eq_)</span></code></pre>
+<p>The comparison family is <a class="xref" href="types.html#sym-_eq_"><code>_eq_</code></a>, <a class="xref" href="types.html#sym-_ne_"><code>_ne_</code></a>, <a class="xref" href="types.html#sym-_lt_"><code>_lt_</code></a>, <a class="xref" href="types.html#sym-_le_"><code>_le_</code></a>, <a class="xref" href="types.html#sym-_gt_"><code>_gt_</code></a>, <a class="xref" href="types.html#sym-_ge_"><code>_ge_</code></a>. (<a class="xref" href="types.html#sym-_ne_"><code>_ne_</code></a> defaults to &quot;not <a class="xref" href="types.html#sym-_eq_"><code>_eq_</code></a>&quot; if you don&#x27;t define it.) Unary <a class="xref" href="types.html#sym-_neg_"><code>_neg_</code></a> (<code>-x</code>) and <a class="xref" href="types.html#sym-_not_"><code>_not_</code></a> (<code>not x</code>) round out the operators.</p>
+<h2 id="container-behavior-getitem-setitem-len-contains-iter">Container behavior: <code>_getitem_</code>, <a class="xref" href="types.html#sym-_setitem_"><code>_setitem_</code></a>, <a class="xref" href="types.html#sym-_len_"><code>_len_</code></a>, <a class="xref" href="types.html#sym-_contains_"><code>_contains_</code></a>, <a class="xref" href="types.html#sym-_iter_"><code>_iter_</code></a></h2>
+<p>Make your type act like a collection:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">class</span> Grid:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, width, height):
+        self.width = width
+        self._cells = [<span class="num">0</span>] * (width * height)    <span class="com"># flat storage</span>
+    <span class="kw">var</span> _getitem_ = <span class="kw">Function</span>(self, row, col):    <span class="com"># called for grid[row, col]</span>
+        <span class="kw">return</span> self._cells[row * self.width + col]
+    <span class="kw">var</span> _setitem_ = <span class="kw">Function</span>(self, row, col, value):  <span class="com"># grid[row, col] = value</span>
+        self._cells[row * self.width + col] = value
+    <span class="kw">var</span> _len_ = <span class="kw">Function</span>(self) -&gt; <span class="builtin">Integer</span>:       <span class="com"># len(grid)</span>
+        <span class="kw">return</span> <span class="builtin">len</span>(self._cells)
+
+<span class="kw">var</span> board = Grid(<span class="num">3</span>, <span class="num">3</span>)
+board[<span class="num">1</span>, <span class="num">1</span>] = <span class="num">5</span>                  <span class="com"># calls _setitem_(self, 1, 1, 5)</span>
+io.<span class="builtin">print</span>(board[<span class="num">1</span>, <span class="num">1</span>])            <span class="com"># =&gt; 5    (calls _getitem_(self, 1, 1))</span>
+io.<span class="builtin">print</span>(<span class="builtin">len</span>(board))             <span class="com"># =&gt; 9    (calls _len_)</span></code></pre>
+<p>Note <code>_getitem_</code>/<a class="xref" href="types.html#sym-_setitem_"><code>_setitem_</code></a> are <strong>variadic in the key</strong> — <code>grid[1, 1]</code> passes two key arguments — so you can build matrices and multi-dimensional containers naturally.</p>
+<p><a class="xref" href="types.html#sym-_contains_"><code>_contains_(self, item)</code></a> powers <code>in</code>, and <a class="xref" href="types.html#sym-_iter_"><code>_iter_(self)</code></a> powers <a class="xref" href="course-09-unpacking.html#sym-for"><code>for</code></a> (return a List of the items to yield):</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">class</span> Range3:                    <span class="com"># yields 0, 1, 2</span>
+    <span class="kw">var</span> _iter_ = <span class="kw">Function</span>(self):
+        <span class="kw">return</span> [<span class="num">0</span>, <span class="num">1</span>, <span class="num">2</span>]
+    <span class="kw">var</span> _contains_ = <span class="kw">Function</span>(self, x) -&gt; <span class="builtin">Bool</span>:
+        <span class="kw">return</span> x == <span class="num">0</span> <span class="kw">or</span> x == <span class="num">1</span> <span class="kw">or</span> x == <span class="num">2</span>
+
+<span class="kw">for</span> n <span class="kw">in</span> Range3():
+    io.<span class="builtin">print</span>(n)                  <span class="com"># =&gt; 0 / 1 / 2</span>
+io.<span class="builtin">print</span>(<span class="num">1</span> <span class="kw">in</span> Range3())          <span class="com"># =&gt; True</span></code></pre>
+<h2 id="callable-instances-call">Callable instances: <code>_call_</code></h2>
+<p><code>_call_</code> makes an instance usable like a function — perfect for configurable, stateful &quot;function objects&quot;:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">class</span> Multiplier:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, factor):
+        self.factor = factor
+    <span class="kw">var</span> _call_ = <span class="kw">Function</span>(self, x):
+        <span class="kw">return</span> x * self.factor
+
+<span class="kw">var</span> triple = Multiplier(<span class="num">3</span>)
+io.<span class="builtin">print</span>(triple(<span class="num">10</span>))             <span class="com"># =&gt; 30   (calls _call_(self, 10))</span></code></pre>
+<h2 id="try-it">Try it</h2>
+<p>Give the <code>Money</code> class above an <a class="xref" href="types.html#sym-_add_"><code>_add_</code></a> (add the cents), an <a class="xref" href="types.html#sym-_eq_"><code>_eq_</code></a> (compare cents), and an <a class="xref" href="types.html#sym-_lt_"><code>_lt_</code></a> (compare cents). Then sort a list of <code>Money</code> amounts and print it. You&#x27;ll have a type that prints nicely, adds with <code>+</code>, and sorts — indistinguishable from a built-in at the call site.</p>
+<h2 id="what-you-learned">What you learned</h2>
+<ul><li>Special methods (single underscores) hook your class into operators and builtins.</li><li><code>_str_</code> for display; <a class="xref" href="types.html#sym-_add_"><code>_add_</code></a>/<a class="xref" href="types.html#sym-_mul_"><code>_mul_</code></a>/… for arithmetic; <a class="xref" href="types.html#sym-_eq_"><code>_eq_</code></a>/<a class="xref" href="types.html#sym-_lt_"><code>_lt_</code></a>/… for comparison and sorting.</li><li><code>_getitem_</code>/<a class="xref" href="types.html#sym-_setitem_"><code>_setitem_</code></a> (variadic keys), <a class="xref" href="types.html#sym-_len_"><code>_len_</code></a>, <a class="xref" href="types.html#sym-_contains_"><code>_contains_</code></a>, <a class="xref" href="types.html#sym-_iter_"><code>_iter_</code></a> make a container.</li><li><code>_call_</code> makes instances callable.</li></ul>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

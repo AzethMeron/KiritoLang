@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 1 — Hello, Kirito — Kirito</title><style>
+:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
+--border:#e3e3e8;--side:#f7f7fa}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:#ececf2;text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#fff}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
+.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
+.builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-01-hello.html" class="active">Lesson 1 — Hello, Kirito</a><a href="course-02-values.html">Lesson 2 — Values and Variables</a><a href="course-03-numbers.html">Lesson 3 — Numbers and Arithmetic</a><a href="course-04-strings.html">Lesson 4 — Strings</a><a href="course-05-control-flow.html">Lesson 5 — Booleans and Control Flow</a><a href="course-06-loops.html">Lesson 6 — Loops and Iteration</a><a href="course-07-lists.html">Lesson 7 — Lists</a><a href="course-08-sets-dicts.html">Lesson 8 — Sets and Dictionaries</a><a href="course-09-unpacking.html">Lesson 9 — Packing and Unpacking</a><a href="course-10-functions.html">Lesson 10 — Functions</a><a href="course-11-closures.html">Lesson 11 — Closures and First-Class Functions</a><a href="course-12-annotations.html">Lesson 12 — Type Annotations and Runtime Checks</a><a href="course-13-classes.html">Lesson 13 — Classes I: Data and Behavior</a><a href="course-14-operators.html">Lesson 14 — Classes II: Operators and Protocols</a><a href="course-15-inheritance.html">Lesson 15 — Classes III: Inheritance and super</a><a href="course-16-errors.html">Lesson 16 — Errors and Exceptions</a><a href="course-17-context-managers.html">Lesson 17 — Context Managers and with</a><a href="course-18-files-io.html">Lesson 18 — Files, I/O, and Streams</a><a href="course-19-stdlib-tour.html">Lesson 19 — A Tour of the Standard Library</a><a href="course-20-capstone.html">Lesson 20 — Capstone: A Contact Book</a></nav><main id="content"><h1 id="lesson-1-hello-kirito">Lesson 1 — Hello, Kirito</h1>
+<p>Welcome to the Kirito course: twenty lessons that take you from your first line of output to a complete program. Every lesson builds on the previous ones, and every code block is a real program you can run. Type them into the REPL or save them to a <code>.ki</code> file — learning sticks when you run and tweak the code yourself.</p>
+<h2 id="running-code">Running code</h2>
+<p>There are two ways to run Kirito.</p>
+<p><strong>The REPL</strong> — launch <code>ki</code> with no arguments and type expressions; it prints each result. Multi-line blocks (an <a class="xref" href="course-05-control-flow.html#sym-if"><code>if</code></a>, a <a class="xref" href="course-09-unpacking.html#sym-for"><code>for</code></a>, a function) continue with a <code>...</code> prompt until you enter a blank line.</p>
+<pre><code>$ ki
+&gt;&gt;&gt; 1 + 2
+3
+&gt;&gt;&gt; var io = import(&quot;io&quot;)
+&gt;&gt;&gt; for i in range(3):
+...     io.print(i)
+...
+0
+1
+2</code></pre>
+<p><strong>A script</strong> — save your program to a file (the extension is <code>.ki</code>) and run it:</p>
+<pre><code>$ ki hello.ki</code></pre>
+<h2 id="your-first-program">Your first program</h2>
+<p>Output lives in the <a class="xref" href="stdlib.html#io"><code>io</code></a> module. You bring a module into scope with <code>import</code>, binding it to a name — by convention the module&#x27;s own name:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+io.<span class="builtin">print</span>(<span class="str">&quot;Hello, Kirito!&quot;</span>)</code></pre>
+<p><a class="xref" href="course-18-files-io.html#sym-io.print"><code>io.print</code></a> writes its arguments separated by spaces and adds a newline. It accepts any number of values of any type:</p>
+<pre><code>io.<span class="builtin">print</span>(<span class="str">&quot;the answer is&quot;</span>, <span class="num">42</span>, <span class="str">&quot;and pi is about&quot;</span>, <span class="num">3.14159</span>)
+<span class="com"># =&gt; the answer is 42 and pi is about 3.14159</span></code></pre>
+<p>Throughout this course we assume <a class="xref" href="course-02-values.html#sym-var"><code>var io = import(&quot;io&quot;)</code></a> has run at the top of the file; later lessons won&#x27;t repeat it in every snippet.</p>
+<h2 id="comments">Comments</h2>
+<p>A <code>#</code> begins a comment that runs to the end of the line. Use comments to explain <em>why</em>, not to restate <em>what</em> the code obviously does:</p>
+<pre><code><span class="kw">var</span> seconds_per_day = <span class="num">24</span> * <span class="num">60</span> * <span class="num">60</span>   <span class="com"># 86400 — handy for date math later</span>
+io.<span class="builtin">print</span>(seconds_per_day)</code></pre>
+<h2 id="reading-command-line-arguments">Reading command-line arguments</h2>
+<p>A script can read the arguments it was launched with through the built-in <code>argv</code> list. <code>argv[0]</code> is the first argument <em>after</em> the script name (Kirito does not put the program name in <code>argv</code>):</p>
+<p>&lt;!--norun (argv is empty when run without arguments)--&gt;</p>
+<pre><code><span class="com"># greet.ki — run as:  ki greet.ki Ada</span>
+<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">if</span> <span class="builtin">len</span>(argv) &gt; <span class="num">0</span>:
+    io.<span class="builtin">print</span>(f<span class="str">&quot;Hello, {argv[0]}!&quot;</span>)
+<span class="kw">else</span>:
+    io.<span class="builtin">print</span>(<span class="str">&quot;Hello, stranger! (pass a name on the command line)&quot;</span>)</code></pre>
+<h2 id="try-it">Try it</h2>
+<p>Write a program that prints three lines: a greeting, the current year as an Integer, and a short sentence about yourself. Run it as a file <em>and</em> paste it into the REPL to feel the difference.</p>
+<h2 id="what-you-learned">What you learned</h2>
+<ul><li>Kirito runs as an interactive REPL or as a <code>.ki</code> script.</li><li><code>import</code> loads a module; <a class="xref" href="course-18-files-io.html#sym-io.print"><code>io.print</code></a> is your window to the world.</li><li><code>#</code> starts a comment; <code>argv</code> holds the script&#x27;s command-line arguments.</li></ul>
+<p>Next: the values those programs are made of.</p>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 3 — Numbers and Arithmetic — Kirito</title><style>
+:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
+--border:#e3e3e8;--side:#f7f7fa}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:#ececf2;text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#fff}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
+.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
+.builtin{color:#4078f2}
+a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
+a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values.html">Lesson 2 — Values and Variables</a><a href="course-03-numbers.html" class="active">Lesson 3 — Numbers and Arithmetic</a><a href="course-04-strings.html">Lesson 4 — Strings</a><a href="course-05-control-flow.html">Lesson 5 — Booleans and Control Flow</a><a href="course-06-loops.html">Lesson 6 — Loops and Iteration</a><a href="course-07-lists.html">Lesson 7 — Lists</a><a href="course-08-sets-dicts.html">Lesson 8 — Sets and Dictionaries</a><a href="course-09-unpacking.html">Lesson 9 — Packing and Unpacking</a><a href="course-10-functions.html">Lesson 10 — Functions</a><a href="course-11-closures.html">Lesson 11 — Closures and First-Class Functions</a><a href="course-12-annotations.html">Lesson 12 — Type Annotations and Runtime Checks</a><a href="course-13-classes.html">Lesson 13 — Classes I: Data and Behavior</a><a href="course-14-operators.html">Lesson 14 — Classes II: Operators and Protocols</a><a href="course-15-inheritance.html">Lesson 15 — Classes III: Inheritance and super</a><a href="course-16-errors.html">Lesson 16 — Errors and Exceptions</a><a href="course-17-context-managers.html">Lesson 17 — Context Managers and with</a><a href="course-18-files-io.html">Lesson 18 — Files, I/O, and Streams</a><a href="course-19-stdlib-tour.html">Lesson 19 — A Tour of the Standard Library</a><a href="course-20-capstone.html">Lesson 20 — Capstone: A Contact Book</a></nav><main id="content"><h1 id="lesson-3-numbers-and-arithmetic">Lesson 3 — Numbers and Arithmetic</h1>
+<p>Kirito takes numbers seriously. It keeps <strong>integers</strong> and <strong>floats</strong> as distinct types and follows Python-3&#x27;s arithmetic rules, so results are predictable instead of surprising.</p>
+<h2 id="two-number-types">Two number types</h2>
+<p><a class="xref" href="types.html#integer"><code>Integer</code></a> is a 64-bit whole number; <a class="xref" href="types.html#float"><code>Float</code></a> is a double-precision decimal. Literals decide which you get:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> whole = <span class="num">42</span>          <span class="com"># Integer</span>
+<span class="kw">var</span> decimal = <span class="num">42.0</span>      <span class="com"># Float — the .0 makes the difference</span>
+io.<span class="builtin">print</span>(<span class="builtin">type</span>(whole), <span class="builtin">type</span>(decimal))   <span class="com"># =&gt; Integer Float</span></code></pre>
+<h2 id="the-arithmetic-operators">The arithmetic operators</h2>
+<pre><code>io.<span class="builtin">print</span>(<span class="num">7</span> + <span class="num">3</span>)         <span class="com"># =&gt; 10</span>
+io.<span class="builtin">print</span>(<span class="num">7</span> - <span class="num">3</span>)         <span class="com"># =&gt; 4</span>
+io.<span class="builtin">print</span>(<span class="num">7</span> * <span class="num">3</span>)         <span class="com"># =&gt; 21</span>
+io.<span class="builtin">print</span>(<span class="num">7</span> / <span class="num">3</span>)         <span class="com"># =&gt; 2.33333333333333   division — ALWAYS a Float</span>
+io.<span class="builtin">print</span>(<span class="num">7</span> // <span class="num">3</span>)        <span class="com"># =&gt; 2     floor division — rounds toward negative infinity</span>
+io.<span class="builtin">print</span>(<span class="num">7</span> % <span class="num">3</span>)         <span class="com"># =&gt; 1     modulo (remainder)</span>
+io.<span class="builtin">print</span>(<span class="num">2</span> ** <span class="num">10</span>)       <span class="com"># =&gt; 1024  exponentiation (right-associative)</span></code></pre>
+<p>Two rules are worth burning in:</p>
+<ol><li><strong><code>/</code> always produces a Float</strong>, even for evenly divisible integers: <code>6 / 2</code> is <code>3.0</code>, not <code>3</code>.</li></ol>
+<p>   Use <code>//</code> when you want an Integer result.</p>
+<ol><li><strong><code>//</code> and <code>%</code> use floor semantics</strong> — the quotient rounds toward negative infinity and the</li></ol>
+<p>   remainder takes the sign of the divisor:</p>
+<pre><code>io.<span class="builtin">print</span>(-<span class="num">7</span> // <span class="num">3</span>)       <span class="com"># =&gt; -3   (not -2: it rounds DOWN)</span>
+io.<span class="builtin">print</span>(-<span class="num">7</span> % <span class="num">3</span>)        <span class="com"># =&gt; 2    (sign follows the divisor)</span></code></pre>
+<p><code>**</code> is right-associative, so <code>2 ** 3 ** 2</code> is <code>2 ** (3 ** 2)</code> = <code>2 ** 9</code> = <code>512</code>.</p>
+<h2 id="integer-literals-in-any-base">Integer literals in any base</h2>
+<p>Integers can be written in decimal, hexadecimal, octal, or binary. The prefix is case-insensitive:</p>
+<pre><code>io.<span class="builtin">print</span>(<span class="num">255</span>, 0xFF, 0o377, 0b11111111)   <span class="com"># =&gt; 255 255 255 255  (all the same value)</span></code></pre>
+<p>Float literals allow scientific notation:</p>
+<pre><code>io.<span class="builtin">print</span>(1e3, <span class="num">1.</span>5e3, 2e-<span class="num">3</span>)               <span class="com"># =&gt; 1000.0 1500.0 0.002</span></code></pre>
+<h2 id="overflow-wraps-it-doesn-t-crash">Overflow wraps, it doesn&#x27;t crash</h2>
+<p>Integer arithmetic is fixed-width 64-bit with <strong>well-defined two&#x27;s-complement wraparound</strong> — it never triggers undefined behavior. You rarely hit this, but it&#x27;s defined when you do:</p>
+<pre><code><span class="kw">var</span> biggest = <span class="num">9223372036854775807</span>        <span class="com"># the largest Integer</span>
+io.<span class="builtin">print</span>(biggest + <span class="num">1</span>)                     <span class="com"># =&gt; -9223372036854775808  (wraps around)</span></code></pre>
+<h2 id="rounding-and-absolute-value">Rounding and absolute value</h2>
+<pre><code>io.<span class="builtin">print</span>(<span class="builtin">abs</span>(-<span class="num">5</span>), <span class="builtin">abs</span>(-<span class="num">2.5</span>))             <span class="com"># =&gt; 5 2.5</span>
+io.<span class="builtin">print</span>(<span class="builtin">round</span>(<span class="num">3.14159</span>))                  <span class="com"># =&gt; 3      (to the nearest Integer)</span>
+io.<span class="builtin">print</span>(<span class="builtin">round</span>(<span class="num">3.14159</span>, ndigits=<span class="num">2</span>))       <span class="com"># =&gt; 3.14   (to 2 decimal places -&gt; Float)</span>
+io.<span class="builtin">print</span>(<span class="builtin">divmod</span>(<span class="num">17</span>, <span class="num">5</span>))                   <span class="com"># =&gt; [3, 2] (quotient and remainder at once)</span></code></pre>
+<h2 id="the-math-module-for-everything-else">The <a class="xref" href="stdlib.html#math"><code>math</code></a> module for everything else</h2>
+<p>Square roots, logs, trig, constants — they live in <a class="xref" href="stdlib.html#math"><code>math</code></a>:</p>
+<pre><code><span class="kw">var</span> math = <span class="kw">import</span>(<span class="str">&quot;math&quot;</span>)
+io.<span class="builtin">print</span>(math.sqrt(<span class="num">144</span>))                  <span class="com"># =&gt; 12.0</span>
+io.<span class="builtin">print</span>(math.pi)                          <span class="com"># =&gt; 3.141592653589793</span>
+io.<span class="builtin">print</span>(math.floor(<span class="num">3.7</span>), math.ceil(<span class="num">3.2</span>)) <span class="com"># =&gt; 3 4</span>
+io.<span class="builtin">print</span>(math.gcd(<span class="num">24</span>, <span class="num">36</span>))                 <span class="com"># =&gt; 12</span>
+io.<span class="builtin">print</span>(math.factorial(<span class="num">5</span>))                <span class="com"># =&gt; 120</span></code></pre>
+<h2 id="bitwise-work-is-done-by-functions">Bitwise work is done by functions</h2>
+<p>Kirito deliberately has <strong>no</strong> <code>&amp;</code>, <code>|</code>, <code>^</code>, <code>~</code>, <code>&lt;&lt;</code>, <code>&gt;&gt;</code> operators — those symbols are easy to misread. Bitwise operations are explicit, named builtins on Integers instead:</p>
+<pre><code>io.<span class="builtin">print</span>(<span class="builtin">bitand</span>(0b1100, 0b1010))          <span class="com"># =&gt; 8   (0b1000)</span>
+io.<span class="builtin">print</span>(<span class="builtin">bitor</span>(0b1100, 0b1010))           <span class="com"># =&gt; 14  (0b1110)</span>
+io.<span class="builtin">print</span>(<span class="builtin">bitxor</span>(0b1100, 0b1010))          <span class="com"># =&gt; 6   (0b0110)</span>
+io.<span class="builtin">print</span>(<span class="builtin">shl</span>(<span class="num">1</span>, <span class="num">4</span>))                        <span class="com"># =&gt; 16  (1 shifted left 4 bits)</span>
+io.<span class="builtin">print</span>(<span class="builtin">bin</span>(<span class="builtin">shl</span>(<span class="num">1</span>, <span class="num">4</span>)))                   <span class="com"># =&gt; 0b10000  (bin() shows the binary form)</span></code></pre>
+<h2 id="try-it">Try it</h2>
+<p>Write a program that, given <code>total_seconds = 3725</code>, prints <code>1h 2m 5s</code>. Use <code>//</code> and <code>%</code> to peel off hours, then minutes, then seconds. (Hint: <code>3725 // 3600</code> is the hours; <code>3725 % 3600</code> is what&#x27;s left.)</p>
+<h2 id="what-you-learned">What you learned</h2>
+<ul><li><a class="xref" href="types.html#integer"><code>Integer</code></a> vs <a class="xref" href="types.html#float"><code>Float</code></a>, and why <code>/</code> is always a Float while <code>//</code> floors.</li><li>Floor semantics for <code>//</code> and <code>%</code>, right-associative <code>**</code>.</li><li>Hex/octal/binary/scientific literals, defined integer overflow.</li><li><code>abs</code>/<a class="xref" href="builtins.html#sym-round"><code>round</code></a>/<code>divmod</code>, the <a class="xref" href="stdlib.html#math"><code>math</code></a> module, and the named bitwise builtins.</li></ul>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>
