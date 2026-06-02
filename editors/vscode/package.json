@@ -1,0 +1,25 @@
+{
+  "name": "kirito-language",
+  "displayName": "Kirito Language",
+  "description": "Syntax highlighting for the Kirito scripting language (.ki).",
+  "version": "0.1.0",
+  "engines": { "vscode": "^1.60.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "kirito",
+        "aliases": ["Kirito", "kirito"],
+        "extensions": [".ki"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "kirito",
+        "scopeName": "source.kirito",
+        "path": "./syntaxes/kirito.tmLanguage.json"
+      }
+    ]
+  }
+}

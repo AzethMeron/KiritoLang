@@ -1,0 +1,111 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Kirito",
+  "scopeName": "source.kirito",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#constants" },
+    { "include": "#types" },
+    { "include": "#builtins" },
+    { "include": "#special-methods" },
+    { "include": "#function-call" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.kirito",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.interpolated.kirito",
+          "begin": "f\"",
+          "end": "\"",
+          "patterns": [
+            { "include": "#string-escape" },
+            {
+              "name": "meta.embedded.expression.kirito",
+              "begin": "\\{",
+              "end": "\\}",
+              "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.kirito" } },
+              "endCaptures": { "0": { "name": "punctuation.section.embedded.end.kirito" } },
+              "patterns": [
+                { "include": "#numbers" },
+                { "include": "#builtins" },
+                { "include": "#constants" },
+                { "include": "#operators" }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.kirito",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [{ "include": "#string-escape" }]
+        }
+      ]
+    },
+    "string-escape": {
+      "name": "constant.character.escape.kirito",
+      "match": "\\\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|[nrtfvab0\\\\\"'])"
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.hex.kirito", "match": "\\b0[xX][0-9A-Fa-f]+\\b" },
+        { "name": "constant.numeric.octal.kirito", "match": "\\b0[oO][0-7]+\\b" },
+        { "name": "constant.numeric.binary.kirito", "match": "\\b0[bB][01]+\\b" },
+        { "name": "constant.numeric.float.kirito", "match": "\\b[0-9]+\\.[0-9]+([eE][-+]?[0-9]+)?\\b|\\b[0-9]+[eE][-+]?[0-9]+\\b" },
+        { "name": "constant.numeric.integer.kirito", "match": "\\b[0-9]+\\b" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.kirito",
+          "match": "\\b(if|elif|else|while|for|in|break|continue|return|try|catch|finally|throw|with|as|pass|todo|assert|discard|switch|case|default)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.kirito",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "storage.type.kirito",
+          "match": "\\b(var|Function|class)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "name": "constant.language.kirito",
+      "match": "\\b(True|False|None)\\b"
+    },
+    "types": {
+      "name": "support.type.kirito",
+      "match": "\\b(Integer|Float|String|Bool|List|Set|Dict|Array|Any)\\b"
+    },
+    "builtins": {
+      "name": "support.function.builtin.kirito",
+      "match": "\\b(abs|all|any|bin|bitand|bitnot|bitor|bitxor|chr|divmod|enumerate|filter|format|hex|id|import|inspect|isinstance|len|map|max|min|oct|ord|pow|range|reversed|round|shl|shr|sorted|sum|type|zip)\\b"
+    },
+    "special-methods": {
+      "name": "entity.name.function.special.kirito",
+      "match": "\\b(_init_|_str_|_add_|_sub_|_mul_|_div_|_floordiv_|_mod_|_pow_|_eq_|_ne_|_lt_|_le_|_gt_|_ge_|_neg_|_not_|_call_|_getitem_|_setitem_|_len_|_contains_|_iter_|_enter_|_exit_|_super_)\\b"
+    },
+    "function-call": {
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+      "captures": { "1": { "name": "entity.name.function.kirito" } }
+    },
+    "operators": {
+      "name": "keyword.operator.kirito",
+      "match": "\\*\\*|//|->|==|!=|<=|>=|[-+*/%<>=]"
+    }
+  }
+}

@@ -165,6 +165,8 @@ examples/          Sample `.ki` programs (RPN calculator, word count, todo, stat
 
 docs/              The documentation site: hand-authored Markdown in `docs/pages/`, rendered by
                    the dependency-free `docs/build_docs.py` into `docs/site/`.
+editors/           Syntax-highlighting definitions for `.ki` files — Notepad++ (UDL), VS Code
+                   (TextMate grammar + extension), and Vim. See `editors/README.md`.
 scripts/           build_all.sh (release binaries), test_release.sh (run the `.ki` suites against
                    a built binary), post_work_check.sh (clean-build every variant + full CTest).
 
