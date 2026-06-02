@@ -6,6 +6,8 @@ signature (`name(args) → ReturnType`), what it takes, and what it does. Fixed-
 
 A leading `*args` denotes a variadic positional list; `[arg]` denotes an optional argument.
 
+---
+
 ## io
 
 Console I/O, files, in-memory buffers, and filesystem helpers.
@@ -75,6 +77,8 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 - `b.size() → Integer` — total buffer length in bytes (`len(b)` also works).
 - `b.truncate() → Integer` — drop everything after the cursor.
 
+---
+
 ## math
 
 Constants and the usual numeric functions. Argument errors raise; results are `Float` unless noted.
@@ -101,6 +105,8 @@ Constants and the usual numeric functions. Argument errors raise; results are `F
 - `perm(n: Integer, k: Integer) → Integer` — permutations.
 - `prod(iterable, start = 1) → Number` — product of the elements times `start` (Integer if all Integer, else Float).
 
+---
+
 ## random
 
 Object-based RNG — no global state; create a generator and call methods on it.
@@ -119,6 +125,8 @@ Object-based RNG — no global state; create a generator and call methods on it.
 - `r.sample(seq, k) → List` — `k` distinct elements chosen at random.
 - `r.gauss(mu, sigma)` / `r.normalvariate(mu, sigma) → Float` — normal distribution.
 - `r.expovariate(lambd) → Float` — exponential distribution.
+
+---
 
 ## matrix
 
@@ -140,12 +148,16 @@ Dense real matrices (no complex numbers).
 - `m.trace() → Float` — sum of the diagonal.
 - `m.apply(fn) → Matrix` — a new matrix with `fn` applied to each element.
 
+---
+
 ## json
 
 JSON parsing and serialization. `loads`/`dumps` are aliases of `parse`/`stringify`.
 
 - `parse(text: String)` / `loads(text: String)` — parse JSON text into Kirito values (objects → Dict, arrays → List, decodes `\u` escapes and surrogate pairs). Raises a clear error on malformed input.
 - `stringify(value, indent: Integer = 0) → String` / `dumps(value, indent = 0) → String` — serialize a value to JSON; compact by default, pretty-printed with `indent > 0`.
+
+---
 
 ## serialize
 
@@ -156,6 +168,8 @@ Human-readable text serialization of an object graph, preserving shared referenc
 - `save(value, path: String) → None` — `dumps` to a file.
 - `load(path: String)` — `loads` from a file.
 
+---
+
 ## dump
 
 Compact **binary** serialization, preserving references and cycles (like a portable `pickle`).
@@ -164,6 +178,8 @@ Compact **binary** serialization, preserving references and cycles (like a porta
 - `loads(data)` — reconstruct from a `Dump` or a byte String.
 - `Dump(bytes: String) → Dump` — wrap raw bytes as a `Dump`.
 - `save(value, path)` / `load(path)` — to/from a file.
+
+---
 
 ## net
 
@@ -214,6 +230,8 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 - `s.settimeout(seconds) → None` — bound subsequent send/recv with a timeout.
 - `s.close() → None` — close the socket.
 
+---
+
 ## sys
 
 Process environment and platform.
@@ -229,6 +247,8 @@ Process environment and platform.
 - `joinpath(*parts) → String` — join path components with the platform separator (`os.path.join`
   semantics: a later component that is absolute resets the result). Needs at least one part.
 - `exit(code: Integer = 0)` — terminate the process with the given exit code.
+
+---
 
 ## time
 
@@ -252,6 +272,8 @@ Clocks and calendar time.
 - `dt.add(seconds)` / `dt.sub(seconds) → DateTime` — a new DateTime shifted by seconds.
 - `dt.diff(other) → Integer` — difference (`self - other`) in seconds.
 
+---
+
 ## zlib
 
 DEFLATE compression (interoperable with standard zlib), self-contained.
@@ -260,6 +282,8 @@ DEFLATE compression (interoperable with standard zlib), self-contained.
 - `decompress(data: String) → String` — zlib-format decompress (raises on bad data).
 - `deflate(data: String) → String` / `inflate(data: String) → String` — raw DEFLATE (no zlib header).
 - `adler32(data: String) → Integer` — Adler-32 checksum.
+
+---
 
 ## hash
 
@@ -274,6 +298,8 @@ Cryptographic hash digests (self-contained), returned as lowercase hex Strings.
 The following modules are **authored in Kirito** (frozen source compiled once per VM). Because
 Kirito has no lazy generators yet, the iterator-style helpers are **eager** — they return a List
 rather than a lazy sequence.
+
+---
 
 ## itertools
 
@@ -294,17 +320,23 @@ rather than a lazy sequence.
 - `ziplongest(lists, fillvalue = None) → List` — zip a list-of-iterables, padding short ones with `fillvalue`.
 - `groupby(iterable[, key]) → List` — group consecutive elements sharing a key.
 
+---
+
 ## functools
 
 - `reduce(func, iterable[, initial])` — fold the two-argument `func` over the iterable left-to-right.
 - `partial(func, bound: List) → Function` — pre-bind a list of leading arguments. The result takes a **list** of the remaining arguments and calls `func` with the combined argument list (`func` should accept a single list of arguments).
 - `cache(func) → Function` — memoize a single-argument function on its argument.
 
+---
+
 ## collections
 
 - `deque([iterable]) → deque` — a double-ended queue with `append`, `appendleft`, `pop`, `popleft`, `len`, indexing, and iteration.
 - `Counter([iterable]) → Counter` — a multiset/tally with `add`, `get`, `items`, `mostcommon`, and indexing.
 - `defaultdict(factory) → defaultdict` — a Dict that fills a missing key by calling `factory()`.
+
+---
 
 ## statistics
 
@@ -315,10 +347,14 @@ rather than a lazy sequence.
 - `pvariance(data) → Float` / `pstdev(data) → Float` — population variance / standard deviation.
 - `quantiles(data[, n]) → List` — cut points dividing `data` into `n` equal groups.
 
+---
+
 ## string
 
 - Constants: `ascii_letters`, `ascii_lowercase`, `ascii_uppercase`, `digits`, `hexdigits`, `octdigits`, `punctuation`, `whitespace` (all `String`).
 - `capwords(s) → String` — capitalize each whitespace-separated word.
+
+---
 
 ## textwrap
 
@@ -326,6 +362,8 @@ rather than a lazy sequence.
 - `fill(text[, width]) → String` — wrap into a single newline-joined String.
 - `indent(text, prefix) → String` — prefix each line.
 - `dedent(text) → String` — remove the common leading whitespace.
+
+---
 
 ## base64
 
@@ -335,12 +373,16 @@ Operates on **byte values** as a `List` of Integers (0–255), not text strings.
 - `decode(s: String) → List` — decode Base64 text back to a list of byte values.
 - `urlsafeencode(data: List) → String` / `urlsafedecode(s: String) → List` — same, with the URL-safe alphabet (`-_`).
 
+---
+
 ## csv
 
 - `parse(text)` — parse CSV text into a List of rows (each a List of fields).
 - `parserow(line)` — parse one CSV line into a List of fields.
 - `format(rows) → String` — serialize a List of rows to CSV text.
 - `formatrow(fields) → String` — serialize one row.
+
+---
 
 ## heapq
 
@@ -353,6 +395,8 @@ A min-heap maintained inside an ordinary List.
 - `merge(*lists) → List` — merge sorted inputs into one sorted List.
 - `nlargest(n, items) → List` / `nsmallest(n, items) → List` — the n largest / smallest elements.
 
+---
+
 ## bisect
 
 Binary search / ordered insertion into a sorted List.
@@ -360,10 +404,14 @@ Binary search / ordered insertion into a sorted List.
 - `bisectleft(a, x) → Integer` / `bisectright(a, x) → Integer` — leftmost / rightmost insertion index keeping `a` sorted.
 - `insortleft(a, x) → None` / `insortright(a, x) → None` — insert `x` into the sorted List `a`.
 
+---
+
 ## copy
 
 - `copy(obj)` — a shallow copy.
 - `deepcopy(obj)` — a deep copy (handles shared references and cycles).
+
+---
 
 ## enum
 
@@ -375,6 +423,8 @@ Binary search / ordered insertion into a sorted List.
 - `e.nameof(value) → String` — the name for a value.
 - `e.names() → List` / `e.values() → List` — all member names / values.
 - `name in e` — membership test.
+
+---
 
 ## tee
 

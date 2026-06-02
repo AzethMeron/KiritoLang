@@ -214,12 +214,15 @@ falls back to `not _eq_`). Names use **single** leading/trailing underscores (`_
 Each is invoked as `x OP y` → `x._op_(y)` (left operand's method); `self` is the left operand, the
 argument is the right operand. Return the result value (any type).
 
-| Method | Operator | Method | Operator |
-|--------|----------|--------|----------|
-| `_add_(self, other)` | `x + y` | `_mod_(self, other)` | `x % y` |
-| `_sub_(self, other)` | `x - y` | `_pow_(self, other)` | `x ** y` |
-| `_mul_(self, other)` | `x * y` | `_div_(self, other)` | `x / y` |
-| `_floordiv_(self, other)` | `x // y` | | |
+| Method | Operator |
+|--------|----------|
+| `_add_(self, other)` | `x + y` |
+| `_sub_(self, other)` | `x - y` |
+| `_mul_(self, other)` | `x * y` |
+| `_div_(self, other)` | `x / y` |
+| `_floordiv_(self, other)` | `x // y` |
+| `_mod_(self, other)` | `x % y` |
+| `_pow_(self, other)` | `x ** y` |
 
 ### Comparison operators
 
