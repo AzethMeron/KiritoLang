@@ -55,15 +55,15 @@ assert type(m.prod([2, 3])) == "Integer" and type(m.prod([2.0, 3.0])) == "Float"
 
 # --- isnan/isinf/isfinite on ordinary values ---
 assert not m.isnan(1.0) and not m.isinf(1.0) and m.isfinite(1.0), "finite classification"
-assert m.isinf(1.0 / 0.0001 * m.inf) or True, "inf arithmetic stays inf"
+assert m.isinf(1.0 / 0.0001 * m.inf), "inf arithmetic stays inf"
 
-# --- adversarial: domain errors raise, never crash ---
-var bad = 0
-for thunk in [Function(): return m.sqrt(-1.0), Function(): return m.log(-1.0), Function(): return m.factorial(-1)]:
-    try:
-        discard thunk()
-    catch as e:
-        bad = bad + 1
-assert bad >= 1, "at least one math domain error is catchable"
+# --- domain edges: sqrt/log of a negative are NaN (IEEE), factorial of a negative raises ---
+assert m.isnan(m.sqrt(-1.0)) and m.isnan(m.log(-1.0)), "sqrt/log of a negative yield NaN, not an error"
+var factorial_raised = False
+try:
+    discard m.factorial(-1)
+catch as e:
+    factorial_raised = True
+assert factorial_raised, "factorial of a negative raises a catchable error"
 
 io.print("OK")

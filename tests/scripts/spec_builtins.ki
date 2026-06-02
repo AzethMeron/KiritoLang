@@ -73,6 +73,7 @@ assert not Bool(None) and not Bool(0) and not Bool(0.0) and not Bool("") and not
 assert Bool(1) and Bool(-1) and Bool("x") and Bool([0]) and Bool({"a": 1}), "truthy values"
 
 # --- inspect returns a describing String ---
-assert len(inspect(import("math"))) > 0, "inspect produces output"
+var math_desc = inspect(import("math"))
+assert "module math" in math_desc and "sqrt" in math_desc and "-> Float" in math_desc, "inspect describes the module's members + signatures"
 
 io.print("OK")

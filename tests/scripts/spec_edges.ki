@@ -55,7 +55,7 @@ assert "" < "a" and "a" < "ab" and "ab" < "b", "string lexicographic ordering"
 # --- conversions at the edge ---
 assert Integer("0") == 0 and Integer("-0") == 0 and Integer("  42  ".strip()) == 42, "Integer() parsing"
 assert Float("0.0") == 0.0 and Float("1e3") == 1000.0, "Float() parsing"
-assert String("") == "" and String([]) == "[]" and String({}) == "{}" and String(Set()) == "Set()" or String(Set()) == "{}", "String() of empties"
+assert String("") == "" and String([]) == "[]" and String({}) == "{}" and String(Set()) == "{}", "String() of empties (empty Set and Dict both render as {})"
 assert Bool([]) == False and Bool([0]) == True and Bool("0") == True, "Bool() of containers / non-empty string"
 assert List("") == [] and List([]) == [] and Set([]) == Set(), "empty conversions"
 
@@ -70,7 +70,7 @@ d[1] = "b"
 assert d[1] == "b" and len(d) == 3, "re-assigning a key replaces, no new entry"
 
 # --- nested empties + stringify ---
-assert String([[], {}, Set()]) == "[[], {}, Set()]" or len(String([[], {}, Set()])) > 0, "stringify nested empties"
+assert String([[], {}, Set()]) == "[[], {}, {}]", "stringify nested empties (empty Set/Dict both render as {})"
 assert [[[[]]]][0][0][0] == [], "deeply nested empty list navigation"
 
 # --- range / loop boundaries ---

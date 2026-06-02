@@ -57,6 +57,7 @@ assert f"{name}\n{n}" == "Ada\n7", "newline between fields"
 
 # --- nested data ---
 assert f"{[1, [2, 3]]}" == "[1, [2, 3]]", "nested list interpolation"
-assert f"{Set([1, 2, 2])}" != "", "set interpolation"
+var set_fs = f"{Set([1, 2, 2])}"
+assert "1" in set_fs and "2" in set_fs and len(Set([1, 2, 2])) == 2, "set interpolation (deduped to 2 elements, both present)"
 
 io.print("OK")

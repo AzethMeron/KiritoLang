@@ -53,6 +53,6 @@ for thunk in [Function(): return matrix.zeros(2, 2)[5, 5], Function(): return ma
         discard thunk()
     catch as e:
         raised = raised + 1
-assert raised >= 2, "matrix misuse raises catchable errors"
+assert raised == 3, "every matrix misuse (out-of-range index, ragged rows, non-square inverse) raises"
 
 io.print("OK")
