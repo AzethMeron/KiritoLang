@@ -137,6 +137,42 @@ Prebuilt 64-bit `ki` binaries for **Windows and Linux** are attached to each
 support, linked as statically as possible (OpenSSL and the C/C++ runtime are bundled in), so it runs
 without installing anything else.
 
+## Repository structure
+
+```
+include/kirito/    The interpreter — a header-only C++20 core (~37 headers). One umbrella header,
+  kirito.hpp         pulls in everything: lexer, parser, AST, the tree-walking evaluator, the
+                     value/object model, the arena + mark-sweep GC, and the standard library
+                     (the stdlib_*.hpp modules: io, math, json, net, time, hash, …).
+main.cpp           The standalone `ki` CLI (REPL + file runner) — the only `main()`.
+CMakeLists.txt     Thin CMake: an INTERFACE target for the header-only core, the `ki` executable,
+CMakePresets.json  and the test executables. Presets: debug / release / strict / asan.
+
+tests/             The CTest suite (every feature gets a test).
+  unit/              C++ unit tests (one executable per area).
+  scripts/           Golden `.ki` programs — each `*.ki` checked against its `*.expected` stdout.
+  errors/            `.ki` programs that must fail, with required diagnostics in `*.experr`.
+  lang/  integration/  End-to-end language and C++-embedding tests.
+  fuzz/              Stability fuzzers (random programs / inputs).
+  bench/             Timing harness + the cross-language C++/Python comparison.
+
+examples/          Sample `.ki` programs (RPN calculator, word count, todo, stats, …), plus:
+  big_projects/      Large pure-Kirito programs that double as interpreter stress tests:
+                     kgrad (tensor/autodiff/neural nets), sqldb (a networked SQL database),
+                     webserver (an HTTP/1.1 server + routing framework), and selfhost
+                     (a Kirito interpreter written in Kirito).
+  http_client/       A `net` HTTP-client app + server + Python test harness.
+
+docs/              The documentation site: hand-authored Markdown in `docs/pages/`, rendered by
+                   the dependency-free `docs/build_docs.py` into `docs/site/`.
+scripts/           build_all.sh (release binaries), test_release.sh (run the `.ki` suites against
+                   a built binary), post_work_check.sh (clean-build every variant + full CTest).
+
+CLAUDE.md          The project charter: what Kirito is, how it's built, and the working rules.
+Archive/           Two prior incomplete attempts (V1/V2) — reference only; not built.
+.github/           CI workflows (the release matrix).
+```
+
 ## Building and running
 
 The everyday build needs a C++20 compiler (GCC 13+ / Clang 18+ / MSVC), CMake 3.28+, and Ninja:
