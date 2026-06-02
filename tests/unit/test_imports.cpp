@@ -63,6 +63,23 @@ int main() {
         CHECK(v2.stringify(v2.runSource("import(\"mymod\").answer")) == "100");  // seen by a fresh import
     }
 
+    // arglist / argmain: a directly-run file sees the command-line args and argmain == True; an
+    // imported module sees argmain == False and an EMPTY arglist (the args belong to the program).
+    {
+        KiritoVM v3;
+        v3.addLibPath(dir.string());
+        v3.setArgs({"alpha", "beta"});
+        CHECK(v3.stringify(v3.runSource("arglist")) == "[alpha, beta]");
+        CHECK(v3.stringify(v3.runSource("argmain")) == "True");
+        { std::ofstream f(dir / "argmod.ki"); f << "var seenMain = argmain\nvar seenArgs = arglist\n"; }
+        CHECK(v3.stringify(v3.runSource("import(\"argmod\").seenMain")) == "False");
+        CHECK(v3.stringify(v3.runSource("import(\"argmod\").seenArgs")) == "[]");
+        // a fresh VM with no setArgs: arglist defaults to empty, argmain still True for a run file
+        KiritoVM v4;
+        CHECK(v4.stringify(v4.runSource("arglist")) == "[]");
+        CHECK(v4.stringify(v4.runSource("argmain")) == "True");
+    }
+
     std::filesystem::remove_all(dir);
     return RUN_TESTS();
 }

@@ -45,12 +45,6 @@ void usage() {
                  "  -h, --help    show this help\n";
 }
 
-// Expose the script's own arguments to Kirito as a global list `argv`.
-void setArgv(kirito::KiritoVM& vm, const std::vector<std::string>& args) {
-    auto list = std::make_unique<kirito::ListVal>();
-    for (const auto& a : args) list->elems.push_back(vm.makeString(a));
-    vm.registerGlobal("argv", vm.arena().alloc(std::move(list)));
-}
 
 int repl(kirito::KiritoVM& vm) {
     std::cout << "kirito (ki) REPL - Ctrl-D to exit\n";
@@ -148,7 +142,7 @@ int main(int argc, char** argv) {
     std::stringstream buffer;
     buffer << in.rdbuf();
 
-    setArgv(vm, scriptArgs);
+    vm.setArgs(scriptArgs);  // bound as `arglist` in every module scope
 
     // Static analysis (non-fatal warnings) before execution: parse once, lint, print to stderr.
     if (warnings) {

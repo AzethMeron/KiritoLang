@@ -67,8 +67,8 @@ var process = Function(path):
 
 # Determine which files to process.
 var files = []
-if len(argv) > 0:
-    for a in argv:
+if len(arglist) > 0:
+    for a in arglist:
         files.append(a)
 else:
     files.append("/tmp/system_unique.txt")

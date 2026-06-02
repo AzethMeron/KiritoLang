@@ -14,12 +14,12 @@ var appmod = import("app")
 var host = "127.0.0.1"
 var port = 8080
 var static_dir = "static"
-if len(argv) >= 1:
-    host = argv[0]
-if len(argv) >= 2:
-    port = Integer(argv[1])
-if len(argv) >= 3:
-    static_dir = argv[2]
+if len(arglist) >= 1:
+    host = arglist[0]
+if len(arglist) >= 2:
+    port = Integer(arglist[1])
+if len(arglist) >= 3:
+    static_dir = arglist[2]
 
 var app = appmod.create(static_dir)
 

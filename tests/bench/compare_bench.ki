@@ -5,9 +5,9 @@ var io = import("io")
 var t = import("time")
 var math = import("math")
 
-var wl = argv[0]
-var N = Integer(argv[1])
-var reps = Integer(argv[2])
+var wl = arglist[0]
+var N = Integer(arglist[1])
+var reps = Integer(arglist[2])
 
 # Shared 31-bit LCG (matches the C++/Python baselines): stays in 31 bits so the int64 multiply
 # never overflows and the sequence is identical across languages.

@@ -1,0 +1,66 @@
+# The `arg` command-line parser module: positionals, typed options, flags, short forms, defaults,
+# --help, and error handling. The parser holds the spec on the instance; you run parse() yourself.
+var io = import("io")
+var arg = import("arg")
+
+var build = Function():
+    var p = arg.Parser("demo")
+    p.positional("file")
+    p.option("count", 1)         # Integer default -> values parsed as Integers
+    p.option("name", "world")    # String default -> values kept as strings
+    p.flag("verbose")
+    return p
+
+# --- positionals + options + flag, mixed order, --key=value, short flag ---
+var o1 = build().parse(["--count", "3", "input.txt", "--verbose", "--name=Ada"])
+assert o1["file"] == "input.txt", "positional bound"
+assert o1["count"] == 3 and type(o1["count"]) == "Integer", "option typed from default (Integer)"
+assert o1["name"] == "Ada", "--key=value form"
+assert o1["verbose"] == True, "flag set"
+assert o1["rest"] == [], "no extra positionals"
+
+# --- defaults when arguments are omitted ---
+var o2 = build().parse(["only.txt"])
+assert o2["count"] == 1 and o2["name"] == "world" and o2["verbose"] == False, "defaults applied"
+
+# --- short options: -v (flag), -c (option, first letter of 'count') ---
+var o3 = build().parse(["f.txt", "-v", "-c", "9"])
+assert o3["verbose"] == True and o3["count"] == 9, "short flag and short option"
+
+# --- extra positionals collect under 'rest' ---
+var o4 = build().parse(["a.txt", "b", "c"])
+assert o4["file"] == "a.txt" and o4["rest"] == ["b", "c"], "extra positionals -> rest"
+
+# --- --help prints usage (captured so it doesn't pollute stdout) and returns None ---
+var cap = io.BytesIO()
+io.stdout = cap
+var h = build().parse(["--help"])
+io.stdout = io.__stdout__
+assert h == None, "--help returns None"
+assert "usage" in cap.getvalue(), "--help printed the usage text"
+
+# --- usage text mentions the declared arguments ---
+var u = build().usage()
+assert "file" in u and "--count" in u and "--verbose" in u, "usage lists the arguments"
+
+# --- adversarial: clear, catchable errors ---
+var fails = Function(args):
+    try:
+        discard build().parse(args)
+        return False
+    catch as e:
+        return True
+assert fails([]), "missing required positional raises"
+assert fails(["x.txt", "--nope"]), "unknown option raises"
+assert fails(["x.txt", "--count", "abc"]), "non-integer for an Integer option raises"
+assert fails(["x.txt", "--count"]), "option without a value raises"
+
+# --- the error message is specific ---
+var msg = ""
+try:
+    discard build().parse(["x.txt", "--nope"])
+catch as e:
+    msg = e
+assert "unknown option" in msg and "nope" in msg, "error names the offending option"
+
+io.print("OK")

@@ -17,10 +17,10 @@ var eng = import("sql_engine")
 
 var host = "127.0.0.1"
 var port = 5433
-if len(argv) >= 1:
-    host = argv[0]
-if len(argv) >= 2:
-    port = Integer(argv[1])
+if len(arglist) >= 1:
+    host = arglist[0]
+if len(arglist) >= 2:
+    port = Integer(arglist[1])
 
 var db = eng.Database()
 

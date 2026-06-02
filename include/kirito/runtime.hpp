@@ -1551,7 +1551,7 @@ inline Handle KiritoVM::importModule(const std::string& name) {
         std::ifstream in(path);
         std::stringstream buf;
         buf << in.rdbuf();
-        Handle scope = newModuleScope();
+        Handle scope = newModuleScope(/*isMain=*/false);  // imported -> argmain is False
         try {
             RootScope guard(*this);
             guard.add(scope);
@@ -2349,6 +2349,7 @@ inline void KiritoVM::installStandardLibrary() {
     registerSourceModule("copy", kimod::copy_mod);
     registerSourceModule("enum", kimod::enum_mod);
     registerSourceModule("tee", kimod::tee);
+    registerSourceModule("arg", kimod::arg);
 }
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {
@@ -2376,13 +2377,42 @@ inline Handle KiritoVM::evalIn(std::string_view source, Handle scope, std::strin
     }
 }
 
+// A module/file scope under global, pre-bound with the per-file `arglist` and `argmain`. The
+// command-line arguments belong to the program that was run, so `arglist` holds them only in a
+// directly-run file (isMain); an imported module gets `argmain` False and an EMPTY `arglist`.
+inline Handle KiritoVM::newModuleScope(bool isMain) {
+    Handle scope = newScope(global_);
+    RootScope rs(*this);
+    rs.add(scope);
+    Handle args;
+    if (isMain) {
+        if (!arglist_.slot) arglist_ = alloc(std::make_unique<ListVal>());  // default: no arguments
+        args = arglist_;
+    } else {
+        args = alloc(std::make_unique<ListVal>());  // imported modules don't see the program's args
+    }
+    auto& env = static_cast<EnvValue&>(arena_.deref(scope));
+    env.define("arglist", args);
+    env.define("argmain", makeBool(isMain));
+    return scope;
+}
+
+// Set the command-line arguments (called once by the embedder). They become the `arglist` bound in
+// every module scope thereafter.
+inline void KiritoVM::setArgs(const std::vector<std::string>& args) {
+    RootScope rs(*this);
+    auto list = std::make_unique<ListVal>();
+    for (const auto& a : args) list->elems.push_back(rs.add(makeString(a)));
+    arglist_ = alloc(std::move(list));
+}
+
 inline Handle KiritoVM::runSource(std::string_view source, std::string_view chunkName) {
-    return evalIn(source, newModuleScope(), chunkName);
+    return evalIn(source, newModuleScope(/*isMain=*/true), chunkName);
 }
 
 inline Handle KiritoVM::runRepl(std::string_view source) {
     if (!replScopeReady_) {
-        replScope_ = newModuleScope();
+        replScope_ = newModuleScope(/*isMain=*/true);
         replScopeReady_ = true;
     }
     return evalIn(source, replScope_);

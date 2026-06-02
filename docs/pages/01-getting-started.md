@@ -30,7 +30,7 @@ The standalone binary is statically linked by default, so `build/ki` is self-con
 ```
 ki                      # REPL (interactive)
 ki script.ki            # run a file
-ki script.ki a b c      # run a file; a b c become argv
+ki script.ki a b c      # run a file; a b c become arglist
 ki --lib path/to/libs script.ki   # add an import search directory
 ki -w script.ki         # disable static warnings
 ```

@@ -309,6 +309,27 @@ var math = import("math")
 math.sqrt(2)
 ```
 
+### `arglist` and `argmain`
+
+Every file runs with two names already bound in its scope:
+
+- **`arglist`** — a List of the command-line arguments the program was launched with (`arglist[0]`
+  is the first; the program name is not included). It's the same list in every file.
+- **`argmain`** — a Bool that is `True` when this file is the one being **run directly**, and `False`
+  when it was loaded by another file via `import`. This is Kirito's equivalent of Python's
+  `__name__ == "__main__"`: guard a file's "run me" code with `if argmain:` so it stays dormant when
+  the file is imported as a library.
+
+```kirito
+var io = import("io")
+var greet = Function(name): return f"Hello, {name}!"
+if argmain:
+    io.print(greet(arglist[0] if len(arglist) > 0 else "world"))
+```
+
+For parsing flags/options rather than positional `arglist`, use the `arg` module (see the standard
+library reference).
+
 ## The `discard` statement and warnings
 
 A bare expression whose non-`None` value is dropped triggers a warning (it's probably a mistake).

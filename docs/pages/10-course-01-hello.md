@@ -64,18 +64,37 @@ io.print(seconds_per_day)
 
 ## Reading command-line arguments
 
-A script can read the arguments it was launched with through the built-in `argv` list. `argv[0]` is
-the first argument *after* the script name (Kirito does not put the program name in `argv`):
+Every file runs with two names automatically in scope: **`arglist`**, the list of arguments the
+program was launched with (`arglist[0]` is the first one — Kirito does not put the program name in
+it), and **`argmain`**, a Bool that is `True` when *this* file was run directly and `False` when it
+was loaded by another file via `import`.
 
-<!--norun (argv is empty when run without arguments)-->
+<!--norun (arglist is empty when run without arguments)-->
 ```kirito
 # greet.ki — run as:  ki greet.ki Ada
 var io = import("io")
-if len(argv) > 0:
-    io.print(f"Hello, {argv[0]}!")
+if len(arglist) > 0:
+    io.print(f"Hello, {arglist[0]}!")
 else:
     io.print("Hello, stranger! (pass a name on the command line)")
 ```
+
+`argmain` lets a file act as both a reusable module *and* a runnable program — put the "run me
+directly" code behind `if argmain:`, so it doesn't fire when someone imports the file:
+
+<!--norun (illustrates the run-vs-import idiom)-->
+```kirito
+var io = import("io")
+
+var greet = Function(name):           # importable by other files
+    return f"Hello, {name}!"
+
+if argmain:                            # only runs when this file is the program
+    io.print(greet("world"))
+```
+
+For richer command lines (named options, flags, defaults), the `arg` module gives you a parser —
+you'll meet it in the standard-library tour.
 
 ## Try it
 
@@ -86,6 +105,7 @@ sentence about yourself. Run it as a file *and* paste it into the REPL to feel t
 
 - Kirito runs as an interactive REPL or as a `.ki` script.
 - `import` loads a module; `io.print` is your window to the world.
-- `#` starts a comment; `argv` holds the script's command-line arguments.
+- `#` starts a comment; `arglist` holds the command-line arguments and `argmain` is `True` only when
+  the file is run directly (the `if argmain:` idiom).
 
 Next: the values those programs are made of.

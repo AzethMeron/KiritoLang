@@ -6,8 +6,8 @@ var io = import("io")
 var json = import("json")
 
 var port = 8088
-if len(argv) >= 1:
-    port = Integer(argv[0])
+if len(arglist) >= 1:
+    port = Integer(arglist[0])
 
 # Read a full request: headers up to the blank line, then any Content-Length body.
 var readRequest = Function(conn):

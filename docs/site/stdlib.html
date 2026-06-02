@@ -1,8 +1,8 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Standard Library — Kirito</title><style>
-:root{--bg:#fbfbfd;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7c5cff;--code-bg:#f4f4f7;
---border:#e3e3e8;--side:#f7f7fa}
+:root{--bg:#16161a;--fg:#e4e4ea;--muted:#9a9aa6;--accent:#9b87ff;--code-bg:#1e1e25;
+--border:#2c2c35;--side:#1b1b21;--side-hover:#26262f}
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 color:var(--fg);background:var(--bg)}
@@ -13,8 +13,8 @@ position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
 #sidebar h1{font-size:20px;margin:0 0 4px}
 #sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
 #sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
-#sidebar a:hover{background:#ececf2;text-decoration:none}
-#sidebar a.active{background:var(--accent);color:#fff}
+#sidebar a:hover{background:var(--side-hover);text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#16161a}
 #content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
 h1,h2,h3{line-height:1.25;font-weight:650}
 h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
@@ -28,9 +28,9 @@ table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
 th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
 th{background:var(--side)}
 blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
-background:var(--code-bg);border-radius:0 8px 8px 0;color:#333}
-.kw{color:#a626a4}.str{color:#50a14f}.com{color:#a0a1a7;font-style:italic}.num{color:#986801}
-.builtin{color:#4078f2}
+background:var(--code-bg);border-radius:0 8px 8px 0;color:var(--fg)}
+.kw{color:#c678dd}.str{color:#98c379}.com{color:#7f848e;font-style:italic}.num{color:#d19a66}
+.builtin{color:#61afef}
 a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
 a.xref:hover{text-decoration:none;border-bottom-style:solid}
 a.xref code{color:inherit}
@@ -214,5 +214,33 @@ io.<span class="builtin">print</span>(rx.findall(<span class="str">&quot;Cat dog
     <span class="kw">with</span> tee.tee_stdout(f):
         io.<span class="builtin">print</span>(<span class="str">&quot;appears on the console and in session.log&quot;</span>)
 <span class="com"># stdout is restored here</span></code></pre>
+<hr>
+<h2 id="arg">arg</h2>
+<p>A small <code>argparse</code>-style command-line parser. Build a <a class="xref" href="stdlib.html#sym-Parser"><code>Parser</code></a>, declare the arguments on it, then run <code>parse</code> against a list of strings <strong>yourself</strong> — typically the main file&#x27;s <a class="xref" href="language-guide.html#sym-arglist"><code>arglist</code></a> (recall <a class="xref" href="language-guide.html#sym-arglist"><code>arglist</code></a> is empty in imported modules, so argument handling belongs in the program you run).</p>
+<ul><li id="sym-Parser"><a class="xref" href="stdlib.html#sym-Parser"><code>Parser(description = &quot;&quot;) → Parser</code></a> — create a parser.</li></ul>
+<h3 id="parser-object">Parser object</h3>
+<p>The configuration lives on the instance; the declaration methods each return the parser, so they chain:</p>
+<ul><li id="sym-p.positional"><a class="xref" href="stdlib.html#sym-p.positional"><code>p.positional(name, help = &quot;&quot;) → Parser</code></a> — a required positional argument (consumed in order).</li><li id="sym-p.option"><a class="xref" href="stdlib.html#sym-p.option"><code>p.option(name, default = None, help = &quot;&quot;) → Parser</code></a> — a <code>--name VALUE</code> option. The value is</li></ul>
+<p>  converted to the <strong>type of <code>default</code></strong> — an Integer default parses the value as an Integer (a bad   value raises a clear error), a Float default as a Float, otherwise it stays a String.</p>
+<ul><li id="sym-p.flag"><a class="xref" href="stdlib.html#sym-p.flag"><code>p.flag(name, help = &quot;&quot;) → Parser</code></a> — a boolean <code>--name</code> flag (default <code>False</code>, <code>True</code> when present).</li><li id="sym-p.usage"><a class="xref" href="stdlib.html#sym-p.usage"><code>p.usage() → String</code></a> — the generated usage/help text.</li><li id="sym-p.parse"><a class="xref" href="stdlib.html#sym-p.parse"><code>p.parse(args) → Dict</code></a> — parse <code>args</code> into a Dict keyed by argument name. Returns <strong><a class="xref" href="types.html#none"><code>None</code></a></strong> if</li></ul>
+<p>  <code>-h</code>/<code>--help</code> is present (after printing <code>usage()</code>), so the program can stop. Accepts <code>--name value</code>,   <code>--name=value</code>, and short <code>-n value</code> / <code>-f</code> (matched by the name&#x27;s first letter); extra positionals   are collected under the <code>&quot;rest&quot;</code> key. Raises a clear, catchable error on an unknown option, a   missing required positional, or a value that can&#x27;t be converted.</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+
+<span class="kw">var</span> p = arg.Parser(<span class="str">&quot;greet someone&quot;</span>)
+p.positional(<span class="str">&quot;name&quot;</span>)
+p.option(<span class="str">&quot;count&quot;</span>, <span class="num">1</span>)        <span class="com"># --count N  (parsed as an Integer, because the default is one)</span>
+p.flag(<span class="str">&quot;loud&quot;</span>)              <span class="com"># --loud</span>
+
+<span class="kw">var</span> opts = p.parse(arglist)   <span class="com"># you choose when/what to parse</span>
+<span class="kw">if</span> opts != <span class="kw">None</span>:              <span class="com"># None means --help was shown</span>
+    <span class="kw">var</span> greeting = f<span class="str">&quot;Hello, {opts[&quot;</span>name<span class="str">&quot;]}!&quot;</span>
+    <span class="kw">if</span> opts[<span class="str">&quot;loud&quot;</span>]:
+        greeting = greeting.upper()
+    <span class="kw">var</span> i = <span class="num">0</span>
+    <span class="kw">while</span> i &lt; opts[<span class="str">&quot;count&quot;</span>]:
+        io.<span class="builtin">print</span>(greeting)
+        i = i + <span class="num">1</span></code></pre>
+<p>Run as <code>ki greet.ki Ada --count 2 --loud</code> → prints <code>HELLO, ADA!</code> twice.</p>
 <p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
 </main></div></body></html>

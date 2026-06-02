@@ -635,3 +635,52 @@ with io.open("session.log", "w") as f:
         io.print("appears on the console and in session.log")
 # stdout is restored here
 ```
+
+---
+
+## arg
+
+A small `argparse`-style command-line parser. Build a `Parser`, declare the arguments on it, then
+run `parse` against a list of strings **yourself** — typically the main file's `arglist` (recall
+`arglist` is empty in imported modules, so argument handling belongs in the program you run).
+
+- `Parser(description = "") → Parser` — create a parser.
+
+### Parser object
+
+The configuration lives on the instance; the declaration methods each return the parser, so they
+chain:
+
+- `p.positional(name, help = "") → Parser` — a required positional argument (consumed in order).
+- `p.option(name, default = None, help = "") → Parser` — a `--name VALUE` option. The value is
+  converted to the **type of `default`** — an Integer default parses the value as an Integer (a bad
+  value raises a clear error), a Float default as a Float, otherwise it stays a String.
+- `p.flag(name, help = "") → Parser` — a boolean `--name` flag (default `False`, `True` when present).
+- `p.usage() → String` — the generated usage/help text.
+- `p.parse(args) → Dict` — parse `args` into a Dict keyed by argument name. Returns **`None`** if
+  `-h`/`--help` is present (after printing `usage()`), so the program can stop. Accepts `--name value`,
+  `--name=value`, and short `-n value` / `-f` (matched by the name's first letter); extra positionals
+  are collected under the `"rest"` key. Raises a clear, catchable error on an unknown option, a
+  missing required positional, or a value that can't be converted.
+
+```kirito
+var io = import("io")
+var arg = import("arg")
+
+var p = arg.Parser("greet someone")
+p.positional("name")
+p.option("count", 1)        # --count N  (parsed as an Integer, because the default is one)
+p.flag("loud")              # --loud
+
+var opts = p.parse(arglist)   # you choose when/what to parse
+if opts != None:              # None means --help was shown
+    var greeting = f"Hello, {opts["name"]}!"
+    if opts["loud"]:
+        greeting = greeting.upper()
+    var i = 0
+    while i < opts["count"]:
+        io.print(greeting)
+        i = i + 1
+```
+
+Run as `ki greet.ki Ada --count 2 --loud` → prints `HELLO, ADA!` twice.

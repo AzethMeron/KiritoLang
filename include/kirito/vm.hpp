@@ -72,7 +72,12 @@ public:
     Handle global() const { return global_; }
     // A fresh scope whose parent is the given one (defaults to a module scope under global).
     Handle newScope(Handle parent) { return alloc(std::make_unique<EnvValue>(parent)); }
-    Handle newModuleScope() { return newScope(global_); }
+    // A module/file scope under global, with the per-file `arglist` and `argmain` bound into it.
+    // `isMain` is true for a directly-run file (or the REPL), false for an imported module — so a
+    // file can do `if argmain:` like Python's `if __name__ == "__main__"`. Defined in runtime.hpp
+    // (it needs ListVal). The command-line arguments are set once by the embedder via setArgs().
+    Handle newModuleScope(bool isMain = true);
+    void setArgs(const std::vector<std::string>& args);
 
     // --- garbage collection ---
     // Temporary roots: handles held in C++ locals across an allocation must be protected here
@@ -91,6 +96,7 @@ public:
         if (replScopeReady_) enqueue(replScope_);
         for (const auto& [name, h] : moduleCache_) enqueue(h);
         for (const auto& [p, h] : pathCache_) enqueue(h);
+        if (arglist_.slot) enqueue(arglist_);  // the per-file `arglist`, shared by every module scope
         for (Handle h : tempRoots_) enqueue(h);
         std::vector<Handle> childbuf;
         while (!work.empty()) {
@@ -178,6 +184,7 @@ private:
     std::vector<std::string> libPaths_;
     Handle replScope_{};
     bool replScopeReady_ = false;
+    Handle arglist_{};  // the command-line arguments as a List, bound as `arglist` in every module scope
     std::vector<Handle> tempRoots_;
     std::vector<Handle> smallInts_;
     static constexpr int64_t kSmallIntLo = -256;

@@ -5,7 +5,7 @@
 var net = import("net")
 var io = import("io")
 
-var base = "http://127.0.0.1:" + argv[0]
+var base = "http://127.0.0.1:" + arglist[0]
 
 var check = Function(name, cond):
     if not cond:

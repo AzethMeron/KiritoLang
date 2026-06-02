@@ -223,11 +223,16 @@ a stability fuzzer, and a benchmark). Working today:
     `textwrap` (wrap/fill/indent/dedent), `base64` (+urlsafe), `csv`, `heapq`
     (+nlargest/heapreplace/merge), `bisect`, `copy` (copy/deepcopy), `enum`, `tee` (a `Tee`
     fan-out stream that clones writes to extra streams — e.g. stdout to a log file — plus
-    `tee_stdout`/`tee_stderr` context managers that hook the std streams).
+    `tee_stdout`/`tee_stderr` context managers that hook the std streams), `arg` (an argparse-style
+    `Parser`: positional/option/flag declarations, then `parse(arglist)` -> Dict; type-converts
+    options to their default's type, `-h`/`--help` prints usage and returns None).
 - **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, and the
   script's directory), lexed+parsed+evaluated once per VM and cached by resolved path. The `ki` CLI
   is Python-like: REPL with no file (multi-line blocks via a `...` continuation prompt until a blank
-  line), runs a file otherwise, with script `argv`. Small-integer interning, flat-vector scopes, a
+  line), runs a file otherwise. Every file scope is pre-bound with **`arglist`** (the command-line
+  arguments as a List — populated only in a directly-run file; **empty** in an imported module) and
+  **`argmain`** (a Bool: True iff the file is run directly, False when imported — Kirito's
+  `__name__ == "__main__"`). Small-integer interning, flat-vector scopes, a
   no-temporaries fast call path, and other non-invasive perf wins.
 - **Sample projects** in `examples/` (complex linear-system solver, rule34 image downloader,
   word-frequency analyzer, RPN calculator) demonstrate non-trivial programs in pure Kirito.
