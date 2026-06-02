@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <fstream>
+#include <random>
 #include <string>
 
 #include "../check.hpp"
@@ -78,6 +79,56 @@ int main() {
         KiritoVM v4;
         CHECK(v4.stringify(v4.runSource("arglist")) == "[]");
         CHECK(v4.stringify(v4.runSource("argmain")) == "True");
+    }
+
+    // arglist edge cases: order preserved, indexing/len, and arguments with spaces, an embedded
+    // empty string, unicode, and numeric-looking strings (which stay Strings, not Integers).
+    {
+        KiritoVM v;
+        v.setArgs({"a b c", "", "café", "007", "--flag"});
+        CHECK(v.stringify(v.runSource("len(arglist)")) == "5");
+        CHECK(v.stringify(v.runSource("arglist[0]")) == "a b c");      // a space-containing arg is one element
+        CHECK(v.stringify(v.runSource("arglist[1]")) == "");           // empty string preserved
+        CHECK(v.stringify(v.runSource("arglist[2]")) == "café");       // unicode
+        CHECK(v.stringify(v.runSource("arglist[3]")) == "007");        // stays a String
+        CHECK(v.stringify(v.runSource("type(arglist[3])")) == "String");
+        CHECK(v.stringify(v.runSource("arglist[4]")) == "--flag");     // option-looking arg is just a string
+        // re-setting replaces the argument list for subsequent runs
+        v.setArgs({"only"});
+        CHECK(v.stringify(v.runSource("arglist")) == "[only]");
+    }
+
+    // nested imports: a module imported by an imported module is also not main and sees no args.
+    {
+        KiritoVM v;
+        v.addLibPath(dir.string());
+        v.setArgs({"x", "y"});
+        { std::ofstream f(dir / "leaf.ki"); f << "var m = argmain\nvar a = arglist\n"; }
+        { std::ofstream f(dir / "mid.ki"); f << "var leaf = import(\"leaf\")\nvar m = argmain\nvar a = arglist\n"; }
+        CHECK(v.stringify(v.runSource("import(\"mid\").m")) == "False");          // the imported module
+        CHECK(v.stringify(v.runSource("import(\"mid\").a")) == "[]");
+        CHECK(v.stringify(v.runSource("import(\"mid\").leaf.m")) == "False");     // its transitive import
+        CHECK(v.stringify(v.runSource("import(\"mid\").leaf.a")) == "[]");
+    }
+
+    // fuzz: a random list of arbitrary-byte arguments round-trips through arglist exactly.
+    {
+        std::mt19937 rng(0xA2C1);
+        for (int iter = 0; iter < 500; ++iter) {
+            KiritoVM v;
+            std::size_t n = rng() % 8;
+            std::vector<std::string> args;
+            for (std::size_t i = 0; i < n; ++i) {
+                std::string s;
+                std::size_t len = rng() % 6;
+                for (std::size_t j = 0; j < len; ++j) s += static_cast<char>('a' + (rng() % 26));
+                args.push_back(s);
+            }
+            v.setArgs(args);
+            CHECK(v.stringify(v.runSource("len(arglist)")) == std::to_string(args.size()));
+            for (std::size_t i = 0; i < args.size(); ++i)
+                CHECK(v.stringify(v.runSource("arglist[" + std::to_string(i) + "]")) == args[i]);
+        }
     }
 
     std::filesystem::remove_all(dir);
