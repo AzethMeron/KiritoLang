@@ -69,6 +69,7 @@ public:
         unary("gamma", std::tgamma);
         unary("lgamma", std::lgamma);
         unary("erf", std::erf);
+        unary("erfc", std::erfc);
 
         m.fn("isnan", {{"x", "Number"}}, "Bool", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return val(vm, std::isnan(mathNum(vm, a[0])));

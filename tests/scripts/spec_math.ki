@@ -38,9 +38,11 @@ assert close(m.atan2(1.0, 1.0), m.pi / 4.0), "atan2"
 assert close(m.sinh(0.0), 0.0) and close(m.cosh(0.0), 1.0) and close(m.tanh(0.0), 0.0), "hyperbolic"
 assert close(m.degrees(m.pi), 180.0) and close(m.radians(180.0), m.pi), "degrees/radians"
 
-# --- gamma / erf ---
+# --- gamma / erf / erfc ---
 assert close(m.gamma(5.0), 24.0), "gamma(5) == 4!"
 assert close(m.erf(0.0), 0.0), "erf(0)"
+assert close(m.erfc(0.0), 1.0), "erfc(0) == 1"
+assert close(m.erf(1.3) + m.erfc(1.3), 1.0), "erf(x) + erfc(x) == 1"
 
 # --- integer combinatorics / number theory ---
 assert m.gcd(54, 24) == 6 and m.gcd(17, 5) == 1, "gcd"

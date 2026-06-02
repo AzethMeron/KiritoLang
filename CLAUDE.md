@@ -174,7 +174,7 @@ a stability fuzzer, and a benchmark). Working today:
     `BytesIO` (an in-memory binary buffer like Python's), plus filesystem helpers (exists/remove/
     rename/mkdir/getcwd/listdir/isfile/isdir/getsize/walk) and os.path-style path helpers
     (dirname/basename/splitext/join). Module members are rebindable (`ModuleValue::setAttr`).
-  - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf, floor/ceil/
+  - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf/erfc, floor/ceil/
     trunc, gcd/lcm, factorial, isnan/isinf, prod/comb/perm, ...).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
     randrange/choice/shuffle/sample/gauss/expovariate.

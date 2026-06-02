@@ -91,7 +91,7 @@ Constants and the usual numeric functions. Argument errors raise; results are `F
 - `exp(x: Number) → Float` / `expm1(x)` / `log1p(x)` / `log2(x)` / `log10(x)` — exponential / log family.
 - `log(x: Number, base = None) → Float` — natural log, or log base `base` when given.
 - `pow(x: Number, y: Number) → Float` — `x ** y` as a Float (the builtin `pow` does Integer/modular).
-- `gamma(x: Number) → Float` / `lgamma(x)` / `erf(x)` — gamma, log-gamma, error function.
+- `gamma(x: Number) → Float` / `lgamma(x)` / `erf(x)` / `erfc(x)` — gamma, log-gamma, error function, and the complementary error function (`1 - erf(x)`, accurate for large `x`).
 - `floor(x: Number) → Integer` / `ceil(x: Number) → Integer` — round down / up to an Integer.
 - `trunc(x: Number) → Float` — truncate toward zero.
 - `fabs(x: Number) → Float` — absolute value as a Float.
