@@ -53,6 +53,49 @@ And why did i call it after MC of SAO? Dunno, just thought it's funny. Also I do
     add flows through the same object protocol as the built-ins, so to a Kirito program your C++ type
     is indistinguishable from a native one.
 
+## Limitations
+
+Kirito is young and makes deliberate trade-offs. The notable current limits:
+
+- **It is a tree-walking interpreter, so compute-bound code is slow.** Interpreter-bound tight loops
+  run hundreds of times slower than C++ and ~8× slower than CPython; work that delegates to the C++
+  standard library (sorting, hashing, string ops) closes most of the gap (within ~3–5× of CPython).
+  See [Benchmarks](#benchmarks). A bytecode VM behind the stable AST boundary is the planned path to
+  closing this — the architecture is designed for it.
+- **Integers are fixed-width `int64`** with well-defined two's-complement wraparound on overflow;
+  arbitrary-precision integers are a future enrichment.
+- **Float equality is tolerance-based** (absolute + relative epsilon) for finite values, so very
+  close floats compare equal; `inf`/`-inf`/`NaN` follow strict IEEE rules (NaN never equals anything,
+  an infinity equals only an identical infinity).
+- **Unicode case mapping** (`upper`/`lower`) covers ASCII, Latin-1 and Latin Extended-A, not the full
+  Unicode case-folding tables.
+- **Not yet implemented:** comprehensions, generators, variadic parameters, and complex numbers.
+- **A `KiritoVM` is single-threaded** — there are no language-level concurrency primitives, by design
+  (one VM is one fully-encapsulated, serializable process).
+
+## Benchmarks
+
+Kirito vs C++ (`-O2`) vs CPython 3.11 on identical algorithms over identical (LCG-generated) data,
+release build — mean time per repetition, lower is better (`tests/bench/compare.py`):
+
+| Workload | C++ (-O2) | Python 3.11 | Kirito | Ki / C++ | Ki / Py |
+|---|---|---|---|---|---|
+| *pessimistic — interpreter-bound tight loops* | | | | | |
+| `sum_loop` (arithmetic loop) | 0.50 µs | 61.6 µs | 409 µs | 825× | 6.6× |
+| `fib` (recursive calls) | 4.65 µs | 274 µs | 2.11 ms | 453× | 7.7× |
+| `sieve` (nested loops + indexed writes) | 2.28 µs | 173 µs | 1.84 ms | 806× | 10.6× |
+| *optimistic — work delegated to C++ builtins* | | | | | |
+| `sort` (builtin sort) | 39.0 µs | 156 µs | 360 µs | 9× | 2.3× |
+| `dict_ops` (hash insert/lookup) | 84.5 µs | 149 µs | 742 µs | 9× | 5.0× |
+| `string_ops` (`split`/`join`) | 39.7 µs | 57.1 µs | 207 µs | 5× | 3.6× |
+
+Geometric-mean slowdown: **pessimistic ≈ 670× C++ / 8.2× Python**, **optimistic ≈ 7× C++ / 3.5×
+Python**. The shape is exactly what a tree-walker with a fast C++ standard library should show: it
+pays per-operation dispatch on tight loops, but amortizes that away once work lands in native
+builtins.
+
+Reproduce: `cmake --build build-release --target ki && python3 tests/bench/compare.py --ki build-release/ki`.
+
 ## Embedding Kirito in C++
 
 ```cpp
