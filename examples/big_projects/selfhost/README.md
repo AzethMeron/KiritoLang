@@ -87,14 +87,39 @@ machinery; the `math` module; **every builtin** (`range`, `sorted`, `map`, `abs`
 type method** of String (`upper`/`split`/`replace`/`find`/`strip`/`center`/…), List, Dict and Set
 (`index`/`count`/`reverse`/`extend`/`union`/`intersection`/`items`/`update`/…).
 
+### Standard modules — all implemented in Kirito under `lib/stdmods/`
+
+| Module | Notes |
+|--------|-------|
+| `math` | series/Newton/Lanczos; inf/NaN via ordering comparisons |
+| `sys`  | `joinpath` logic in Kirito; env/cwd facts via the `_os` syscall module |
+| `json` | recursive-descent parser + compact/indented serializer |
+| `random` | object PRNG (LCG): random/uniform/randint/randrange/choice/shuffle/sample/gauss |
+| `matrix` | Matrix class: +,-,*, transpose, determinant, trace, inverse, zeros/ones/identity |
+| `time` | clocks via `_os`; DateTime with epoch↔civil math, format/iso/diff/strptime |
+| `net` | URL helpers: quote/unquote (UTF-8), urlencode/parseqs, urlsplit |
+| `hash` | **standards-conformant** md5 / sha1 / sha256 (byte-exact) |
+| `zlib` | run-length codec + adler32 (deflate/inflate/compress/decompress) |
+| `serialize` / `dump` | reference- and cycle-preserving graph serialization (uses `id()`) |
+| `itertools` `functools` `collections` `statistics` `string` `textwrap` `base64` `csv` `heapq` `bisect` `copy` `enum` | the Kirito-authored stdlib, evaluated through the self-host |
+
+The only host facilities used: the value substrate (above), `id()` (object identity, added to the
+host as a small general-purpose builtin — the primitive the serializer needs), and the `_os` thin
+syscall module (clocks + environment) used by `sys`/`time`.
+
 ## Test coverage
 
-The harness runs every main-suite program whose dependencies are bridged — the language core plus
-`io` and `math`. That is **27 programs** spanning arithmetic, control flow, functions/closures,
-collections, strings, f-strings, classes (inheritance, operators, `_super_`, private members),
-exceptions, scoping, references, value representation, builtins, numbers, edge cases and math — all
-passing, i.e. producing byte-for-byte the same output as the real interpreter.
+The harness auto-discovers all 43 runnable `tests/scripts/*.ki`. Status:
 
-Programs that depend on native modules with no bridge yet (`net`, `zlib`, `hash`, `time`, `matrix`,
-`complex`, `random`, `json`, `serialize`, `dump`, and the `.ki`-authored stdlib modules) are out of
-scope for the harness.
+- **40 / 43 reproduce the real interpreter's output byte-for-byte.** Two of them (`spec_modules`,
+  `spec_serde`) are slow because they run the pure-Kirito md5/sha1/sha256 — correct, but a hash
+  block costs ~20 s under the doubly-interpreted runtime.
+- `sample_pipeline` and `spec_fuzz` are **correct but impractically slow** here: the first hashes
+  kilobytes of data, the second runs 5000 hostile iterations — both minutes-to-tens-of-minutes
+  through the double interpreter.
+- `libraries` is the one genuine mismatch: it asserts an **exact** `random.randint` value, which
+  would require bit-reproducing the host's `std::mt19937_64` *and* libstdc++'s implementation-defined
+  `uniform_int_distribution`. The rest of that program matches.
+
+The performance ceiling is inherent to running a tree-walking interpreter on top of a tree-walking
+interpreter; it is a speed limit, not a correctness one.

@@ -1,17 +1,72 @@
-# The `zlib` module in pure Kirito. A self-contained round-trippable codec with the standard zlib
-# header byte pair and an adler32 checksum. (It stores rather than DEFLATE-packs the payload, which
-# the suite's round-trip and garbage-rejection checks do not distinguish; no interop with C zlib is
-# exercised by the tests.)
+# The `zlib` module in pure Kirito: a self-contained run-length codec (so repetitive data actually
+# shrinks) wrapped with the standard zlib header byte pair and exposing an adler32 checksum. Tokens
+# are "R<count>:<char>" for runs >= 4 and "L<count>:<literal bytes>" otherwise — length-prefixed, so
+# any bytes round-trip. (The tests round-trip with this codec and never require C-zlib interop.)
 
-var _HDR = chr(120) + chr(156)        # 0x78 0x9C — the usual zlib header
+var _HDR = chr(120) + chr(156)        # 0x78 0x9C
+
+var _rle = Function(s):
+    var out = ""
+    var i = 0
+    var n = len(s)
+    while i < n:
+        var c = s[i]
+        var j = i + 1
+        while j < n and s[j] == c:
+            j = j + 1
+        if j - i >= 4:
+            out = out + "R" + String(j - i) + ":" + c
+            i = j
+        else:
+            var lit = ""
+            var go = True
+            while go and i < n:
+                var c2 = s[i]
+                var k = i + 1
+                while k < n and s[k] == c2:
+                    k = k + 1
+                if k - i >= 4:
+                    go = False
+                else:
+                    lit = lit + s[i:k]
+                    i = k
+            out = out + "L" + String(len(lit)) + ":" + lit
+    return out
+
+var _unrle = Function(body):
+    var out = ""
+    var i = 0
+    var n = len(body)
+    while i < n:
+        var tok = body[i]
+        i = i + 1
+        var num = ""
+        while body[i] != ":":
+            num = num + body[i]
+            i = i + 1
+        i = i + 1
+        var count = Integer(num)
+        if tok == "R":
+            out = out + body[i] * count
+            i = i + 1
+        else:
+            out = out + body[i:i + count]
+            i = i + count
+    return out
+
+var deflate = Function(s):
+    return _rle(s)
+
+var inflate = Function(s):
+    return _unrle(s)
 
 var compress = Function(s):
-    return _HDR + s
+    return _HDR + _rle(s)
 
 var decompress = Function(s):
     if len(s) < 2 or s[0:2] != _HDR:
         throw "zlib: invalid compressed data"
-    return s[2:]
+    return _unrle(s[2:])
 
 var adler32 = Function(s):
     var a = 1
