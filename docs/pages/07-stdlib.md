@@ -373,3 +373,26 @@ Binary search / ordered insertion into a sorted List.
 - `e.nameof(value) → String` — the name for a value.
 - `e.names() → List` / `e.values() → List` — all member names / values.
 - `name in e` — membership test.
+
+## tee
+
+Fan-out streams: clone what you write to a stream into one or more extra streams (for example, mirror
+stdout into a log file). A `Tee` implements the `write`/`writelines`/`flush` stream protocol, so it
+can be assigned to `io.stdout`/`io.stderr`, and it is a context manager (it flushes on exit).
+
+- `Tee(primary, copies = None) → Tee` — a stream that writes each chunk to every *copy* first, then to
+  `primary`. `copies` is a single stream or a List; `primary` may be `None` for a pure fan-out sink.
+- `t.write(data) → Integer` / `t.writelines(lines)` / `t.flush()` / `t.close()` — the stream methods.
+- `t.streams() → List` — the underlying streams in write order (copies, then primary).
+- `tee_stdout(copies)` / `tee_stderr(copies)` — context managers that, inside the block, make
+  `io.stdout` / `io.stderr` also write to `copies`, restoring the original on exit (the copy streams
+  are never closed — you own them).
+
+```kirito
+var io = import("io")
+var tee = import("tee")
+with io.open("session.log", "w") as f:
+    with tee.tee_stdout(f):
+        io.print("appears on the console and in session.log")
+# stdout is restored here
+```

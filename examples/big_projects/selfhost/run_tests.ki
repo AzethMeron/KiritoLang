@@ -22,7 +22,7 @@ var readFile = Function(path):
 # Discover every <name>.ki that has a <name>.expected (skips library-only modules).
 # By default the slow/blocked programs are excluded so this stays a fast, green CTest. Pass "full"
 # as an argument to run every discovered program (incl. the slow hashing / fuzz ones).
-var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo"])
+var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee"])
 var runAll = "full" in argv
 
 var cases = []

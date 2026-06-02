@@ -2316,6 +2316,7 @@ inline void KiritoVM::installStandardLibrary() {
     registerSourceModule("bisect", kimod::bisect);
     registerSourceModule("copy", kimod::copy_mod);
     registerSourceModule("enum", kimod::enum_mod);
+    registerSourceModule("tee", kimod::tee);
 }
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {

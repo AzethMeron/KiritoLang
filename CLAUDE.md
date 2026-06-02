@@ -198,7 +198,9 @@ a stability fuzzer, and a benchmark). Working today:
     (reduce/partial/cache), `collections` (deque/Counter/defaultdict), `statistics`
     (mean/median/mode/variance/stdev/multimode/quantiles/...), `string` (constants + capwords),
     `textwrap` (wrap/fill/indent/dedent), `base64` (+urlsafe), `csv`, `heapq`
-    (+nlargest/heapreplace/merge), `bisect`, `copy` (copy/deepcopy), `enum`.
+    (+nlargest/heapreplace/merge), `bisect`, `copy` (copy/deepcopy), `enum`, `tee` (a `Tee`
+    fan-out stream that clones writes to extra streams — e.g. stdout to a log file — plus
+    `tee_stdout`/`tee_stderr` context managers that hook the std streams).
 - **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, and the
   script's directory), lexed+parsed+evaluated once per VM and cached by resolved path. The `ki` CLI
   is Python-like: REPL with no file (multi-line blocks via a `...` continuation prompt until a blank
