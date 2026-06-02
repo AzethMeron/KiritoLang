@@ -186,6 +186,10 @@ private:
             analyzeExpr(*wi->context);
             if (!wi->name.empty()) { declare(wi->name, wi->span); markUsed(wi->name); }
             analyzeBlock(wi->body);
+        } else if (const auto* td = dynamic_cast<const ast::TodoStmt*>(&s)) {
+            warnings_.push_back({td->span, td->message.empty()
+                                               ? "todo: not yet implemented"
+                                               : "todo: " + td->message});
         } else if (const auto* as = dynamic_cast<const ast::AssertStmt*>(&s)) {
             analyzeExpr(*as->cond);
             if (as->message) analyzeExpr(*as->message);

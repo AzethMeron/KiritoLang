@@ -305,3 +305,25 @@ discard validate(x)    # called for its side effect / exception; result ignored 
 
 The interpreter also warns about local variables that are assigned but never used. Warnings go to
 stderr and never stop execution; `-w` disables them.
+
+## `pass` and `todo`
+
+`pass` is the do-nothing statement — use it where the grammar needs a body but you have nothing to do:
+
+```kirito
+if condition:
+    pass        # intentionally empty
+```
+
+`todo` is also a no-op at runtime, but it *deliberately* emits a warning at its own location to
+remind you to come back and implement something. An optional trailing string is the reminder:
+
+```kirito
+var parse = Function(src):
+    todo "handle escape sequences"
+    return src
+```
+
+Running this prints `file.ki:2:5: warning: todo: handle escape sequences` to stderr (a bare `todo`
+warns `todo: not yet implemented`), while the program keeps running. Like all warnings, `todo`
+reminders are silenced with `-w`.

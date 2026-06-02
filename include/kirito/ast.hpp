@@ -189,6 +189,7 @@ struct ThrowStmt;
 struct ClassStmt;
 struct WithStmt;
 struct PassStmt;
+struct TodoStmt;
 struct AssertStmt;
 struct DiscardStmt;
 struct SwitchStmt;
@@ -209,6 +210,7 @@ struct StmtVisitor {
     virtual void visit(const ClassStmt&) = 0;
     virtual void visit(const WithStmt&) = 0;
     virtual void visit(const PassStmt&) = 0;
+    virtual void visit(const TodoStmt&) = 0;
     virtual void visit(const AssertStmt&) = 0;
     virtual void visit(const DiscardStmt&) = 0;
     virtual void visit(const SwitchStmt&) = 0;
@@ -353,6 +355,13 @@ struct ContinueStmt : Stmt {
 };
 
 struct PassStmt : Stmt {
+    void accept(StmtVisitor& v) const override { v.visit(*this); }
+};
+
+// `todo [message]` — a no-op at runtime (like pass), but the analyzer emits a warning at its
+// location reminding you to implement something. `message` is the optional trailing string.
+struct TodoStmt : Stmt {
+    std::string message;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 

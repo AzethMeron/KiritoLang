@@ -15,7 +15,7 @@ enum class TokenType {
     KwVar, KwTrue, KwFalse, KwNone,
     KwIf, KwElif, KwElse, KwWhile, KwBreak, KwContinue,
     KwAnd, KwOr, KwNot, KwFunction, KwReturn, KwFor, KwIn,
-    KwTry, KwCatch, KwFinally, KwThrow, KwAs, KwClass, KwWith, KwPass, KwAssert, KwDiscard,
+    KwTry, KwCatch, KwFinally, KwThrow, KwAs, KwClass, KwWith, KwPass, KwTodo, KwAssert, KwDiscard,
     KwSwitch,  // `case`/`default` are contextual (soft) keywords — lexed as identifiers, recognized
                // only inside a switch body — so they stay usable as ordinary names everywhere else.
     Plus, Minus, Star, Slash, SlashSlash, Percent, StarStar, Arrow,
@@ -223,6 +223,7 @@ private:
         else if (text == "class") type = TokenType::KwClass;
         else if (text == "with") type = TokenType::KwWith;
         else if (text == "pass") type = TokenType::KwPass;
+        else if (text == "todo") type = TokenType::KwTodo;
         else if (text == "assert") type = TokenType::KwAssert;
         else if (text == "discard") type = TokenType::KwDiscard;
         else if (text == "switch") type = TokenType::KwSwitch;

@@ -77,6 +77,13 @@ private:
                 expectStatementEnd();
                 return node;
             }
+            case TokenType::KwTodo: {
+                auto node = std::make_unique<ast::TodoStmt>();
+                node->span = advance().span;
+                if (at(TokenType::String)) node->message = advance().text;  // optional reminder
+                expectStatementEnd();
+                return node;
+            }
             case TokenType::KwDiscard: {
                 auto node = std::make_unique<ast::DiscardStmt>();
                 node->span = advance().span;
@@ -652,6 +659,12 @@ private:
             case TokenType::KwPass: {
                 auto node = std::make_unique<ast::PassStmt>();
                 node->span = advance().span;
+                return node;
+            }
+            case TokenType::KwTodo: {
+                auto node = std::make_unique<ast::TodoStmt>();
+                node->span = advance().span;
+                if (at(TokenType::String)) node->message = advance().text;  // optional reminder
                 return node;
             }
             case TokenType::KwThrow: {

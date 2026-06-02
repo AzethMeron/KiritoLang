@@ -188,6 +188,7 @@ public:
     void visit(const ast::BreakStmt&) override { flow_ = Flow::Break; result_ = vm_.none(); }
     void visit(const ast::ContinueStmt&) override { flow_ = Flow::Continue; result_ = vm_.none(); }
     void visit(const ast::PassStmt&) override { result_ = vm_.none(); }
+    void visit(const ast::TodoStmt&) override { result_ = vm_.none(); }  // no-op like pass (warns at analysis)
 
     void visit(const ast::AssertStmt& s) override {
         if (!truthy(eval(*s.cond))) {

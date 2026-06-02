@@ -146,5 +146,43 @@ int main() {
             "discard f()\nlen(log)")) == "1");
     }
 
+    // --- todo: warns with an optional reminder message ---
+    {
+        auto w = warn("todo \"wire up the cache\"\n");
+        CHECK(has(w, "todo: wire up the cache"));
+    }
+    // bare todo warns with a default reminder
+    {
+        auto w = warn("todo\n");
+        CHECK(has(w, "todo: not yet implemented"));
+    }
+    // todo inside a function body still warns
+    {
+        auto w = warn("var f = Function():\n    todo \"finish me\"\n    return 0\n");
+        CHECK(has(w, "todo: finish me"));
+    }
+    // pass never warns (a plain no-op)
+    {
+        auto w = warn("pass\nvar f = Function():\n    pass\n    return 1\n");
+        CHECK(!has(w, "todo"));
+    }
+    // the warning carries the todo's line:col location
+    {
+        Parser parser(Lexer("var x = 1\nif x == 1:\n    todo \"here\"\n").tokenize());
+        ast::Program program = parser.parseProgram();
+        Analyzer analyzer;
+        auto formatted = formatWarnings(analyzer.analyze(program), "f.ki");
+        bool found = false;
+        for (const auto& s : formatted)
+            if (s == "f.ki:3:5: warning: todo: here") found = true;
+        CHECK(found);
+    }
+    // todo / pass are runtime no-ops (the program runs and produces a value)
+    {
+        KiritoVM vm;
+        Handle r = vm.runSource("var f = Function():\n    pass\n    todo \"later\"\n    return 7\n    pass\nf()\n");
+        CHECK(vm.stringify(r) == "7");
+    }
+
     return RUN_TESTS();
 }

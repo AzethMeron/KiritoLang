@@ -87,7 +87,7 @@ Every step must keep `main.ki`-style programs as the north star.
 `ki` runner, an extensive CTest suite incl. golden `.ki` scripts, an embedding integration test,
 a stability fuzzer, and a benchmark). Working today:
 - Arithmetic (Python-3 division), `var`/reference-assignment, comparisons, `in`/`not in`.
-- Indentation blocks with `if/elif/else`/`while`/`for`/`break`/`continue`/`pass`, `and`/`or`/`not`.
+- Indentation blocks with `if/elif/else`/`while`/`for`/`break`/`continue`/`pass`/`todo`, `and`/`or`/`not`.
   Tabs and spaces both work but ambiguous mixing is rejected (Python-3 rule: measured with tab=8
   and tab=1, both must agree).
 - `switch SUBJECT:` with `case V[, V2...]:` arms and an optional `default:` — **no fallthrough**
@@ -129,9 +129,11 @@ a stability fuzzer, and a benchmark). Working today:
   flags: function-local variables assigned-but-never-used; bare expression statements whose
   non-`None` value is dropped; a `var` re-declared in the same block; unreachable code after a
   return/throw/break/continue; self-assignment (`x = x`); and duplicate parameter names. `discard
-  EXPR` evaluates and intentionally drops a value (suppressing the unused-result case). Warnings
-  print `file:line:col: warning: ...` to stderr; the `ki` flag `-w`/`--no-warn` disables them.
-  Module-level names (exports) and class members are never flagged.
+  EXPR` evaluates and intentionally drops a value (suppressing the unused-result case). `todo
+  [message]` is a no-op statement (like `pass`) that *deliberately* emits a `todo: ...` warning at
+  its location reminding you to implement something (an optional trailing string is the reminder).
+  Warnings print `file:line:col: warning: ...` to stderr; the `ki` flag `-w`/`--no-warn` disables
+  them. Module-level names (exports) and class members are never flagged.
 - **Builtins**: `range`, `sum`, `min`, `max`, `abs`, `round`, `sorted`, `enumerate`, `zip`, `map`,
   `filter`, `len`, `type`, `import`, `inspect`, `all`, `any`, `reversed`, `divmod`, `isinstance`,
   `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), `bitand`/`bitor`/`bitxor`/`bitnot`
