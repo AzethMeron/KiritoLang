@@ -171,9 +171,17 @@ a stability fuzzer, and a benchmark). Working today:
   - `serialize` — text graph dumps/loads/save/load preserving shared references and cycles.
   - `dump` — compact BINARY serialization (a `Dump` blob value) preserving references and cycles;
     dumps/loads, Dump(bytes), save/load.
-  - `net` — TCP sockets (connect/bind/listen/accept/send/recv), an HTTP/1.1 client
-    (httpget/httppost; HTTPS optional via `-DKIRITO_ENABLE_TLS=ON`, links OpenSSL), and URL
-    helpers (quote/unquote/urlencode/parseqs/urlsplit).
+  - `net` — TCP sockets (connect/bind/listen/accept/send/recv/recvall/settimeout) **and** a
+    full-fledged HTTP/1.1 client (requests-style): `request(method, url[, opts])` plus
+    `get/post/put/delete/patch/head/options` (and back-compat `httpget`/`httppost`) returning a rich
+    `Response` (`status`/`statuscode`/`reason`/`ok`/`url`/`text`/`headers`/`cookies`, `json()`,
+    `raiseforstatus()`, case-insensitive `header()`, and `["status"]`/`["body"]` indexing). Request
+    `opts`: `headers`, `params`, `data` (string or form-Dict), `json`, `files` (multipart upload),
+    `auth` (`[user, pass]` Basic), `timeout`, `allowredirects`/`maxredirects`, `verify` (TLS cert
+    verification, on by default), `cookies`. Follows redirects, decodes chunked transfer-encoding,
+    decompresses gzip/deflate, and parses/sends cookies. A `Session()` keeps a cookie jar + default
+    headers across calls. HTTPS via `-DKIRITO_ENABLE_TLS=ON` (links OpenSSL; verifies the peer cert
+    by default). URL helpers: quote/unquote/urlencode/parseqs/urlsplit.
   - `sys` — environment (getenv/setenv/unsetenv/environ), `platform`, `exit`.
   - `time` — high-precision clocks (time/timens/monotonic/perfcounterns), sleep, and Python-like
     calendar time (`now`/`datetime`/`make`/`strptime`; `DateTime` with fields, iso/format,
