@@ -26,7 +26,9 @@ rebindable stream objects — assign a `File`, a `BytesIO`, another stream, or a
 - `read([n], stream = io.stdin) → String` — read `n` characters from `stream`, or everything until EOF if `n` is omitted.
 
 The optional `stream=` keyword sends/takes that one call's output/input to/from any File, `BytesIO`, std stream, or object exposing `write`/`readline` — without rebinding `io.stdout`/`io.stdin`. Omit it to use the current standard stream.
-- `stdout` / `stderr` / `stdin` — the current standard streams (rebindable). `__stdout__` / `__stderr__` / `__stdin__` hold the originals.
+- `stdout` — the current standard output stream (rebindable); `__stdout__` holds the original.
+- `stderr` — the current standard error stream (rebindable); `__stderr__` holds the original.
+- `stdin` — the current standard input stream (rebindable); `__stdin__` holds the original.
 
 ### Files and buffers
 
@@ -73,7 +75,8 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 - `b.read([n]) → String` — read `n` bytes from the cursor, or the rest if omitted.
 - `b.readline() → String` — read up to and including the next newline (returned without it).
 - `b.getvalue() → String` — the entire buffer contents.
-- `b.tell() → Integer` / `b.seek(off[, whence]) → Integer` — cursor position / move it (whence 0=start, 1=cur, 2=end).
+- `b.tell() → Integer` — the current cursor position.
+- `b.seek(off[, whence]) → Integer` — move the cursor (whence 0=start, 1=cur, 2=end).
 - `b.size() → Integer` — total buffer length in bytes (`len(b)` also works).
 - `b.truncate() → Integer` — drop everything after the cursor.
 
@@ -84,22 +87,46 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 Constants and the usual numeric functions. Argument errors raise; results are `Float` unless noted.
 
 - Constants: `pi`, `e`, `tau`, `inf`, `nan` (all `Float`).
-- `sqrt(x: Number) → Float` / `cbrt(x: Number) → Float` — square / cube root.
-- `sin` / `cos` / `tan` / `asin` / `acos` / `atan` / `sinh` / `cosh` / `tanh` / `asinh` / `acosh` / `atanh` `(x: Number) → Float` — trigonometric / hyperbolic functions.
+- `sqrt(x: Number) → Float` — square root.
+- `cbrt(x: Number) → Float` — cube root.
+- `sin(x: Number) → Float` — sine (radians).
+- `cos(x: Number) → Float` — cosine (radians).
+- `tan(x: Number) → Float` — tangent (radians).
+- `asin(x: Number) → Float` — arcsine.
+- `acos(x: Number) → Float` — arccosine.
+- `atan(x: Number) → Float` — arctangent.
+- `sinh(x: Number) → Float` — hyperbolic sine.
+- `cosh(x: Number) → Float` — hyperbolic cosine.
+- `tanh(x: Number) → Float` — hyperbolic tangent.
+- `asinh(x: Number) → Float` — inverse hyperbolic sine.
+- `acosh(x: Number) → Float` — inverse hyperbolic cosine.
+- `atanh(x: Number) → Float` — inverse hyperbolic tangent.
 - `atan2(y: Number, x: Number) → Float` — arctangent of `y/x` using the signs of both for the quadrant.
 - `hypot(x: Number, y: Number) → Float` — `sqrt(x² + y²)` without overflow.
-- `exp(x: Number) → Float` / `expm1(x)` / `log1p(x)` / `log2(x)` / `log10(x)` — exponential / log family.
+- `exp(x: Number) → Float` — `e ** x`.
+- `expm1(x: Number) → Float` — `exp(x) - 1`, accurate for small `x`.
+- `log1p(x: Number) → Float` — `log(1 + x)`, accurate for small `x`.
+- `log2(x: Number) → Float` — base-2 logarithm.
+- `log10(x: Number) → Float` — base-10 logarithm.
 - `log(x: Number, base = None) → Float` — natural log, or log base `base` when given.
 - `pow(x: Number, y: Number) → Float` — `x ** y` as a Float (the builtin `pow` does Integer/modular).
-- `gamma(x: Number) → Float` / `lgamma(x)` / `erf(x)` / `erfc(x)` — gamma, log-gamma, error function, and the complementary error function (`1 - erf(x)`, accurate for large `x`).
-- `floor(x: Number) → Integer` / `ceil(x: Number) → Integer` — round down / up to an Integer.
+- `gamma(x: Number) → Float` — the gamma function.
+- `lgamma(x: Number) → Float` — the natural log of the absolute value of gamma.
+- `erf(x: Number) → Float` — the error function.
+- `erfc(x: Number) → Float` — the complementary error function (`1 - erf(x)`, accurate for large `x`).
+- `floor(x: Number) → Integer` — round down to an Integer.
+- `ceil(x: Number) → Integer` — round up to an Integer.
 - `trunc(x: Number) → Float` — truncate toward zero.
 - `fabs(x: Number) → Float` — absolute value as a Float.
 - `copysign(x: Number, y: Number) → Float` — `|x|` with the sign of `y`.
 - `fmod(x: Number, y: Number) → Float` — C-style floating remainder.
-- `degrees(x: Number) → Float` / `radians(x: Number) → Float` — convert radians↔degrees.
-- `isnan(x: Number) → Bool` / `isinf(x) → Bool` / `isfinite(x) → Bool` — float classification.
-- `gcd(a: Integer, b: Integer) → Integer` / `lcm(a, b) → Integer` — greatest common divisor / least common multiple.
+- `degrees(x: Number) → Float` — convert radians to degrees.
+- `radians(x: Number) → Float` — convert degrees to radians.
+- `isnan(x: Number) → Bool` — whether `x` is NaN.
+- `isinf(x: Number) → Bool` — whether `x` is infinite.
+- `isfinite(x: Number) → Bool` — whether `x` is finite (neither NaN nor infinite).
+- `gcd(a: Integer, b: Integer) → Integer` — greatest common divisor.
+- `lcm(a: Integer, b: Integer) → Integer` — least common multiple.
 - `factorial(n: Integer) → Integer` — `n!` (raises on negatives / Integer overflow).
 - `comb(n: Integer, k: Integer) → Integer` — combinations “n choose k”.
 - `perm(n: Integer, k: Integer) → Integer` — permutations.
@@ -123,7 +150,8 @@ Object-based RNG — no global state; create a generator and call methods on it.
 - `r.choice(seq)` — a random element of a non-empty sequence.
 - `r.shuffle(list) → None` — shuffle a List in place.
 - `r.sample(seq, k) → List` — `k` distinct elements chosen at random.
-- `r.gauss(mu, sigma)` / `r.normalvariate(mu, sigma) → Float` — normal distribution.
+- `r.gauss(mu, sigma) → Float` — a sample from a normal distribution.
+- `r.normalvariate(mu, sigma) → Float` — a sample from a normal distribution (an alias of `gauss`).
 - `r.expovariate(lambd) → Float` — exponential distribution.
 
 ---
@@ -134,14 +162,19 @@ Dense real matrices (no complex numbers).
 
 - `Matrix(rows: List) → Matrix` — build from a nested list of numbers (rows must be equal length).
 - `Matrix(rows: Integer, cols: Integer) → Matrix` — a zero matrix of the given shape.
-- `zeros(rows: Integer, cols: Integer) → Matrix` / `ones(rows, cols) → Matrix` — filled with 0 / 1.
+- `zeros(rows: Integer, cols: Integer) → Matrix` — a matrix filled with `0`.
+- `ones(rows: Integer, cols: Integer) → Matrix` — a matrix filled with `1`.
 - `identity(n: Integer) → Matrix` — the n×n identity.
 
 ### Matrix object
 
-- `m[i, j]` / `m[i, j] = v` — element access / assignment.
-- `m.get(i, j) → Float` / `m.set(i, j, v) → None` — explicit element access / assignment (the method form of `m[i, j]`).
-- `m.rows() → Integer` / `m.cols() → Integer` / `m.shape() → List` — dimensions.
+- `m[i, j] → Float` — element access.
+- `m[i, j] = v` — element assignment.
+- `m.get(i, j) → Float` — explicit element access (the method form of `m[i, j]`).
+- `m.set(i, j, v) → None` — explicit element assignment (the method form of `m[i, j] = v`).
+- `m.rows() → Integer` — the number of rows.
+- `m.cols() → Integer` — the number of columns.
+- `m.shape() → List` — `[rows, cols]`.
 - `m.row(i) → List` — the `i`-th row as a List of its elements.
 - `m + n`, `m - n`, `m * n` — matrix addition/subtraction, and matrix or scalar multiplication.
 - `m.transpose() → Matrix` — the transpose.
@@ -190,7 +223,8 @@ cycles like a portable `pickle`. Produces a `Dump` blob value rather than text.
 - `dumps(value) → Dump` — serialize to a `Dump` blob value.
 - `loads(data)` — reconstruct from a `Dump` or a byte String.
 - `Dump(bytes: String) → Dump` — wrap raw bytes as a `Dump`.
-- `save(value, path)` / `load(path)` — to/from a file.
+- `save(value, path) → None` — serialize `value` to a file.
+- `load(path)` — reconstruct a value from a file written by `save`.
 
 ---
 
@@ -201,8 +235,13 @@ TCP sockets, a full-fledged HTTP/1.1 client, and URL helpers.
 ### HTTP client
 
 - `request(method: String, url: String, options: Dict = None) → Response` — perform any HTTP request.
-- `get` / `post` / `put` / `delete` / `patch` / `head` / `options` `(url: String, options: Dict = None) → Response`
-  — per-verb shortcuts.
+- `get(url: String, options: Dict = None) → Response` — a `GET` request.
+- `post(url: String, options: Dict = None) → Response` — a `POST` request.
+- `put(url: String, options: Dict = None) → Response` — a `PUT` request.
+- `delete(url: String, options: Dict = None) → Response` — a `DELETE` request.
+- `patch(url: String, options: Dict = None) → Response` — a `PATCH` request.
+- `head(url: String, options: Dict = None) → Response` — a `HEAD` request.
+- `options(url: String, options: Dict = None) → Response` — an `OPTIONS` request.
 - `Session() → Session` — a session that persists a cookie jar (`.cookies`) and default headers
   (`.headers`) across requests; has the same verb methods (`s.get(url[, options])`, …).
 
@@ -217,7 +256,7 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 
 - `r.status` (`Integer`, alias `r.statuscode`), `r.reason` (`String`), `r.ok` (`Bool`, true for < 400).
 - `r.url` — the final URL (after any redirects).
-- `r.text` / `r.body` / `r.content` — the response body (`String`).
+- `r.text` — the response body (`String`); `r.body` and `r.content` are aliases of it.
 - `r.headers` — a Dict of response headers; `r.header(name)` looks one up **case-insensitively**.
 - `r.cookies` — a Dict of cookies set by the server.
 - `r.json()` — parse the body as JSON.
@@ -225,7 +264,8 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 
 ### URL helpers (`urllib.parse` style)
 
-- `quote(s: String) → String` / `unquote(s: String) → String` — percent-encode / -decode (UTF-8).
+- `quote(s: String) → String` — percent-encode a String (UTF-8).
+- `unquote(s: String) → String` — percent-decode a String (UTF-8).
 - `urlencode(params: Dict) → String` — build a `k=v&...` query string (keys and values encoded).
 - `parseqs(query: String) → Dict` — parse `k=v&...` into a Dict (values decoded).
 - `urlsplit(url: String) → Dict` — split a URL into `scheme`/`host`/`port`/`path`/`query`/`fragment`.
@@ -279,10 +319,24 @@ Clocks and calendar time.
 
 ### DateTime object
 
-- `dt.year` / `month` / `day` / `hour` / `minute` / `second` / `weekday` / `yearday` / `timestamp` — Integer **attributes** (no parentheses) for the UTC fields and epoch seconds.
-- `dt.iso()` / `dt.isoformat() → String` — ISO-8601 text.
+The UTC fields and epoch seconds are Integer **attributes** (no parentheses):
+
+- `dt.year` — the year.
+- `dt.month` — the month (1–12).
+- `dt.day` — the day of the month.
+- `dt.hour` — the hour (0–23).
+- `dt.minute` — the minute (0–59).
+- `dt.second` — the second (0–59).
+- `dt.weekday` — the day of the week.
+- `dt.yearday` — the day of the year.
+- `dt.timestamp` — epoch seconds.
+
+Its methods:
+
+- `dt.iso() → String` — ISO-8601 text; `dt.isoformat()` is an alias.
 - `dt.format(fmt: String) → String` — strftime-style formatting.
-- `dt.add(seconds)` / `dt.sub(seconds) → DateTime` — a new DateTime shifted by seconds.
+- `dt.add(seconds) → DateTime` — a new DateTime shifted forward by `seconds`.
+- `dt.sub(seconds) → DateTime` — a new DateTime shifted back by `seconds`.
 - `dt.diff(other) → Integer` — difference (`self - other`) in seconds.
 
 ---
@@ -293,7 +347,8 @@ DEFLATE compression (interoperable with standard zlib), self-contained.
 
 - `compress(data: String) → String` — zlib-format compress.
 - `decompress(data: String) → String` — zlib-format decompress (raises on bad data).
-- `deflate(data: String) → String` / `inflate(data: String) → String` — raw DEFLATE (no zlib header).
+- `deflate(data: String) → String` — raw DEFLATE compression (no zlib header).
+- `inflate(data: String) → String` — raw DEFLATE decompression (no zlib header).
 - `adler32(data: String) → Integer` — Adler-32 checksum.
 
 ---
@@ -325,7 +380,8 @@ rather than a lazy sequence.
 - `product(lists) → List` — Cartesian product of a list-of-iterables (`product([[1,2],[3,4]])`).
 - `permutations(items[, r]) → List` — r-length orderings.
 - `combinations(items, r) → List` — r-length combinations.
-- `takewhile(pred, iterable) → List` / `dropwhile(pred, iterable) → List` — the prefix where `pred` holds / the rest after it.
+- `takewhile(pred, iterable) → List` — the leading run of elements while `pred` holds.
+- `dropwhile(pred, iterable) → List` — the rest, after that leading run.
 - `filterfalse(pred, iterable) → List` — elements where `pred` is falsy.
 - `compress(data, selectors) → List` — `data` elements where the matching selector is truthy.
 - `starmap(func, argtuples) → List` — `func(*args)` for each argument tuple.
@@ -345,9 +401,36 @@ rather than a lazy sequence.
 
 ## collections
 
-- `deque([iterable]) → deque` — a double-ended queue with `append`, `appendleft`, `pop`, `popleft`, `len`, indexing, and iteration.
-- `Counter([iterable]) → Counter` — a multiset/tally with `add`, `get`, `items`, `mostcommon`, and indexing.
-- `defaultdict(factory) → defaultdict` — a Dict that fills a missing key by calling `factory()`. Supports `d[k]` / `d[k] = v`, `k in d`, and `keys()` / `values()` / `items()`.
+- `deque([iterable]) → deque` — a double-ended queue.
+- `Counter([iterable]) → Counter` — a multiset that tallies its elements.
+- `defaultdict(factory) → defaultdict` — a Dict that fills a missing key by calling `factory()`.
+
+### deque object
+
+- `dq.append(x) → None` — add `x` to the right end.
+- `dq.appendleft(x) → None` — add `x` to the left end.
+- `dq.pop()` — remove and return the rightmost element.
+- `dq.popleft()` — remove and return the leftmost element.
+- `dq[i]` — the element at index `i`.
+- `len(dq) → Integer` — the number of elements.
+- iterable — a `for` loop yields the elements left to right.
+
+### Counter object
+
+- `c.add(x) → None` — increment the count for `x`.
+- `c.get(x) → Integer` — the count for `x` (`0` if unseen).
+- `c[x] → Integer` — index syntax for the count of `x`.
+- `c.items() → List` — `[value, count]` pairs.
+- `c.mostcommon() → List` — `[value, count]` pairs, highest count first.
+
+### defaultdict object
+
+- `d[k]` — the value for `k`, inserting `factory()` if `k` is absent.
+- `d[k] = v` — set the value for `k`.
+- `k in d → Bool` — whether `k` is present.
+- `d.keys() → List` — all keys.
+- `d.values() → List` — all values.
+- `d.items() → List` — all `[key, value]` pairs.
 
 ---
 
@@ -355,9 +438,12 @@ rather than a lazy sequence.
 
 - `mean(data) → Float` — arithmetic mean.
 - `median(data) → Float` — middle value.
-- `mode(data)` / `multimode(data)` — most common value / all most-common values.
-- `variance(data) → Float` / `stdev(data) → Float` — sample variance / standard deviation.
-- `pvariance(data) → Float` / `pstdev(data) → Float` — population variance / standard deviation.
+- `mode(data)` — the single most common value.
+- `multimode(data) → List` — all values tied for most common.
+- `variance(data) → Float` — the sample variance.
+- `stdev(data) → Float` — the sample standard deviation.
+- `pvariance(data) → Float` — the population variance.
+- `pstdev(data) → Float` — the population standard deviation.
 - `quantiles(data[, n]) → List` — cut points dividing `data` into `n` equal groups.
 
 ---
@@ -384,7 +470,8 @@ Operates on **byte values** as a `List` of Integers (0–255), not text strings.
 
 - `encode(data: List) → String` — Base64-encode a list of byte values.
 - `decode(s: String) → List` — decode Base64 text back to a list of byte values.
-- `urlsafeencode(data: List) → String` / `urlsafedecode(s: String) → List` — same, with the URL-safe alphabet (`-_`).
+- `urlsafeencode(data: List) → String` — encode using the URL-safe alphabet (`-_`).
+- `urlsafedecode(s: String) → List` — decode using the URL-safe alphabet (`-_`).
 
 ---
 
@@ -406,7 +493,8 @@ A min-heap maintained inside an ordinary List.
 - `heappop(heap)` — pop and return the smallest element.
 - `heapreplace(heap, item)` — pop the smallest, then push `item` (one pass).
 - `merge(*lists) → List` — merge sorted inputs into one sorted List.
-- `nlargest(n, items) → List` / `nsmallest(n, items) → List` — the n largest / smallest elements.
+- `nlargest(n, items) → List` — the `n` largest elements.
+- `nsmallest(n, items) → List` — the `n` smallest elements.
 
 ---
 
@@ -414,8 +502,10 @@ A min-heap maintained inside an ordinary List.
 
 Binary search / ordered insertion into a sorted List.
 
-- `bisectleft(a, x) → Integer` / `bisectright(a, x) → Integer` — leftmost / rightmost insertion index keeping `a` sorted.
-- `insortleft(a, x) → None` / `insortright(a, x) → None` — insert `x` into the sorted List `a`.
+- `bisectleft(a, x) → Integer` — the leftmost insertion index that keeps `a` sorted.
+- `bisectright(a, x) → Integer` — the rightmost insertion index that keeps `a` sorted.
+- `insortleft(a, x) → None` — insert `x` into the sorted List `a` at the leftmost valid position.
+- `insortright(a, x) → None` — insert `x` into the sorted List `a` at the rightmost valid position.
 
 ---
 
@@ -432,9 +522,11 @@ Binary search / ordered insertion into a sorted List.
 
 ### Enum object
 
-- `e.get(name) → Integer` / `e[name]` — the value (index) of a member; raises on an unknown name.
+- `e.get(name) → Integer` — the value (index) of a member; raises on an unknown name.
+- `e[name] → Integer` — index syntax for the same lookup as `e.get(name)`.
 - `e.nameof(value) → String` — the name for a value.
-- `e.names() → List` / `e.values() → List` — all member names / values.
+- `e.names() → List` — all member names.
+- `e.values() → List` — all member values.
 - `name in e` — membership test.
 
 ---
@@ -447,11 +539,14 @@ can be assigned to `io.stdout`/`io.stderr`, and it is a context manager (it flus
 
 - `Tee(primary, copies = None) → Tee` — a stream that writes each chunk to every *copy* first, then to
   `primary`. `copies` is a single stream or a List; `primary` may be `None` for a pure fan-out sink.
-- `t.write(data) → Integer` / `t.writelines(lines)` / `t.flush()` / `t.close()` — the stream methods.
+- `t.write(data) → Integer` — write `data` to every stream (copies first, then primary).
+- `t.writelines(lines) → None` — write each String in an iterable to every stream.
+- `t.flush() → None` — flush every underlying stream.
+- `t.close() → None` — close the Tee (flushes; does not close the copy streams you supplied).
 - `t.streams() → List` — the underlying streams in write order (copies, then primary).
-- `tee_stdout(copies)` / `tee_stderr(copies)` — context managers that, inside the block, make
-  `io.stdout` / `io.stderr` also write to `copies`, restoring the original on exit (the copy streams
-  are never closed — you own them).
+- `tee_stdout(copies)` — a context manager that makes `io.stdout` also write to `copies` inside the
+  block, restoring the original on exit (the copy streams are never closed — you own them).
+- `tee_stderr(copies)` — the same for `io.stderr`.
 
 ```kirito
 var io = import("io")

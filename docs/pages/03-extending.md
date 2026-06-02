@@ -246,12 +246,16 @@ Override only what your type supports; every slot defaults to a clear "unsupport
 | `binary(vm, op, self, rhs)` | `a + b`, `a < b`, … (`BinOp::Add/Sub/Mul/Div/FloorDiv/Mod/Pow/Eq/Ne/Lt/Le/Gt/Ge`) |
 | `unary(vm, op, self)` | `-a`, `not a` (`UnOp::Neg/Not`) |
 | `call(vm, args)` | `obj(...)` — makes the value itself callable |
-| `getAttr(vm, self, name)` / `setAttr(vm, name, value)` | `obj.field`, `obj.field = v` |
-| `getItem(vm, keys)` / `setItem(vm, keys, value)` | `obj[i]`, `obj[i, j] = v` (keys are variadic) |
+| `getAttr(vm, self, name)` | `obj.field` |
+| `setAttr(vm, name, value)` | `obj.field = v` |
+| `getItem(vm, keys)` | `obj[i]` / `obj[i, j]` (keys are variadic) |
+| `setItem(vm, keys, value)` | `obj[i] = v` / `obj[i, j] = v` (keys are variadic) |
 | `iterate(vm)` | `for x in obj` — return the elements as a vector of `Handle` |
 | `length(vm)` | `len(obj)` |
 | `contains(vm, value)` | `x in obj` |
-| `str(ctx)` / `equals(arena, other)` / `hash()` | stringify / `==` / use as a Set/Dict key |
+| `str(ctx)` | stringify (`String(obj)`, printing, nesting) |
+| `equals(arena, other)` | `==` |
+| `hash()` | use as a Set element / Dict key |
 | `children(out)` | GC reachability — push every `Handle` your object owns |
 
 If your type holds Kirito values (e.g. a container), implement `children()` so the garbage collector

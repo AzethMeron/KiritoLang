@@ -66,13 +66,15 @@ parameter name.
 - `divmod(a, b) → List` — `[a // b, a % b]` in one step, using floor semantics.
 - `pow(base, exp[, mod]) → Number` — exponentiation; the 3-argument form is modular,
   `(base ** exp) % mod`, computed efficiently. `pow(2, 10, mod = 1000)`.
-- `bin(n) → String` / `oct(n) → String` / `hex(n) → String` — the base-2/8/16 text of an Integer with
-  a `0b`/`0o`/`0x` prefix (sign-aware).
-- `bitand(a, b) → Integer` / `bitor(a, b) → Integer` / `bitxor(a, b) → Integer` — bitwise AND / OR /
-  XOR of two Integers (Kirito has no `&`/`|`/`^` operators).
+- `bin(n) → String` — the base-2 text of an Integer with a `0b` prefix (sign-aware).
+- `oct(n) → String` — the base-8 text of an Integer with a `0o` prefix (sign-aware).
+- `hex(n) → String` — the base-16 text of an Integer with a `0x` prefix (sign-aware).
+- `bitand(a, b) → Integer` — bitwise AND of two Integers (Kirito has no `&` operator).
+- `bitor(a, b) → Integer` — bitwise OR of two Integers (Kirito has no `|` operator).
+- `bitxor(a, b) → Integer` — bitwise XOR of two Integers (Kirito has no `^` operator).
 - `bitnot(a) → Integer` — bitwise NOT (`~a`, i.e. `-a - 1`).
-- `shl(a, n) → Integer` / `shr(a, n) → Integer` — shift `a` left / right by `n ≥ 0` bits; `shr` is
-  arithmetic (sign-preserving).
+- `shl(a, n) → Integer` — shift `a` left by `n ≥ 0` bits.
+- `shr(a, n) → Integer` — shift `a` right by `n ≥ 0` bits (arithmetic, sign-preserving).
 - `ord(char) → Integer` — the Unicode code point of a single-character String.
 - `chr(codepoint) → String` — the single-character String for a code point.
 - `format(value[, spec]) → String` — format a value with a mini-format-spec (see below).

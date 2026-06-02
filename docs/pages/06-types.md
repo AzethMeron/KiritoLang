@@ -85,22 +85,36 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 
 | Method | Description |
 |--------|-------------|
-| `s.upper()` / `s.lower()` | Case conversion (Unicode-aware for ASCII/Latin-1/Latin-Extended-A). |
-| `s.strip([chars])` / `s.lstrip` / `s.rstrip` | Trim whitespace (or any of `chars`) from both/left/right. |
+| `s.upper()` | Upper-case (Unicode-aware for ASCII/Latin-1/Latin-Extended-A). |
+| `s.lower()` | Lower-case (Unicode-aware for ASCII/Latin-1/Latin-Extended-A). |
+| `s.strip([chars])` | Trim whitespace (or any of `chars`) from both ends. |
+| `s.lstrip([chars])` | Trim whitespace (or any of `chars`) from the left. |
+| `s.rstrip([chars])` | Trim whitespace (or any of `chars`) from the right. |
 | `s.split([sep][, maxsplit])` | Split into a List; whitespace runs by default. |
 | `s.join(iter)` | Join an iterable of Strings with `s` as the separator. |
 | `s.replace(old, new[, count])` | Replace occurrences of `old` with `new`. |
-| `s.startswith(p)` / `s.endswith(p)` | Prefix / suffix test. |
-| `s.find(sub)` / `s.rfind(sub)` | First / last index of `sub`, or `-1`. |
-| `s.index(sub)` / `s.rindex(sub)` | Like find/rfind but raise if absent. |
+| `s.startswith(p)` | Whether `s` begins with prefix `p`. |
+| `s.endswith(p)` | Whether `s` ends with suffix `p`. |
+| `s.find(sub)` | First index of `sub`, or `-1` if absent. |
+| `s.rfind(sub)` | Last index of `sub`, or `-1` if absent. |
+| `s.index(sub)` | First index of `sub`; raises if absent. |
+| `s.rindex(sub)` | Last index of `sub`; raises if absent. |
 | `s.count(sub)` | Number of non-overlapping occurrences. |
 | `s.format(...)` | Substitute `{}` (sequential) and `{0}`/`{1}` (indexed) fields with the positional arguments. (Named `{x}` fields are an f-string feature.) |
-| `s.isdigit()` / `s.isalpha()` / `s.isalnum()` | Character-class predicates over the whole string. |
-| `s.isspace()` / `s.islower()` / `s.isupper()` | Whitespace / case predicates. |
-| `s.removeprefix(p)` / `s.removesuffix(p)` | Drop a prefix/suffix if present. |
-| `s.ljust(w[, fill])` / `s.rjust(w[, fill])` / `s.center(w[, fill])` | Pad to width `w`. |
+| `s.isdigit()` | Whether every character is a digit. |
+| `s.isalpha()` | Whether every character is a letter. |
+| `s.isalnum()` | Whether every character is a letter or digit. |
+| `s.isspace()` | Whether every character is whitespace. |
+| `s.islower()` | Whether the cased characters are all lower-case. |
+| `s.isupper()` | Whether the cased characters are all upper-case. |
+| `s.removeprefix(p)` | Drop prefix `p` if present. |
+| `s.removesuffix(p)` | Drop suffix `p` if present. |
+| `s.ljust(w[, fill])` | Left-justify to width `w`, padding with `fill`. |
+| `s.rjust(w[, fill])` | Right-justify to width `w`, padding with `fill`. |
+| `s.center(w[, fill])` | Center within width `w`, padding with `fill`. |
 | `s.zfill(w)` | Left-pad with zeros to width `w` (sign-aware). |
-| `s.partition(sep)` / `s.rpartition(sep)` | Split once into `[head, sep, tail]`. |
+| `s.partition(sep)` | Split once at the first `sep` into `[head, sep, tail]`. |
+| `s.rpartition(sep)` | Split once at the last `sep` into `[head, sep, tail]`. |
 
 ## List
 
@@ -155,9 +169,11 @@ io.print(a.union(b), a.intersection(b))   # {1, 2, 3, 4} {3}
 | `s.intersection(other)` | Elements in both. |
 | `s.difference(other)` | Elements in `s` but not `other`. |
 | `s.symmetricdifference(other)` | Elements in exactly one set. |
-| `s.issubset(other)` / `s.issuperset(other)` | Containment tests. |
+| `s.issubset(other)` | Whether every element of `s` is in `other`. |
+| `s.issuperset(other)` | Whether `s` contains every element of `other`. |
 | `s.isdisjoint(other)` | True if the sets share no element. |
-| `s.copy()` / `s.clear()` | Shallow copy / remove all. |
+| `s.copy()` | A shallow copy of the set. |
+| `s.clear()` | Remove all elements. |
 
 ## Dict
 
@@ -186,7 +202,8 @@ io.print(d.get("z", 0))    # 0 (default)
 | `d.popitem()` | Remove and return the last `[key, value]` pair. |
 | `d.setdefault(key[, default])` | Get `key`, inserting `default` first if absent. |
 | `d.update(other)` | Merge another Dict (or `[key, value]` pairs) in. |
-| `d.copy()` / `d.clear()` | Shallow copy / remove all. |
+| `d.copy()` | A shallow copy of the dict. |
+| `d.clear()` | Remove all entries. |
 
 ## User-defined classes
 
