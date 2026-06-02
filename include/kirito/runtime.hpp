@@ -60,6 +60,13 @@ inline double asDouble(const Object& o) {
                : static_cast<const FloatVal&>(o).value();
 }
 inline bool floatEqual(double l, double r) {
+    // NaN never compares equal (not even to itself); an infinity equals only an identical infinity.
+    // These must be handled before the epsilon test, whose diff/relative terms blow up to inf/NaN
+    // for non-finite operands (e.g. 1.0==inf would otherwise be inf<=inf -> true, inf==inf NaN<=inf
+    // -> false).
+    if (std::isnan(l) || std::isnan(r)) return false;
+    if (l == r) return true;                        // exact: covers inf==inf, -inf==-inf, 0.0==-0.0
+    if (std::isinf(l) || std::isinf(r)) return false;
     constexpr double absEps = 1e-9, relEps = 1e-9;
     double diff = std::fabs(l - r);
     if (diff <= absEps) return true;
