@@ -79,5 +79,30 @@ String(loaded["name"]) + ":" + String(loaded["scores"][2])
     // unsupported types raise
     CHECK_THROWS(vm.runSource("var s = import(\"serialize\")\ns.dumps(Function(x): return x)\n"));
 
+    // corrupt / hostile text blobs throw cleanly (never crash) — exercises the shared rebuild's
+    // bounds checks and the text decoder's error paths.
+    CHECK_THROWS(vm.runSource("import(\"serialize\").loads(\"not a blob\")"));
+    CHECK_THROWS(vm.runSource("import(\"serialize\").loads(\"\")"));
+    CHECK_THROWS(vm.runSource("import(\"serialize\").loads(\"KSER1\")"));        // header, no count
+    CHECK_THROWS(vm.runSource("import(\"serialize\").loads(\"KSER1 1 L 1 5 0\")"));  // child id out of range
+    CHECK_THROWS(vm.runSource("import(\"serialize\").loads(\"KSER1 1 N 9\")"));  // root id out of range
+    CHECK_THROWS(vm.runSource("import(\"serialize\").load(\"/nonexistent/path/xyz.dat\")"));
+
+    // the shared core gives both modules identical graph semantics: a value's serialize and dump
+    // round-trips agree structurally (shared refs + cycles), differing only in format/type.
+    CHECK(evalStr(vm, R"(
+var s = import("serialize")
+var d = import("dump")
+var A = [1, 2]
+var g = {"x": A, "y": A}
+g["self"] = g
+var fromText = s.loads(s.dumps(g))
+var fromBin = d.loads(d.dumps(g))
+var ok = (fromText["x"] == fromText["y"]) and (fromText["self"] == fromText)
+ok = ok and (fromBin["x"] == fromBin["y"]) and (fromBin["self"] == fromBin)
+ok = ok and (fromText["x"] == fromBin["x"])
+ok
+)") == "True");
+
     return RUN_TESTS();
 }

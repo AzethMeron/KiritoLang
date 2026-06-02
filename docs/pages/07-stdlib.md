@@ -161,7 +161,13 @@ JSON parsing and serialization. `loads`/`dumps` are aliases of `parse`/`stringif
 
 ## serialize
 
-Human-readable text serialization of an object graph, preserving shared references and cycles.
+`serialize` and `dump` are **two formats of the same thing** — full object-graph serialization that
+preserves shared references and cycles (a `pickle`-style snapshot, unlike `json` which is flat data
+interchange with no aliasing). They share one graph walk and reconstruction core and differ only in
+output: **`serialize` is human-readable text**, **`dump` is compact binary**. Supported value types:
+`None`/`Bool`/`Integer`/`Float`/`String`/`List`/`Dict`/`Set`.
+
+Human-readable **text** serialization → a `String`.
 
 - `dumps(value) → String` — serialize to a text blob.
 - `loads(text: String)` — reconstruct the value graph from a `dumps` blob.
@@ -172,7 +178,8 @@ Human-readable text serialization of an object graph, preserving shared referenc
 
 ## dump
 
-Compact **binary** serialization, preserving references and cycles (like a portable `pickle`).
+Compact **binary** serialization (the binary counterpart of `serialize`), preserving references and
+cycles like a portable `pickle`. Produces a `Dump` blob value rather than text.
 
 - `dumps(value) → Dump` — serialize to a `Dump` blob value.
 - `loads(data)` — reconstruct from a `Dump` or a byte String.

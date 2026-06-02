@@ -183,7 +183,10 @@ a stability fuzzer, and a benchmark). Working today:
     (optional indent for pretty-printing).
   - `serialize` — text graph dumps/loads/save/load preserving shared references and cycles.
   - `dump` — compact BINARY serialization (a `Dump` blob value) preserving references and cycles;
-    dumps/loads, Dump(bytes), save/load.
+    dumps/loads, Dump(bytes), save/load. `serialize` (text) and `dump` (binary) are two formats of
+    the same feature: they share one graph walk + reconstruction core (`serde::flatten`/`rebuild` in
+    `stdlib_serde.hpp`) and supply only their byte codec — unlike `json`, which is flat data
+    interchange with no reference/cycle preservation.
   - `net` — TCP sockets (connect/bind/listen/accept/send/recv/recvall/settimeout) **and** a
     full-fledged HTTP/1.1 client (requests-style): `request(method, url[, opts])` plus
     `get/post/put/delete/patch/head/options` returning a rich

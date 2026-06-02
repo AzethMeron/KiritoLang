@@ -4,42 +4,29 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
-#include <functional>
 #include <memory>
 #include <span>
 #include <sstream>
 #include <string>
-#include <unordered_map>
+#include <utility>
 #include <vector>
 
-#include "builtins.hpp"
-#include "collections.hpp"
 #include "native.hpp"
+#include "stdlib_serde.hpp"
 
 namespace kirito {
 
-// The `dump` module: compact BINARY serialization that preserves shared references and cycles.
-// dump.dumps(value) -> Dump (an object wrapping the binary bytes); dump.loads(Dump|String) ->
-// value. A Dump can also be saved to / loaded from a file. The format is a tagged, length-prefixed
-// object table: every reachable object gets an id by identity (so aliasing and cycles round-trip).
+// The `dump` module: compact BINARY serialization that preserves shared references and cycles (like
+// a portable `pickle`). The graph walk and reconstruction are shared with the text `serialize` module
+// via serde::flatten / serde::rebuild (stdlib_serde.hpp); this file is only the binary codec plus the
+// `Dump` blob value.
 //
-// Wire format (little-endian):
-//   magic  "KDMP" (4 bytes), version u8 = 1
-//   u32 objectCount
-//   then objectCount records, each: u8 tag + payload
-//       0 None
-//       1 Bool   : u8
-//       2 Integer: i64
-//       3 Float  : f64 (raw bits)
-//       4 String : u32 len + bytes
-//       5 List   : u32 count + count * u32 child-id
-//       6 Dict   : u32 count + count * (u32 key-id, u32 val-id)
-//       7 Set    : u32 count + count * u32 elem-id
-//   u32 rootId
-
+// Wire format (little-endian): magic "KDMP" (4 bytes), version u8 = 1, u32 objectCount, then
+// objectCount records each `u8 tag + payload` (tags match serde::Tag: 0 None, 1 Bool u8, 2 Integer
+// i64, 3 Float f64-bits, 4 String u32 len + bytes, 5 List u32 count + ids, 6 Dict u32 count + (k,v)
+// id pairs, 7 Set u32 count + ids), then u32 rootId.
 namespace dumpfmt {
 
-// --- little-endian byte writers -----------------------------------------------------------------
 inline void putU8(std::string& b, uint8_t v) { b.push_back(static_cast<char>(v)); }
 inline void putU32(std::string& b, uint32_t v) {
     for (int i = 0; i < 4; ++i) b.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
@@ -56,8 +43,7 @@ inline void putF64(std::string& b, double d) {
 
 class Reader {
 public:
-    Reader(const std::string& s) : s_(s) {}
-    bool eof() const { return pos_ >= s_.size(); }
+    explicit Reader(const std::string& s) : s_(s) {}
     uint8_t u8() { need(1); return static_cast<uint8_t>(s_[pos_++]); }
     uint32_t u32() {
         need(4);
@@ -95,144 +81,76 @@ private:
     std::size_t pos_ = 0;
 };
 
-// Serialize the object graph rooted at `root` into compact binary bytes.
-inline std::string write(KiritoVM& vm, Handle root) {
-    std::unordered_map<const Object*, uint32_t> ids;
-    std::vector<Handle> order;
-    // assign ids by identity (id reserved before recursing -> cycles terminate); a depth bound
-    // keeps a very deeply nested (acyclic) structure from overflowing the native stack.
-    int depth = 0;
-    std::function<uint32_t(Handle)> assign = [&](Handle h) -> uint32_t {
-        const Object* o = &vm.arena().deref(h);
-        auto it = ids.find(o);
-        if (it != ids.end()) return it->second;
-        uint32_t id = static_cast<uint32_t>(order.size());
-        ids[o] = id;
-        order.push_back(h);
-        if (++depth > 10000) throw KiritoError("structure too deeply nested to dump");
-        std::vector<Handle> kids;
-        o->children(kids);
-        for (Handle k : kids) assign(k);
-        --depth;
-        return id;
-    };
-    uint32_t rootId = assign(root);
-    auto idOf = [&](Handle h) { return ids.at(&vm.arena().deref(h)); };
-
+inline std::string encode(const std::vector<serde::Node>& nodes, uint32_t rootId) {
     std::string b;
     b.append("KDMP");
     putU8(b, 1);
-    putU32(b, static_cast<uint32_t>(order.size()));
-    for (Handle h : order) {
-        const Object& o = vm.arena().deref(h);
-        switch (o.kind()) {
-            case ValueKind::None: putU8(b, 0); break;
-            case ValueKind::Bool: putU8(b, 1); putU8(b, static_cast<const BoolVal&>(o).value() ? 1 : 0); break;
-            case ValueKind::Integer: putU8(b, 2); putI64(b, static_cast<const IntVal&>(o).value()); break;
-            case ValueKind::Float: putU8(b, 3); putF64(b, static_cast<const FloatVal&>(o).value()); break;
-            case ValueKind::String: {
-                putU8(b, 4);
-                const std::string& s = static_cast<const StrVal&>(o).value();
-                putU32(b, static_cast<uint32_t>(s.size()));
-                b.append(s);
+    putU32(b, static_cast<uint32_t>(nodes.size()));
+    for (const serde::Node& n : nodes) {
+        putU8(b, static_cast<uint8_t>(n.tag));
+        switch (n.tag) {
+            case serde::Tag::None: break;
+            case serde::Tag::Bool: putU8(b, n.b ? 1 : 0); break;
+            case serde::Tag::Integer: putI64(b, n.i); break;
+            case serde::Tag::Float: putF64(b, n.f); break;
+            case serde::Tag::String: putU32(b, static_cast<uint32_t>(n.s.size())); b.append(n.s); break;
+            case serde::Tag::List:
+            case serde::Tag::Set:
+                putU32(b, static_cast<uint32_t>(n.links.size()));
+                for (uint32_t id : n.links) putU32(b, id);
                 break;
-            }
-            case ValueKind::List: {
-                putU8(b, 5);
-                const auto& l = static_cast<const ListVal&>(o);
-                putU32(b, static_cast<uint32_t>(l.elems.size()));
-                for (Handle e : l.elems) putU32(b, idOf(e));
+            case serde::Tag::Dict:
+                putU32(b, static_cast<uint32_t>(n.links.size() / 2));
+                for (uint32_t id : n.links) putU32(b, id);
                 break;
-            }
-            case ValueKind::Dict: {
-                putU8(b, 6);
-                const auto& d = static_cast<const DictVal&>(o);
-                putU32(b, static_cast<uint32_t>(d.count));
-                for (Handle k : d.keys()) { putU32(b, idOf(k)); putU32(b, idOf(*d.find(vm.arena(), k))); }
-                break;
-            }
-            case ValueKind::Set: {
-                putU8(b, 7);
-                const auto& s = static_cast<const SetVal&>(o);
-                putU32(b, static_cast<uint32_t>(s.count));
-                for (Handle e : s.items()) putU32(b, idOf(e));
-                break;
-            }
-            default:
-                throw KiritoError("cannot dump type '" + o.typeName() + "'");
         }
     }
     putU32(b, rootId);
     return b;
 }
 
-// Deserialize binary bytes back into an object graph (two-pass: create all objects, then wire
-// links — so references and cycles resolve).
-inline Handle read(KiritoVM& vm, const std::string& data) {
+inline std::pair<std::vector<serde::Node>, uint32_t> decode(const std::string& data) {
     Reader r(data);
     r.expect("KDMP", 4);
     if (r.u8() != 1) throw KiritoError("unsupported dump version");
     uint32_t n = r.u32();
-    // Each object record is at least one byte (its tag), so a claimed count exceeding the remaining
-    // input is corrupt — reject before allocating to avoid a huge/bad allocation.
+    // Each record is at least one tag byte, so a count exceeding the input is corrupt — reject before
+    // allocating to avoid a huge/bad allocation.
     if (n > data.size()) throw KiritoError("corrupt dump: object count exceeds data size");
-    RootScope roots(vm);
-    std::vector<Handle> objs(n);
-    std::vector<uint8_t> tag(n);
-    std::vector<std::vector<uint32_t>> links(n);
+    std::vector<serde::Node> nodes(n);
     for (uint32_t i = 0; i < n; ++i) {
+        serde::Node& nd = nodes[i];
         uint8_t t = r.u8();
-        tag[i] = t;
         switch (t) {
-            case 0: objs[i] = vm.none(); break;
-            case 1: objs[i] = vm.makeBool(r.u8() != 0); break;
-            case 2: objs[i] = roots.add(vm.makeInt(r.i64())); break;
-            case 3: objs[i] = roots.add(vm.makeFloat(r.f64())); break;
-            case 4: objs[i] = roots.add(vm.makeString(r.bytes(r.u32()))); break;
-            case 5: {
-                objs[i] = roots.add(vm.alloc(std::make_unique<ListVal>()));
-                uint32_t c = r.u32();
-                for (uint32_t k = 0; k < c; ++k) links[i].push_back(r.u32());
-                break;
-            }
-            case 6: {
-                objs[i] = roots.add(vm.alloc(std::make_unique<DictVal>()));
-                uint32_t c = r.u32();
-                for (uint32_t k = 0; k < c * 2; ++k) links[i].push_back(r.u32());
-                break;
-            }
-            case 7: {
-                objs[i] = roots.add(vm.alloc(std::make_unique<SetVal>()));
-                uint32_t c = r.u32();
-                for (uint32_t k = 0; k < c; ++k) links[i].push_back(r.u32());
-                break;
-            }
+            case 0: nd.tag = serde::Tag::None; break;
+            case 1: nd.tag = serde::Tag::Bool; nd.b = r.u8() != 0; break;
+            case 2: nd.tag = serde::Tag::Integer; nd.i = r.i64(); break;
+            case 3: nd.tag = serde::Tag::Float; nd.f = r.f64(); break;
+            case 4: nd.tag = serde::Tag::String; nd.s = r.bytes(r.u32()); break;
+            case 5: { nd.tag = serde::Tag::List; uint32_t c = r.u32(); for (uint32_t k = 0; k < c; ++k) nd.links.push_back(r.u32()); break; }
+            case 6: { nd.tag = serde::Tag::Dict; uint32_t c = r.u32(); for (uint32_t k = 0; k < c * 2; ++k) nd.links.push_back(r.u32()); break; }
+            case 7: { nd.tag = serde::Tag::Set; uint32_t c = r.u32(); for (uint32_t k = 0; k < c; ++k) nd.links.push_back(r.u32()); break; }
             default: throw KiritoError("bad dump tag");
         }
     }
     uint32_t rootId = r.u32();
-    if (rootId >= n) throw KiritoError("dump root id out of range");
-    for (uint32_t i = 0; i < n; ++i) {
-        auto checkId = [&](uint32_t id) { if (id >= n) throw KiritoError("dump child id out of range"); return id; };
-        if (tag[i] == 5) {
-            auto& l = static_cast<ListVal&>(vm.arena().deref(objs[i]));
-            for (uint32_t id : links[i]) l.elems.push_back(objs[checkId(id)]);
-        } else if (tag[i] == 7) {
-            auto& s = static_cast<SetVal&>(vm.arena().deref(objs[i]));
-            for (uint32_t id : links[i]) s.add(vm.arena(), objs[checkId(id)]);
-        } else if (tag[i] == 6) {
-            auto& d = static_cast<DictVal&>(vm.arena().deref(objs[i]));
-            for (std::size_t k = 0; k + 1 < links[i].size(); k += 2)
-                d.set(vm.arena(), objs[checkId(links[i][k])], objs[checkId(links[i][k + 1])]);
-        }
-    }
-    return objs[rootId];
+    return {std::move(nodes), rootId};
+}
+
+inline std::string write(KiritoVM& vm, Handle root) {
+    auto [nodes, rootId] = serde::flatten(vm, root, "dump");
+    return encode(nodes, rootId);
+}
+
+inline Handle read(KiritoVM& vm, const std::string& data) {
+    auto [nodes, rootId] = decode(data);
+    return serde::rebuild(vm, nodes, rootId);
 }
 
 }  // namespace dumpfmt
 
-// The Dump value: a binary blob wrapping serialized bytes. Holds the raw bytes (as a std::string
-// so arbitrary binary is safe), exposes size(), bytes() (-> String), and is itself stringifiable
+// The Dump value: a binary blob wrapping serialized bytes. Holds the raw bytes (as a std::string so
+// arbitrary binary is safe), exposes size(), bytes() (-> String), save(path), and is stringifiable
 // for debugging.
 class DumpVal : public NativeClass<DumpVal> {
 public:
