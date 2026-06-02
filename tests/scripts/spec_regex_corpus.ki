@@ -1,0 +1,77 @@
+# A corpus of classic regex test vectors (Spencer/PCRE/Python-re lineage), run through Kirito's
+# `regex` module. Excludes vectors needing backreferences or lookaround (deliberately unsupported).
+# Each case is [pattern, subject, flags, expected] where expected is the search match text, or the
+# sentinel "<NO>" when no match is expected.
+var io = import("io")
+var re = import("regex")
+
+var NO = "<NO>"
+var cases = [
+    ["abc", "abc", 0, "abc"],
+    ["abc", "xbc", 0, NO],
+    ["abc", "xabcy", 0, "abc"],
+    ["a.c", "abc", 0, "abc"],
+    ["a.b", "a\nb", 0, NO],
+    ["a.b", "a\nb", re.DOTALL, "a\nb"],
+    ["ab*c", "abbbbc", 0, "abbbbc"],
+    ["ab+bc", "abc", 0, NO],
+    ["ab?bc", "abbbbc", 0, NO],
+    ["colou?r", "colour", 0, "colour"],
+    ["^abc$", "abc", 0, "abc"],
+    ["^abc$", "abcc", 0, NO],
+    ["abc$", "aabc", 0, "abc"],
+    ["a$", "a\n", 0, "a"],
+    ["a[bc]d", "abd", 0, "abd"],
+    ["a[b-d]e", "ace", 0, "ace"],
+    ["a[-b]", "a-", 0, "a-"],
+    ["a[]]b", "a]b", 0, "a]b"],
+    ["a[^bc]d", "aed", 0, "aed"],
+    ["a[^-b]c", "a-c", 0, NO],
+    ["[\\d]+", "ab12cd", 0, "12"],
+    ["[^\\d]+", "12ab34", 0, "ab"],
+    ["a|b|c", "c", 0, "c"],
+    ["(cat|dog|bird)", "I have a dog", 0, "dog"],
+    ["a|ab", "abc", 0, "a"],
+    ["(a|b)+", "abab", 0, "abab"],
+    ["a{3}", "aaaa", 0, "aaa"],
+    ["a{2,4}", "aaaaa", 0, "aaaa"],
+    ["a{2,}", "aaaaa", 0, "aaaaa"],
+    ["a{0}", "aaa", 0, ""],
+    ["a{2,3}?", "aaaa", 0, "aa"],
+    ["<.*>", "<a><b>", 0, "<a><b>"],
+    ["<.*?>", "<a><b>", 0, "<a>"],
+    ["a+?", "aaa", 0, "a"],
+    ["\\bfoo\\b", "a foo b", 0, "foo"],
+    ["\\bfoo\\b", "afoob", 0, NO],
+    ["\\Bfoo\\B", "afoob", 0, "foo"],
+    ["a\\.c", "a.c", 0, "a.c"],
+    ["\\(\\d+\\)", "(42)", 0, "(42)"],
+    ["\\x41+", "AAA", 0, "AAA"],
+    ["abc", "ABC", re.IGNORECASE, "ABC"],
+    ["[a-z]+", "Hello", re.IGNORECASE, "Hello"],
+    ["(?i)hello", "HeLLo", 0, "HeLLo"],
+    ["(?m)^b", "a\nb\nc", 0, "b"],
+    ["(?m)c$", "a\nbc\nd", 0, "c"],
+    ["(abc)+", "abcabc", 0, "abcabc"],
+    ["(?:abc)+", "abcabc", 0, "abcabc"],
+    ["(a*)*", "aaa", 0, "aaa"],
+    ["(a*)*", "", 0, ""],
+    ["(a?)*", "aaa", 0, "aaa"],
+    ["(|a)*", "aa", 0, "aa"],
+    ["(a+)+$", "aaaaaaaaaaaaaaaaX", 0, NO],
+    ["\\d{4}-\\d{2}-\\d{2}", "date 2024-06-07!", 0, "2024-06-07"],
+    ["[\\w.]+@[\\w.]+", "mail ada@kirito.dev", 0, "ada@kirito.dev"],
+    ["-?\\d+", "x -42 y", 0, "-42"],
+    ["café", "le café", 0, "café"],
+    [".", "λ", 0, "λ"]
+]
+
+var passed = 0
+for c in cases:
+    var m = re.search(c[0], c[1], c[2])
+    var got = NO
+    if m != None:
+        got = m.group()
+    assert got == c[3], "corpus /" + c[0] + "/ on <" + c[1] + ">: expected <" + c[3] + "> got <" + got + ">"
+    passed = passed + 1
+io.print("OK")

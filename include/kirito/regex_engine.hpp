@@ -194,8 +194,10 @@ private:
         if (c == ')') throw RegexError("unbalanced ')' in pattern");
         if (c == '*' || c == '+' || c == '?') throw RegexError("nothing to repeat");
         if (c == '.') { ++pos_; Node n; n.kind = Node::Any; return n; }
-        if (c == '^') { ++pos_; Node n; n.kind = Node::Anchor; n.anchor = (flags_ & MULTILINE) ? ABeginLine : ABeginText; return n; }
-        if (c == '$') { ++pos_; Node n; n.kind = Node::Anchor; n.anchor = (flags_ & MULTILINE) ? AEndLine : AEndText; return n; }
+        // ^ and $ are flag-agnostic "line" anchors; whether they honor MULTILINE is decided at match
+        // time (so an inline (?m) anywhere in the pattern applies). \A and \z/\Z are the absolute ones.
+        if (c == '^') { ++pos_; Node n; n.kind = Node::Anchor; n.anchor = ABeginLine; return n; }
+        if (c == '$') { ++pos_; Node n; n.kind = Node::Anchor; n.anchor = AEndLine; return n; }
         if (c == '\\') return parseEscape();
         ++pos_;
         Node n; n.kind = Node::Lit; n.ch = c; return n;
@@ -510,10 +512,12 @@ inline bool charEq(int32_t a, int32_t b, bool ignorecase) {
 inline bool assertHolds(int kind, const std::vector<int32_t>& t, int sp, int flags) {
     int n = static_cast<int>(t.size());
     switch (kind) {
-        case ABeginText: return sp == 0;
-        case AEndText:   return sp == n;
-        case ABeginLine: return sp == 0 || t[sp - 1] == '\n';
-        case AEndLine:
+        case ABeginText: return sp == 0;                      // \A — absolute start
+        case AEndText:   return sp == n;                      // \z / \Z — absolute end
+        case ABeginLine:                                      // ^
+            if (flags & MULTILINE) return sp == 0 || t[sp - 1] == '\n';
+            return sp == 0;
+        case AEndLine:                                        // $ — end, or just before a final newline
             if (flags & MULTILINE) return sp == n || t[sp] == '\n';
             return sp == n || (sp == n - 1 && t[sp] == '\n');
         case AWordBoundary: {
