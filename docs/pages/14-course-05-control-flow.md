@@ -52,6 +52,34 @@ else:
 An `if` can stand alone (no `else`), and `elif` chains can be as long as you like — but when you're
 dispatching on a single value against many constants, `switch` is cleaner.
 
+## The conditional expression
+
+When you just need to *choose between two values*, the conditional expression
+`then if cond else orelse` is more concise than a four-line `if`/`else`. It's an **expression**, so it
+produces a value you can assign, return, or pass along:
+
+```kirito
+var score = 72
+var outcome = "pass" if score >= 60 else "fail"
+io.print(outcome)                       # => pass
+
+var n = -5
+var sign = "positive" if n > 0 else "non-positive"
+io.print(f"the number is {sign}")       # => the number is non-positive
+```
+
+Only the chosen branch is evaluated (it short-circuits like `and`/`or`), and you can chain it
+right-associatively for a few ranges:
+
+```kirito
+var x = 75
+var band = "high" if x >= 90 else "mid" if x >= 50 else "low"
+io.print(band)                          # => mid
+```
+
+Reach for it for a quick two-way pick; for anything with side effects or more than a couple of
+branches, a statement `if`/`elif`/`else` reads better.
+
 ## `switch` for multi-way branching
 
 `switch` matches a subject against `case` labels. Exactly one arm runs — **there is no
@@ -123,4 +151,5 @@ Write `season(month)` taking an Integer 1–12 and returning `"winter"`, `"sprin
 
 - Comparisons produce Bools; `and`/`or`/`not` are words and short-circuit.
 - `if`/`elif`/`else` with indentation-defined blocks.
+- The conditional expression `then if cond else orelse` for a concise two-way value pick.
 - `switch`/`case`/`default`: no fall-through, exact scalar matching, constant-time dispatch.

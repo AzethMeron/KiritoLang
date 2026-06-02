@@ -112,6 +112,12 @@ s.add(<span class="num">4</span>)
 <span class="kw">for</span> x <span class="kw">in</span> iterable:
     ...</code></pre>
 <p>Logical operators <code>and</code>/<code>or</code>/<code>not</code> short-circuit and yield an operand. <a class="xref" href="course-06-loops.html#sym-break"><code>break</code></a>/<code>continue</code> outside a loop and <code>return</code> outside a function are rejected at parse time.</p>
+<h3 id="conditional-expression">Conditional expression</h3>
+<p><code>then if cond else orelse</code> is an expression that yields <code>then</code> when <code>cond</code> is truthy and <code>orelse</code> otherwise. Like <code>and</code>/<code>or</code>, it short-circuits — only the selected branch is evaluated:</p>
+<pre><code><span class="kw">var</span> label = <span class="str">&quot;even&quot;</span> <span class="kw">if</span> n % <span class="num">2</span> == <span class="num">0</span> <span class="kw">else</span> <span class="str">&quot;odd&quot;</span>
+<span class="kw">var</span> clamped = lo <span class="kw">if</span> x &lt; lo <span class="kw">else</span> hi <span class="kw">if</span> x &gt; hi <span class="kw">else</span> x   <span class="com"># right-associative chaining</span>
+io.<span class="builtin">print</span>(<span class="str">&quot;big&quot;</span> <span class="kw">if</span> x &gt; <span class="num">100</span> <span class="kw">else</span> <span class="str">&quot;small&quot;</span>)</code></pre>
+<p>It has the lowest precedence of any operator (so <code>a or b if c else d</code> parses as <code>(a or b) if c else d</code>), and it is an expression — usable anywhere a value is, including inside lists, call arguments, and <code>return</code>. There is no statement form; for multi-line branching use <a class="xref" href="course-05-control-flow.html#sym-if"><code>if</code></a>/<code>elif</code>/<code>else</code>.</p>
 <h3 id="switch"><a class="xref" href="language-guide.html#switch"><code>switch</code></a></h3>
 <p><a class="xref" href="language-guide.html#switch"><code>switch</code></a> dispatches on a value against constant <code>case</code> labels — <strong>no fallthrough</strong>, so exactly one arm runs:</p>
 <pre><code>switch command:

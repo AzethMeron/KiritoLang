@@ -68,5 +68,23 @@ s
     CHECK(evalStr(vm, "not 1") == "False");
     CHECK(evalStr(vm, "not \"\"") == "True");
 
+    // conditional expression: `then if cond else orelse`
+    CHECK(evalStr(vm, "\"yes\" if 1 < 2 else \"no\"") == "yes");
+    CHECK(evalStr(vm, "\"yes\" if 1 > 2 else \"no\"") == "no");
+    CHECK(evalStr(vm, "(10 if True else 20) + 1") == "11");        // usable as a sub-expression
+    // right-associative: a if c1 else b if c2 else c  ==  a if c1 else (b if c2 else c)
+    CHECK(evalStr(vm, "\"A\" if False else \"B\" if True else \"C\"") == "B");
+    CHECK(evalStr(vm, "\"A\" if False else \"B\" if False else \"C\"") == "C");
+    // short-circuit: only the chosen branch is evaluated (the other may reference an undefined name)
+    CHECK(evalStr(vm, "0 if True else undefined_name") == "0");
+    CHECK(evalStr(vm, "undefined_name if False else 0") == "0");
+    // nests inside lists, calls, and lower-precedence contexts
+    CHECK(evalStr(vm, "[1 if True else 0, 2 if False else 9]") == "[1, 9]");
+    CHECK(evalStr(vm, "abs(-3 if 1 > 0 else 3)") == "3");
+    // binds looser than `or`: `a or b if c else d` parses as `(a or b) if c else d`
+    CHECK(evalStr(vm, "False or True if False else 7") == "7");
+    // a missing `else` is a clean parse error, not a crash
+    CHECK_THROWS(vm.runSource("1 if True"));
+
     return RUN_TESTS();
 }

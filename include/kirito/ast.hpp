@@ -22,6 +22,7 @@ struct NameExpr;
 struct UnaryExpr;
 struct BinaryExpr;
 struct LogicalExpr;
+struct ConditionalExpr;
 struct CallExpr;
 struct FunctionExpr;
 struct MemberExpr;
@@ -41,6 +42,7 @@ struct ExprVisitor {
     virtual void visit(const UnaryExpr&) = 0;
     virtual void visit(const BinaryExpr&) = 0;
     virtual void visit(const LogicalExpr&) = 0;
+    virtual void visit(const ConditionalExpr&) = 0;
     virtual void visit(const CallExpr&) = 0;
     virtual void visit(const FunctionExpr&) = 0;
     virtual void visit(const MemberExpr&) = 0;
@@ -95,6 +97,15 @@ struct LogicalExpr : Expr {
     bool isAnd;  // true == `and`, false == `or`
     ExprPtr lhs;
     ExprPtr rhs;
+    void accept(ExprVisitor& v) const override { v.visit(*this); }
+};
+
+// `then if cond else orelse` — a conditional expression. Like `and`/`or` it short-circuits: only
+// the selected branch is evaluated.
+struct ConditionalExpr : Expr {
+    ExprPtr then;     // value if cond is truthy
+    ExprPtr cond;
+    ExprPtr orelse;   // value if cond is falsy
     void accept(ExprVisitor& v) const override { v.visit(*this); }
 };
 

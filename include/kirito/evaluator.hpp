@@ -392,6 +392,11 @@ public:
         else result_ = lt ? lhs : eval(*e.rhs);
     }
 
+    void visit(const ast::ConditionalExpr& e) override {
+        // `then if cond else orelse` — evaluate the condition, then only the chosen branch.
+        result_ = truthy(eval(*e.cond)) ? eval(*e.then) : eval(*e.orelse);
+    }
+
     void visit(const ast::FunctionExpr& e) override {
         // Capture the current scope -> closure.
         result_ = vm_.alloc(std::make_unique<KiFunction>(&e, env_));

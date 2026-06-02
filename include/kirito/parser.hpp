@@ -380,7 +380,24 @@ private:
 
     ast::ExprPtr parseExpr() {
         DepthGuard g(exprDepth_, peek().span);
-        return parseOr();
+        return parseConditional();
+    }
+
+    // `then if cond else orelse` — the conditional expression, lowest precedence. The else-branch
+    // recurses, so `a if c1 else b if c2 else c` is right-associative: a if c1 else (b if c2 else c).
+    ast::ExprPtr parseConditional() {
+        auto value = parseOr();
+        if (!at(TokenType::KwIf)) return value;
+        // The else-branch recurses here directly (not via parseExpr), so guard the chain depth to
+        // keep a pathologically long `a if c else a if c else ...` from overflowing the native stack.
+        DepthGuard g(exprDepth_, peek().span);
+        auto node = std::make_unique<ast::ConditionalExpr>();
+        node->span = advance().span;               // consume `if`
+        node->then = std::move(value);
+        node->cond = parseOr();
+        expect(TokenType::KwElse, "'else' in a conditional expression");
+        node->orelse = parseConditional();
+        return node;
     }
 
     ast::ExprPtr parseOr() {

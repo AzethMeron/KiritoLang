@@ -151,4 +151,23 @@ catch as e:
     caught = True
 assert caught, "assert raises catchable error"
 
+# --- conditional expression: then if cond else orelse ---
+assert ("yes" if 1 < 2 else "no") == "yes", "conditional picks the then-branch"
+assert ("yes" if 1 > 2 else "no") == "no", "conditional picks the else-branch"
+var n = 5
+var parity = "even" if n % 2 == 0 else "odd"
+assert parity == "odd", "conditional in a var binding"
+# right-associative chaining
+var bucket = "low" if n < 3 else "mid" if n < 8 else "high"
+assert bucket == "mid", "right-associative conditional chain"
+# short-circuit: the untaken branch is never evaluated
+assert (42 if True else undefined_here) == 42, "untaken branch is not evaluated"
+# nests inside collections and calls
+assert [1 if True else 0, 9 if False else 2] == [1, 2], "conditional inside a list"
+assert abs(-4 if n > 0 else 4) == 4, "conditional as a call argument"
+# usable in an f-string (parenthesized) and as a return value
+var sign_label = Function(x):
+    return "positive" if x > 0 else "non-positive"
+assert sign_label(3) == "positive" and sign_label(-1) == "non-positive", "conditional as a return"
+
 io.print("OK")

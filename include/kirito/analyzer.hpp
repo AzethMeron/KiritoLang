@@ -245,6 +245,7 @@ private:
         if (dynamic_cast<const ast::BinaryExpr*>(&e)) return true;
         if (dynamic_cast<const ast::UnaryExpr*>(&e)) return true;
         if (dynamic_cast<const ast::LogicalExpr*>(&e)) return true;
+        if (dynamic_cast<const ast::ConditionalExpr*>(&e)) return true;
         if (dynamic_cast<const ast::ListLiteral*>(&e)) return true;
         if (dynamic_cast<const ast::SetLiteral*>(&e)) return true;
         if (dynamic_cast<const ast::DictLiteral*>(&e)) return true;
@@ -273,6 +274,8 @@ private:
             analyzeExpr(*b->lhs); analyzeExpr(*b->rhs);
         } else if (const auto* l = dynamic_cast<const ast::LogicalExpr*>(&e)) {
             analyzeExpr(*l->lhs); analyzeExpr(*l->rhs);
+        } else if (const auto* cnd = dynamic_cast<const ast::ConditionalExpr*>(&e)) {
+            analyzeExpr(*cnd->cond); analyzeExpr(*cnd->then); analyzeExpr(*cnd->orelse);
         } else if (const auto* c = dynamic_cast<const ast::CallExpr*>(&e)) {
             analyzeExpr(*c->callee);
             for (const auto& a : c->args) analyzeExpr(*a.value);

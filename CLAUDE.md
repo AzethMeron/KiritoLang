@@ -45,8 +45,10 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   annotation) and the function must return that type, else a clear error. `Any` / no annotation
   accepts anything.
 - **Control flow**: explicit `return` (functions default to `None`), `if`/`elif`/`else`, `while`,
-  `for VAR in ITERABLE`, `break`, `continue`; logical keywords `and`/`or`/`not`. `return` outside a
-  function and `break`/`continue` outside a loop are rejected at parse time.
+  `for VAR in ITERABLE`, `break`, `continue`; logical keywords `and`/`or`/`not`; the **conditional
+  expression** `THEN if COND else ORELSE` (lowest precedence, short-circuits, right-associative when
+  chained). `return` outside a function and `break`/`continue` outside a loop are rejected at parse
+  time.
 - **Packing & unpacking**: a bare comma sequence packs into a List (`var t = 1, 2, 3`; `return a, b`
   returns `[a, b]`). The left side of `=`, `var`, and `for` unpacks any iterable — `var a, b = pair`,
   `a, b = b, a` (swap), `for k, v in d.items()` — with a single **starred** target absorbing the

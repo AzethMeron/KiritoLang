@@ -137,6 +137,21 @@ for x in iterable:
 Logical operators `and`/`or`/`not` short-circuit and yield an operand. `break`/`continue` outside a
 loop and `return` outside a function are rejected at parse time.
 
+### Conditional expression
+
+`then if cond else orelse` is an expression that yields `then` when `cond` is truthy and `orelse`
+otherwise. Like `and`/`or`, it short-circuits — only the selected branch is evaluated:
+
+```kirito
+var label = "even" if n % 2 == 0 else "odd"
+var clamped = lo if x < lo else hi if x > hi else x   # right-associative chaining
+io.print("big" if x > 100 else "small")
+```
+
+It has the lowest precedence of any operator (so `a or b if c else d` parses as `(a or b) if c else
+d`), and it is an expression — usable anywhere a value is, including inside lists, call arguments, and
+`return`. There is no statement form; for multi-line branching use `if`/`elif`/`else`.
+
 ### `switch`
 
 `switch` dispatches on a value against constant `case` labels — **no fallthrough**, so exactly one
