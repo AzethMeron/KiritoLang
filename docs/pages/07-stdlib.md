@@ -165,18 +165,43 @@ Compact **binary** serialization, preserving references and cycles (like a porta
 
 ## net
 
-TCP sockets, a minimal HTTP/1.1 client, and URL helpers.
+TCP sockets, a full-fledged HTTP/1.1 client, and URL helpers.
 
-- `Socket() → Socket` — a new TCP socket.
-- `httpget(url: String) → String` — perform an HTTP GET and return the response body.
-- `httppost(url: String, body: String, contenttype: String = "text/plain") → String` — HTTP POST.
-- `quote(s: String) → String` / `unquote(s: String) → String` — percent-encode / -decode.
+### HTTP client
+
+- `request(method: String, url: String, options: Dict = None) → Response` — perform any HTTP request.
+- `get` / `post` / `put` / `delete` / `patch` / `head` / `options` `(url: String, options: Dict = None) → Response`
+  — per-verb shortcuts.
+- `Session() → Session` — a session that persists a cookie jar (`.cookies`) and default headers
+  (`.headers`) across requests; has the same verb methods (`s.get(url[, options])`, …).
+
+The `options` Dict may contain: `headers` (Dict), `params` (Dict → query string), `data` (String or
+form-Dict), `json` (any value → JSON body + `application/json`), `files` (Dict → `multipart/form-data`
+upload; value is content or `[filename, content]`), `auth` (`[user, pass]` → HTTP Basic), `timeout`
+(seconds), `allowredirects` (Bool, default `True`) / `maxredirects` (Integer, default 10), `verify`
+(Bool, default `True` — TLS certificate verification), and `cookies` (Dict). Redirects are followed,
+chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompressed automatically.
+
+### Response object
+
+- `r.status` (`Integer`, alias `r.statuscode`), `r.reason` (`String`), `r.ok` (`Bool`, true for < 400).
+- `r.url` — the final URL (after any redirects).
+- `r.text` / `r.body` / `r.content` — the response body (`String`).
+- `r.headers` — a Dict of response headers; `r.header(name)` looks one up **case-insensitively**.
+- `r.cookies` — a Dict of cookies set by the server.
+- `r.json()` — parse the body as JSON.
+- `r.raiseforstatus()` — throw if the status is ≥ 400, else return the response.
+
+### URL helpers (`urllib.parse` style)
+
+- `quote(s: String) → String` / `unquote(s: String) → String` — percent-encode / -decode (UTF-8).
 - `urlencode(params: Dict) → String` — build a `k=v&...` query string (keys and values encoded).
 - `parseqs(query: String) → Dict` — parse `k=v&...` into a Dict (values decoded).
 - `urlsplit(url: String) → Dict` — split a URL into `scheme`/`host`/`port`/`path`/`query`/`fragment`.
 
 ### Socket object
 
+- `Socket() → Socket` — a new TCP socket.
 - `s.connect(host: String, port: Integer) → None` — connect to a server.
 - `s.bind(host: String, port: Integer) → None` — bind a server socket (sets `SO_REUSEADDR`).
 - `s.listen([backlog: Integer]) → None` — start listening.
@@ -184,6 +209,7 @@ TCP sockets, a minimal HTTP/1.1 client, and URL helpers.
 - `s.send(data: String) → Integer` — send all of `data`; returns the byte count.
 - `s.recv([n: Integer]) → String` — receive up to `n` bytes (default 4096).
 - `s.recvall() → String` — receive until the peer closes.
+- `s.settimeout(seconds) → None` — bound subsequent send/recv with a timeout.
 - `s.close() → None` — close the socket.
 
 ## sys

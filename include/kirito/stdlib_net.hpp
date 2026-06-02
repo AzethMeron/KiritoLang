@@ -439,7 +439,6 @@ public:
     void children(std::vector<Handle>& out) const override { out.push_back(headersH); out.push_back(cookiesH); }
     std::string str(StringifyCtx&) const override { return "<Response [" + std::to_string(status) + "]>"; }
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override;
-    Handle getItem(KiritoVM& vm, std::span<const Handle> keys) override;
 };
 
 // A persistent HTTP session: keeps a cookie jar and default headers across requests (requests.Session
@@ -819,20 +818,6 @@ inline Handle ResponseVal::getAttr(KiritoVM& vm, Handle self, std::string_view n
     return Object::getAttr(vm, self, name);
 }
 
-inline Handle ResponseVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
-    if (keys.size() != 1 || vm.arena().deref(keys[0]).kind() != ValueKind::String)
-        throw KiritoError("Response index must be a String key");
-    const std::string& k = static_cast<const StrVal&>(vm.arena().deref(keys[0])).value();
-    if (k == "status" || k == "statuscode") return vm.makeInt(status);
-    if (k == "reason") return vm.makeString(reason);
-    if (k == "ok") return vm.makeBool(status >= 100 && status < 400);
-    if (k == "url") return vm.makeString(url);
-    if (k == "text" || k == "body" || k == "content") return vm.makeString(body);
-    if (k == "headers") return headersH;
-    if (k == "cookies") return cookiesH;
-    throw KiritoError("Response has no item '" + k + "'");
-}
-
 class NetModule : public NativeModule {
 public:
     std::string name() const override { return "net"; }
@@ -872,20 +857,6 @@ public:
         verb("patch", "PATCH");
         verb("head", "HEAD");
         verb("options", "OPTIONS");
-
-        // Back-compatible simple helpers (return a Response, usable as r["status"]/r["body"] too).
-        m.fn("httpget", {{"url", "String"}}, "Response", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return netRequest(vm, "GET", Args(vm, a, "httpget")[0].asString("url"), vm.none());
-        });
-        m.fn("httppost", {{"url", "String"}, {"body", "String"}, {"contenttype", "String", vm.makeString("text/plain")}}, "Response",
-             [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                 Args args(vm, a, "httppost");
-                 std::string ct = args.size() > 2 ? args[2].asString("contenttype") : "text/plain";
-                 Dict opts(vm);
-                 opts.set("data", val(vm, args[1].asString("body")));
-                 opts.set("headers", Dict(vm).set("Content-Type", val(vm, ct)).build());
-                 return netRequest(vm, "POST", args[0].asString("url"), opts.build());
-             });
 
         // --- URL helpers (urllib.parse style) ---
         m.fn("quote", {{"s", "String"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {

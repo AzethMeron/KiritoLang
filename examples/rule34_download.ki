@@ -21,10 +21,10 @@ var buildUrl = Function(tags, limit):
 var fetchPosts = Function(tags, limit):
     var url = buildUrl(tags, limit)
     io.print("GET " + url)
-    var resp = net.httpget(url)
-    if resp["status"] != 200:
-        throw "API returned status " + String(resp["status"])
-    var body = resp["body"]
+    var resp = net.get(url)
+    if resp.status != 200:
+        throw "API returned status " + String(resp.status)
+    var body = resp.text
     if len(body) == 0:
         return []
     return json.parse(body)
@@ -38,11 +38,11 @@ var downloadPost = Function(post, dir):
         var parts = post["image"].split(".")
         ext = parts[len(parts) - 1]
     var path = dir + "/" + String(post["id"]) + "." + ext
-    var resp = net.httpget(url)
-    if resp["status"] != 200:
-        throw "download failed: status " + String(resp["status"])
+    var resp = net.get(url)
+    if resp.status != 200:
+        throw "download failed: status " + String(resp.status)
     with io.open(path, "w") as f:
-        f.write(resp["body"])
+        f.write(resp.text)
     return path
 
 # --- main -------------------------------------------------------------------------------------

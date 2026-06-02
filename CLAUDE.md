@@ -173,7 +173,7 @@ a stability fuzzer, and a benchmark). Working today:
     dumps/loads, Dump(bytes), save/load.
   - `net` — TCP sockets (connect/bind/listen/accept/send/recv/recvall/settimeout) **and** a
     full-fledged HTTP/1.1 client (requests-style): `request(method, url[, opts])` plus
-    `get/post/put/delete/patch/head/options` (and back-compat `httpget`/`httppost`) returning a rich
+    `get/post/put/delete/patch/head/options` returning a rich
     `Response` (`status`/`statuscode`/`reason`/`ok`/`url`/`text`/`headers`/`cookies`, `json()`,
     `raiseforstatus()`, case-insensitive `header()`, and `["status"]`/`["body"]` indexing). Request
     `opts`: `headers`, `params`, `data` (string or form-Dict), `json`, `files` (multipart upload),

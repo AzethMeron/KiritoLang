@@ -41,4 +41,55 @@ for thunk in [Function(): return net.urlencode("not a dict"), Function(): return
         raised = raised + 1
 assert raised == 2, "net helpers reject bad argument types"
 
+# --- fuzz: thousands of random round-trips through the URL codec (deterministic seed) ---
+var rng = import("random").Random(0x5151)
+
+# quote/unquote must round-trip ANY string (incl. reserved chars, spaces, and Unicode code points,
+# which are percent-encoded byte-by-byte over UTF-8).
+var i = 0
+while i < 1500:
+    var n = rng.randint(0, 24)
+    var s = ""
+    var j = 0
+    while j < n:
+        var pick = rng.randint(0, 9)
+        if pick < 6:
+            s = s + chr(rng.randint(33, 126))          # printable ASCII (incl. reserved)
+        elif pick < 8:
+            s = s + chr(rng.randint(160, 0x2fff))       # Latin-1 / BMP code points (multi-byte UTF-8)
+        else:
+            s = s + " "                                  # spaces (encode as %20)
+        j = j + 1
+    assert net.unquote(net.quote(s)) == s, "quote/unquote round-trip"
+    i = i + 1
+
+# urlencode/parseqs must round-trip a Dict of random keys -> random values.
+var k = 0
+while k < 500:
+    var m = rng.randint(1, 5)
+    var d = {}
+    var c = 0
+    while c < m:
+        var key = "k" + String(c)                        # unique, simple keys
+        var vlen = rng.randint(0, 16)
+        var v = ""
+        var t = 0
+        while t < vlen:
+            v = v + chr(rng.randint(33, 126))
+            t = t + 1
+        d[key] = v
+        c = c + 1
+    assert net.parseqs(net.urlencode(d)) == d, "urlencode/parseqs round-trip"
+    k = k + 1
+
+# --- edge cases ---
+assert net.quote("") == "" and net.unquote("") == "", "empty round-trips"
+assert net.quote("safe-._~ABCabc012") == "safe-._~ABCabc012", "unreserved set untouched"
+assert net.parseqs("") == {}, "empty query is an empty Dict"
+assert net.parseqs("flag") == {"flag": ""}, "valueless key parses to empty value"
+var u3 = net.urlsplit("https://user.example.com:8443/a/b?x=1&y=2#frag")
+assert u3["scheme"] == "https" and u3["port"] == "8443" and u3["path"] == "/a/b", "urlsplit components"
+assert u3["query"] == "x=1&y=2" and u3["fragment"] == "frag", "urlsplit query/fragment"
+assert net.urlsplit("/just/a/path")["path"] == "/just/a/path", "urlsplit bare path"
+
 io.print("OK")
