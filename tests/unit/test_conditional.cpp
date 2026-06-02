@@ -103,6 +103,32 @@ f(0)
         CHECK(evalStr(vm, "1, 2 if False else 3") == "[1, 3]");
     }
 
+    // ---------------------------------------------------------------- a statement-level `if` after a
+    // block is NOT a ternary. A block-bodied Function literal self-terminates at its dedent, so the
+    // following `if` begins the next statement (the common `var f = Function(): ...` then `if argmain:`
+    // idiom) — it must not be swallowed as a conditional-expression continuation of the function value.
+    {
+        KiritoVM vm;
+        CHECK(evalStr(vm, R"(
+var made = None
+var run = Function():
+    return 7
+if True:
+    made = run()
+made
+)") == "7");
+        // same after other suite-closing statements (a for-loop body, a class body)
+        CHECK(evalStr(vm, R"(
+var total = 0
+for i in [1, 2, 3]:
+    total = total + i
+var doubled = total * 2 if True else 0
+doubled
+)") == "12");
+        // an INLINE function still works as a ternary operand (no block closed, so `if` IS the ternary)
+        CHECK(evalStr(vm, "(Function(): return 1)() if True else 2") == "1");
+    }
+
     // ---------------------------------------------------------------- adversarial parse errors
     {
         KiritoVM vm;

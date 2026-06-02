@@ -1,0 +1,241 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 21 — Command-Line Programs — Kirito</title><style>
+:root{--bg:#16161a;--fg:#e4e4ea;--muted:#9a9aa6;--accent:#9b87ff;--code-bg:#1e1e25;
+--border:#2c2c35;--side:#1b1b21;--side-hover:#26262f}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:var(--side-hover);text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#16161a}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:var(--fg)}
+.kw{color:#c678dd}.str{color:#98c379}.com{color:#7f848e;font-style:italic}.num{color:#d19a66}
+.builtin{color:#61afef}
+a.xref{text-decoration:none}
+a.xref:hover{text-decoration:underline}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values.html">Lesson 2 — Values and Variables</a><a href="course-03-numbers.html">Lesson 3 — Numbers and Arithmetic</a><a href="course-04-strings.html">Lesson 4 — Strings</a><a href="course-05-control-flow.html">Lesson 5 — Booleans and Control Flow</a><a href="course-06-loops.html">Lesson 6 — Loops and Iteration</a><a href="course-07-lists.html">Lesson 7 — Lists</a><a href="course-08-sets-dicts.html">Lesson 8 — Sets and Dictionaries</a><a href="course-09-unpacking.html">Lesson 9 — Packing and Unpacking</a><a href="course-10-functions.html">Lesson 10 — Functions</a><a href="course-11-closures.html">Lesson 11 — Closures and First-Class Functions</a><a href="course-12-annotations.html">Lesson 12 — Type Annotations and Runtime Checks</a><a href="course-13-classes.html">Lesson 13 — Classes I: Data and Behavior</a><a href="course-14-operators.html">Lesson 14 — Classes II: Operators and Protocols</a><a href="course-15-inheritance.html">Lesson 15 — Classes III: Inheritance and super</a><a href="course-16-errors.html">Lesson 16 — Errors and Exceptions</a><a href="course-17-context-managers.html">Lesson 17 — Context Managers and with</a><a href="course-18-files-io.html">Lesson 18 — Files, I/O, and Streams</a><a href="course-19-stdlib-tour.html">Lesson 19 — A Tour of the Standard Library</a><a href="course-20-regex.html">Lesson 20 — Regular Expressions</a><a href="course-21-cli.html" class="active">Lesson 21 — Command-Line Programs</a><a href="course-22-capstone.html">Lesson 22 — Capstone: A Contact Book</a></nav><main id="content"><h1 id="lesson-21-command-line-programs">Lesson 21 — Command-Line Programs</h1>
+<p>Most useful programs take <strong>input from the command line</strong>: a filename to process, a <code>--count</code>, a <code>--verbose</code> flag. This lesson shows how a Kirito program sees its arguments (<code>arglist</code>/<code>argmain</code>) and how the <a class="xref" href="stdlib.html#arg"><code>arg</code></a> module turns a raw list of strings into clean, typed options — without the tedious hand-parsing.</p>
+<h2 id="arglist-and-argmain"><code>arglist</code> and <code>argmain</code></h2>
+<p>Every file scope is pre-bound with two names, so you never import anything to get the basics:</p>
+<ul><li><strong><code>arglist</code></strong> — the command-line arguments as a <a class="xref" href="types.html#list"><code>List</code></a> of Strings. For <code>ki greet.ki Ada --loud</code>,</li></ul>
+<p>  <code>arglist</code> is <code>[&quot;Ada&quot;, &quot;--loud&quot;]</code> (the interpreter and script name are stripped). It is <strong>empty in   an imported module</strong> — arguments belong to the program you <em>run</em>, not to its libraries.</p>
+<ul><li><strong><code>argmain</code></strong> — a <a class="xref" href="types.html#bool"><code>Bool</code></a> that is <code>True</code> when this file was run directly and <code>False</code> when it was</li></ul>
+<p>  imported. This is Kirito&#x27;s version of Python&#x27;s <code>__name__ == &quot;__main__&quot;</code>.</p>
+<p>The standard idiom is to guard your program&#x27;s entry point so a file can be <strong>both</strong> a runnable script and an importable library:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> run = <span class="kw">Function</span>(args):
+    io.<span class="builtin">print</span>(f<span class="str">&quot;got {len(args)} argument(s)&quot;</span>)
+    <span class="kw">for</span> a <span class="kw">in</span> args:
+        io.<span class="builtin">print</span>(f<span class="str">&quot;  - {a}&quot;</span>)
+
+<span class="com"># Only execute when run directly; stays silent (and side-effect-free) when imported.</span>
+<span class="kw">if</span> argmain:
+    run(arglist)</code></pre>
+<p>Run directly with <code>ki demo.ki one two</code> it prints the count and each argument; <code>import(&quot;demo&quot;)</code> from another file runs nothing and exposes <code>run</code> for reuse.</p>
+<h2 id="parsing-by-hand-gets-old-fast">Parsing by hand gets old fast</h2>
+<p>You <em>can</em> pick apart <code>arglist</code> yourself, but even simple needs — an option with a value, a flag, a default — turn into fiddly index juggling:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="com"># Imagine these came from the command line: a name, an optional --count, an optional --loud flag.</span>
+<span class="kw">var</span> args = [<span class="str">&quot;Ada&quot;</span>, <span class="str">&quot;--count&quot;</span>, <span class="str">&quot;3&quot;</span>, <span class="str">&quot;--loud&quot;</span>]
+
+<span class="kw">var</span> name = <span class="kw">None</span>
+<span class="kw">var</span> count = <span class="num">1</span>
+<span class="kw">var</span> loud = <span class="kw">False</span>
+<span class="kw">var</span> i = <span class="num">0</span>
+<span class="kw">while</span> i &lt; <span class="builtin">len</span>(args):
+    <span class="kw">var</span> tok = args[i]
+    <span class="kw">if</span> tok == <span class="str">&quot;--loud&quot;</span>:
+        loud = <span class="kw">True</span>
+    <span class="kw">elif</span> tok == <span class="str">&quot;--count&quot;</span>:
+        i = i + <span class="num">1</span>
+        count = <span class="builtin">Integer</span>(args[i])     <span class="com"># remember to convert the String!</span>
+    <span class="kw">else</span>:
+        name = tok
+    i = i + <span class="num">1</span>
+
+io.<span class="builtin">print</span>(f<span class="str">&quot;name={name} count={count} loud={loud}&quot;</span>)</code></pre>
+<p>That works, but it&#x27;s all boilerplate: no help text, no error on a typo&#x27;d option, no <code>--count=3</code> form, and you had to remember the <a class="xref" href="types.html#integer"><code>Integer(...)</code></a> conversion. The <a class="xref" href="stdlib.html#arg"><code>arg</code></a> module does all of this for you.</p>
+<h2 id="the-arg-module">The <a class="xref" href="stdlib.html#arg"><code>arg</code></a> module</h2>
+<p><code>import(&quot;arg&quot;)</code> gives you a <a class="xref" href="stdlib.html#sym-Parser"><code>Parser</code></a>. You <strong>declare</strong> the arguments, then <strong><code>parse</code></strong> a list of strings yourself — typically <code>arglist</code>. The declaration methods chain (each returns the parser):</p>
+<ul><li id="sym-arg.Parser"><a class="xref" href="course-21-cli.html#sym-arg.Parser"><code>arg.Parser(description = &quot;&quot;)</code></a> — create a parser.</li><li><code>p.positional(name, help = &quot;&quot;)</code> — a required positional argument, consumed in order.</li><li><code>p.option(name, default = None, help = &quot;&quot;)</code> — a <code>--name VALUE</code> option. **The value is converted to</li></ul>
+<p>  the type of <code>default</code>** — an Integer default parses an Integer, a Float default a Float, otherwise   it stays a String.</p>
+<ul><li><code>p.flag(name, help = &quot;&quot;)</code> — a boolean <code>--name</code> flag (default <code>False</code>, <code>True</code> when present).</li><li><code>p.parse(args)</code> — parse into a <a class="xref" href="types.html#dict"><code>Dict</code></a> keyed by name. Returns <strong><a class="xref" href="types.html#none"><code>None</code></a></strong> if <code>-h</code>/<code>--help</code> was given</li></ul>
+<p>  (after printing the help), so the program can stop.</p>
+<p>Here is the hand-rolled parser above, rewritten — declarations replace all the index juggling:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+
+<span class="kw">var</span> p = arg.Parser(<span class="str">&quot;greet someone&quot;</span>)
+p.positional(<span class="str">&quot;name&quot;</span>)
+p.option(<span class="str">&quot;count&quot;</span>, <span class="num">1</span>)           <span class="com"># Integer, because the default is 1</span>
+p.flag(<span class="str">&quot;loud&quot;</span>)
+
+<span class="com"># In a real program this is `p.parse(arglist)`; here we pass an explicit list to keep the demo</span>
+<span class="com"># deterministic.</span>
+<span class="kw">var</span> opts = p.parse([<span class="str">&quot;Ada&quot;</span>, <span class="str">&quot;--count&quot;</span>, <span class="str">&quot;3&quot;</span>, <span class="str">&quot;--loud&quot;</span>])
+
+<span class="kw">var</span> name = opts[<span class="str">&quot;name&quot;</span>]
+<span class="kw">var</span> greeting = f<span class="str">&quot;Hello, {name}!&quot;</span>
+<span class="kw">if</span> opts[<span class="str">&quot;loud&quot;</span>]:
+    greeting = greeting.upper()
+<span class="kw">var</span> n = <span class="num">0</span>
+<span class="kw">while</span> n &lt; opts[<span class="str">&quot;count&quot;</span>]:
+    io.<span class="builtin">print</span>(greeting)
+    n = n + <span class="num">1</span></code></pre>
+<p>This prints <code>HELLO, ADA!</code> three times. <code>parse</code> returns a Dict; you read results by name (<code>opts[&quot;name&quot;]</code>, <code>opts[&quot;count&quot;]</code>, <code>opts[&quot;loud&quot;]</code>).</p>
+<h2 id="typed-options">Typed options</h2>
+<p>The <strong>default&#x27;s type</strong> decides how a value is parsed — you declare it once and every value comes back in the right type:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+
+<span class="kw">var</span> p = arg.Parser()
+p.option(<span class="str">&quot;width&quot;</span>, <span class="num">80</span>)          <span class="com"># Integer default  -&gt; Integer values</span>
+p.option(<span class="str">&quot;ratio&quot;</span>, <span class="num">1.0</span>)         <span class="com"># Float default    -&gt; Float values</span>
+p.option(<span class="str">&quot;title&quot;</span>, <span class="str">&quot;untitled&quot;</span>)  <span class="com"># String default   -&gt; stays a String</span>
+
+<span class="kw">var</span> opts = p.parse([<span class="str">&quot;--width&quot;</span>, <span class="str">&quot;120&quot;</span>, <span class="str">&quot;--ratio&quot;</span>, <span class="str">&quot;0.75&quot;</span>, <span class="str">&quot;--title&quot;</span>, <span class="str">&quot;report&quot;</span>])
+<span class="kw">var</span> width = opts[<span class="str">&quot;width&quot;</span>]
+<span class="kw">var</span> ratio = opts[<span class="str">&quot;ratio&quot;</span>]
+<span class="kw">var</span> title = opts[<span class="str">&quot;title&quot;</span>]
+io.<span class="builtin">print</span>(f<span class="str">&quot;{width} ({type(width)})&quot;</span>)
+io.<span class="builtin">print</span>(f<span class="str">&quot;{ratio} ({type(ratio)})&quot;</span>)
+io.<span class="builtin">print</span>(f<span class="str">&quot;{title} ({type(title)})&quot;</span>)</code></pre>
+<p>prints:</p>
+<pre><code>120 (Integer)
+0.75 (Float)
+report (String)</code></pre>
+<p>If a value can&#x27;t be converted (<code>--width abc</code>), <code>parse</code> raises a clear, catchable error rather than handing you a bad value.</p>
+<h2 id="flags-short-forms-and-leftovers">Flags, short forms, <code>=</code>, and leftovers</h2>
+<p><code>parse</code> understands the common command-line spellings, and collects any <strong>extra</strong> positionals under the <code>&quot;rest&quot;</code> key:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+
+<span class="kw">var</span> p = arg.Parser()
+p.positional(<span class="str">&quot;command&quot;</span>)
+p.option(<span class="str">&quot;level&quot;</span>, <span class="num">0</span>)
+p.flag(<span class="str">&quot;verbose&quot;</span>)
+
+<span class="com"># --name=value, a short -v for the flag (matched by first letter), and two leftover positionals.</span>
+<span class="kw">var</span> opts = p.parse([<span class="str">&quot;build&quot;</span>, <span class="str">&quot;--level=2&quot;</span>, <span class="str">&quot;-v&quot;</span>, <span class="str">&quot;extra1&quot;</span>, <span class="str">&quot;extra2&quot;</span>])
+<span class="kw">var</span> command = opts[<span class="str">&quot;command&quot;</span>]
+<span class="kw">var</span> level = opts[<span class="str">&quot;level&quot;</span>]
+<span class="kw">var</span> verbose = opts[<span class="str">&quot;verbose&quot;</span>]
+<span class="kw">var</span> rest = opts[<span class="str">&quot;rest&quot;</span>]
+io.<span class="builtin">print</span>(f<span class="str">&quot;command = {command}&quot;</span>)
+io.<span class="builtin">print</span>(f<span class="str">&quot;level   = {level}&quot;</span>)
+io.<span class="builtin">print</span>(f<span class="str">&quot;verbose = {verbose}&quot;</span>)
+io.<span class="builtin">print</span>(f<span class="str">&quot;rest    = {rest}&quot;</span>)</code></pre>
+<p>prints:</p>
+<pre><code>command = build
+level   = 2
+verbose = True
+rest    = [extra1, extra2]</code></pre>
+<p>So <code>--level 2</code>, <code>--level=2</code>, a short <code>-l 2</code>, and a short <code>-v</code> flag all work; anything not claimed by a declared positional lands in <code>rest</code>.</p>
+<h2 id="automatic-help">Automatic <code>--help</code></h2>
+<p>You get a usage screen for free. When <code>-h</code> or <code>--help</code> appears anywhere, <code>parse</code> <strong>prints the help and returns <a class="xref" href="types.html#none"><code>None</code></a></strong> — your program checks for that and stops:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+
+<span class="kw">var</span> p = arg.Parser(<span class="str">&quot;greet someone, maybe loudly&quot;</span>)
+p.positional(<span class="str">&quot;name&quot;</span>, <span class="str">&quot;who to greet&quot;</span>)
+p.option(<span class="str">&quot;count&quot;</span>, <span class="num">1</span>, <span class="str">&quot;how many times&quot;</span>)
+p.flag(<span class="str">&quot;loud&quot;</span>, <span class="str">&quot;shout it&quot;</span>)
+
+<span class="kw">var</span> opts = p.parse([<span class="str">&quot;--help&quot;</span>])
+<span class="kw">if</span> opts == <span class="kw">None</span>:
+    io.<span class="builtin">print</span>(<span class="str">&quot;(parse returned None — program would stop here)&quot;</span>)</code></pre>
+<p>prints the generated help, then the sentinel line:</p>
+<pre><code>usage: &lt;name&gt; [--count VALUE] [--loud]
+
+greet someone, maybe loudly
+
+arguments:
+  &lt;name&gt;  who to greet
+  --count VALUE  (default 1)  how many times
+  --loud  shout it
+  -h, --help  show this help and stop
+(parse returned None — program would stop here)</code></pre>
+<h2 id="handling-bad-input">Handling bad input</h2>
+<p>Unknown options, a missing required positional, and unconvertible values all raise — wrap <code>parse</code> in a <a class="xref" href="course-16-errors.html#sym-try"><code>try</code></a> to report them nicely instead of crashing:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+
+<span class="kw">var</span> p = arg.Parser()
+p.positional(<span class="str">&quot;name&quot;</span>)
+p.option(<span class="str">&quot;count&quot;</span>, <span class="num">1</span>)
+
+<span class="com"># Three things go wrong, each on its own parse; a bare `catch` also catches the thrown String.</span>
+<span class="kw">for</span> bad <span class="kw">in</span> [[], [<span class="str">&quot;Ada&quot;</span>, <span class="str">&quot;--count&quot;</span>, <span class="str">&quot;ten&quot;</span>], [<span class="str">&quot;Ada&quot;</span>, <span class="str">&quot;--oops&quot;</span>]]:
+    <span class="kw">try</span>:
+        <span class="kw">discard</span> p.parse(bad)
+        io.<span class="builtin">print</span>(<span class="str">&quot;ok&quot;</span>)
+    <span class="kw">catch</span> <span class="kw">as</span> e:
+        io.<span class="builtin">print</span>(f<span class="str">&quot;error: {e}&quot;</span>)</code></pre>
+<p>prints:</p>
+<pre><code>error: missing required argument: &lt;name&gt;
+error: option --count expects an integer, got &#x27;ten&#x27;
+error: unknown option: --oops</code></pre>
+<h2 id="putting-it-together-a-tiny-cli">Putting it together — a tiny CLI</h2>
+<p>Here is a complete, idiomatic command-line program: it declares its interface, parses <code>arglist</code>, respects <code>--help</code>, and does real work. We drive it with an explicit list so the lesson runs, but in a real file the one line that changes is <code>p.parse(arglist)</code>:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+
+<span class="com"># A word-counting tool: `wc.ki &lt;text&gt; [--by-char] [--upper]`</span>
+<span class="kw">var</span> wordcount = <span class="kw">Function</span>(args):
+    <span class="kw">var</span> p = arg.Parser(<span class="str">&quot;count words (or characters) in a phrase&quot;</span>)
+    p.positional(<span class="str">&quot;text&quot;</span>, <span class="str">&quot;the phrase to measure&quot;</span>)
+    p.flag(<span class="str">&quot;by-char&quot;</span>, <span class="str">&quot;count characters instead of words&quot;</span>)
+    p.flag(<span class="str">&quot;upper&quot;</span>, <span class="str">&quot;report the phrase upper-cased&quot;</span>)
+    <span class="kw">var</span> opts = p.parse(args)
+    <span class="kw">if</span> opts == <span class="kw">None</span>:
+        <span class="kw">return</span>                       <span class="com"># --help was shown</span>
+    <span class="kw">var</span> text = opts[<span class="str">&quot;text&quot;</span>]
+    <span class="kw">if</span> opts[<span class="str">&quot;upper&quot;</span>]:
+        text = text.upper()
+    <span class="kw">var</span> amount = <span class="builtin">len</span>(text) <span class="kw">if</span> opts[<span class="str">&quot;by-char&quot;</span>] <span class="kw">else</span> <span class="builtin">len</span>(text.split())
+    <span class="kw">var</span> unit = <span class="str">&quot;characters&quot;</span> <span class="kw">if</span> opts[<span class="str">&quot;by-char&quot;</span>] <span class="kw">else</span> <span class="str">&quot;words&quot;</span>
+    io.<span class="builtin">print</span>(f<span class="str">&quot;{text}: {amount} {unit}&quot;</span>)
+
+<span class="com"># In a real script: `if argmain: wordcount(arglist)`. Here we exercise it directly.</span>
+wordcount([<span class="str">&quot;the quick brown fox&quot;</span>, <span class="str">&quot;--upper&quot;</span>])
+wordcount([<span class="str">&quot;hello world&quot;</span>, <span class="str">&quot;--by-char&quot;</span>])</code></pre>
+<p>prints:</p>
+<pre><code>THE QUICK BROWN FOX: 4 words
+hello world: 11 characters</code></pre>
+<p>Drop <code>wordcount(arglist)</code> behind an <a class="xref" href="course-05-control-flow.html#sym-if"><code>if argmain:</code></a> and the same file becomes a real tool: <code>ki wc.ki &quot;the quick brown fox&quot; --upper</code>.</p>
+<h2 id="what-you-learned">What you learned</h2>
+<ul><li><strong><code>arglist</code></strong> is the command-line arguments (a <a class="xref" href="types.html#list"><code>List</code></a> of Strings), empty inside imported modules;</li></ul>
+<p>  <strong><code>argmain</code></strong> is <code>True</code> only when the file is run directly — guard your entry point with   <a class="xref" href="course-05-control-flow.html#sym-if"><code>if argmain:</code></a>.</p>
+<ul><li>The <strong><a class="xref" href="stdlib.html#arg"><code>arg</code></a> module</strong>: build a <a class="xref" href="stdlib.html#sym-Parser"><code>Parser</code></a>, declare <code>positional</code>/<code>option</code>/<code>flag</code> (chainable), then</li></ul>
+<p>  <code>parse(arglist)</code> into a Dict. Option values are <strong>typed by their default</strong>, extras land in <code>&quot;rest&quot;</code>,   and <code>-h</code>/<code>--help</code> prints usage and returns <a class="xref" href="types.html#none"><code>None</code></a>.</p>
+<ul><li>Parsing <strong>raises clear, catchable errors</strong> on bad input, so a <a class="xref" href="course-16-errors.html#sym-try"><code>try</code></a> around <code>parse</code> gives friendly</li></ul>
+<p>  diagnostics.</p>
+<p>One lesson to go — the capstone, where we assemble a complete program from everything you&#x27;ve learned.</p>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

@@ -387,7 +387,11 @@ private:
     // recurses, so `a if c1 else b if c2 else c` is right-associative: a if c1 else (b if c2 else c).
     ast::ExprPtr parseConditional() {
         auto value = parseOr();
-        if (!at(TokenType::KwIf)) return value;
+        // A block-bodied Function literal (or other indented suite) self-terminates its statement at
+        // the closing dedent — just like endSimpleStatement. A following `if` therefore begins the
+        // NEXT statement (e.g. the common `var f = Function(): ...` then `if argmain:` idiom) and must
+        // not be swallowed as a ternary continuation of the function value.
+        if (!at(TokenType::KwIf) || blockJustClosed_) return value;
         // The else-branch recurses here directly (not via parseExpr), so guard the chain depth to
         // keep a pathologically long `a if c else a if c else ...` from overflowing the native stack.
         DepthGuard g(exprDepth_, peek().span);

@@ -58,6 +58,17 @@ assert packed_then == [1, 2], "packing keeps the then-branch"
 var packed_else = 1, 2 if False else 3
 assert packed_else == [1, 3], "packing keeps the else-branch"
 
+# --- a statement-level `if` after a block-bodied Function is NOT a ternary continuation ---
+# (the `var f = Function(): ...` then `if cond:` idiom must parse as two separate statements)
+var blockMade = None
+var blockRun = Function():
+    return 7
+if True:
+    blockMade = blockRun()
+assert blockMade == 7, "if after a block-bodied function is a statement, not a ternary"
+# an inline function, by contrast, still works as a ternary operand
+assert ((Function(): return 1)() if True else 2) == 1, "inline function as ternary operand"
+
 # --- short-circuit / adversarial: the untaken branch is NEVER evaluated ---
 # would divide by zero, but that branch is not taken:
 assert (1 if True else (1 // 0)) == 1, "untaken branch with a runtime error is not evaluated"
