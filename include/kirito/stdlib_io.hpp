@@ -375,6 +375,19 @@ public:
         auto slot = [modH](KiritoVM& vm, const char* name) -> Handle {
             return static_cast<ModuleValue&>(vm.arena().deref(modH)).members.at(name);
         };
+        // Resolve the optional `stream=` keyword (a File/BytesIO/std stream/any object with write or
+        // readline); if absent, fall back to the named module slot. Other keywords are rejected.
+        auto pickStream = [slot](KiritoVM& vm, std::span<const NamedArg> named, const char* dflt,
+                                 const char* who) -> Handle {
+            Handle chosen{};
+            bool have = false;
+            for (const auto& na : named) {
+                if (na.name == "stream") { chosen = na.value; have = true; }
+                else throw KiritoError(std::string(who) + "() got an unexpected keyword argument '" +
+                                       na.name + "'");
+            }
+            return have ? chosen : slot(vm, dflt);
+        };
 
         // BytesIO([initial]) -> an in-memory binary buffer.
         m.fn("BytesIO", {{"initial", "String", vm.makeString("")}}, "BytesIO",
@@ -384,8 +397,11 @@ public:
             if (o.kind() != ValueKind::String) throw KiritoError("BytesIO expects a byte String");
             return vm.alloc(std::make_unique<BytesIO>(static_cast<const StrVal&>(o).value()));
         });
-        // print(*args): space-separated, newline-terminated, flushed — to the current stdout.
-        m.fn("print", [slot](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        // print(*args, stream=io.stdout): space-separated, newline-terminated, flushed. `stream=`
+        // sends the output to any File/BytesIO/stream instead of the current stdout.
+        m.kwfn("print", [pickStream](KiritoVM& vm, std::span<const Handle> args,
+                                     std::span<const NamedArg> named) -> Handle {
+            Handle target = pickStream(vm, named, "stdout", "print");
             std::string line;
             for (std::size_t i = 0; i < args.size(); ++i) {
                 if (i) line += ' ';
@@ -394,36 +410,45 @@ public:
             line += '\n';
             // Flush so output is visible immediately on a pipe/file (a server's readiness banner,
             // progress logs) — not stuck in a fully-buffered block until exit.
-            streamWriteTo(vm, slot(vm, "stdout"), line, /*flush=*/true);
+            streamWriteTo(vm, target, line, /*flush=*/true);
             return vm.none();
         });
-        // eprint(*args): like print, but to the current stderr (unbuffered by convention).
-        m.fn("eprint", [slot](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        // eprint(*args, stream=io.stderr): like print, but defaulting to the current stderr.
+        m.kwfn("eprint", [pickStream](KiritoVM& vm, std::span<const Handle> args,
+                                      std::span<const NamedArg> named) -> Handle {
+            Handle target = pickStream(vm, named, "stderr", "eprint");
             std::string line;
             for (std::size_t i = 0; i < args.size(); ++i) {
                 if (i) line += ' ';
                 line += vm.stringify(args[i]);
             }
             line += '\n';
-            streamWriteTo(vm, slot(vm, "stderr"), line, /*flush=*/true);
+            streamWriteTo(vm, target, line, /*flush=*/true);
             return vm.none();
         });
-        // input([prompt]): optionally write a prompt to stdout, then read one line from stdin.
-        m.fn("input", [slot](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        // input([prompt], stream=io.stdin): write the prompt (if any) to stdout, then read one line
+        // from `stream` (a File/BytesIO/stream) or the current stdin.
+        m.kwfn("input", [slot, pickStream](KiritoVM& vm, std::span<const Handle> a,
+                                           std::span<const NamedArg> named) -> Handle {
+            Handle src = pickStream(vm, named, "stdin", "input");
             if (!a.empty()) streamWriteTo(vm, slot(vm, "stdout"), vm.stringify(a[0]), /*flush=*/true);
-            return vm.makeString(streamReadLineFrom(vm, slot(vm, "stdin")));
+            return vm.makeString(streamReadLineFrom(vm, src));
         });
-        // read([n]): read n characters (or everything) from the current stdin.
-        m.fn("read", [slot](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        // read([n], stream=io.stdin): read n characters (or everything) from `stream` or stdin.
+        m.kwfn("read", [pickStream](KiritoVM& vm, std::span<const Handle> a,
+                                    std::span<const NamedArg> named) -> Handle {
+            Handle src = pickStream(vm, named, "stdin", "read");
             std::optional<std::size_t> n;
             if (!a.empty()) { int64_t w = argInt(vm, a[0], "read"); if (w >= 0) n = static_cast<std::size_t>(w); }
-            return vm.makeString(streamReadFrom(vm, slot(vm, "stdin"), n));
+            return vm.makeString(streamReadFrom(vm, src, n));
         });
-        // write(*args): raw, no separator, no newline — to the current stdout.
-        m.fn("write", [slot](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        // write(*args, stream=io.stdout): raw, no separator, no newline.
+        m.kwfn("write", [pickStream](KiritoVM& vm, std::span<const Handle> args,
+                                     std::span<const NamedArg> named) -> Handle {
+            Handle target = pickStream(vm, named, "stdout", "write");
             std::string out;
             for (Handle h : args) out += vm.stringify(h);
-            streamWriteTo(vm, slot(vm, "stdout"), out, /*flush=*/false);
+            streamWriteTo(vm, target, out, /*flush=*/false);
             return vm.none();
         });
         m.fn("open", {{"path", "String"}, {"mode", "String", vm.makeString("r")}}, "File",

@@ -447,6 +447,11 @@ public:
         if (c.kind() == ValueKind::Function) {
             result_ = located(e.span, [&] { return static_cast<KiFunction&>(c).callFull(vm_, positional, named); });
         } else if (c.kind() == ValueKind::NativeFunction &&
+                   static_cast<NativeFunction&>(c).acceptsKwargs()) {
+            result_ = located(e.span, [&] {
+                return static_cast<NativeFunction&>(c).callKw(vm_, positional, named);
+            });
+        } else if (c.kind() == ValueKind::NativeFunction &&
                    static_cast<NativeFunction&>(c).hasSignature()) {
             result_ = located(e.span, [&] {
                 auto& nf = static_cast<NativeFunction&>(c);

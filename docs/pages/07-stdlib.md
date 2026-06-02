@@ -17,11 +17,13 @@ rebindable stream objects — assign a `File`, a `BytesIO`, another stream, or a
 `write`/`readline`/`read` to redirect I/O. The originals are kept as `io.__stdout__` /
 `io.__stderr__` / `io.__stdin__`.
 
-- `print(*args) → None` — write the arguments space-separated, newline-terminated and flushed, to the current `stdout`.
-- `eprint(*args) → None` — like `print`, but to the current `stderr`.
-- `write(*args) → None` — write the arguments to `stdout` with no separator and no trailing newline.
-- `input([prompt]) → String` — write `prompt` (if given) to `stdout`, then read and return one line from `stdin` (without the newline).
-- `read([n]) → String` — read `n` characters from `stdin`, or everything until EOF if `n` is omitted.
+- `print(*args, stream = io.stdout) → None` — write the arguments space-separated, newline-terminated and flushed.
+- `eprint(*args, stream = io.stderr) → None` — like `print`, but defaulting to `stderr`.
+- `write(*args, stream = io.stdout) → None` — write the arguments with no separator and no trailing newline.
+- `input([prompt], stream = io.stdin) → String` — write `prompt` (if given) to `stdout`, then read and return one line from `stream` (without the newline).
+- `read([n], stream = io.stdin) → String` — read `n` characters from `stream`, or everything until EOF if `n` is omitted.
+
+The optional `stream=` keyword sends/takes that one call's output/input to/from any File, `BytesIO`, std stream, or object exposing `write`/`readline` — without rebinding `io.stdout`/`io.stdin`. Omit it to use the current standard stream.
 - `stdout` / `stderr` / `stdin` — the current standard streams (rebindable). `__stdout__` / `__stderr__` / `__stdin__` hold the originals.
 
 ### Files and buffers

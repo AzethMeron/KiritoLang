@@ -60,6 +60,11 @@ public:
             name, std::move(sig), std::move(returnType), std::move(impl)));
         return *this;
     }
+    // A variadic native that also accepts keyword arguments (impl receives positional args + named).
+    ModuleBuilder& kwfn(std::string name, NativeFnKw impl) {
+        mod_.members[name] = vm_.alloc(std::make_unique<NativeFunction>(name, std::move(impl)));
+        return *this;
+    }
     ModuleBuilder& value(const std::string& name, Handle h) {
         mod_.members[name] = h;
         return *this;

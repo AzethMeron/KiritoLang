@@ -154,7 +154,10 @@ a stability fuzzer, and a benchmark). Working today:
   - `io` — print/eprint/write/input/read acting on **rebindable, interchangeable streams**: the
     module-level `stdout`/`stderr`/`stdin` (with originals kept as `__stdout__`/`__stderr__`/
     `__stdin__`) can be reassigned to a file, a `BytesIO`, another std stream, or any object exposing
-    `write`/`readline`/`read` (duck-typed) — so I/O redirection is just an assignment. A common
+    `write`/`readline`/`read` (duck-typed) — so I/O redirection is just an assignment. Each of
+    print/eprint/write/input/read also takes an optional **`stream=`** keyword to direct that one
+    call to a specific stream without rebinding the std slots (variadic-yet-keyword-aware natives via
+    `ModuleBuilder::kwfn` / `NativeFunction(NativeFnKw)`). A common
     stream protocol (`IoStream`: streamWrite/streamRead/streamReadLine/streamFlush) is implemented by
     `File`, `BytesIO`, and the std streams. `open` files & streams (read([n])/readline/readlines/
     write/writelines/seek/tell/flush, iterable line-by-line, usable as a `with` context manager),

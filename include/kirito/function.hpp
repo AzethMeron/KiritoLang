@@ -21,6 +21,10 @@ using NativeFn = std::function<Handle(KiritoVM&, std::span<const Handle>)>;
 // A named (keyword) argument passed at a call site. Shared by Kirito and native functions.
 struct NamedArg { std::string name; Handle value; };
 
+// A variadic native that ALSO receives keyword arguments (positional *args + named). Used for the
+// few builtins that are both variadic and want named options (e.g. io.print(..., stream=f)).
+using NativeFnKw = std::function<Handle(KiritoVM&, std::span<const Handle>, std::span<const NamedArg>)>;
+
 // One declared parameter of a native function's signature, so native functions can describe
 // themselves (for `inspect`) and accept keyword arguments / defaults exactly like Kirito functions.
 // Construct as {"x"}, {"x", "Integer"} (annotated), or {"x", "Integer", defaultHandle} (with default).
@@ -43,15 +47,26 @@ public:
                    std::vector<Handle> captures = {})
         : name_(std::move(name)), fn_(std::move(fn)), captures_(std::move(captures)),
           sig_(std::move(sig)), returnType_(std::move(returnType)), hasSig_(true) {}
+    // Variadic AND keyword-aware: keeps the raw positional protocol but also receives named args.
+    NativeFunction(std::string name, NativeFnKw kwfn, std::vector<Handle> captures = {})
+        : name_(std::move(name)), captures_(std::move(captures)),
+          kwFn_(std::move(kwfn)), acceptsKwargs_(true) {}
 
     ValueKind kind() const override { return ValueKind::NativeFunction; }
     std::string typeName() const override { return "Function"; }
     bool truthy() const override { return true; }
     std::string str(StringifyCtx&) const override { return "<function " + name_ + ">"; }
     bool equals(const ObjectArena&, const Object& other) const override { return this == &other; }
-    Handle call(KiritoVM& vm, std::span<const Handle> args) override { return fn_(vm, args); }
+    Handle call(KiritoVM& vm, std::span<const Handle> args) override {
+        return acceptsKwargs_ ? kwFn_(vm, args, {}) : fn_(vm, args);
+    }
+    // Call with named arguments (only for acceptsKwargs() natives).
+    Handle callKw(KiritoVM& vm, std::span<const Handle> args, std::span<const NamedArg> named) {
+        return kwFn_(vm, args, named);
+    }
 
     const std::string& name() const { return name_; }
+    bool acceptsKwargs() const { return acceptsKwargs_; }
     bool hasSignature() const { return hasSig_; }
     const std::vector<NativeParam>& params() const { return sig_; }
     const std::string& returnType() const { return returnType_; }
@@ -96,10 +111,12 @@ public:
 private:
     std::string name_;
     NativeFn fn_;
+    NativeFnKw kwFn_;
     std::vector<Handle> captures_;
     std::vector<NativeParam> sig_;
     std::string returnType_;
     bool hasSig_ = false;
+    bool acceptsKwargs_ = false;
 };
 
 // A Kirito-defined function value. It points at its AST definition (owned by the VM, which keeps
