@@ -363,6 +363,80 @@ Cryptographic hash digests (self-contained), returned as lowercase hex Strings.
 
 ---
 
+## regex
+
+Regular expressions with a **guaranteed linear-time** match. The engine compiles the pattern to a
+bytecode program and simulates a Thompson NFA (Pike's algorithm, tracking capture positions), so
+matching is O(text × pattern) with **no catastrophic backtracking** — a pattern like `(a+)+b` against
+a long input is instant, not exponential. The cost of that guarantee (the same trade-off RE2 makes)
+is that two backtracking-only constructs are deliberately **not supported** and raise a clear error:
+**backreferences** (`\1`) and **lookaround** (`(?=…)`, `(?!…)`, `(?<=…)`, `(?<!…)`).
+
+The API mirrors Python's `re`. All positions and spans are **code-point indices** (consistent with
+Kirito's String indexing). Flags combine with `+`: `re.IGNORECASE` (alias `re.I`), `re.MULTILINE`
+(`re.M`), `re.DOTALL` (`re.S`).
+
+### Supported syntax
+
+Literals and `.` (any char except newline; `\n` too under DOTALL); character classes `[...]`,
+`[^...]`, ranges `a-z`; shorthands `\d \D \w \W \s \S` (ASCII); anchors `^ $`, `\b \B`, `\A \z \Z`;
+groups `(...)`, non-capturing `(?:...)`, named `(?P<name>...)` or `(?<name>...)`; alternation `|`;
+quantifiers `* + ?`, `{n}`, `{n,}`, `{n,m}`, each greedy or **lazy** with a trailing `?`; escapes
+`\n \t \r \f \v \xHH \uHHHH` and any escaped metacharacter; inline flags `(?i)` / `(?m)` / `(?s)`.
+
+### Module functions
+
+- `compile(pattern: String, flags: Integer = 0) → Regex` — compile once, reuse many times.
+- `match(pattern: String, string: String, flags: Integer = 0)` — match anchored at the start, or `None`.
+- `search(pattern: String, string: String, flags: Integer = 0)` — first match anywhere, or `None`.
+- `fullmatch(pattern: String, string: String, flags: Integer = 0)` — match that covers the whole string, or `None`.
+- `findall(pattern: String, string: String, flags: Integer = 0) → List` — all matches (see Regex.findall for the shape).
+- `finditer(pattern: String, string: String, flags: Integer = 0) → List` — a List of `Match` objects.
+- `sub(pattern: String, repl, string: String, count: Integer = 0) → String` — substitute matches.
+- `split(pattern: String, string: String, maxsplit: Integer = 0) → List` — split on matches.
+- `escape(s: String) → String` — backslash-escape regex metacharacters so `s` matches literally.
+
+### Regex object
+
+Returned by `compile`. Methods take the subject `string` (and where noted an optional start `pos`):
+
+- `r.match(string[, pos]) → Match` — anchored match at `pos` (default 0), or `None`.
+- `r.search(string[, pos]) → Match` — first match at/after `pos`, or `None`.
+- `r.fullmatch(string) → Match` — whole-string match, or `None`.
+- `r.findall(string) → List` — with **0** groups: a List of the matched Strings; with **1** group: a List of that group's Strings; with **2+** groups: a List of per-match group Lists.
+- `r.finditer(string) → List` — a List of `Match` objects, one per non-overlapping match.
+- `r.sub(repl, string[, count]) → String` — replace matches. `repl` is either a template String (`\1`, `\g<name>`, `\g<0>`, `\\`) or a **function** taking a `Match` and returning a String. `count = 0` replaces all.
+- `r.split(string[, maxsplit]) → List` — split around matches; any captured groups are interleaved into the result (like Python).
+- `r.pattern` — the source pattern String.
+- `r.groups` — the number of capturing groups.
+- `r.groupindex` — a Dict mapping each named group to its number.
+
+### Match object
+
+Returned by a successful `match`/`search`/`fullmatch` (and by `finditer`):
+
+- `m.group([key]) → String` — the whole match (no arg or `0`), or group `key` (a number or a name); `None` if that group didn't participate. Several keys return a List.
+- `m.groups([default]) → List` — all capturing groups (1..n); non-participating groups are `default` (default `None`).
+- `m.groupdict([default]) → Dict` — named groups by name.
+- `m.start([key]) → Integer` / `m.end([key]) → Integer` — code-point start/end of the whole match or a group (`-1` if absent).
+- `m.span([key]) → List` — `[start, end]`.
+- `m.string` — the subject the match was found in.
+
+```kirito
+var re = import("regex")
+var m = re.search("(?P<user>\\w+)@(?P<host>[\\w.]+)", "contact ada@kirito.dev now")
+io.print(m.group())            # => ada@kirito.dev
+io.print(m.group("user"))      # => ada
+io.print(m.groupdict())        # => {user: ada, host: kirito.dev}  (order may vary)
+
+io.print(re.findall("\\d+", "12 and 345"))               # => [12, 345]
+io.print(re.sub("\\s+", "_", "a   b  c"))                 # => a_b_c
+var rx = re.compile("cat|dog", re.IGNORECASE)
+io.print(rx.findall("Cat dog CAT"))                        # => [Cat, dog, CAT]
+```
+
+---
+
 The following modules are **authored in Kirito** (frozen source compiled once per VM). Because
 Kirito has no lazy generators yet, the iterator-style helpers are **eager** — they return a List
 rather than a lazy sequence.

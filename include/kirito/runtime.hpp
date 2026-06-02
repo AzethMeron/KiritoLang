@@ -36,6 +36,7 @@
 #include "stdlib_dump.hpp"
 #include "stdlib_zlib.hpp"
 #include "stdlib_hash.hpp"
+#include "stdlib_regex.hpp"
 #include "stdlib_kimodules.hpp"
 #include "vm.hpp"
 
@@ -2332,6 +2333,7 @@ inline void KiritoVM::installStandardLibrary() {
     install<DumpModule>();
     install<ZlibModule>();
     install<HashModule>();
+    install<RegexModule>();
 
     // Modules authored in Kirito and frozen into the binary (see stdlib_kimodules.hpp).
     registerSourceModule("itertools", kimod::itertools);

@@ -207,6 +207,13 @@ a stability fuzzer, and a benchmark). Working today:
   - `zlib` — compress/decompress (standard zlib streams), raw deflate/inflate, adler32 — a
     self-contained DEFLATE/INFLATE, no external dependency, interoperable with real zlib.
   - `hash` — md5/sha1/sha256 hex digests (self-contained, standard-conformant).
+  - `regex` — a from-scratch, **linear-time** regular-expression library (`regex_engine.hpp`: a
+    recursive-descent parser → bytecode compiler → Thompson-NFA Pike VM with capture tracking; NO
+    `std::regex`, NO backtracking, so `(a+)+b`-style patterns can't blow up). Python-`re`-style API:
+    `compile`/`match`/`search`/`fullmatch`/`findall`/`finditer`/`sub` (string or callable repl)/
+    `split`/`escape`, `IGNORECASE`/`MULTILINE`/`DOTALL` flags, capturing/non-capturing/named groups,
+    greedy+lazy quantifiers, classes/anchors/boundaries, on Unicode code points. Backreferences and
+    lookaround are deliberately rejected (they'd break the linear-time guarantee, à la RE2).
   - **Kirito-authored, frozen-source modules** (registered via `vm.registerSourceModule(name, src)`;
     bodies live in `stdlib_kimodules.hpp`, compiled once per VM on first import): `itertools`
     (chain/repeat/cycle/islice/accumulate/product/permutations/combinations/count/takewhile/
