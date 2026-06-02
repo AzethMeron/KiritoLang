@@ -35,6 +35,11 @@ int main() {
     Handle m2 = vm.runSource("import(\"mymod\")");
     CHECK(m1 == m2);
 
+    // the name may include the .ki extension: import("mymod.ki") resolves the same file (not
+    // mymod.ki.ki) and yields the same module as import("mymod").
+    CHECK(vm.stringify(vm.runSource("import(\"mymod.ki\").answer")) == "42");
+    CHECK(vm.runSource("import(\"mymod.ki\")") == vm.runSource("import(\"mymod\")"));
+
     // a missing module is an error
     CHECK_THROWS(vm.runSource("import(\"does_not_exist\")"));
 

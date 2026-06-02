@@ -1538,8 +1538,13 @@ inline Handle KiritoVM::importModule(const std::string& name) {
     // top-level bindings become the module's members. The file is lexed+parsed+evaluated at most
     // once per VM — deduplicated by resolved absolute path, so the same file reached via different
     // module names (or repeated imports) reuses the one already-built module.
+    // The name may be given with or without the `.ki` extension: import("io") and import("io.ki")
+    // both resolve the file `io.ki` (a leading-or-trailing extension isn't doubled).
+    std::string fileBase = name;
+    if (fileBase.size() >= 3 && fileBase.compare(fileBase.size() - 3, 3, ".ki") == 0)
+        fileBase = fileBase.substr(0, fileBase.size() - 3);
     for (const auto& dir : libPaths_) {
-        std::filesystem::path path = std::filesystem::path(dir) / (name + ".ki");
+        std::filesystem::path path = std::filesystem::path(dir) / (fileBase + ".ki");
         std::error_code ec;
         if (!std::filesystem::exists(path, ec)) continue;
         std::filesystem::path canon = std::filesystem::weakly_canonical(path, ec);

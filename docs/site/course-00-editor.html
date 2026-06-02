@@ -1,0 +1,63 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 0 — Setting Up Your Editor — Kirito</title><style>
+:root{--bg:#16161a;--fg:#e4e4ea;--muted:#9a9aa6;--accent:#9b87ff;--code-bg:#1e1e25;
+--border:#2c2c35;--side:#1b1b21;--side-hover:#26262f}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:var(--side-hover);text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#16161a}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:var(--fg)}
+.kw{color:#c678dd}.str{color:#98c379}.com{color:#7f848e;font-style:italic}.num{color:#d19a66}
+.builtin{color:#61afef}
+a.xref{text-decoration:none}
+a.xref:hover{text-decoration:underline}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-00-editor.html" class="active">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values.html">Lesson 2 — Values and Variables</a><a href="course-03-numbers.html">Lesson 3 — Numbers and Arithmetic</a><a href="course-04-strings.html">Lesson 4 — Strings</a><a href="course-05-control-flow.html">Lesson 5 — Booleans and Control Flow</a><a href="course-06-loops.html">Lesson 6 — Loops and Iteration</a><a href="course-07-lists.html">Lesson 7 — Lists</a><a href="course-08-sets-dicts.html">Lesson 8 — Sets and Dictionaries</a><a href="course-09-unpacking.html">Lesson 9 — Packing and Unpacking</a><a href="course-10-functions.html">Lesson 10 — Functions</a><a href="course-11-closures.html">Lesson 11 — Closures and First-Class Functions</a><a href="course-12-annotations.html">Lesson 12 — Type Annotations and Runtime Checks</a><a href="course-13-classes.html">Lesson 13 — Classes I: Data and Behavior</a><a href="course-14-operators.html">Lesson 14 — Classes II: Operators and Protocols</a><a href="course-15-inheritance.html">Lesson 15 — Classes III: Inheritance and super</a><a href="course-16-errors.html">Lesson 16 — Errors and Exceptions</a><a href="course-17-context-managers.html">Lesson 17 — Context Managers and with</a><a href="course-18-files-io.html">Lesson 18 — Files, I/O, and Streams</a><a href="course-19-stdlib-tour.html">Lesson 19 — A Tour of the Standard Library</a><a href="course-20-regex.html">Lesson 20 — Regular Expressions</a><a href="course-21-capstone.html">Lesson 21 — Capstone: A Contact Book</a></nav><main id="content"><h1 id="lesson-0-setting-up-your-editor">Lesson 0 — Setting Up Your Editor</h1>
+<p>Before the first line of code, spend two minutes giving your editor <strong>Kirito syntax highlighting</strong>. It&#x27;s optional — Kirito runs fine from a plain text file — but coloured keywords, strings, and comments make the rest of this course much easier to read. Kirito is young, so no editor knows it out of the box; the repository ships ready-to-install definitions under <a href="https://github.com/AzethMeron/KiritoLang/tree/main/editors"><code>editors/</code></a>.</p>
+<p>Pick whichever editor you use.</p>
+<h2 id="vs-code-recommended">VS Code (recommended)</h2>
+<p>The <code>editors/vscode/</code> folder is a complete extension — a grammar plus comment-toggling, bracket matching, and auto-indent after <code>:</code>.</p>
+<pre><code>cp -r editors/vscode ~/.vscode/extensions/kirito-language-0.1.0</code></pre>
+<p>(On Windows that&#x27;s <code>%USERPROFILE%\.vscode\extensions\kirito-language-0.1.0</code>.) Reload VS Code and any <code>.ki</code> file lights up. To share it, package a <code>.vsix</code> with <code>vsce package</code> and <code>code --install-extension</code>.</p>
+<h2 id="notepad">Notepad++</h2>
+<p>Notepad++ has a built-in <strong>User Defined Language</strong> system, so no plugin is needed:</p>
+<ol><li><code>Language</code> menu → <code>User Defined Language</code> → <code>Define your language…</code></li><li>Click <code>Import…</code> and choose <code>editors/notepad++/kirito.xml</code>.</li><li>Restart Notepad++.</li></ol>
+<p><code>.ki</code> files are then highlighted automatically (or pick <strong>Kirito</strong> from the <code>Language</code> menu).</p>
+<blockquote>The bundled colours are tuned for a <strong>dark</strong> Notepad++ theme (Settings → Style Configurator → &quot;Dark Mode&quot;), to match the rest of the toolchain. If you use a light theme, open <em>Define your language…</em> and lift the per-style foreground/background colours to taste — a UDL stores its own colours rather than following the global theme.</blockquote>
+<h2 id="vim-neovim">Vim / Neovim</h2>
+<p>Copy <code>editors/vim/kirito.vim</code> to <code>~/.vim/syntax/kirito.vim</code> (Neovim: <code>~/.config/nvim/syntax/kirito.vim</code>) and tell Vim to use it for <code>.ki</code>:</p>
+<pre><code>autocmd BufRead,BufNewFile *.ki set filetype=kirito</code></pre>
+<h2 id="anything-else-the-30-second-fallback">Anything else (the 30-second fallback)</h2>
+<p>Kirito looks a lot like Python — significant indentation, <code>#</code> comments, similar control flow — so as a stopgap you can tell any editor to treat <code>.ki</code> files as <strong>Python</strong> and get most of the benefit instantly. The dedicated definitions above just add the Kirito-specific keywords (<a class="xref" href="course-10-functions.html#sym-Function"><code>Function</code></a>, <a class="xref" href="course-02-values.html#sym-var"><code>var</code></a>, <a class="xref" href="language-guide.html#switch"><code>switch</code></a>/<code>case</code>, <code>catch</code>/<a class="xref" href="course-16-errors.html#sym-throw"><code>throw</code></a>, <code>todo</code>, <a class="xref" href="course-10-functions.html#sym-discard"><code>discard</code></a>) and the fact that <a class="xref" href="stdlib.html#sym-print"><code>print</code></a>/<a class="xref" href="stdlib.html#sym-input"><code>input</code></a> aren&#x27;t builtins — they live in the <a class="xref" href="stdlib.html#io"><code>io</code></a> module.</p>
+<h2 id="what-you-learned">What you learned</h2>
+<ul><li>Where to find Kirito editor support (<code>editors/</code>), and how to install it for VS Code, Notepad++, and</li></ul>
+<p>  Vim.</p>
+<ul><li>The quick &quot;treat it as Python&quot; fallback for any other editor.</li></ul>
+<p>With colours in place, let&#x27;s write some code.</p>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

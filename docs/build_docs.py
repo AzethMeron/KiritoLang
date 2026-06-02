@@ -53,8 +53,8 @@ blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
 background:var(--code-bg);border-radius:0 8px 8px 0;color:var(--fg)}
 .kw{color:#c678dd}.str{color:#98c379}.com{color:#7f848e;font-style:italic}.num{color:#d19a66}
 .builtin{color:#61afef}
-a.xref{text-decoration:none;border-bottom:1px dotted var(--accent)}
-a.xref:hover{text-decoration:none;border-bottom-style:solid}
+a.xref{text-decoration:none}
+a.xref:hover{text-decoration:underline}
 a.xref code{color:inherit}
 hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
