@@ -1842,7 +1842,8 @@ inline void KiritoVM::installBuiltins() {
     });
 
     // Type constructors double as converters (Python style): Integer("42"), String(n), ...
-    def("Integer", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+    // Signatured so they accept a keyword arg (Integer(x = "42")) and describe themselves to inspect.
+    defSig("Integer", {{"x"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         if (args.size() != 1) throw KiritoError("Integer expected 1 argument");
         const Object& o = vm.arena().deref(args[0]);
         switch (o.kind()) {
@@ -1875,7 +1876,7 @@ inline void KiritoVM::installBuiltins() {
         }
     });
 
-    def("Float", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+    defSig("Float", {{"x"}}, "Float", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         if (args.size() != 1) throw KiritoError("Float expected 1 argument");
         const Object& o = vm.arena().deref(args[0]);
         switch (o.kind()) {
@@ -1899,23 +1900,24 @@ inline void KiritoVM::installBuiltins() {
         }
     });
 
-    def("String", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+    defSig("String", {{"x"}}, "String", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         if (args.size() != 1) throw KiritoError("String expected 1 argument");
         return vm.makeString(vm.stringify(args[0]));
     });
 
-    def("Bool", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+    defSig("Bool", {{"x"}}, "Bool", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         if (args.size() != 1) throw KiritoError("Bool expected 1 argument");
         return vm.makeBool(vm.arena().deref(args[0]).truthy());
     });
 
     // Collection constructors: List()/Set()/Dict() build an empty collection; List(iterable) and
     // Set(iterable) build from any iterable. (Literals [] {} {,} remain the idiomatic shorthand.)
-    def("List", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
-        if (args.size() > 1) throw KiritoError("List expected at most 1 argument");
+    // The `iterable` parameter is keyword-callable (List(iterable = xs)); its None default means
+    // "no source" -> an empty collection.
+    defSig("List", {{"iterable", "", none()}}, "List", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         RootScope rs(vm);
         auto list = std::make_unique<ListVal>();
-        if (args.size() == 1) {
+        if (!args.empty() && vm.arena().deref(args[0]).kind() != ValueKind::None) {
             auto items = vm.arena().deref(args[0]).iterate(vm);
             if (!items) throw KiritoError("List() argument must be iterable");
             for (Handle h : items.value()) rs.add(h);
@@ -1923,24 +1925,22 @@ inline void KiritoVM::installBuiltins() {
         }
         return vm.alloc(std::move(list));
     });
-    def("Set", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
-        if (args.size() > 1) throw KiritoError("Set expected at most 1 argument");
+    defSig("Set", {{"iterable", "", none()}}, "Set", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         RootScope rs(vm);
         Handle sh = rs.add(vm.alloc(std::make_unique<SetVal>()));
         auto& s = static_cast<SetVal&>(vm.arena().deref(sh));
-        if (args.size() == 1) {
+        if (!args.empty() && vm.arena().deref(args[0]).kind() != ValueKind::None) {
             auto items = vm.arena().deref(args[0]).iterate(vm);
             if (!items) throw KiritoError("Set() argument must be iterable");
             for (Handle h : items.value()) s.add(vm.arena(), h);
         }
         return sh;
     });
-    def("Dict", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
-        if (args.size() > 1) throw KiritoError("Dict expected at most 1 argument");
+    defSig("Dict", {{"iterable", "", none()}}, "Dict", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         RootScope rs(vm);
         Handle dh = rs.add(vm.alloc(std::make_unique<DictVal>()));
         auto& d = static_cast<DictVal&>(vm.arena().deref(dh));
-        if (args.size() == 1) {
+        if (!args.empty() && vm.arena().deref(args[0]).kind() != ValueKind::None) {
             // Dict(pairs): each item is an iterable [key, value].
             auto items = vm.arena().deref(args[0]).iterate(vm);
             if (!items) throw KiritoError("Dict() argument must be iterable of pairs");
@@ -2032,20 +2032,50 @@ inline void KiritoVM::installBuiltins() {
         }
         return isFloat ? vm.makeFloat(f) : vm.makeInt(n);
     });
-    auto extremum = [](KiritoVM& vm, std::span<const Handle> a, bool wantMax) -> Handle {
+    // min/max are variadic (a single iterable, or several positional values) and accept the keyword
+    // options `key` (a function producing the comparison key) and `default` (returned for an empty
+    // single-iterable, else an empty sequence raises) — matching Python. inspect shows them as
+    // variadic (...). who = "min"/"max".
+    auto extremum = [](KiritoVM& vm, std::span<const Handle> a, std::span<const NamedArg> named,
+                       bool wantMax, const char* who) -> Handle {
+        RootScope rs(vm);
+        Handle keyFn{};
+        bool hasKey = false, hasDefault = false;
+        Handle defaultVal{};
+        for (const auto& na : named) {
+            if (na.name == "key") { keyFn = na.value; hasKey = true; }
+            else if (na.name == "default") { defaultVal = na.value; hasDefault = true; }
+            else throw KiritoError(std::string(who) + "() got an unexpected keyword argument '" + na.name + "'");
+        }
         std::vector<Handle> items;
-        if (a.size() == 1) items = vm.arena().deref(a[0]).iterate(vm).value();
+        if (a.size() == 1) { auto it = vm.arena().deref(a[0]).iterate(vm);
+            if (!it) throw KiritoError(std::string(who) + "() argument is not iterable");
+            items = std::move(it.value()); }
         else items.assign(a.begin(), a.end());
-        if (items.empty()) throw KiritoError("min/max of empty sequence");
-        Handle best = items[0];
+        for (Handle h : items) rs.add(h);
+        if (items.empty()) {
+            if (hasDefault) return defaultVal;
+            throw KiritoError(std::string(who) + "() arg is an empty sequence");
+        }
+        auto keyOf = [&](Handle h) -> Handle {
+            if (!hasKey) return h;
+            std::array<Handle, 1> args{h};
+            return rs.add(vm.arena().deref(keyFn).call(vm, args));
+        };
+        Handle best = items[0], bestKey = keyOf(best);
         for (std::size_t i = 1; i < items.size(); ++i) {
-            bool better = wantMax ? kiLessThan(vm, best, items[i]) : kiLessThan(vm, items[i], best);
-            if (better) best = items[i];
+            Handle k = keyOf(items[i]);
+            bool better = wantMax ? kiLessThan(vm, bestKey, k) : kiLessThan(vm, k, bestKey);
+            if (better) { best = items[i]; bestKey = k; }
         }
         return best;
     };
-    def("min", [extremum](KiritoVM& vm, std::span<const Handle> a) { return extremum(vm, a, false); });
-    def("max", [extremum](KiritoVM& vm, std::span<const Handle> a) { return extremum(vm, a, true); });
+    g.define("min", alloc(std::make_unique<NativeFunction>("min",
+        NativeFnKw([extremum](KiritoVM& vm, std::span<const Handle> a, std::span<const NamedArg> n) {
+            return extremum(vm, a, n, false, "min"); }))));
+    g.define("max", alloc(std::make_unique<NativeFunction>("max",
+        NativeFnKw([extremum](KiritoVM& vm, std::span<const Handle> a, std::span<const NamedArg> n) {
+            return extremum(vm, a, n, true, "max"); }))));
     defSig("sorted", {{"iterable"}, {"key", "", none()}, {"reverse", "Bool", makeBool(false)}}, "List",
            [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         // sorted(iterable[, key][, reverse]) -> a new STABLE-sorted List.

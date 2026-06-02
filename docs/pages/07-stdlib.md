@@ -99,7 +99,7 @@ Constants and the usual numeric functions. Argument errors raise; results are `F
 - `factorial(n: Integer) → Integer` — `n!` (raises on negatives / Integer overflow).
 - `comb(n: Integer, k: Integer) → Integer` — combinations “n choose k”.
 - `perm(n: Integer, k: Integer) → Integer` — permutations.
-- `prod(iterable[, start]) → Number` — product of the elements (Integer if all Integer, else Float).
+- `prod(iterable, start = 1) → Number` — product of the elements times `start` (Integer if all Integer, else Float).
 
 ## random
 

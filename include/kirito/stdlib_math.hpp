@@ -166,7 +166,7 @@ public:
             return val(vm, static_cast<int64_t>(x));
         });
         // prod(iterable[, start]): product of the elements (Integer if all Integer, else Float).
-        m.fn("prod", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("prod", {{"iterable"}, {"start", "", vm.makeInt(1)}}, "Number", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.empty()) throw KiritoError("prod expects an iterable");
             auto items = vm.arena().deref(a[0]).iterate(vm);
             if (!items) throw KiritoError("prod expects an iterable");

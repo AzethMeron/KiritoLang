@@ -105,5 +105,26 @@ int main() {
         CHECK(mod.find("open(path: String") != std::string::npos);
     }
 
+    // --- inspect: builtins show their parameter NAMES; truly variadic builtins show `...` ---
+    {
+        KiritoVM vm;
+        // signatured builtins name their parameters
+        CHECK(run(vm, "inspect(Integer)") == "Integer(x) -> Integer");
+        CHECK(run(vm, "inspect(Float)") == "Float(x) -> Float");
+        CHECK(run(vm, "inspect(String)") == "String(x) -> String");
+        CHECK(run(vm, "inspect(Bool)") == "Bool(x) -> Bool");
+        CHECK(run(vm, "inspect(List)") == "List(iterable = None) -> List");
+        CHECK(run(vm, "inspect(len)").find("len(x) -> Integer") != std::string::npos);
+        CHECK(run(vm, "inspect(sorted)").find("key = None") != std::string::npos);
+        CHECK(run(vm, "inspect(sorted)").find("reverse: Bool = False") != std::string::npos);
+        // variadic builtins (no fixed parameter list) advertise themselves with `...`
+        CHECK(run(vm, "inspect(min)") == "min(...)  [native]");
+        CHECK(run(vm, "inspect(max)") == "max(...)  [native]");
+        CHECK(run(vm, "inspect(zip)") == "zip(...)  [native]");
+        CHECK(run(vm, "inspect(range)") == "range(...)  [native]");
+        // io.print / write etc. are keyword-aware variadic -> still `...`
+        CHECK(run(vm, "inspect(import(\"io\").print)") == "print(...)  [native]");
+    }
+
     return RUN_TESTS();
 }

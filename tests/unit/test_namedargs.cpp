@@ -124,9 +124,65 @@ int main() {
         CHECK(run(vm, "len(x = [1, 2])") == "2");  // `len`'s parameter is named `x`
         CHECK(run(vm, "try:\n    len(obj = [1, 2])\ncatch as e:\n    e\n")
                   .find("unexpected keyword argument 'obj'") != std::string::npos);
-        // a signatureless native (variadic) still rejects keyword args wholesale
+        // a keyword-aware variadic native (io.print accepts only `stream=`) rejects other keywords
         CHECK(run(vm, "var io = import(\"io\")\ntry:\n    io.print(end = 1)\ncatch as e:\n    e\n")
-                  .find("does not accept keyword arguments") != std::string::npos);
+                  .find("unexpected keyword argument 'end'") != std::string::npos);
+    }
+
+    // --- keyword arguments on the builtin type constructors / converters ---
+    {
+        KiritoVM vm;
+        CHECK(run(vm, "Integer(x = \"42\")") == "42");
+        CHECK(run(vm, "Float(x = 3)") == "3.0");
+        CHECK(run(vm, "String(x = 99)") == "99");
+        CHECK(run(vm, "Bool(x = 0)") == "False");
+        CHECK(run(vm, "List(iterable = range(3))") == "[0, 1, 2]");
+        CHECK(run(vm, "len(Set(iterable = [1, 1, 2, 2, 3]))") == "3");
+        CHECK(run(vm, "Dict(iterable = [[\"a\", 1]])[\"a\"]") == "1");
+        CHECK(run(vm, "List()") == "[]");                 // no-arg still builds empty
+        CHECK(run(vm, "len(Dict())") == "0");
+        // unknown keyword on a converter is rejected by name
+        CHECK(run(vm, "try:\n    Integer(value = 1)\ncatch as e:\n    e\n")
+                  .find("unexpected keyword argument 'value'") != std::string::npos);
+    }
+
+    // --- min / max: keyword-aware variadic with `key` and `default` ---
+    {
+        KiritoVM vm;
+        CHECK(run(vm, "min([3, 1, 2])") == "1");
+        CHECK(run(vm, "max([3, 1, 2])") == "3");
+        CHECK(run(vm, "min(3, 1, 2)") == "1");                       // several positionals
+        CHECK(run(vm, "max(\"a\", \"bbb\", \"cc\", key = len)") == "bbb");
+        CHECK(run(vm, "min([3, 1, 2], key = Function(x):\n    return -x\n)") == "3");
+        CHECK(run(vm, "min([], default = \"none\")") == "none");
+        CHECK(run(vm, "max([], default = -1)") == "-1");
+        // empty without a default raises; an unknown keyword is rejected
+        CHECK(run(vm, "try:\n    min([])\ncatch as e:\n    e\n").find("empty sequence") != std::string::npos);
+        CHECK(run(vm, "try:\n    min([1], bogus = 2)\ncatch as e:\n    e\n")
+                  .find("unexpected keyword argument 'bogus'") != std::string::npos);
+    }
+
+    // --- math.prod accepts keyword args (iterable + start default 1) ---
+    {
+        KiritoVM vm;
+        CHECK(run(vm, "import(\"math\").prod(iterable = [2, 3, 4])") == "24");
+        CHECK(run(vm, "import(\"math\").prod([2, 3, 4], start = 10)") == "240");
+    }
+
+    // --- out-of-order keywords on ASYMMETRIC natives bind strictly by name (a swap would differ) ---
+    {
+        KiritoVM vm;
+        CHECK(run(vm, "divmod(b = 5, a = 17)") == "[3, 2]");      // not divmod(5, 17) == [0, 5]
+        CHECK(run(vm, "divmod(b = 17, a = 5)") == "[0, 5]");
+        CHECK(run(vm, "pow(mod = 5, exp = 3, base = 2)") == "3"); // 2**3 % 5 == 3, fully shuffled
+        CHECK(run(vm, "round(ndigits = 1, x = 2.345)") == "2.3");
+        CHECK(run(vm, "format(spec = \"03d\", value = 7)") == "007");
+        CHECK(run(vm, "isinstance(type = \"String\", value = \"hi\")") == "True");
+        CHECK(run(vm, "import(\"math\").log(base = 2, x = 8)") == "3.0");
+        CHECK(run(vm, "import(\"math\").prod(start = 2, iterable = [3, 4])") == "24");
+        // positional prefix, then a reversed keyword remainder
+        CHECK(run(vm, "pow(2, mod = 5, exp = 3)") == "3");
+        CHECK(run(vm, "divmod(17, b = 5)") == "[3, 2]");
     }
 
     return RUN_TESTS();

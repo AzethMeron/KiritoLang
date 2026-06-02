@@ -1,67 +1,90 @@
 # Built-in Functions
 
-These names are available everywhere without an `import`.
+These names are available everywhere without an `import`. Each entry lists a signature
+(`name(args) → ReturnType`), what it takes, and what it does.
 
-Most fixed-arity builtins (and stdlib module functions) declare a **signature**, so they accept
-**keyword arguments** and **defaults** just like Kirito functions — e.g. `round(3.14159, ndigits=2)`,
-`sorted(xs, reverse=True)`, `pow(2, 10, mod=1000)`, `io.open(path, mode="w")`. `inspect(fn)` shows a
-function's parameters, types, and return type. Genuinely variadic builtins (`min`, `max`, `zip`,
-`range`, `io.print`) take positional arguments only.
+**Keyword arguments everywhere.** Every fixed-arity builtin declares a **signature**, so it accepts
+its parameters by name and in any order, with defaults — e.g. `Integer(x = "42")`,
+`round(3.14159, ndigits = 2)`, `sorted(xs, reverse = True)`, `pow(2, 10, mod = 1000)`. `inspect(fn)`
+prints those parameter names, types, and return type live. Genuinely **variadic** builtins
+(`min`, `max`, `zip`, `range`, `sum`) take a positional list and advertise themselves as `name(...)`
+under `inspect`; `min`/`max` additionally accept the keyword options `key=` and `default=`.
+
+A leading `*args` below denotes a variadic positional list; `[arg]` denotes an optional argument.
 
 ## Types and conversion
 
-| Function | Description |
-|----------|-------------|
-| `type(x)` | Type name of `x` as a String (e.g. `"Integer"`). |
-| `Integer(x)` | Convert Bool/Float/String to Integer. |
-| `Float(x)` | Convert Integer/Bool/String to Float. |
-| `String(x)` | The `str()` form of any value. |
-| `Bool(x)` | Truthiness of `x`. |
-| `List([iter])` | Empty list, or a list from an iterable. |
-| `Set([iter])` | Empty set, or a set from an iterable. |
-| `Dict([pairs])` | Empty dict, or a dict from `[key, value]` pairs. |
-| `isinstance(x, T)` | True if `x` is an instance of type `T` (a class value or a type-name String); inheritance-aware. |
+The type constructors double as converters (Python style) and are keyword-callable by their
+parameter name.
+
+- `type(x) → String` — the type name of `x` (e.g. `"Integer"`, `"List"`, a user class's name).
+- `Integer(x) → Integer` — convert to a 64-bit integer. Accepts `Bool` (`True`→`1`), `Float`
+  (truncates toward zero; rejects NaN/∞/out-of-range), or a `String` in decimal or `0x`/`0o`/`0b`
+  form. Raises on anything else or an unparseable String.
+- `Float(x) → Float` — convert to a double. Accepts `Integer`, `Bool`, or a numeric `String`
+  (including scientific notation). Raises if a String doesn't parse.
+- `String(x) → String` — the `str()` form of any value (the same text `io.print` would emit).
+- `Bool(x) → Bool` — the truthiness of `x` (empty collections/`0`/`""`/`None` are `False`).
+- `List([iterable]) → List` — an empty list, or a new list built from any iterable. `List(iterable = xs)`.
+- `Set([iterable]) → Set` — an empty set, or a set of the distinct elements of an iterable.
+- `Dict([iterable]) → Dict` — an empty dict, or a dict from an iterable of `[key, value]` pairs.
+- `isinstance(value, type) → Bool` — whether `value` is an instance of `type` — a class value or a
+  type-name `String` (`isinstance(x, "Integer")`). Inheritance-aware: a subclass instance satisfies a
+  base type.
 
 ## Sequences and iteration
 
-| Function | Description |
-|----------|-------------|
-| `len(x)` | Number of elements / code points. |
-| `range(stop)` / `range(start, stop[, step])` | List of integers. |
-| `enumerate(iter)` | List of `[index, value]` pairs. |
-| `zip(a, b, ...)` | List of tuples, truncated to the shortest input. |
-| `map(f, iter)` | Apply `f` to each element → List. |
-| `filter(f, iter)` | Keep elements where `f(x)` is truthy → List. |
-| `reversed(iter)` | Elements in reverse order → List. |
-| `sorted(iter[, key][, reverse])` | New stable-sorted List. |
-| `sum(iter)` | Sum of numbers (Integer if all Integer). |
-| `min(iter)` / `max(iter)` | Smallest / largest (also variadic: `min(a, b, c)`). |
-| `all(iter)` / `any(iter)` | Truthiness over a sequence. |
+- `len(x) → Integer` — number of elements of a collection, or code points of a String.
+- `range(stop) → List` / `range(start, stop[, step]) → List` — integers from `start` (default `0`)
+  up to but excluding `stop`, stepping by `step` (default `1`, may be negative). Materializes a List;
+  a step of `0` raises, and an over-large result raises rather than exhausting memory.
+- `enumerate(iterable) → List` — a list of `[index, value]` pairs, indices starting at `0`.
+- `zip(*iterables) → List` — a list of `[a, b, …]` tuples drawn position-wise from the inputs,
+  truncated to the shortest. Variadic.
+- `map(function, iterable) → List` — apply `function` to every element, collecting the results.
+- `filter(function, iterable) → List` — keep the elements for which `function(x)` is truthy.
+- `reversed(iterable) → List` — the elements in reverse order.
+- `sorted(iterable[, key][, reverse]) → List` — a new **stable**-sorted list. `key` is an optional
+  function mapping each element to its comparison key (computed once per element); `reverse = True`
+  sorts descending. `sorted(xs, key = len, reverse = True)`.
+- `sum(iterable) → Number` — the sum of a sequence of numbers; an `Integer` if every element is an
+  Integer, otherwise a `Float`. `sum([])` is `0`.
+- `min(*args[, key][, default]) → value` / `max(*args[, key][, default]) → value` — the smallest /
+  largest of a single iterable (`min(xs)`) or of several positional values (`min(a, b, c)`). `key` is
+  an optional function producing the comparison key; `default` is returned when the (single) iterable
+  is empty — without it, an empty sequence raises. `max(words, key = len)`.
+- `all(iterable) → Bool` — `True` if every element is truthy (vacuously `True` when empty).
+- `any(iterable) → Bool` — `True` if at least one element is truthy.
 
 ## Numbers
 
-| Function | Description |
-|----------|-------------|
-| `abs(x)` | Absolute value. |
-| `round(x[, ndigits])` | Round to `ndigits` decimals (default 0). |
-| `divmod(a, b)` | `[a // b, a % b]`. |
-| `pow(b, e)` / `pow(b, e, m)` | Exponentiation; 3-arg form is modular `(b**e) % m`. |
-| `bin(n)` / `oct(n)` / `hex(n)` | Base-2/8/16 string with `0b`/`0o`/`0x` prefix (sign-aware). |
-| `bitand(a, b)` / `bitor(a, b)` / `bitxor(a, b)` | Bitwise AND / OR / XOR of two Integers. |
-| `bitnot(a)` | Bitwise NOT (`~a`, i.e. `-a - 1`). |
-| `shl(a, n)` / `shr(a, n)` | Shift `a` left / right by `n` bits (`n ≥ 0`). `shr` is arithmetic (sign-preserving). |
-| `ord(ch)` | Unicode code point of a single-character String. |
-| `chr(cp)` | Single-character String for a code point. |
-| `format(value[, spec])` | Format a value with a mini-format-spec (see below). |
+- `abs(x) → Number` — absolute value of an Integer or Float (Integer `abs` wraps two's-complement at
+  `INT64_MIN`, consistent with Kirito's fixed-width integers).
+- `round(x[, ndigits]) → Number` — with `ndigits` omitted (or `None`), round to the nearest
+  `Integer`; with `ndigits` given, round to that many decimal places, yielding a `Float`.
+  `round(pi, ndigits = 2)`.
+- `divmod(a, b) → List` — `[a // b, a % b]` in one step, using floor semantics.
+- `pow(base, exp[, mod]) → Number` — exponentiation; the 3-argument form is modular,
+  `(base ** exp) % mod`, computed efficiently. `pow(2, 10, mod = 1000)`.
+- `bin(n) → String` / `oct(n) → String` / `hex(n) → String` — the base-2/8/16 text of an Integer with
+  a `0b`/`0o`/`0x` prefix (sign-aware).
+- `bitand(a, b) → Integer` / `bitor(a, b) → Integer` / `bitxor(a, b) → Integer` — bitwise AND / OR /
+  XOR of two Integers (Kirito has no `&`/`|`/`^` operators).
+- `bitnot(a) → Integer` — bitwise NOT (`~a`, i.e. `-a - 1`).
+- `shl(a, n) → Integer` / `shr(a, n) → Integer` — shift `a` left / right by `n ≥ 0` bits; `shr` is
+  arithmetic (sign-preserving).
+- `ord(char) → Integer` — the Unicode code point of a single-character String.
+- `chr(codepoint) → String` — the single-character String for a code point.
+- `format(value[, spec]) → String` — format a value with a mini-format-spec (see below).
 
 ## Formatting with `format`
 
-`format(value, spec)` applies a format spec of the form
-`[[fill]align][sign][#][0][width][,][.precision][type]`:
+`format(value, spec)` applies a spec of the form `[[fill]align][sign][#][0][width][,][.precision][type]`:
 
 ```kirito
 format(42, "05d")        # "00042"
 format(255, "x")         # "ff"        (also X, b, o, d)
+format(255, "#x")        # "0xff"      (# adds the base prefix)
 format(3.14159, ".2f")   # "3.14"      (also e, g, %)
 format(1234567, ",")     # "1,234,567" (thousands separator)
 format(0.25, ".1%")      # "25.0%"
@@ -70,19 +93,24 @@ format("x", "*^7")       # "***x***"   (custom fill)
 format(-42, "+06d")      # "-00042"    (sign + zero-pad)
 ```
 
-## I/O and modules
+## Introspection and modules
 
-| Function | Description |
-|----------|-------------|
-| `import(name)` | Load and return a module. |
-| `inspect(x)` | A String describing the public methods/attributes (with signatures and type annotations) of a class, instance, module, or function. |
+- `import(name) → Module` — load and return the named module (cached per VM). `import(name = "io")`.
+- `inspect(x) → String` — a human-readable description of the public methods/attributes (with
+  signatures, type annotations, and defaults) of a class, instance, module, or function — including
+  native functions/modules that declare a signature.
+- `id(x) → Integer` — a stable identity for a live object (its arena slot); interned scalars share
+  one. Useful for detecting aliasing/shared references.
 
-> `print` and `input` are **not** builtins — they live in the `io` module: `import("io").print(...)`.
+> `print` and `input` are **not** builtins — they live in the `io` module:
+> `import("io").print(...)`. See the [standard library](07-stdlib.md#io) reference.
 
 ## Notes
 
 - `divmod`/`//`/`%` use floor semantics — the quotient rounds toward negative infinity and the
   remainder takes the sign of the divisor: `divmod(-7, 3) == [-3, 2]`.
 - `range` materializes a List (there are no lazy generators yet), so very large ranges allocate.
-- `min`/`max` raise on an empty sequence; `sum([])` is `0`.
+- `min`/`max` raise on an empty sequence unless `default` is given; `sum([])` is `0`.
 - Passing a non-iterable where an iterable is expected raises a clean `is not iterable` error.
+- An unknown keyword, a duplicated argument, a missing required argument, or too many positionals all
+  raise a clear, catchable error naming the function and argument.

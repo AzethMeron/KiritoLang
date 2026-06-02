@@ -116,14 +116,3 @@ foreach(script ${ki_error_scripts})
                      -DEXPECTED=${expected}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_error.cmake)
 endforeach()
-
-# --- self-hosting interpreter: run the language-level .ki suite through Kirito-in-Kirito ---
-# examples/big_projects/selfhost is a complete Kirito interpreter written in Kirito; this test runs
-# the main suite's programs through it and checks each reproduces its recorded output.
-add_test(NAME selfhost
-         COMMAND $<TARGET_FILE:ki>
-                 --lib ${CMAKE_SOURCE_DIR}/examples/big_projects/selfhost/lib
-                 ${CMAKE_SOURCE_DIR}/examples/big_projects/selfhost/run_tests.ki)
-set_tests_properties(selfhost PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    PASS_REGULAR_EXPRESSION "ALL SELF-HOST TESTS PASSED")

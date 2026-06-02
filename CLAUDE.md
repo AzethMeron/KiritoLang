@@ -146,9 +146,17 @@ a stability fuzzer, and a benchmark). Working today:
 - **Native functions can declare a signature** (`NativeFunction` second ctor / `ModuleBuilder::fn`
   overload, taking `std::vector<NativeParam>` + a return-type string). A signatured native function
   then accepts **keyword arguments** and **defaults** (the evaluator binds them into the positional
-  `span` the impl expects via `NativeFunction::bindArgs`) and is fully described by `inspect`. Errors
+  `span` the impl expects via `NativeFunction::bindArgs` — strictly by name, so out-of-order keywords
+  bind correctly) and is fully described by `inspect`. Errors
   carry the module/chunk filename (`KiritoError::file`), so a parse error in an imported module
-  reports that module's path, not the entry script's. **All native stdlib modules** (io/math/random/matrix/json/serialize/dump/net/sys/time/zlib/hash) declare signatures on their fixed-arity functions, so they accept keyword args and `inspect` shows full signatures (variadic ones like `min`/`max`/`zip`/`io.print` stay positional).
+  reports that module's path, not the entry script's. **Every fixed-arity native** — builtins
+  (incl. the `Integer`/`Float`/`String`/`Bool`/`List`/`Set`/`Dict` constructors) and all stdlib
+  modules (io/math/random/matrix/json/serialize/dump/net/sys/time/zlib/hash) — declares a signature,
+  so it accepts keyword args and `inspect` shows its full signature. Genuinely **variadic** natives
+  (`min`/`max`/`zip`/`range`/`sum`/`io.print`) take a positional list and show `...` under `inspect`;
+  a variadic native that also wants named options is registered as a **keyword-aware variadic**
+  (`NativeFnKw` / `ModuleBuilder::kwfn` / `NativeFunction(name, NativeFnKw)`, dispatched via
+  `callKw`) — e.g. `min`/`max` accept `key=`/`default=`, and `io.print` etc. accept `stream=`.
 - **Standard library** (each a one-liner `vm.install<T>()`; a third party adds their own the same
   way — `#include` a header, register on the VM, no global state):
   - `io` — print/eprint/write/input/read acting on **rebindable, interchangeable streams**: the

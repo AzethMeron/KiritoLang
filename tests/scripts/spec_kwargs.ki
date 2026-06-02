@@ -1,0 +1,143 @@
+# Every Kirito-visible function — builtins and native module functions included — accepts named
+# (keyword) arguments for its declared parameters, with order independence and defaults; `inspect`
+# shows those parameter names, or `...` when the function is genuinely variadic. Typical + edge +
+# adversarial + a small fuzz sweep.
+var io = import("io")
+var math = import("math")
+
+# --- type constructors / converters take their parameter by keyword ---
+assert Integer(x="42") == 42, "Integer(x=)"
+assert Float(x=3) == 3.0, "Float(x=)"
+assert String(x=99) == "99", "String(x=)"
+assert Bool(x=0) == False and Bool(x=7) == True, "Bool(x=)"
+assert List(iterable=range(3)) == [0, 1, 2], "List(iterable=)"
+assert len(Set(iterable=[1, 1, 2, 2, 3])) == 3, "Set(iterable=)"
+assert Dict(iterable=[["a", 1], ["b", 2]])["b"] == 2, "Dict(iterable=)"
+
+# --- no-arg constructors still build empties (None default means "no source") ---
+assert List() == [] and len(Set()) == 0 and len(Dict()) == 0, "empty constructors"
+
+# --- signatured builtins: keyword + default + order independence ---
+assert round(3.14159, ndigits=2) == 3.14, "round(ndigits=)"
+assert round(x=2.71828, ndigits=3) == 2.718, "round all keyword"
+assert round(2.7) == 3, "round default ndigits"
+assert pow(base=2, exp=10) == 1024, "pow keyword"
+assert pow(exp=3, base=2, mod=5) == 3, "pow keyword any order (8 % 5)"
+assert sorted([3, 1, 2], reverse=True) == [3, 2, 1], "sorted(reverse=)"
+assert sorted(["bb", "a", "ccc"], key=len) == ["a", "bb", "ccc"], "sorted(key=)"
+assert format(255, spec="x") == "ff", "format(spec=)"
+assert divmod(a=17, b=5) == [3, 2], "divmod keyword"
+assert isinstance(value=5, type="Integer"), "isinstance keyword"
+
+# --- min / max: keyword-aware variadic with key= and default= ---
+assert min([3, 1, 2]) == 1 and max([3, 1, 2]) == 3, "min/max iterable"
+assert min(3, 1, 2) == 1 and max(3, 1, 2) == 3, "min/max positional spread"
+assert max("a", "bbb", "cc", key=len) == "bbb", "max(key=len)"
+var negate = Function(n): return -n
+assert min([3, 1, 2], key=negate) == 3, "min(key=) picks largest by negated key"
+assert min([], default="empty") == "empty", "min(default=) on empty"
+assert max([], default=-1) == -1, "max(default=) on empty"
+
+# --- math.prod accepts keyword args ---
+assert math.prod(iterable=[2, 3, 4]) == 24, "prod(iterable=)"
+assert math.prod([2, 3, 4], start=10) == 240, "prod(start=)"
+
+# --- inspect shows parameter NAMES for signatured functions ---
+assert inspect(Integer) == "Integer(x) -> Integer", "inspect names Integer's param"
+assert inspect(List) == "List(iterable = None) -> List", "inspect shows List's optional param"
+assert "ndigits = None" in inspect(round), "inspect shows round's default"
+assert "key = None" in inspect(sorted), "inspect shows sorted's key param"
+
+# --- inspect shows `...` for genuinely variadic functions ---
+assert inspect(min) == "min(...)  [native]", "min is variadic in inspect"
+assert inspect(max) == "max(...)  [native]", "max is variadic in inspect"
+assert inspect(zip) == "zip(...)  [native]", "zip is variadic in inspect"
+assert inspect(range) == "range(...)  [native]", "range is variadic in inspect"
+assert inspect(io.print) == "print(...)  [native]", "io.print is variadic in inspect"
+
+# --- adversarial: unknown keyword is rejected by name ---
+var threw = False
+try:
+    discard Integer(value=1)
+catch as e:
+    threw = "unexpected keyword argument 'value'" in e
+assert threw, "unknown keyword on a converter rejected"
+
+# --- adversarial: duplicate value (positional + same keyword) ---
+var threw2 = False
+try:
+    discard pow(2, base=3)
+catch as e:
+    threw2 = "multiple values for argument 'base'" in e
+assert threw2, "duplicate positional+keyword rejected"
+
+# --- adversarial: missing required argument ---
+var threw3 = False
+try:
+    discard divmod(a=1)
+catch as e:
+    threw3 = "missing required argument 'b'" in e
+assert threw3, "missing required argument rejected"
+
+# --- adversarial: too many positionals against a fixed signature ---
+var threw4 = False
+try:
+    discard Integer(1, 2)
+catch as e:
+    threw4 = True
+assert threw4, "too many positionals rejected"
+
+# --- adversarial: positional after keyword is a parse-time-ish binding error ---
+var threw5 = False
+try:
+    discard min([1], bogus=2)
+catch as e:
+    threw5 = "unexpected keyword argument 'bogus'" in e
+assert threw5, "unknown keyword on min rejected"
+
+# --- adversarial: min/max on empty without default raises ---
+var threw6 = False
+try:
+    discard max([])
+catch as e:
+    threw6 = "empty sequence" in e
+assert threw6, "max of empty without default raises"
+
+# --- out-of-order keywords on ASYMMETRIC natives: a wrong binding would give a different answer ---
+# divmod(a, b): swapping operands changes the result, so reversed keywords must still bind by name.
+assert divmod(b=5, a=17) == [3, 2], "divmod reversed keywords bind by name"
+assert divmod(b=17, a=5) == [0, 5], "divmod reversed keywords, other way"
+# pow(base, exp, mod): fully shuffled keywords.
+assert pow(mod=5, exp=3, base=2) == 3, "pow fully shuffled keywords (8 % 5)"
+assert pow(exp=2, base=3) == 9, "pow reversed two keywords"
+# round(x, ndigits): reversed.
+assert round(ndigits=1, x=2.345) == 2.3, "round reversed keywords"
+# format(value, spec): reversed.
+assert format(spec="03d", value=7) == "007", "format reversed keywords"
+# isinstance(value, type): reversed.
+assert isinstance(type="String", value="hi"), "isinstance reversed keywords"
+assert not isinstance(type="Integer", value="hi"), "isinstance reversed keywords, false case"
+# sorted(iterable, key, reverse): keyword key/reverse supplied before via names, any order.
+assert sorted(reverse=True, iterable=[1, 3, 2], key=negate) == [1, 2, 3], "sorted shuffled keywords"
+# math.log(x, base): reversed keywords (log base 2 of 8 == 3).
+assert math.log(base=2, x=8) == 3.0, "math.log reversed keywords"
+# math.prod(iterable, start): reversed keywords.
+assert math.prod(start=2, iterable=[3, 4]) == 24, "prod reversed keywords"
+
+# --- positional then a reversed remainder of keywords ---
+assert pow(2, mod=5, exp=3) == 3, "positional base, reversed keyword remainder"
+assert divmod(17, b=5) == [3, 2], "positional a, keyword b"
+
+# --- fuzz: round-trip Integer(x=) over a range of decimal strings; converters via keyword stay sane
+var i = 0
+while i < 500:
+    var s = String(x=i)
+    assert Integer(x=s) == i, "Integer/String keyword round-trip"
+    assert min(i, i + 1, i + 2, key=negate) == i + 2, "keyword key over a moving window"
+    i = i + 1
+
+# --- fuzz: sorted(key=, reverse=) keyword combos agree with manual reverse ---
+var data = [5, 3, 8, 1, 9, 2, 7]
+assert sorted(data, key=negate) == sorted(data, reverse=True), "key=negate equals reverse=True"
+
+io.print("OK")

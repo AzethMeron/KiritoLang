@@ -49,8 +49,8 @@ public:
           sig_(std::move(sig)), returnType_(std::move(returnType)), hasSig_(true) {}
     // Variadic AND keyword-aware: keeps the raw positional protocol but also receives named args.
     NativeFunction(std::string name, NativeFnKw kwfn, std::vector<Handle> captures = {})
-        : name_(std::move(name)), captures_(std::move(captures)),
-          kwFn_(std::move(kwfn)), acceptsKwargs_(true) {}
+        : name_(std::move(name)), kwFn_(std::move(kwfn)), captures_(std::move(captures)),
+          acceptsKwargs_(true) {}
 
     ValueKind kind() const override { return ValueKind::NativeFunction; }
     std::string typeName() const override { return "Function"; }
