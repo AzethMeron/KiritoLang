@@ -87,29 +87,29 @@ r
 )") == "from callback");
     }
 
-    // --- 4. A Kirito throw of a class instance surfaces to the embedder; the embedder can inspect
-    //        the thrown value via KiritoThrow.
+    // --- 4. An uncaught Kirito `throw` of a class instance surfaces to the embedder as a
+    //        KiritoError whose message carries the thrown value's text (runSource never lets a raw
+    //        throw escape unwrapped). We give Err a _str_ so the value is observable in the message.
     {
         KiritoVM vm;
         bool caught = false;
+        std::string msg;
         try {
-            vm.runSource(R"(
+            vm.runSource(R"KI(
 class Err:
     var _init_ = Function(self, code):
         self.code = code
+    var _str_ = Function(self) -> String:
+        return "Err(" + String(self.code) + ")"
 throw Err(42)
-)");
-        } catch (const KiritoThrow& t) {
+)KI");
+        } catch (const KiritoError& e) {
             caught = true;
-            // inspect the thrown instance's attribute from C++
-            Handle code = vm.arena().deref(t.value).getAttr(vm, t.value, "code");
-            CHECK(vm.arena().deref(code).kind() == ValueKind::Integer);
-            CHECK(static_cast<const IntVal&>(vm.arena().deref(code)).value() == 42);
-        } catch (const KiritoError&) {
-            // (runSource may wrap uncaught throws; accept either path)
-            caught = true;
+            msg = e.what();
         }
         CHECK(caught);
+        CHECK(msg.find("uncaught exception") != std::string::npos);
+        CHECK(msg.find("Err(42)") != std::string::npos);  // the thrown instance's _str_ is in the message
     }
 
     // --- 5. GC safety: an exception thrown deep in a heavily-allocating computation unwinds
