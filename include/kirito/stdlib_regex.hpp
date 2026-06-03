@@ -31,6 +31,9 @@ inline std::string cpSlice(const std::string& s, const std::vector<std::size_t>&
 class MatchVal : public NativeClass<MatchVal> {
 public:
     static constexpr const char* kTypeName = "Match";
+    std::vector<std::string> inspectMembers() const override {
+        return {"group(index) -> String", "groups(default) -> List", "groupdict(default) -> Dict", "start(group) -> Integer", "end(group) -> Integer", "span(group) -> List"};
+    }
     Handle subject;                                  // the String matched against (kept alive via children)
     std::vector<int> slots;                          // 2*(numGroups+1) code-point indices, -1 = absent
     int numGroups;
@@ -203,6 +206,9 @@ inline std::string expandTemplate(KiritoVM& vm, const std::string& tmpl, const M
 class RegexVal : public NativeClass<RegexVal> {
 public:
     static constexpr const char* kTypeName = "Regex";
+    std::vector<std::string> inspectMembers() const override {
+        return {"match(string, pos, endpos) -> Match", "search(string, pos, endpos) -> Match", "fullmatch(string, pos, endpos) -> Match", "findall(string, pos, endpos) -> List", "finditer(string, pos, endpos) -> List", "sub(repl, string, count) -> String", "split(string, maxsplit) -> List"};
+    }
     reng::Program prog;
     std::string pattern;
 

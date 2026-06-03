@@ -33,6 +33,9 @@ namespace kirito {
 class SocketVal : public NativeClass<SocketVal> {
 public:
     static constexpr const char* kTypeName = "Socket";
+    std::vector<std::string> inspectMembers() const override {
+        return {"connect(host, port)", "bind(host, port)", "listen(backlog)", "accept() -> Socket", "send(data) -> Integer", "recv(size) -> String", "recvall() -> String", "settimeout(seconds)", "close()"};
+    }
     netcompat::socket_t fd = netcompat::kInvalidSocket;
     bool closed = false;
 
@@ -432,6 +435,9 @@ inline std::string httpExchange(const Url& u, const std::string& request, double
 class ResponseVal : public NativeClass<ResponseVal> {
 public:
     static constexpr const char* kTypeName = "Response";
+    std::vector<std::string> inspectMembers() const override {
+        return {"status: Integer", "statuscode: Integer", "reason: String", "ok: Bool", "url: String", "text: String", "headers: Dict", "cookies: Dict", "json() -> Any", "header(name) -> String", "raiseforstatus()"};
+    }
     int status = 0;
     std::string reason, url, body;
     Handle headersH{}, cookiesH{};  // Dicts (headers in original case; cookies name->value)
@@ -447,6 +453,9 @@ public:
 class SessionVal : public NativeClass<SessionVal> {
 public:
     static constexpr const char* kTypeName = "Session";
+    std::vector<std::string> inspectMembers() const override {
+        return {"headers: Dict", "cookies: Dict", "get(url, opts) -> Response", "post(url, opts) -> Response", "put(url, opts) -> Response", "delete(url, opts) -> Response", "patch(url, opts) -> Response", "head(url, opts) -> Response", "options(url, opts) -> Response", "request(method, url, opts) -> Response"};
+    }
     Handle headersH{}, cookiesH{};
     void children(std::vector<Handle>& out) const override { out.push_back(headersH); out.push_back(cookiesH); }
     std::string str(StringifyCtx&) const override { return "<Session>"; }

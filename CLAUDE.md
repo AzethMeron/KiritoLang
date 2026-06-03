@@ -158,7 +158,9 @@ a stability fuzzer, and a benchmark). Working today:
   fill/align/sign/width/`,`/precision/type), and the
   `Integer`/`Float`/`String`/`Bool`/`List`/`Set`/`Dict` constructors/converters. `inspect(x)` returns
   a String describing the public methods/attributes (with signatures + annotations) of a class,
-  instance, module, or function — **including native functions/modules that declare a signature**.
+  instance, module, function, or **native object** (Random/Matrix/BytesIO/DateTime/regex/Socket/… —
+  each `NativeClass` declares its members via `Object::inspectMembers()`) — **including native
+  functions/modules that declare a signature**.
 - **Native functions can declare a signature** (`NativeFunction` second ctor / `ModuleBuilder::fn`
   overload, taking `std::vector<NativeParam>` + a return-type string). A signatured native function
   then accepts **keyword arguments** and **defaults** (the evaluator binds them into the positional

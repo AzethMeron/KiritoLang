@@ -92,6 +92,13 @@ public:
     }
     std::string str(StringifyCtx&) const override { return "DateTime(" + iso() + ")"; }
 
+    std::vector<std::string> inspectMembers() const override {
+        return {"year: Integer", "month: Integer", "day: Integer", "hour: Integer",
+                "minute: Integer", "second: Integer", "weekday: Integer", "yearday: Integer",
+                "timestamp() -> Integer", "add(seconds) -> DateTime", "sub(seconds) -> DateTime",
+                "diff(other) -> Integer", "iso() -> String", "format(fmt) -> String"};
+    }
+
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         if (name == "year") return vm.makeInt(tm.tm_year + 1900);
         if (name == "month") return vm.makeInt(tm.tm_mon + 1);

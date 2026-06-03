@@ -99,8 +99,10 @@ format(-42, "+06d")      # "-00042"    (sign + zero-pad)
 
 - `import(name) → Module` — load and return the named module (cached per VM). `import(name = "io")`.
 - `inspect(x) → String` — a human-readable description of the public methods/attributes (with
-  signatures, type annotations, and defaults) of a class, instance, module, or function — including
-  native functions/modules that declare a signature.
+  signatures, type annotations, and defaults) of a class, instance, module, function, or **native
+  object** (e.g. a `Random`, `Matrix`, `BytesIO`, `DateTime`, regex `Pattern`/`Match`, `Socket`,
+  `Response`, …) — every native type declares its members for introspection. Native
+  functions/modules that declare a signature are shown the same way.
 - `id(x) → Integer` — a stable identity for a live object (its arena slot); interned scalars share
   one. Useful for detecting aliasing/shared references.
 

@@ -76,6 +76,12 @@ public:
     // Enumerate contained handles for the (future) mark-sweep GC and for serialization.
     virtual void children(std::vector<Handle>&) const {}
 
+    // Public members (methods + attributes) for `inspect`, as formatted one-line descriptions, e.g.
+    // "randint(a, b) -> Integer" or "year: Integer". Because a native type's methods are produced
+    // on demand in getAttr (there's no list to walk), a NativeClass declares them here so inspect can
+    // show them; default is none (inspect then falls back to "<type> value").
+    virtual std::vector<std::string> inspectMembers() const { return {}; }
+
     virtual Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs);
     virtual Handle unary(KiritoVM&, UnOp, Handle self);
     virtual Handle call(KiritoVM&, std::span<const Handle> args);

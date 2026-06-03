@@ -64,6 +64,11 @@ public:
         return lines;
     }
 
+    std::vector<std::string> inspectMembers() const override {
+        return {"read(size) -> String", "readline() -> String", "readlines() -> List",
+                "write(data)", "writelines(lines)", "seek(offset, whence)", "tell() -> Integer",
+                "flush()", "close()"};
+    }
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
             return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
@@ -175,6 +180,11 @@ public:
         return out;
     }
 
+    std::vector<std::string> inspectMembers() const override {
+        return {"read(size) -> String", "readline() -> String", "write(data) -> Integer",
+                "getvalue() -> String", "seek(offset, whence) -> Integer", "tell() -> Integer",
+                "size() -> Integer", "truncate() -> Integer", "flush()", "close()"};
+    }
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
             return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
@@ -287,6 +297,9 @@ public:
         return lines;
     }
 
+    std::vector<std::string> inspectMembers() const override {
+        return {"write(data)", "read(size) -> String", "readline() -> String", "flush()"};
+    }
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
             return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});

@@ -1689,7 +1689,15 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
             // anything else is described generically (never blindly downcast — that would read
             // garbage and crash).
             const auto* instp = dynamic_cast<const InstanceValue*>(&o);
-            if (!instp) return o.typeName() + " value";
+            if (!instp) {
+                // A native object: list the members it declares for introspection.
+                std::vector<std::string> mem = o.inspectMembers();
+                if (mem.empty()) return o.typeName() + " value";
+                std::sort(mem.begin(), mem.end());
+                std::string out = o.typeName() + " object:\n";
+                for (const std::string& line : mem) out += "  " + line + "\n";
+                return out.substr(0, out.size() - 1);
+            }
             const auto& inst = *instp;
             std::string out = inst.className + " instance:\n";
             std::string attrs;

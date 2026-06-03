@@ -166,6 +166,9 @@ inline Handle read(KiritoVM& vm, const std::string& data) {
 class DumpVal : public NativeClass<DumpVal> {
 public:
     static constexpr const char* kTypeName = "Dump";
+    std::vector<std::string> inspectMembers() const override {
+        return {"size() -> Integer", "bytes() -> String", "save(path)"};
+    }
     std::string data;
 
     explicit DumpVal(std::string d) : data(std::move(d)) {}

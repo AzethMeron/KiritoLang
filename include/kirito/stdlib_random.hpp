@@ -35,6 +35,15 @@ public:
         throw KiritoError("expected a number");
     }
 
+    std::vector<std::string> inspectMembers() const override {
+        return {
+            "random() -> Float", "uniform(a, b) -> Float", "randint(a, b) -> Integer",
+            "randrange(start, stop, step) -> Integer", "choice(seq)", "shuffle(seq)",
+            "sample(population, k) -> List", "seed(a)", "gauss(mu, sigma) -> Float",
+            "normalvariate(mu, sigma) -> Float", "expovariate(lambd) -> Float",
+        };
+    }
+
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
             return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});

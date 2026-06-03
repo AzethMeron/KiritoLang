@@ -50,6 +50,15 @@ public:
         return true;
     }
 
+    std::vector<std::string> inspectMembers() const override {
+        return {
+            "rows() -> Integer", "cols() -> Integer", "shape() -> List",
+            "get(row, col) -> Float", "set(row, col, value)", "row(i) -> List",
+            "transpose() -> Matrix", "determinant() -> Float", "inverse() -> Matrix",
+            "trace() -> Float", "sum() -> Float", "apply(fn) -> Matrix",
+        };
+    }
+
     Handle binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) override;
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override;
     // m[i] -> a row (List); m[i, j] -> an element; m[i, j] = v -> set element.
