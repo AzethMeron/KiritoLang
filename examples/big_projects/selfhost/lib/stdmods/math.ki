@@ -104,7 +104,7 @@ var exp = Function(x):
 
 var _ln = Function(x):
     if x <= 0.0:
-        throw "math domain error: log of non-positive"
+        return nan                          # IEEE: log of a non-positive is NaN, not an error
     var k = 0
     var y = x
     while y > 1.3333333333333333:
@@ -146,7 +146,7 @@ var log1p = Function(x):
 # --- roots / powers -------------------------------------------------------------------------------
 var sqrt = Function(x):
     if x < 0.0:
-        throw "math domain error: sqrt of negative"
+        return nan                          # IEEE: sqrt of a negative is NaN, not an error
     if x == 0.0:
         return 0.0
     var g = x
@@ -385,3 +385,18 @@ var prod = Function(xs):
     for v in xs:
         p = p * v
     return p
+
+var asinh = Function(x):
+    return log(x + sqrt(x * x + 1.0))
+
+var acosh = Function(x):
+    return log(x + sqrt(x * x - 1.0))
+
+var atanh = Function(x):
+    return 0.5 * log((1.0 + x) / (1.0 - x))
+
+var erfc = Function(x):
+    return 1.0 - erf(x)
+
+var lgamma = Function(x):
+    return log(gamma(x))

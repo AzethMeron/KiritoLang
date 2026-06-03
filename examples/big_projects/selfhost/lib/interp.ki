@@ -2241,8 +2241,15 @@ var evalModule = Function(St, name):
     var toks = lexerMod.tokenize(src)
     var ast = parserMod.parseProgram(toks)
     var modEnv = newEnv(St["global"])
+    envDefine(modEnv, "arglist", [])     # imported module: empty args, argmain False
+    envDefine(modEnv, "argmain", False)
     execBlock(St, modEnv, ast)
-    return mkModule(name, modEnv["vars"])
+    # arglist/argmain are per-file env, not part of the module's exported surface
+    var members = {}
+    for key in modEnv["vars"]:
+        if key != "arglist" and key != "argmain":
+            members[key] = modEnv["vars"][key]
+    return mkModule(name, members)
 
 # --- io: the native boundary module (captures output; reads fed input) ----------------------------
 var mkStream = Function(kind):
@@ -2491,6 +2498,8 @@ var run4 = Function(src, inputText, importdirs):
         var toks = lexerMod.tokenize(src)
         var ast = parserMod.parseProgram(toks)
         var modEnv = newEnv(g)
+        envDefine(modEnv, "arglist", [])     # the run-directly program: empty args, argmain True
+        envDefine(modEnv, "argmain", True)
         execBlock(St, modEnv, ast)
     catch as e:
         if isinstance(e, "Dict") and ("exc" in e):

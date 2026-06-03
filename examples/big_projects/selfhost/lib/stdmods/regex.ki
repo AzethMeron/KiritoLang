@@ -778,9 +778,9 @@ class Regex:
     var search = Function(self, string, pos = 0, endpos = None):
         var t = self._clamp(string, pos, endpos)
         return _mkMatch(self._prog, string, _run(self._prog, t, pos, False, False))
-    var _allMatches = Function(self, text):
+    var _allMatches = Function(self, text, startPos):
         var out = []
-        var pos = 0
+        var pos = startPos
         var n = len(text)
         while pos <= n:
             var res = _run(self._prog, text, pos, False, False)
@@ -794,14 +794,14 @@ class Regex:
             else:
                 pos = a + 1
         return out
-    var finditer = Function(self, string):
+    var finditer = Function(self, string, pos = 0, endpos = None):
         var out = []
-        for slots in self._allMatches(string):
+        for slots in self._allMatches(self._clamp(string, pos, endpos), pos):
             out.append(Match(self._prog, string, slots))
         return out
-    var findall = Function(self, string):
+    var findall = Function(self, string, pos = 0, endpos = None):
         var out = []
-        for slots in self._allMatches(string):
+        for slots in self._allMatches(self._clamp(string, pos, endpos), pos):
             var mt = Match(self._prog, string, slots)
             if self._prog["ngroups"] == 0:
                 out.append(string[slots[0]:slots[1]])
@@ -821,7 +821,7 @@ class Regex:
         var out = ""
         var last = 0
         var done = 0
-        for slots in self._allMatches(string):
+        for slots in self._allMatches(string, 0):
             if count > 0 and done >= count:
                 break
             out = out + string[last:slots[0]]
@@ -838,7 +838,7 @@ class Regex:
         var out = []
         var last = 0
         var done = 0
-        for slots in self._allMatches(string):
+        for slots in self._allMatches(string, 0):
             if maxsplit > 0 and done >= maxsplit:
                 break
             if slots[1] == slots[0]:

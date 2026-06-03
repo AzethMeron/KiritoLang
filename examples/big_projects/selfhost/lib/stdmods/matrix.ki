@@ -25,7 +25,11 @@ class Matrix:
     var cols = Function(self):
         return self._c
 
-    var _getitem_ = Function(self, i, j):
+    var _getitem_ = Function(self, i, j = None):
+        if j == None:
+            if i < 0 or i >= self._r:
+                throw "matrix index out of range"
+            return List(self._data[i])      # m[i] -> the whole row as a List
         if i < 0 or i >= self._r or j < 0 or j >= self._c:
             throw "matrix index out of range"
         return self._data[i][j]

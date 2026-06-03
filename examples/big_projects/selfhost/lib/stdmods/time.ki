@@ -57,6 +57,11 @@ class DateTime:
         self.hour = hour
         self.minute = minute
         self.second = second
+        # epoch seconds as an Integer attribute (matches the real DateTime.timestamp)
+        var d = _daysFromCivil(year, month, day)
+        self.timestamp = d * 86400 + hour * 3600 + minute * 60 + second
+        self.weekday = (d + 4) % 7                                  # 0 = Sunday (1970-01-01 was Thu)
+        self.yearday = d - _daysFromCivil(year, 1, 1) + 1          # 1-based day of year
 
     var epoch = Function(self):
         var days = _daysFromCivil(self.year, self.month, self.day)
@@ -97,8 +102,23 @@ class DateTime:
     var iso = Function(self):
         return self.format("%Y-%m-%dT%H:%M:%S")
 
+    var isoformat = Function(self):
+        return self.iso()
+
+    var add = Function(self, seconds):
+        return _fromEpoch(self.timestamp + Integer(seconds))
+
+    var sub = Function(self, seconds):
+        return _fromEpoch(self.timestamp - Integer(seconds))
+
     var _str_ = Function(self):
         return self.iso()
+
+var _fromEpoch = Function(secs):
+    var days = secs // 86400
+    var rem = secs - days * 86400
+    var ymd = _civilFromDays(days)
+    return DateTime(ymd[0], ymd[1], ymd[2], rem // 3600, (rem % 3600) // 60, rem % 60)
 
 var make = Function(year, month, day, hour = 0, minute = 0, second = 0):
     return DateTime(year, month, day, hour, minute, second)
