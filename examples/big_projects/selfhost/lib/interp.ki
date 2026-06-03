@@ -1764,10 +1764,17 @@ var builtinReduceMinMax = Function(St, args, kwargs, wantMax):
     else:
         items = args
     var keyFn = None
+    var defaultVal = None
+    var hasDefault = False
     for kw in kwargs:
         if kw[0] == "key":
             keyFn = kw[1]
+        elif kw[0] == "default":
+            defaultVal = kw[1]
+            hasDefault = True
     if len(items) == 0:
+        if hasDefault:
+            return defaultVal
         rtError("min/max of empty sequence")
     var best = items[0]
     var bestKey = best
