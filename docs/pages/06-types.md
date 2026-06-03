@@ -164,6 +164,7 @@ io.print(a.union(b), a.intersection(b))   # {1, 2, 3, 4} {3}
 |--------|-------------|
 | `s.add(x)` | Insert `x`. |
 | `s.discard(x)` | Remove `x` if present (no error if absent). |
+| `s.remove(x)` | Remove `x` (raises if `x` is absent — unlike `discard`). |
 | `s.pop()` | Remove and return an arbitrary element. |
 | `s.contains(x)` | Membership test (also `x in s`). |
 | `s.union(other)` | Elements in either set. |
@@ -277,9 +278,19 @@ Invoked as `x OP y` → `x._op_(y)`; return a `Bool` (or any truthy/falsy value)
 
 | Method | Invoked by | Returns |
 |--------|-----------|---------|
-| `_call_(self, ...)` | `x(...)` (calling an instance) | the call result |
+| `_call_(self, ...)` | `x(...)` (calling an instance; accepts keyword arguments) | the call result |
 | `_enter_(self)` | entering a `with x as v:` block | the value bound to `v` |
 | `_exit_(self)` | leaving a `with` block (normally or via an exception) | ignored |
+
+### Serialization protocol
+
+By default `serialize`/`dump` save an instance by its attributes. Define this pair to control it
+(e.g. to drop a cache or wrap a resource); see the [stdlib reference](stdlib.html#serialize).
+
+| Method | Invoked by | Returns |
+|--------|-----------|---------|
+| `_getstate_(self)` | `serialize`/`dump` serializing the instance | any serializable value capturing the state |
+| `_setstate_(self, state)` | `serialize`/`dump` reconstructing the instance | ignored (restores `self` from `state`) |
 
 ### Inheritance
 

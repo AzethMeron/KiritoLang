@@ -64,7 +64,9 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 - `f.readlines() → List` — read all remaining lines into a List.
 - `f.write(s: String) → None` — write `s` at the current position.
 - `f.writelines(lines) → None` — write each String in an iterable.
-- `f.seek(pos: Integer) → None` — move the read/write cursor to byte `pos`.
+- `f.seek(offset: Integer, whence: Integer = 0) → Integer` — move the read/write cursor and return the
+  new position. `whence` is `0` (from the start, the default), `1` (relative to the current position),
+  or `2` (from the end).
 - `f.tell() → Integer` — the current byte position.
 - `f.flush() → None` — flush buffered output.
 - `f.close() → None` — close the file (also done automatically on `with` exit / collection).
@@ -169,7 +171,9 @@ Dense real matrices (no complex numbers).
 ### Matrix object
 
 - `m[i, j] → Float` — element access.
+- `m[i] → List` — the whole row `i` as a List of Floats.
 - `m[i, j] = v` — element assignment.
+- `m1 == m2 → Bool` — element-wise equality (within a small tolerance).
 - `m.get(i, j) → Float` — explicit element access (the method form of `m[i, j]`).
 - `m.set(i, j, v) → None` — explicit element assignment (the method form of `m[i, j] = v`).
 - `m.rows() → Integer` — the number of rows.
@@ -412,12 +416,15 @@ unsupported-feature or invalid pattern is rejected with a clean error rather tha
 
 ### Regex object
 
-Returned by `compile`. Methods take the subject `string` (and where noted an optional start `pos`):
+Returned by `compile`. The search methods take the subject `string` plus an optional start `pos`
+(default 0) and end `endpos` (default the string length); `endpos` makes the subject look exactly
+that many code points long, so `$`/`\b` anchor there. Attributes: `r.pattern`, `r.groups` (group
+count), `r.groupindex` (name → group number).
 
-- `r.match(string[, pos]) → Match` — anchored match at `pos` (default 0), or `None`.
-- `r.search(string[, pos]) → Match` — first match at/after `pos`, or `None`.
-- `r.fullmatch(string) → Match` — whole-string match, or `None`.
-- `r.findall(string) → List` — with **0** groups: a List of the matched Strings; with **1** group: a List of that group's Strings; with **2+** groups: a List of per-match group Lists.
+- `r.match(string[, pos[, endpos]]) → Match` — anchored match at `pos`, or `None`.
+- `r.search(string[, pos[, endpos]]) → Match` — first match at/after `pos`, or `None`.
+- `r.fullmatch(string[, pos[, endpos]]) → Match` — whole-(sub)string match, or `None`.
+- `r.findall(string[, pos[, endpos]]) → List` — with **0** groups: a List of the matched Strings; with **1** group: a List of that group's Strings; with **2+** groups: a List of per-match group Lists.
 - `r.finditer(string) → List` — a List of `Match` objects, one per non-overlapping match.
 - `r.sub(repl, string[, count]) → String` — replace matches. `repl` is either a template String (`\1`, `\g<name>`, `\g<0>`, `\\`) or a **function** taking a `Match` and returning a String. `count = 0` replaces all.
 - `r.split(string[, maxsplit]) → List` — split around matches; any captured groups are interleaved into the result (like Python).
@@ -642,8 +649,9 @@ Indexing: `s[label]` (by index label, falling back to position), `s.iat(pos)`. E
 ### GroupBy
 
 `df.groupby(col)` returns a grouping with numeric-column reductions `sum`/`mean`/`min`/`max`/`std`/
-`count`, `size()` (a Series of group sizes), `agg({col: "sum"|"mean"|...})`, and `apply(fn)` (fn
-receives each group's sub-DataFrame).
+`count`, `size()` (a Series of group sizes), `agg({col: reducer})` where `reducer` is one of
+`"sum"`/`"mean"`/`"min"`/`"max"`/`"std"`/`"count"`/`"median"`, and `apply(fn)` (fn receives each
+group's sub-DataFrame).
 
 ```kirito
 var io = import("io")
@@ -683,8 +691,8 @@ and indexing (`elem[0]`).
 - `find(tag)` — the first child with that tag, or `None`.
 - `findall(tag)` — a List of all children with that tag.
 - `findtext(tag, default = "")` — the text of the first matching child, or `default`.
-- `itertext()` — a List of all text in document order (this element's text, then each child's text and
-  tail, recursively).
+- `itertext()` — a List of all text in document order (this element's text, then each descendant's
+  text and tail, walking the whole subtree).
 - `tostring()` — serialize this element (also its `_str_`).
 
 ```kirito
