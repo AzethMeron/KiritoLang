@@ -2072,17 +2072,44 @@ inline void KiritoVM::installBuiltins() {
             throw KiritoError("rounded value out of Integer range");
         return vm.makeInt(static_cast<int64_t>(std::llround(x)));  // Python: round(x) -> Integer
     });
-    def("range", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    // range is variadic by position (range(stop) / range(start, stop) / range(start, stop, step))
+    // but also names its three parameters: start, stop (alias end), and step. Positionals bind by the
+    // classic count rule; keywords then fill or override any slot a positional didn't claim — a clash
+    // (e.g. range(2, 5, start=1)) is an error, as is a missing stop.
+    g.define("range", alloc(std::make_unique<NativeFunction>("range",
+        NativeFnKw([](KiritoVM& vm, std::span<const Handle> a, std::span<const NamedArg> named) -> Handle {
         auto iv = [&](Handle h) {
             const Object& o = vm.arena().deref(h);
             if (o.kind() != ValueKind::Integer) throw KiritoError("range expects Integers");
             return static_cast<const IntVal&>(o).value();
         };
         int64_t start = 0, stop = 0, step = 1;
-        if (a.size() == 1) stop = iv(a[0]);
-        else if (a.size() == 2) { start = iv(a[0]); stop = iv(a[1]); }
-        else if (a.size() == 3) { start = iv(a[0]); stop = iv(a[1]); step = iv(a[2]); }
-        else throw KiritoError("range expects 1 to 3 arguments");
+        bool hasStart = false, hasStop = false, hasStep = false;
+        // Keywords first, so the lone-positional-is-stop overload knows whether stop was named.
+        for (const auto& na : named) {
+            if (na.name == "start") {
+                if (hasStart) throw KiritoError("range() got multiple values for 'start'");
+                start = iv(na.value); hasStart = true;
+            } else if (na.name == "stop" || na.name == "end") {
+                if (hasStop) throw KiritoError("range() got multiple values for 'stop'");
+                stop = iv(na.value); hasStop = true;
+            } else if (na.name == "step") {
+                if (hasStep) throw KiritoError("range() got multiple values for 'step'");
+                step = iv(na.value); hasStep = true;
+            } else throw KiritoError("range() got an unexpected keyword argument '" + na.name + "'");
+        }
+        if (a.size() > 3) throw KiritoError("range expects 1 to 3 positional arguments");
+        if (a.size() == 1 && !hasStop) {
+            stop = iv(a[0]); hasStop = true;          // range(stop) overload (when stop isn't a keyword)
+        } else {                                       // otherwise positionals map 0->start, 1->stop, 2->step
+            if (a.size() >= 1) { if (hasStart) throw KiritoError("range() got multiple values for 'start'");
+                                 start = iv(a[0]); hasStart = true; }
+            if (a.size() >= 2) { if (hasStop) throw KiritoError("range() got multiple values for 'stop'");
+                                 stop = iv(a[1]); hasStop = true; }
+            if (a.size() >= 3) { if (hasStep) throw KiritoError("range() got multiple values for 'step'");
+                                 step = iv(a[2]); hasStep = true; }
+        }
+        if (!hasStop) throw KiritoError("range() missing required argument 'stop'");
         if (step == 0) throw KiritoError("range step cannot be zero");
         // range materializes a List (no lazy generators yet), so reject a count that would exhaust
         // memory up front rather than OOM mid-build.
@@ -2105,7 +2132,7 @@ inline void KiritoVM::installBuiltins() {
         if (step > 0) for (int64_t i = start; i < stop; i += step) list->elems.push_back(rs.add(vm.makeInt(i)));
         else for (int64_t i = start; i > stop; i += step) list->elems.push_back(rs.add(vm.makeInt(i)));
         return vm.alloc(std::move(list));
-    });
+    }))));
     defSig("sum", {{"iterable"}, {"start", "", makeInt(0)}}, "Number", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto items = vm.arena().deref(a[0]).iterate(vm);
         bool isFloat = false;

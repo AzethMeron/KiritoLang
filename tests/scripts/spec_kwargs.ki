@@ -219,6 +219,19 @@ discard buf.write(data = "hello")
 discard buf.seek(offset = 0)
 assert buf.read(size = 5) == "hello", "BytesIO read/write/seek keywords"
 
+# --- range names its parameters (start/stop/step, with end as a stop alias) ---
+assert range(stop = 5) == [0, 1, 2, 3, 4], "range(stop=)"
+assert range(start = 2, stop = 6) == [2, 3, 4, 5], "range(start=, stop=)"
+assert range(start = 1, end = 10, step = 2) == [1, 3, 5, 7, 9], "range start=/end=/step="
+assert range(5, step = 2) == [0, 2, 4], "range(5, step=) keeps the lone-positional-is-stop overload"
+assert range(2, stop = 6) == [2, 3, 4, 5], "a lone positional is start when stop is named"
+var rthrew = False
+try:
+    discard range(2, 5, start = 1)        # positional start collides with start=
+catch as e:
+    rthrew = "multiple values for 'start'" in e
+assert rthrew, "range rejects a positional/keyword collision"
+
 # --- adversarial on member functions: unknown keyword rejected by name ---
 var mthrew = False
 try:
