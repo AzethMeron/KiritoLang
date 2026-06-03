@@ -15,7 +15,7 @@ static std::string evalStr(KiritoVM& vm, const std::string& src) {
 // Build `value` in Kirito (the `build` snippet must bind it to `v`), serialize it with the dump
 // module, compress the bytes, and report {raw_bytes, compressed_bytes, round_trips_ok}. Going
 // through dump.dumps gives us realistic, structured, compressible payloads (the user's brief).
-struct Sample { long raw, comp; bool ok; double pct() const { return 100.0 * comp / raw; } };
+struct Sample { long raw, comp; bool ok; double pct() const { return 100.0 * static_cast<double>(comp) / static_cast<double>(raw); } };
 static Sample measure(KiritoVM& vm, const std::string& build) {
     std::string src =
         "var d = import(\"dump\")\n"
@@ -127,7 +127,7 @@ z.inflate(z.deflate(data)) == data
         CHECK(inc.ok);
         // No real compression: stays within a hair of the raw size (allow a small deflate overhead).
         CHECK(inc.pct() > 99.0);
-        CHECK(static_cast<double>(inc.comp) <= inc.raw * 1.01 + 64);
+        CHECK(static_cast<double>(inc.comp) <= static_cast<double>(inc.raw) * 1.01 + 64);
     }
 
     // --- binary-safe data (all byte values) round-trips --------------------------------------

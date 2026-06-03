@@ -229,7 +229,7 @@ private:
 // RAII call-depth guard: increments on entry, decrements on scope exit (even when unwinding).
 struct CallGuard {
     KiritoVM& vm;
-    explicit CallGuard(KiritoVM& vm) : vm(vm) { vm.enterCall(); }
+    explicit CallGuard(KiritoVM& v) : vm(v) { vm.enterCall(); }
     ~CallGuard() { vm.leaveCall(); }
     CallGuard(const CallGuard&) = delete;
     CallGuard& operator=(const CallGuard&) = delete;
@@ -240,7 +240,7 @@ struct CallGuard {
 struct RootScope {
     KiritoVM& vm;
     std::size_t mark;
-    explicit RootScope(KiritoVM& vm) : vm(vm), mark(vm.tempMark()) {}
+    explicit RootScope(KiritoVM& v) : vm(v), mark(v.tempMark()) {}
     ~RootScope() { vm.popTempTo(mark); }
     RootScope(const RootScope&) = delete;
     RootScope& operator=(const RootScope&) = delete;

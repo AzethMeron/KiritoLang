@@ -20,6 +20,14 @@
 
 namespace kirito {
 
+// The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
+// intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
+// -Wshadow for these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // A uniform byte/character-stream interface implemented by every stream value (File, BytesIO, and
 // the standard streams). It is what makes streams *interchangeable*: io.print/write/input/read act
 // on whatever object is currently bound to io.stdout / io.stdin, dispatching through this interface
@@ -578,4 +586,7 @@ public:
 
 }  // namespace kirito
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #endif

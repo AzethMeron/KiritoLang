@@ -67,15 +67,15 @@ int main() {
     // --- Args wrapper + round-trip through a registered native function authored with the API ---
     // A function that takes (a, b) Integers and a List, returning a Dict {sum, joined-list}.
     vm.registerGlobal("demo", vm.arena().alloc(std::make_unique<NativeFunction>(
-        "demo", [](KiritoVM& vm, std::span<const Handle> raw) -> Handle {
-            Args a(vm, raw, "demo");
+        "demo", [](KiritoVM& kv, std::span<const Handle> raw) -> Handle {
+            Args a(kv, raw, "demo");
             int64_t x = a.at(0).asInt("a");
             int64_t y = a.at(1).asInt("b");
-            Value extra = a.opt(2, val(vm, 0));
-            List combined(vm);
+            Value extra = a.opt(2, val(kv, 0));
+            List combined(kv);
             for (Value e : a[3].items()) combined.add(e);
             combined.add(extra);
-            return Dict(vm).set("sum", x + y).set("items", combined.build()).build();
+            return Dict(kv).set("sum", x + y).set("items", combined.build()).build();
         })));
 
     CHECK(vm.stringify(vm.runSource("demo(2, 3, 99, [7, 8])[\"sum\"]")) == "5");

@@ -12,6 +12,14 @@
 
 namespace kirito {
 
+// The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
+// intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
+// -Wshadow for these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // Read a numeric argument (Integer or Float) as a double, via the ergonomic Value API.
 inline double mathNum(KiritoVM& vm, Handle h) {
     return Value(vm, h).asFloat("math");
@@ -231,4 +239,7 @@ public:
 
 }  // namespace kirito
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #endif

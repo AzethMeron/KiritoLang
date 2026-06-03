@@ -176,7 +176,7 @@ int main() {
             catch (const RegexError&) { continue; }   // some random patterns are invalid; skip
             // random input over a small alphabet
             std::string in;
-            int len = rng() % 12;
+            int len = static_cast<int>(rng() % 12);
             for (int i = 0; i < len; ++i) in += static_cast<char>('a' + (rng() % 4));
             auto text = toCodepoints(in);
             MatchResult r = run(prog, text, 0, false, false);   // must terminate (linear time)

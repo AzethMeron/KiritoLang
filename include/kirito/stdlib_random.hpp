@@ -14,6 +14,14 @@
 
 namespace kirito {
 
+// The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
+// intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
+// -Wshadow for these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // A random generator object. There is no global RNG: you create a Random (default seed from the
 // system, or an explicit seed for reproducibility) and call methods on it.
 class RandomState : public NativeClass<RandomState> {
@@ -151,4 +159,7 @@ public:
 
 }  // namespace kirito
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #endif

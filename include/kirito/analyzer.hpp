@@ -196,7 +196,7 @@ private:
         } else if (const auto* sw = dynamic_cast<const ast::SwitchStmt*>(&s)) {
             analyzeExpr(*sw->subject);
             for (const auto& cl : sw->cases) {
-                for (const auto& v : cl.values) analyzeExpr(*v);
+                for (const auto& cv : cl.values) analyzeExpr(*cv);
                 analyzeBlock(cl.body);
             }
             if (sw->hasDefault) analyzeBlock(sw->defaultBody);

@@ -116,9 +116,9 @@ public:
 // a clear error. Used to give every built-in type method and native-class method keyword support.
 inline Handle makeMethod(KiritoVM& vm, std::string name, std::vector<std::string> params,
                          NativeFn impl, std::vector<Handle> captures = {}) {
-    NativeFnKw kw = [name, params, impl](KiritoVM& vm, std::span<const Handle> pos,
+    NativeFnKw kw = [name, params, impl](KiritoVM& v, std::span<const Handle> pos,
                                          std::span<const NamedArg> named) -> Handle {
-        if (named.empty()) return impl(vm, pos);  // positional fast path: unchanged behaviour
+        if (named.empty()) return impl(v, pos);  // positional fast path: unchanged behaviour
         std::size_t nparams = params.size();
         std::size_t total = std::max(nparams, pos.size());
         std::vector<Handle> slots(total);
@@ -135,9 +135,9 @@ inline Handle makeMethod(KiritoVM& vm, std::string name, std::vector<std::string
         }
         std::size_t outlen = 0;
         for (std::size_t i = 0; i < total; ++i) if (set[i]) outlen = i + 1;
-        for (std::size_t i = 0; i < outlen; ++i) if (!set[i]) slots[i] = vm.none();
+        for (std::size_t i = 0; i < outlen; ++i) if (!set[i]) slots[i] = v.none();
         slots.resize(outlen);
-        return impl(vm, slots);
+        return impl(v, slots);
     };
     return vm.alloc(std::make_unique<NativeFunction>(std::move(name), std::move(kw), std::move(captures)));
 }

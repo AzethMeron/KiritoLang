@@ -16,6 +16,14 @@
 
 namespace kirito {
 
+// The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
+// intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
+// -Wshadow for these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // JSON support. parse() turns JSON text into native Kirito values — objects become Dicts (so a
 // parsed JSON object *is* a Dict), arrays become Lists, and primitives the obvious scalars.
 // stringify() does the reverse.
@@ -344,4 +352,7 @@ public:
 
 }  // namespace kirito
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #endif

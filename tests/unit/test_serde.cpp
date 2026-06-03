@@ -21,14 +21,14 @@ struct Counter : NativeClass<Counter> {
         if (name == "value")
             return vm.makeInt(value);
         if (name == "_getstate_")
-            return makeMethod(vm, "_getstate_", {}, [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
-                return vm.makeInt(static_cast<Counter&>(vm.arena().deref(self)).value);
+            return makeMethod(vm, "_getstate_", {}, [self](KiritoVM& kv, std::span<const Handle>) -> Handle {
+                return kv.makeInt(static_cast<Counter&>(kv.arena().deref(self)).value);
             }, std::vector<Handle>{self});
         if (name == "_setstate_")
-            return makeMethod(vm, "_setstate_", {"state"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                static_cast<Counter&>(vm.arena().deref(self)).value =
-                    static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
-                return vm.none();
+            return makeMethod(vm, "_setstate_", {"state"}, [self](KiritoVM& kv, std::span<const Handle> a) -> Handle {
+                static_cast<Counter&>(kv.arena().deref(self)).value =
+                    static_cast<const IntVal&>(kv.arena().deref(a[0])).value();
+                return kv.none();
             }, std::vector<Handle>{self});
         return Object::getAttr(vm, self, name);
     }
@@ -42,8 +42,8 @@ int main() {
     KiritoVM vm;
     // A native type opts in by registering a factory that builds an empty instance (the protocol's
     // _setstate_ then fills it in).
-    vm.registerDeserializer("Counter", [](KiritoVM& vm, Handle) {
-        return vm.alloc(std::make_unique<Counter>(0));
+    vm.registerDeserializer("Counter", [](KiritoVM& kv, Handle) {
+        return kv.alloc(std::make_unique<Counter>(0));
     });
 
     // --- a bare native object round-trips through text and binary ---

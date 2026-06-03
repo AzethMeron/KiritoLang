@@ -39,7 +39,7 @@ struct MathMod : NativeModule {
 struct Point : NativeClass<Point> {
     static constexpr const char* kTypeName = "Point";
     int64_t x, y;
-    Point(int64_t x, int64_t y) : x(x), y(y) {}
+    Point(int64_t px, int64_t py) : x(px), y(py) {}
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         if (name == "x") return vm.makeInt(x);
         if (name == "y") return vm.makeInt(y);
@@ -103,10 +103,10 @@ int main() {
     {
         KiritoVM vm;
         vm.registerGlobal("Point", vm.arena().alloc(std::make_unique<NativeFunction>(
-            "Point", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                int64_t x = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
-                int64_t y = static_cast<const IntVal&>(vm.arena().deref(a[1])).value();
-                return vm.arena().alloc(std::make_unique<Point>(x, y));
+            "Point", [](KiritoVM& kv, std::span<const Handle> a) -> Handle {
+                int64_t x = static_cast<const IntVal&>(kv.arena().deref(a[0])).value();
+                int64_t y = static_cast<const IntVal&>(kv.arena().deref(a[1])).value();
+                return kv.arena().alloc(std::make_unique<Point>(x, y));
             })));
         CHECK(evalStr(vm, "var p = Point(3, 4)\np.x + p.y") == "7");
     }

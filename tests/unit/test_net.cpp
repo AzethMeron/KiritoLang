@@ -464,7 +464,7 @@ int main() {
                 char buf[4096];
                 while (true) { ssize_t r = ::recv(c, buf, sizeof(buf), 0); if (r <= 0) break;
                                if (std::string(buf, r).find("\r\n\r\n") != std::string::npos) break; }
-                int mode = srng() % 3;  // 0 = plain, 1 = chunked, 2 = gzip
+                int mode = static_cast<int>(srng() % 3);  // 0 = plain, 1 = chunked, 2 = gzip
                 std::string head = "HTTP/1.1 " + std::to_string(statuses[i]) + " S\r\n";
                 std::string out;
                 if (mode == 1) {

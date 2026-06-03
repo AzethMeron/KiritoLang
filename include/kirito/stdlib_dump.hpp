@@ -16,6 +16,14 @@
 
 namespace kirito {
 
+// The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
+// intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
+// -Wshadow for these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // The `dump` module: compact BINARY serialization that preserves shared references and cycles (like
 // a portable `pickle`). The graph walk and reconstruction are shared with the text `serialize` module
 // via serde::flatten / serde::rebuild (stdlib_serde.hpp); this file is only the binary codec plus the
@@ -248,4 +256,7 @@ public:
 
 }  // namespace kirito
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #endif

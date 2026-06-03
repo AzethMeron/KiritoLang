@@ -11,6 +11,14 @@
 
 namespace kirito {
 
+// The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
+// intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
+// -Wshadow for these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // The `regex` module: a full-featured regular-expression library backed by reng (regex_engine.hpp),
 // whose Thompson-NFA / Pike-VM core guarantees LINEAR-TIME matching — no catastrophic backtracking.
 // The API mirrors Python's `re`: compile() yields a reusable Regex; module-level match/search/...
@@ -457,4 +465,7 @@ private:
 
 }  // namespace kirito
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #endif

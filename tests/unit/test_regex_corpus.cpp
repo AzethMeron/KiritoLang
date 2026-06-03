@@ -203,7 +203,7 @@ int main() {
         const char* quant[] = {"", "*", "+", "?", "*?", "+?", "{1,2}", "{0,3}", "{2}"};
         for (int it = 0; it < 5000; ++it) {
             std::string pat;
-            int parts = 1 + (rng() % 5);
+            int parts = 1 + static_cast<int>(rng() % 5);
             for (int i = 0; i < parts; ++i) {
                 if (i && (rng() % 5 == 0)) pat += "|";
                 pat += atom[rng() % 10];

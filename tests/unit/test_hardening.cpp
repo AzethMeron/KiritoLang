@@ -42,7 +42,7 @@ int main() {
         KiritoVM vm;
         std::mt19937 rng(2024);
         for (int i = 0; i < 500; ++i) {
-            unsigned cp = rng() % 0x110000;
+            unsigned cp = static_cast<unsigned>(rng() % 0x110000);
             if (cp >= 0xD800 && cp <= 0xDFFF) continue;  // surrogates aren't scalar values
             vm.registerGlobal("_cp", vm.makeInt(static_cast<int64_t>(cp)));
             CHECK(ev(vm, "ord(chr(_cp))") == std::to_string(cp));

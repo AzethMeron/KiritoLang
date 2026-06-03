@@ -45,6 +45,14 @@
 
 namespace kirito {
 
+// The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
+// intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
+// -Wshadow for these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // Upper bound on the size of a single string/collection built by repetition or padding, so a
 // hostile or careless count (e.g. "x" * 10**12, "".ljust(10**9)) raises cleanly instead of OOMing
 // the host. ~256 MB of characters is far beyond any legitimate scripting use.
@@ -2596,4 +2604,7 @@ inline Handle KiritoVM::runRepl(std::string_view source) {
 
 }  // namespace kirito
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #endif

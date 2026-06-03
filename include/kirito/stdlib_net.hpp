@@ -28,6 +28,14 @@
 
 namespace kirito {
 
+// The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
+// intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
+// -Wshadow for these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // A TCP socket. Wraps an OS socket handle (POSIX fd or Winsock SOCKET), closed automatically when
 // the value is collected. There is no global state; you create a Socket and operate on it.
 class SocketVal : public NativeClass<SocketVal> {
@@ -908,4 +916,7 @@ public:
 
 }  // namespace kirito
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #endif

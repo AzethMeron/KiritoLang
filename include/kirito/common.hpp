@@ -23,8 +23,8 @@ enum class UnOp { Neg, Not };
 // users get an actionable line:col. A zero span means "no specific location".
 class KiritoError : public std::runtime_error {
 public:
-    explicit KiritoError(std::string message, SourceSpan span = {})
-        : std::runtime_error(std::move(message)), span(span) {}
+    explicit KiritoError(std::string message, SourceSpan sp = {})
+        : std::runtime_error(std::move(message)), span(sp) {}
 
     SourceSpan span;
     // The source file the error occurred in. Empty until a chunk/module loader tags it (the span's

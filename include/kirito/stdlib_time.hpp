@@ -15,6 +15,14 @@
 
 namespace kirito {
 
+// The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
+// intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
+// -Wshadow for these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // Portable UTC broken-down-time -> epoch seconds (POSIX timegm / Windows _mkgmtime aren't standard).
 // Pure civil-date arithmetic (Howard Hinnant's days-from-civil algorithm) so it needs no globals or
 // timezone state and matches gmtime_r round-trips.
@@ -246,4 +254,7 @@ public:
 
 }  // namespace kirito
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #endif

@@ -48,7 +48,7 @@ struct StatsModule : NativeModule {
 struct Vec2 : NativeClass<Vec2> {
     static constexpr const char* kTypeName = "Vec2";
     double x, y;
-    Vec2(double x, double y) : x(x), y(y) {}
+    Vec2(double px, double py) : x(px), y(py) {}
 
     static std::string numstr(double d) {  // tidy: integral values print without a trailing ".0"
         return d == static_cast<int64_t>(d) ? std::to_string(static_cast<int64_t>(d)) : std::to_string(d);
@@ -63,20 +63,20 @@ struct Vec2 : NativeClass<Vec2> {
         if (name == "length")
             return vm.alloc(std::make_unique<NativeFunction>(
                 "length",
-                [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
-                    auto& v = static_cast<Vec2&>(vm.arena().deref(self));
-                    return val(vm, std::sqrt(v.x * v.x + v.y * v.y));
+                [self](KiritoVM& mv, std::span<const Handle>) -> Handle {
+                    auto& v = static_cast<Vec2&>(mv.arena().deref(self));
+                    return val(mv, std::sqrt(v.x * v.x + v.y * v.y));
                 },
                 std::vector<Handle>{self}));
         if (name == "dot")
             return vm.alloc(std::make_unique<NativeFunction>(
                 "dot",
-                [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                    Args args(vm, a, "dot");
-                    auto& v = static_cast<Vec2&>(vm.arena().deref(self));
-                    auto* o = dynamic_cast<const Vec2*>(&vm.arena().deref(args.at(0)));
+                [self](KiritoVM& mv, std::span<const Handle> a) -> Handle {
+                    Args args(mv, a, "dot");
+                    auto& v = static_cast<Vec2&>(mv.arena().deref(self));
+                    auto* o = dynamic_cast<const Vec2*>(&mv.arena().deref(args.at(0)));
                     if (!o) throw KiritoError("dot expects a Vec2");
-                    return val(vm, v.x * o->x + v.y * o->y);
+                    return val(mv, v.x * o->x + v.y * o->y);
                 },
                 std::vector<Handle>{self}));
         return Object::getAttr(vm, self, name);  // anything else -> a clear "no attribute" error
@@ -99,9 +99,9 @@ int main() {
     // ... and a constructor so `Vec2(x, y)` works from Kirito (signatured -> keyword args + inspect).
     vm.registerGlobal("Vec2", vm.alloc(std::make_unique<NativeFunction>(
         "Vec2", std::vector<NativeParam>{{"x", "Number"}, {"y", "Number"}}, "Vec2",
-        [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            Args args(vm, a, "Vec2");
-            return vm.alloc(std::make_unique<Vec2>(args.at(0).asFloat("x"), args.at(1).asFloat("y")));
+        [](KiritoVM& mv, std::span<const Handle> a) -> Handle {
+            Args args(mv, a, "Vec2");
+            return mv.alloc(std::make_unique<Vec2>(args.at(0).asFloat("x"), args.at(1).asFloat("y")));
         })));
 
     // ---- drive the C++-registered module and type from Kirito ----

@@ -69,9 +69,9 @@ int main() {
         KiritoVM vm;
         // applyTwice(f, x): calls the Kirito callable f on x (and would propagate any raise).
         vm.registerGlobal("applyfn", vm.arena().alloc(std::make_unique<NativeFunction>(
-            "applyfn", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            "applyfn", [](KiritoVM& kv, std::span<const Handle> a) -> Handle {
                 std::array<Handle, 1> args{a[1]};
-                return vm.arena().deref(a[0]).call(vm, args);
+                return kv.arena().deref(a[0]).call(kv, args);
             })));
         // A Kirito callback that raises; the throw must propagate out through the native frame
         // and be catchable by the surrounding Kirito try.
