@@ -1689,6 +1689,9 @@ var builtinEnumerate = Function(St, args, kwargs):
     var start = 0
     if len(args) == 2:
         start = args[1]
+    for kw in kwargs:
+        if kw[0] == "start":
+            start = kw[1]
     var out = []
     var i = 0
     for x in items:
@@ -1752,6 +1755,9 @@ var builtinSum = Function(St, args, kwargs):
     var acc = 0
     if len(args) == 2:
         acc = args[1]
+    for kw in kwargs:
+        if kw[0] == "start":
+            acc = kw[1]
     for x in materialize(St, args[0]):
         acc = acc + x
     return acc
@@ -1772,10 +1778,20 @@ var builtinType = Function(St, args, kwargs):
     return typeName(args[0])
 
 # Conversion constructors: String() honours _str_; the rest delegate to the host.
+# The Integer/Float/String/Bool/List/Set/Dict converters take a single value `x`, positional OR as a
+# keyword: this folds a lone keyword into the positional slot so `Integer(x = "42")` works.
+var _conv1 = Function(a, k):
+    if len(a) >= 1:
+        return a
+    if len(k) >= 1:
+        return [k[len(k) - 1][1]]
+    return a
+
 var builtinString = Function(St, args, kwargs):
-    if len(args) == 0:
+    var a = _conv1(args, kwargs)
+    if len(a) == 0:
         return ""
-    return stringify(St, args[0])
+    return stringify(St, a[0])
 
 # Named builtins (Kirito forbids multi-line inline functions as call arguments, so anything that
 # needs more than a single expression lives here as its own function).
@@ -1885,27 +1901,33 @@ var _parseIntStr = Function(s):
         return -v
     return v
 
-var builtinInteger = Function(St, a, k):
+var builtinInteger = Function(St, a0, k):
+    var a = _conv1(a0, k)
     if len(a) == 0:
         return 0
     if type(a[0]) == "String":
         return _parseIntStr(a[0])
     return Integer(a[0])
-var builtinFloat = Function(St, a, k):
+var builtinFloat = Function(St, a0, k):
+    var a = _conv1(a0, k)
     if len(a) == 0:
         return 0.0
     return Float(a[0])
-var builtinBoolC = Function(St, a, k):
+var builtinBoolC = Function(St, a0, k):
+    var a = _conv1(a0, k)
     return truthy(St, a[0])
-var builtinListC = Function(St, a, k):
+var builtinListC = Function(St, a0, k):
+    var a = _conv1(a0, k)
     if len(a) == 0:
         return []
     return materialize(St, a[0])
-var builtinSetC = Function(St, a, k):
+var builtinSetC = Function(St, a0, k):
+    var a = _conv1(a0, k)
     if len(a) == 0:
         return Set()
     return Set(materialize(St, a[0]))
-var builtinDictC = Function(St, a, k):
+var builtinDictC = Function(St, a0, k):
+    var a = _conv1(a0, k)
     if len(a) == 0:
         return {}
     return Dict(a[0])
