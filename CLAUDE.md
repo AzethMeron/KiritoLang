@@ -279,15 +279,21 @@ a stability fuzzer, and a benchmark). Working today:
   arguments by keyword — an end-to-end test that keyword arguments work across every callable; they
   pass the same test harnesses.
 
-Tested under strict flags (`-O2 -Werror -Wall -Wextra -Wformat=2 -Wpointer-arith -Wpedantic
--fstack-protector`, preset `strict`) and AddressSanitizer/UBSan (preset `asan`); an 11k-input fuzzer
-guards stability. Tests include an **error-message suite** (`tests/errors/*.ki` + `.experr`: programs
-that must fail, with the required diagnostic text) and an **adversarial suite**
+Tested under three CMake presets: **`debug`** (g++ `-O2` with the hardened warning set `-Werror
+-Wall -Wextra -Wformat=2 -Wconversion -Wpointer-arith -Wpedantic -fstack-protector-all -Wreorder
+-Wunused -Wshadow` — the strictest compile gate), **`release`** (the same minus `-Wconversion`/
+`-Wshadow`; the build to ship/benchmark), and **`asan`** (AddressSanitizer/UBSan, hardened warnings).
+The codebase is `-Wconversion`-clean; the deliberate native-binding idiom where bound-method lambdas
+take `vm`/`self` parameters shadowing the enclosing `getAttr`/`setup` (same VM by design) is silenced
+with a scoped `#pragma GCC diagnostic ignored "-Wshadow"` in the stdlib glue + runtime type-methods,
+so `-Wshadow` stays active in the evaluator/parser/lexer/GC core. An 11k-input fuzzer guards
+stability. Tests include an **error-message suite** (`tests/errors/*.ki` + `.experr`: programs that
+must fail, with the required diagnostic text) and an **adversarial suite**
 (`tests/unit/test_adversarial.cpp`: overflow, recursion, cyclic structures, Unicode, slicing edge
 cases). The **post-work routine** (`scripts/post_work_check.sh`, documented in
-`.claude/POST_WORK_CHECKLIST.md`) clean-builds every variant (debug/strict/asan, plus a Windows
-cross build where a toolchain exists) and runs the whole auto-discovered CTest suite — run it before
-calling a change done.
+`.claude/POST_WORK_CHECKLIST.md`) runs the variants **sequentially** — `debug`, then `release`,
+**commit+push once both are green**, then `asan` (fix and re-push any failure) — each a clean build
+of the whole auto-discovered CTest suite. Run it before calling a change done.
 
 **Docs:** an expandable HTML site (`docs/`) — hand-authored Markdown in `docs/pages/` rendered by
 the dependency-free `docs/build_docs.py` into `docs/site/` (intro, build, embedding, extending,

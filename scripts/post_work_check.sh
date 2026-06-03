@@ -1,137 +1,97 @@
 #!/usr/bin/env bash
 # Kirito post-work verification routine.
 #
-# Run this AFTER finishing a change and BEFORE calling the work done. It rebuilds every build
-# variant available in the current environment from scratch and runs the WHOLE CTest suite for each.
+# Run this AFTER finishing a change and BEFORE calling the work done. It rebuilds each build variant
+# from scratch and runs the WHOLE CTest suite for each — SEQUENTIALLY, in a fixed order, because the
+# order encodes the workflow gate (see below).
 #
 # Forward-compatible by design: it NEVER enumerates individual test files. Tests are auto-discovered
 # by CTest (unit executables and the globbed scripts/ and errors/ directories register themselves in
 # tests/CMakeLists.txt), so adding or removing a test needs no change here.
 #
-# Variants (each in its OWN build dir, so they share no files and run concurrently):
-#   debug   — g++, Debug, the everyday build.
-#   strict  — g++, -Werror with the full warning set (the gate the CI/quality bar uses).
-#   asan    — clang++ AddressSanitizer + UBSan (memory/UB safety).
-#   windows — mingw-w64 cross build, ONLY if a toolchain file or compiler is present (skipped
-#             gracefully otherwise; this sandbox has no mingw).
+# Variants (each in its OWN build dir; the three the project ships — `strict` was folded into `debug`):
+#   debug   — g++ -O2 with the HARDENED warning set: -Wall -Wextra -Wformat=2 -Wconversion
+#             -Wpointer-arith -Wpedantic -Werror -fstack-protector-all -Wreorder -Wunused -Wshadow.
+#             The strictest compile gate. (binaryDir: build-debug)
+#   release — g++ -O2, the looser warnings-as-errors set (no -Wconversion/-Wshadow); the build to
+#             benchmark and ship. (binaryDir: build-release)
+#   asan    — AddressSanitizer + UBSan (-fno-sanitize-recover=all) with the hardened warning set; the
+#             memory/UB-safety gate, and the slow one. (binaryDir: build-asan)
 #
-# Parallelism: all variants build+test AT THE SAME TIME, and each runs CTest multithreaded. Total
-# concurrency is bounded (cores are split across the live variants) so three header-only builds —
-# each TU is RAM-hungry — never thrash the CPU or exhaust memory. The win is pipeline overlap: one
-# variant's test phase runs while another is still compiling.
+# THE WORKFLOW GATE (run sequentially, in THIS order):
+#   1. build + test `debug`.
+#   2. build + test `release`.
+#   3. If BOTH debug and release are green -> COMMIT AND PUSH. This is the point at which the work
+#      becomes durable; do it BEFORE the long asan run so a crash/preemption/rollback can't lose it.
+#   4. build + test `asan`; fix any error it surfaces, then re-run (and push the fix).
 #
-# Isolation / race-safety:
-#   - distinct binary dirs (build / build-strict / build-asan / build-win) — no shared build files;
-#   - the source tree is read-only during the run (CMake writes only inside its binary dir);
-#   - each variant runs in its own subshell with its own log file (no interleaved output, no shared
-#     mutable shell state); asan's stack/env tweaks are scoped to asan's subshell, never leaking.
+# This script runs the variants in that order and reports each. It does NOT git-commit for you (the
+# commit message/branch is a decision for the author), but after debug+release pass it prints a clear
+# READY-TO-PUSH marker, then continues into asan.
 #
-# Usage:  scripts/post_work_check.sh [--quick]
-#   --quick   debug + strict only (skip asan); useful for a fast inner loop.
+# Usage:  scripts/post_work_check.sh [--no-asan]
+#   --no-asan   run debug + release only (the commit gate); skip the slow asan pass.
 #
-# Exit status is non-zero if ANY configured variant fails to build or has a failing test.
+# Exit status is non-zero if ANY variant fails to build or has a failing test.
 
 set -u
 cd "$(dirname "$0")/.."
 
-QUICK=0
-[ "${1:-}" = "--quick" ] && QUICK=1
+NO_ASAN=0
+[ "${1:-}" = "--no-asan" ] && NO_ASAN=1
 
-have() { command -v "$1" >/dev/null 2>&1; }
-
-# Total cores available (never fewer than 2).
-JOBS="$( { nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2; } )"
+JOBS="$( { nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4; } )"
 [ "$JOBS" -lt 2 ] 2>/dev/null && JOBS=2
 
-WIN_CXX=x86_64-w64-mingw32-g++
+declare -A DIR=( [debug]=build-debug [release]=build-release [asan]=build-asan )
+FAILED=0
+GREEN_GATE=1   # cleared if debug or release fails
 
-# --- decide the variant set up front, so we can split cores across the ones that will run live ---
-VARIANTS=(debug strict)
-[ "$QUICK" -eq 0 ] && VARIANTS+=(asan)
-have "$WIN_CXX" && VARIANTS+=(windows) || echo "SKIP[windows]: $WIN_CXX not found (no mingw toolchain in this environment)"
-
-# Per-variant job budget. Every variant builds+tests with the FULL core count and they run
-# concurrently: the kernel scheduler keeps all cores saturated while several builds overlap, and —
-# crucially — as the quick variants (debug/strict) finish, their cores flow to the slow one (asan,
-# the long pole), instead of sitting idle as they would under a static per-variant split. Memory
-# stays bounded because a single compiler TU is modest and the one memory-hungry test (the module
-# fuzzer) recycles its VM, so concurrent variants don't stack into an OOM.
-PER="$JOBS"
-
-LOGDIR="$(mktemp -d "${TMPDIR:-/tmp}/kirito-pwc.XXXXXX")"
-trap 'rm -rf "$LOGDIR"' EXIT
-
-# configure command for one variant (kept here so the launcher stays a flat loop)
-configure_cmd() {
-    case "$1" in
-        debug)   echo "cmake --preset debug" ;;
-        strict)  echo "cmake --preset strict" ;;
-        asan)    echo "cmake --preset asan" ;;
-        windows) echo "cmake -S . -B build-win -G Ninja -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_CXX_COMPILER=$WIN_CXX -DCMAKE_EXE_LINKER_FLAGS=-static" ;;
-    esac
-}
-binary_dir() {
-    case "$1" in
-        debug) echo build ;; strict) echo build-strict ;; asan) echo build-asan ;; windows) echo build-win ;;
-    esac
-}
-
-# Build+test one variant, fully self-contained, all output to its own log. Exit 0 = OK, 1 = failure.
+# Build+test one variant from scratch. Returns 0 on success. asan gets a generous stack + sanitizer
+# options, scoped to its own invocation (the recursion guard's frames are larger under ASan).
 run_variant() {
-    local name="$1" dir; dir="$(binary_dir "$name")"
-    local log="$LOGDIR/$name.log"
-    {
-        echo "=== variant: $name  (build/test jobs: $PER, dir: $dir) ==="
-        # Private temp dir per variant: the file-I/O tests resolve scratch paths from the system
-        # temp dir (io.gettempdir / std::filesystem::temp_directory_path, both honoring TMPDIR), so
-        # giving each concurrent variant its own TMPDIR means they never touch the same file.
-        export TMPDIR="$LOGDIR/tmp-$name"
-        mkdir -p "$TMPDIR"
-        # asan: instrumented frames are several times larger, so the Kirito recursion guard (~3000
-        # frames, safe on a normal stack) can blow an 8 MB stack before it trips. Give this run a
-        # generous stack — scoped to THIS subshell only, so debug/strict are unaffected.
-        if [ "$name" = asan ]; then
-            ulimit -s 262144 2>/dev/null || true
-            export ASAN_OPTIONS=detect_leaks=1
-            export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
-        fi
-        rm -rf "$dir"
-        # shellcheck disable=SC2046  # configure_cmd is a trusted, space-split command line
-        if ! $(configure_cmd "$name"); then echo "FAIL[$name]: configure"; exit 1; fi
-        if ! cmake --build "$dir" -j "$PER"; then echo "FAIL[$name]: build"; exit 1; fi
-        if ! ctest --test-dir "$dir" --output-on-failure -j "$PER"; then echo "FAIL[$name]: tests"; exit 1; fi
-        echo "OK[$name]"
-    } >"$log" 2>&1
+    local name="$1" dir="${DIR[$1]}"
+    echo "==================== VARIANT: $name ===================="
+    rm -rf "$dir"
+    if ! cmake --preset "$name" >"/tmp/pw_$name.cfg.log" 2>&1; then
+        echo "[$name] CONFIG FAILED"; tail -8 "/tmp/pw_$name.cfg.log"; FAILED=1; return 1
+    fi
+    if ! cmake --build "$dir" -j"$JOBS" -- -k 0 >"/tmp/pw_$name.build.log" 2>&1; then
+        echo "[$name] BUILD FAILED ($(grep -cE 'error:' "/tmp/pw_$name.build.log") errors):"
+        grep -E 'error:' "/tmp/pw_$name.build.log" | head -20
+        FAILED=1; return 1
+    fi
+    local pre=""
+    if [ "$name" = asan ]; then
+        ulimit -s 262144 2>/dev/null || true
+        pre="ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1"
+    fi
+    if env $pre ctest --test-dir "$dir" -j"$JOBS" >"/tmp/pw_$name.test.log" 2>&1; then
+        echo "[$name] $(grep -E 'tests passed' "/tmp/pw_$name.test.log" | tail -1)"
+        return 0
+    fi
+    echo "[$name] TESTS FAILED:"; grep -A8 'The following tests FAILED' "/tmp/pw_$name.test.log" | tail -10
+    FAILED=1; return 1
 }
 
-echo "Running ${#VARIANTS[@]} variant(s) concurrently: ${VARIANTS[*]}  (cores=$JOBS, per-variant jobs=$PER)"
+run_variant debug   || GREEN_GATE=0
+run_variant release || GREEN_GATE=0
 
-declare -A PID
-for name in "${VARIANTS[@]}"; do
-    run_variant "$name" &
-    PID[$name]=$!
-    echo "  -> launched $name (pid ${PID[$name]})"
-done
-
-# Collect results: wait on each PID for its real exit status (subshells can't mutate parent state).
-rc=0
-declare -A STATUS
-for name in "${VARIANTS[@]}"; do
-    if wait "${PID[$name]}"; then STATUS[$name]=ok; else STATUS[$name]=fail; rc=1; fi
-done
-
-# Replay each variant's log in a stable order (concurrent stdout never interleaves this way).
-ran=()
-for name in "${VARIANTS[@]}"; do
-    echo "==================================================================="
-    cat "$LOGDIR/$name.log"
-    [ "${STATUS[$name]}" = ok ] && ran+=("$name")
-done
-
-echo "==================================================================="
-if [ "$rc" -eq 0 ]; then
-    echo "ALL GREEN — variants run: ${ran[*]:-none}"
+echo "==================== COMMIT GATE ===================="
+if [ "$GREEN_GATE" -eq 1 ]; then
+    echo "READY TO PUSH: debug + release are GREEN — commit and push now, before asan."
 else
-    echo "FAILURES PRESENT — see FAIL[...] lines above"
+    echo "DO NOT PUSH: debug or release failed — fix before committing."
 fi
-exit "$rc"
+
+[ "$NO_ASAN" -eq 0 ] && run_variant asan
+
+echo "==================== SUMMARY ===================="
+for v in debug release asan; do
+    [ "$v" = "asan" ] && [ "$NO_ASAN" -eq 1 ] && { echo "asan: <skipped>"; continue; }
+    line=$(grep -hE 'tests passed|TESTS FAILED|BUILD FAILED|CONFIG FAILED' \
+                 "/tmp/pw_$v.test.log" "/tmp/pw_$v.build.log" "/tmp/pw_$v.cfg.log" 2>/dev/null | tail -1)
+    echo "$v: ${line:-<not run>}"
+done
+[ "$FAILED" -eq 0 ] && echo "ALL GREEN" || echo "FAILURES PRESENT"
+exit "$FAILED"

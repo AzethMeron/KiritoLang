@@ -34,14 +34,14 @@ class BitWriter {
 public:
     void bits(uint32_t value, int count) {
         for (int i = 0; i < count; ++i) {
-            cur_ |= ((value >> i) & 1) << nbits_;
+            cur_ = static_cast<uint8_t>(cur_ | (((value >> i) & 1u) << nbits_));
             if (++nbits_ == 8) { out_.push_back(static_cast<char>(cur_)); cur_ = 0; nbits_ = 0; }
         }
     }
     // Huffman codes are emitted MSB-first.
     void huff(uint32_t code, int count) {
         for (int i = count - 1; i >= 0; --i) {
-            cur_ |= ((code >> i) & 1) << nbits_;
+            cur_ = static_cast<uint8_t>(cur_ | (((code >> i) & 1u) << nbits_));
             if (++nbits_ == 8) { out_.push_back(static_cast<char>(cur_)); cur_ = 0; nbits_ = 0; }
         }
     }
@@ -252,7 +252,7 @@ inline std::string inflate(const std::string& in) {
             br.alignByte();
             std::size_t p = br.bytePos();
             if (p + 4 > in.size()) throw DeflateError("truncated stored block header");
-            uint16_t len = static_cast<uint8_t>(in[p]) | (static_cast<uint8_t>(in[p + 1]) << 8);
+            uint16_t len = static_cast<uint16_t>(static_cast<uint8_t>(in[p]) | (static_cast<uint8_t>(in[p + 1]) << 8));
             p += 4;  // skip LEN + NLEN
             if (p + len > in.size()) throw DeflateError("truncated stored block");
             out.append(in, p, len);
