@@ -123,3 +123,17 @@ The harness auto-discovers all 43 runnable `tests/scripts/*.ki`. Status:
 
 The performance ceiling is inherent to running a tree-walking interpreter on top of a tree-walking
 interpreter; it is a speed limit, not a correctness one.
+
+## Three-level tower (Kirito on Kirito on Kirito)
+
+`tower.ki` runs a program on a self-host that is *itself* running on a self-host — the C++ Kirito
+interprets the self-host, which interprets the self-host, which interprets your program (three
+interpreters deep). Run from the repo root:
+
+```sh
+ki --lib examples/big_projects/selfhost/lib examples/big_projects/selfhost/tower.ki program.ki
+```
+
+It's slow (every operation is interpreted twice over), but it proves the interpreter is complete
+enough to host itself: the level-2 self-host parses and evaluates the entire `lib/*.ki` source and
+then runs the inner program at level 3.
