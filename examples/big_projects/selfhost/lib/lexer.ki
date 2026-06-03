@@ -8,7 +8,7 @@
 var KEYWORDS = Set(["var", "Function", "if", "elif", "else", "while", "for", "in",
                     "return", "break", "continue", "pass", "and", "or", "not",
                     "True", "False", "None", "import", "assert", "class", "try",
-                    "catch", "throw", "finally", "with", "as", "del", "is"])
+                    "catch", "throw", "finally", "with", "as"])
 
 # Operators, longest first so maximal munch works with a simple prefix test.
 var OPS3 = Set(["**=", "//=", "..."])

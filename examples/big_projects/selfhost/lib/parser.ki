@@ -78,7 +78,10 @@ var parseExpr = Function(P):
     # Conditional expression `THEN if COND else ORELSE` — lowest precedence, right-associative when
     # chained (the orelse parses a full expression, so `a if c else b if d else e` nests right).
     var e = parseOr(P)
-    if _isKw(P, "if"):
+    # A block-bodied Function ends with a dedent, so a following `if` is the NEXT statement, not a
+    # conditional-expression tail (the block-function-then-if case).
+    var blockFunc = e["k"] == "func" and ("block" in e) and e["block"]
+    if _isKw(P, "if") and not blockFunc:
         P["i"] = P["i"] + 1
         var cond = parseOr(P)
         if not _eatKw(P, "else"):
@@ -271,8 +274,9 @@ var _parseFunc = Function(P):
         P["i"] = P["i"] + 1
         ret = _annName(parsePostfix(P))
     _expectOp(P, ":")
+    var isBlock = _ty(P) == "newline"   # a block (indented) body, vs an inline single-statement one
     var body = parseBlock(P)
-    return {"k": "func", "params": params, "body": body, "ret": ret}
+    return {"k": "func", "params": params, "body": body, "ret": ret, "block": isBlock}
 
 # Reduce an annotation expression to a type-name string (only simple names are enforced; anything
 # more complex is treated as Any / unchecked).
@@ -290,6 +294,8 @@ var _parseListLiteral = Function(P):
     while more:
         items.append(parseExpr(P))
         more = _eatOp(P, ",")
+        if more and _isOp(P, "]"):
+            more = False
     _expectOp(P, "]")
     return {"k": "list", "items": items}
 
