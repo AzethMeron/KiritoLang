@@ -170,6 +170,14 @@ for x in iterable:
 Logical operators `and`/`or`/`not` short-circuit and yield an operand. `break`/`continue` outside a
 loop and `return` outside a function are rejected at parse time.
 
+**`for` iterates a snapshot.** A `for` loop captures the iterable's elements (or a dict's keys) once,
+at loop start, then walks that fixed snapshot. So mutating the collection inside the loop is safe and
+well-defined: appending never causes an infinite loop (the new items aren't visited this pass),
+removing every element still visits all the originals (no skipping), and adding a dict key mid-loop
+does **not** raise (unlike Python's "dict changed size during iteration"). The structural change still
+applies to the collection — you just won't see it until the next loop. In-place mutation of a
+nested object you still hold a reference to *is* visible, because it's the same object.
+
 ### Conditional expression
 
 `then if cond else orelse` is an expression that yields `then` when `cond` is truthy and `orelse`
