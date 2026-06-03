@@ -173,6 +173,45 @@ var DUNDER = {"+": "_add_", "-": "_sub_", "*": "_mul_", "/": "_div_", "//": "_fl
               "%": "_mod_", "**": "_pow_", "==": "_eq_", "!=": "_ne_", "<": "_lt_",
               "<=": "_le_", ">": "_gt_", ">=": "_ge_"}
 
+# VM-aware deep equality (mirrors the real interpreter's kiEquals): containers compare element-wise
+# so a nested interpreted instance's _eq_ is honored, instead of the host's structural compare seeing
+# the boxes' distinct ids. The container identity short-circuit handles self-referential cycles;
+# scalars fall through to host == (so NaN != NaN holds). Instances defer to _eq_ / identity.
+var _deepEqual = Function(St, l, r):
+    if boxKind(l) == "instance":
+        var m = classLookup(l["cls"], "_eq_")
+        if m != None:
+            return truthy(St, callValue(St, mkBound(l, m), [r], []))
+        return _identityEq(l, r, "==")
+    if boxKind(r) == "instance":
+        var m2 = classLookup(r["cls"], "_eq_")
+        if m2 != None:
+            return truthy(St, callValue(St, mkBound(r, m2), [l], []))
+        return _identityEq(l, r, "==")
+    if isinstance(l, "List") and isinstance(r, "List"):
+        if id(l) == id(r):
+            return True
+        if len(l) != len(r):
+            return False
+        var i = 0
+        while i < len(l):
+            if not _deepEqual(St, l[i], r[i]):
+                return False
+            i = i + 1
+        return True
+    if isinstance(l, "Dict") and isinstance(r, "Dict") and not isBox(l) and not isBox(r):
+        if id(l) == id(r):
+            return True
+        if len(l) != len(r):
+            return False
+        for k in l.keys():
+            if k not in r:
+                return False
+            if not _deepEqual(St, l[k], r[k]):
+                return False
+        return True
+    return l == r
+
 var evalBinary = Function(St, op, l, r):
     # operator overloading when the left side is an interpreted instance
     if boxKind(l) == "instance":
@@ -210,9 +249,9 @@ var evalBinary = Function(St, op, l, r):
     if op == "**":
         return l ** r
     if op == "==":
-        return l == r
+        return _deepEqual(St, l, r)
     if op == "!=":
-        return l != r
+        return not _deepEqual(St, l, r)
     if op == "<":
         return l < r
     if op == "<=":
@@ -249,6 +288,11 @@ var evalUnary = Function(St, op, v):
                 return callValue(St, mkBound(v, m), [], [])
         return -v
     if op == "not":
+        # an instance may override `not` via _not_; otherwise negate truthiness
+        if boxKind(v) == "instance":
+            var nm = classLookup(v["cls"], "_not_")
+            if nm != None:
+                return truthy(St, callValue(St, mkBound(v, nm), [], []))
         return not truthy(St, v)
     rtError("unknown unary operator " + op)
 
@@ -301,6 +345,11 @@ var evalExpr = Function(St, env, node):
         if truthy(St, lv):
             return lv
         return evalExpr(St, env, node["r"])
+    if k == "cond":
+        # THEN if COND else ORELSE — short-circuits, evaluating only the chosen branch
+        if truthy(St, evalExpr(St, env, node["cond"])):
+            return evalExpr(St, env, node["then"])
+        return evalExpr(St, env, node["orelse"])
     if k == "func":
         return mkFunc("<anonymous>", node["params"], node["body"], env, node["ret"])
     if k == "call":
@@ -1483,17 +1532,56 @@ var builtinRange = Function(St, args, kwargs):
     var start = 0
     var stop = 0
     var step = 1
-    if len(args) == 1:
+    var hasStart = False
+    var hasStop = False
+    var hasStep = False
+    # keywords first, so the lone-positional-is-stop overload knows whether stop was named
+    for kw in kwargs:
+        var k = kw[0]
+        if k == "start":
+            start = kw[1]
+            hasStart = True
+        elif k == "stop" or k == "end":
+            stop = kw[1]
+            hasStop = True
+        elif k == "step":
+            step = kw[1]
+            hasStep = True
+        else:
+            rtError("range() got an unexpected keyword argument '" + k + "'")
+    if len(args) > 3:
+        rtError("range expects 1 to 3 positional arguments")
+    if len(args) == 1 and not hasStop:
         stop = args[0]
-    elif len(args) == 2:
-        start = args[0]
-        stop = args[1]
+        hasStop = True
     else:
-        start = args[0]
-        stop = args[1]
-        step = args[2]
+        if len(args) >= 1:
+            if hasStart:
+                rtError("range() got multiple values for 'start'")
+            start = args[0]
+            hasStart = True
+        if len(args) >= 2:
+            if hasStop:
+                rtError("range() got multiple values for 'stop'")
+            stop = args[1]
+            hasStop = True
+        if len(args) >= 3:
+            if hasStep:
+                rtError("range() got multiple values for 'step'")
+            step = args[2]
+            hasStep = True
+    if not hasStop:
+        rtError("range() missing required argument 'stop'")
     if step == 0:
-        rtError("range() step must not be zero")
+        rtError("range step cannot be zero")
+    # guard against an enormous materialized list (the real interpreter caps this too)
+    var count = 0
+    if step > 0 and stop > start:
+        count = (stop - start + step - 1) // step
+    elif step < 0 and stop < start:
+        count = (start - stop + (-step) - 1) // (-step)
+    if count > 100000000:
+        rtError("range too large")
     var out = []
     var i = start
     if step > 0:

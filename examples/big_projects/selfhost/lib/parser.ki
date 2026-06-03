@@ -75,7 +75,17 @@ var parseBlock = Function(P):
 
 # --- expressions: precedence climbing -------------------------------------------------------------
 var parseExpr = Function(P):
-    return parseOr(P)
+    # Conditional expression `THEN if COND else ORELSE` — lowest precedence, right-associative when
+    # chained (the orelse parses a full expression, so `a if c else b if d else e` nests right).
+    var e = parseOr(P)
+    if _isKw(P, "if"):
+        P["i"] = P["i"] + 1
+        var cond = parseOr(P)
+        if not _eatKw(P, "else"):
+            parseError(_peek(P), "expected 'else' in conditional expression")
+        var orelse = parseExpr(P)
+        return {"k": "cond", "then": e, "cond": cond, "orelse": orelse}
+    return e
 
 var parseOr = Function(P):
     var e = parseAnd(P)

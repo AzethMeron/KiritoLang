@@ -117,6 +117,10 @@ var _decodeEscapes = Function(raw, line, col):
                 var hex = raw[i + 1:i + 5]
                 out = out + chr(_parseRadix(hex, 16))
                 i = i + 4
+            elif e == "x":
+                var hx = raw[i + 1:i + 3]
+                out = out + chr(_parseRadix(hx, 16))
+                i = i + 2
             else:
                 out = out + e
             i = i + 1
@@ -144,6 +148,53 @@ var _readQuoted = Function(src, n, i, line, col):
         lexError(line, col, "unterminated string literal")
     return [raw, i + 1]
 
+# Detect a (possibly prefixed) string literal at index i. Up to two of r/f prefixes (any order/case)
+# followed by a ' or " quote. Returns [raw_bool, f_bool, quoteIndex] or None (so an identifier like
+# `front` or `red` that merely starts with f/r still lexes as a name).
+var _stringStart = Function(src, n, i):
+    var raw = False
+    var f = False
+    var j = i
+    var k = 0
+    while k < 2 and j < n and (src[j] == "r" or src[j] == "f" or src[j] == "R" or src[j] == "F"):
+        if src[j] == "r" or src[j] == "R":
+            raw = True
+        else:
+            f = True
+        j = j + 1
+        k = k + 1
+    if j < n and (src[j] == "\"" or src[j] == "'"):
+        return [raw, f, j]
+    return None
+
+# Read a string body starting at the opening quote `qi` (single or triple, ' or "). Keeps backslash
+# escape pairs verbatim so a \" / \' doesn't end the string; the caller decodes (unless raw). A
+# single-line form may not cross a newline; a triple form may. Returns [rawBody, nextIndex].
+var _readStr = Function(src, n, qi, line, col):
+    var q = src[qi]
+    var triple = qi + 2 < n and src[qi + 1] == q and src[qi + 2] == q
+    var i = (qi + 3) if triple else (qi + 1)
+    var raw = ""
+    while i < n:
+        if triple:
+            if src[i] == q and i + 2 < n and src[i + 1] == q and src[i + 2] == q:
+                return [raw, i + 3]
+        else:
+            if src[i] == q:
+                return [raw, i + 1]
+            if src[i] == "\n":
+                lexError(line, col, "unterminated string literal")
+        if src[i] == "\\":
+            raw = raw + src[i]
+            i = i + 1
+            if i < n:
+                raw = raw + src[i]
+                i = i + 1
+        else:
+            raw = raw + src[i]
+            i = i + 1
+    lexError(line, col, "unterminated string literal")
+
 # Index of the format-spec ':' in an f-string hole — the first colon at bracket depth 0, so a
 # colon inside a slice (xs[1:]) or call is not mistaken for the spec separator. -1 if none.
 var _topLevelColon = Function(expr):
@@ -162,7 +213,8 @@ var _topLevelColon = Function(expr):
     return -1
 
 # Parse an f-string body into parts (literal text vs {hole[:spec]}); braces escape as {{ }}.
-var _parseFstring = Function(raw, line, col):
+# `isRaw` (rf"..."): literal segments keep backslashes verbatim (no escape decoding).
+var _parseFstring = Function(raw, line, col, isRaw):
     var parts = []
     var i = 0
     var n = len(raw)
@@ -211,7 +263,7 @@ var _parseFstring = Function(raw, line, col):
         parts.append({"t": "lit", "v": lit})
     # decode escape sequences (\n, \t, ...) in the literal text segments (not inside holes)
     for p in parts:
-        if p["t"] == "lit":
+        if p["t"] == "lit" and not isRaw:
             p["v"] = _decodeEscapes(p["v"], line, col)
     return parts
 
@@ -284,18 +336,29 @@ var tokenize = Function(src):
                 i = i + 1
             continue
         pendingContent = True
-        # f-string?
-        if c == "f" and i + 1 < n and src[i + 1] == "\"":
-            var rq = _readQuoted(src, n, i + 1, line, colNow)
-            var parts = _parseFstring(rq[0], line, colNow)
-            toks.append({"t": "fstr", "v": parts, "line": line, "col": colNow})
-            i = rq[1]
-            continue
-        if c == "\"":
-            var rq2 = _readQuoted(src, n, i, line, colNow)
-            var decoded = _decodeEscapes(rq2[0], line, colNow)
-            toks.append({"t": "str", "v": decoded, "line": line, "col": colNow})
-            i = rq2[1]
+        # string literal: any of '/"/'''/""", with optional r (raw) and/or f (f-string) prefixes.
+        var ss = _stringStart(src, n, i)
+        if ss != None:
+            var isRaw = ss[0]
+            var isF = ss[1]
+            var qi = ss[2]
+            var rs = _readStr(src, n, qi, line, colNow)
+            var body = rs[0]
+            var nextI = rs[1]
+            if isF:
+                var parts = _parseFstring(body, line, colNow, isRaw)
+                toks.append({"t": "fstr", "v": parts, "line": line, "col": colNow})
+            else:
+                var text = body if isRaw else _decodeEscapes(body, line, colNow)
+                toks.append({"t": "str", "v": text, "line": line, "col": colNow})
+            # account for any newlines a triple-quoted string consumed, so later tokens stay located
+            var p = i
+            while p < nextI:
+                if src[p] == "\n":
+                    line = line + 1
+                    lineStartIdx = p + 1
+                p = p + 1
+            i = nextI
             continue
         if _isDigit(c):
             var rn = _readNumber(src, n, i, line, colNow)
