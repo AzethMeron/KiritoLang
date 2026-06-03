@@ -188,8 +188,8 @@ inline void MatrixVal::setItem(KiritoVM& vm, std::span<const Handle> keys, Handl
 }
 
 inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
-    auto bind = [&](const char* nm, NativeFn fn) {
-        return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+    auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
+        return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
     };
     auto self_m = [](KiritoVM& vm, Handle self) -> MatrixVal& {
         return static_cast<MatrixVal&>(vm.arena().deref(self));
@@ -201,46 +201,46 @@ inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         if (v < 0) throw KiritoError("Matrix index out of range");
         return static_cast<std::size_t>(v);
     };
-    if (name == "rows") return bind("rows", [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).rows)); });
-    if (name == "cols") return bind("cols", [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).cols)); });
-    if (name == "shape") return bind("shape", [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
+    if (name == "rows") return bind("rows", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).rows)); });
+    if (name == "cols") return bind("cols", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).cols)); });
+    if (name == "shape") return bind("shape", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
         auto list = std::make_unique<ListVal>();
         list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.rows)));
         list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.cols)));
         return vm.alloc(std::move(list));
     });
-    if (name == "get") return bind("get", [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    if (name == "get") return bind("get", {"row", "col"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]), c = idx(vm, a[1]);
         if (r >= m.rows || c >= m.cols) throw KiritoError("Matrix index out of range");
         return vm.makeFloat(m.at(r, c));
     });
-    if (name == "set") return bind("set", [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    if (name == "set") return bind("set", {"row", "col", "value"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]), c = idx(vm, a[1]);
         if (r >= m.rows || c >= m.cols) throw KiritoError("Matrix index out of range");
         m.at(r, c) = mat::numOf(vm, a[2]);
         return vm.none();
     });
-    if (name == "transpose") return bind("transpose", [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
+    if (name == "transpose") return bind("transpose", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
         auto t = mat::make(m.cols, m.rows);
         for (std::size_t r = 0; r < m.rows; ++r)
             for (std::size_t c = 0; c < m.cols; ++c) t->at(c, r) = m.at(r, c);
         return vm.alloc(std::move(t));
     });
-    if (name == "determinant") return bind("determinant", [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeFloat(mat::determinant(self_m(vm, self))); });
-    if (name == "inverse") return bind("inverse", [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.alloc(mat::inverse(self_m(vm, self))); });
-    if (name == "sum") return bind("sum", [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
+    if (name == "determinant") return bind("determinant", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeFloat(mat::determinant(self_m(vm, self))); });
+    if (name == "inverse") return bind("inverse", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.alloc(mat::inverse(self_m(vm, self))); });
+    if (name == "sum") return bind("sum", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         double s = 0; for (double v : self_m(vm, self).data) s += v; return vm.makeFloat(s);
     });
-    if (name == "trace") return bind("trace", [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
+    if (name == "trace") return bind("trace", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
         if (m.rows != m.cols) throw KiritoError("trace requires a square Matrix");
         double s = 0; for (std::size_t i = 0; i < m.rows; ++i) s += m.at(i, i); return vm.makeFloat(s);
     });
-    if (name == "apply") return bind("apply", [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    if (name == "apply") return bind("apply", {"fn"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         Handle fn = a[0];
         auto& m = self_m(vm, self);
         auto out = mat::make(m.rows, m.cols);
@@ -250,7 +250,7 @@ inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         }
         return vm.alloc(std::move(out));
     });
-    if (name == "row") return bind("row", [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+    if (name == "row") return bind("row", {"i"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]);
         if (r >= m.rows) throw KiritoError("row index out of range");

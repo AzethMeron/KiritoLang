@@ -102,15 +102,15 @@ public:
         if (name == "weekday") return vm.makeInt(tm.tm_wday);   // 0 = Sunday
         if (name == "yearday") return vm.makeInt(tm.tm_yday + 1);
         if (name == "timestamp")
-            return vm.alloc(std::make_unique<NativeFunction>(
-                "timestamp",
+            return makeMethod(vm,
+                "timestamp", {},
                 [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
                     return vm.makeInt(static_cast<DateTime&>(vm.arena().deref(self)).epoch);
-                }, std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         // Arithmetic: add/sub a number of seconds -> a new DateTime; diff -> seconds between two.
         if (name == "add" || name == "sub")
-            return vm.alloc(std::make_unique<NativeFunction>(
-                std::string(name),
+            return makeMethod(vm,
+                std::string(name), {"seconds"},
                 [self, sub = (name == "sub")](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                     if (a.size() != 1) throw KiritoError("add/sub expects 1 argument (seconds)");
                     const Object& o = vm.arena().deref(a[0]);
@@ -118,25 +118,25 @@ public:
                     int64_t delta = static_cast<const IntVal&>(o).value();
                     int64_t base = static_cast<DateTime&>(vm.arena().deref(self)).epoch;
                     return vm.alloc(std::make_unique<DateTime>(base + (sub ? -delta : delta)));
-                }, std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         if (name == "diff")
-            return vm.alloc(std::make_unique<NativeFunction>(
-                "diff",
+            return makeMethod(vm,
+                "diff", {"other"},
                 [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                     if (a.size() != 1) throw KiritoError("diff expects 1 argument (a DateTime)");
                     const auto* other = dynamic_cast<const DateTime*>(&vm.arena().deref(a[0]));
                     if (!other) throw KiritoError("diff expects a DateTime");
                     return vm.makeInt(static_cast<DateTime&>(vm.arena().deref(self)).epoch - other->epoch);
-                }, std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         if (name == "iso" || name == "isoformat")
-            return vm.alloc(std::make_unique<NativeFunction>(
-                "iso",
+            return makeMethod(vm,
+                "iso", {},
                 [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
                     return vm.makeString(static_cast<DateTime&>(vm.arena().deref(self)).iso());
-                }, std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         if (name == "format")
-            return vm.alloc(std::make_unique<NativeFunction>(
-                "format",
+            return makeMethod(vm,
+                "format", {"fmt"},
                 [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                     auto& dt = static_cast<DateTime&>(vm.arena().deref(self));
                     const Object& o = vm.arena().deref(a[0]);
@@ -154,7 +154,7 @@ public:
 #  pragma GCC diagnostic pop
 #endif
                     return vm.makeString(std::string(buf, n));
-                }, std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         return Object::getAttr(vm, self, name);
     }
 };

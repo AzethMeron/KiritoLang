@@ -675,12 +675,12 @@ inline Handle SessionVal::getAttr(KiritoVM& vm, Handle self, std::string_view na
     if (name == "headers") return headersH;
     if (name == "cookies") return cookiesH;
     auto verb = [&](const char* nm, const char* method) {
-        return vm.alloc(std::make_unique<NativeFunction>(nm,
+        return makeMethod(vm, nm, {"url", "opts"},
             [self, method](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 Args args(vm, a, "session");
                 Handle opts = args.size() > 1 ? a[1] : vm.none();
                 return sessionDo(vm, self, method, args[0].asString("url"), opts);
-            }, std::vector<Handle>{self}));
+            }, std::vector<Handle>{self});
     };
     if (name == "get") return verb("get", "GET");
     if (name == "post") return verb("post", "POST");
@@ -690,24 +690,24 @@ inline Handle SessionVal::getAttr(KiritoVM& vm, Handle self, std::string_view na
     if (name == "head") return verb("head", "HEAD");
     if (name == "options") return verb("options", "OPTIONS");
     if (name == "request")
-        return vm.alloc(std::make_unique<NativeFunction>("request",
+        return makeMethod(vm, "request", {"method", "url", "opts"},
             [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 Args args(vm, a, "session.request");
                 Handle opts = args.size() > 2 ? a[2] : vm.none();
                 return sessionDo(vm, self, args[0].asString("method"), args[1].asString("url"), opts);
-            }, std::vector<Handle>{self}));
+            }, std::vector<Handle>{self});
     return Object::getAttr(vm, self, name);
 }
 
 inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
-    auto bind = [&](const char* nm, NativeFn fn) {
-        return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+    auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
+        return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
     };
     auto sock = [](KiritoVM& vm, Handle self) -> SocketVal& {
         return static_cast<SocketVal&>(vm.arena().deref(self));
     };
     if (name == "connect")
-        return bind("connect", [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bind("connect", {"host", "port"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto& s = sock(vm, self);
             sockaddr_in addr{};
             if (!net::resolve(asStr(vm, a[0]), static_cast<int>(asInt(vm, a[1])), addr))
@@ -717,7 +717,7 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             return vm.none();
         });
     if (name == "bind")
-        return bind("bind", [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bind("bind", {"host", "port"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto& s = sock(vm, self);
             int yes = 1;
             ::setsockopt(s.fd, SOL_SOCKET, SO_REUSEADDR,
@@ -731,26 +731,26 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             return vm.none();
         });
     if (name == "listen")
-        return bind("listen", [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bind("listen", {"backlog"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             int backlog = a.empty() ? 16 : static_cast<int>(asInt(vm, a[0]));
             if (::listen(sock(vm, self).fd, backlog) != 0)
                 throw KiritoError("listen failed: " + netcompat::lastError());
             return vm.none();
         });
     if (name == "accept")
-        return bind("accept", [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        return bind("accept", {}, [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
             netcompat::socket_t c = ::accept(sock(vm, self).fd, nullptr, nullptr);
             if (!netcompat::isValid(c)) throw KiritoError("accept failed: " + netcompat::lastError());
             return vm.alloc(std::make_unique<SocketVal>(c));
         });
     if (name == "send")
-        return bind("send", [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bind("send", {"data"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const std::string& data = asStr(vm, a[0]);
             net::sendAll(sock(vm, self).fd, data);
             return vm.makeInt(static_cast<int64_t>(data.size()));
         });
     if (name == "recv")
-        return bind("recv", [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bind("recv", {"size"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::size_t n = a.empty() ? 4096 : static_cast<std::size_t>(asInt(vm, a[0]));
             std::vector<char> buf(n);
             long long got = netcompat::recvBytes(sock(vm, self).fd, buf.data(), n);
@@ -758,11 +758,11 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             return vm.makeString(std::string(buf.data(), static_cast<std::size_t>(got)));
         });
     if (name == "recvall")
-        return bind("recvall", [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        return bind("recvall", {}, [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
             return vm.makeString(net::recvAll(sock(vm, self).fd));
         });
     if (name == "settimeout")
-        return bind("settimeout", [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bind("settimeout", {"seconds"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const Object& t = vm.arena().deref(a[0]);
             double secs = t.kind() == ValueKind::Float
                               ? static_cast<const FloatVal&>(t).value()
@@ -771,12 +771,12 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             return vm.none();
         });
     if (name == "close" || name == "_exit_")
-        return bind("close", [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        return bind("close", {}, [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
             sock(vm, self).closeFd();
             return vm.none();
         });
     if (name == "_enter_")
-        return bind("_enter_", [self](KiritoVM&, std::span<const Handle>) { return self; });
+        return bind("_enter_", {}, [self](KiritoVM&, std::span<const Handle>) { return self; });
     return Object::getAttr(vm, self, name);
 }
 
@@ -788,17 +788,17 @@ inline Handle ResponseVal::getAttr(KiritoVM& vm, Handle self, std::string_view n
     if (name == "text" || name == "body" || name == "content") return vm.makeString(body);
     if (name == "headers") return headersH;
     if (name == "cookies") return cookiesH;
-    auto bind = [&](const char* nm, NativeFn fn) {
-        return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+    auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
+        return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
     };
     if (name == "json")
-        return bind("json", [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        return bind("json", {}, [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
             auto& r = static_cast<ResponseVal&>(vm.arena().deref(self));
             RootScope rs(vm);
             return json::Parser(vm, r.body, rs).parse();
         });
     if (name == "raiseforstatus")
-        return bind("raiseforstatus", [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        return bind("raiseforstatus", {}, [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
             auto& r = static_cast<ResponseVal&>(vm.arena().deref(self));
             if (r.status >= 400)
                 throw KiritoError("HTTP " + std::to_string(r.status) +
@@ -806,7 +806,7 @@ inline Handle ResponseVal::getAttr(KiritoVM& vm, Handle self, std::string_view n
             return self;
         });
     if (name == "header")
-        return bind("header", [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bind("header", {"name"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto& r = static_cast<ResponseVal&>(vm.arena().deref(self));
             std::string want = net::asciiLower(argString(vm, a[0], "header"));
             const DictVal& hd = static_cast<const DictVal&>(vm.arena().deref(r.headersH));

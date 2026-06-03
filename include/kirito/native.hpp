@@ -107,6 +107,41 @@ public:
     bool equals(const ObjectArena&, const Object& other) const override { return this == &other; }
 };
 
+// Wrap a member function's positional implementation so it ALSO accepts keyword arguments, without
+// touching the impl. `params` names the positional slots (Python-ish names). On a keyword call,
+// positionals fill left-to-right, keywords bind by name, any slot left as a hole before the last
+// supplied one is filled with None, and trailing unset slots are dropped — so the impl receives
+// exactly the variable-length span it always did (its own None/arity checks still apply). A
+// positional-only call takes a fast path identical to the original. Unknown/duplicate keywords raise
+// a clear error. Used to give every built-in type method and native-class method keyword support.
+inline Handle makeMethod(KiritoVM& vm, std::string name, std::vector<std::string> params,
+                         NativeFn impl, std::vector<Handle> captures = {}) {
+    NativeFnKw kw = [name, params, impl](KiritoVM& vm, std::span<const Handle> pos,
+                                         std::span<const NamedArg> named) -> Handle {
+        if (named.empty()) return impl(vm, pos);  // positional fast path: unchanged behaviour
+        std::size_t nparams = params.size();
+        std::size_t total = std::max(nparams, pos.size());
+        std::vector<Handle> slots(total);
+        std::vector<bool> set(total, false);
+        for (std::size_t i = 0; i < pos.size(); ++i) { slots[i] = pos[i]; set[i] = true; }
+        for (const auto& na : named) {
+            std::size_t idx = nparams;
+            for (std::size_t i = 0; i < nparams; ++i) if (params[i] == na.name) { idx = i; break; }
+            if (idx == nparams)
+                throw KiritoError(name + "() got an unexpected keyword argument '" + na.name + "'");
+            if (set[idx])
+                throw KiritoError(name + "() got multiple values for argument '" + na.name + "'");
+            slots[idx] = na.value; set[idx] = true;
+        }
+        std::size_t outlen = 0;
+        for (std::size_t i = 0; i < total; ++i) if (set[i]) outlen = i + 1;
+        for (std::size_t i = 0; i < outlen; ++i) if (!set[i]) slots[i] = vm.none();
+        slots.resize(outlen);
+        return impl(vm, slots);
+    };
+    return vm.alloc(std::make_unique<NativeFunction>(std::move(name), std::move(kw), std::move(captures)));
+}
+
 }  // namespace kirito
 
 #endif

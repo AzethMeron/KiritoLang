@@ -39,8 +39,12 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   current scope; bare `=` rebinds the nearest existing binding (a `NameError` if undefined).
 - **First-class functions**: `var main = Function():` followed by an indented block, called as `main()`.
   Parameters take **keyword arguments** (`f(b = 2, a = 1)`, any order) and **default values**
-  (`Function(base, exp = 2):`) — keywords work uniformly across plain calls, **class instantiation**
-  (forwarded to `_init_`: `Point(x = 1, y = 2)`), and **instance/inherited/`_super_` method calls**. Parameters and the return value take optional **enforcing type
+  (`Function(base, exp = 2):`) — keywords work **uniformly across every callable**: plain calls,
+  **class instantiation** (forwarded to `_init_`: `Point(x = 1, y = 2)`), **instance/inherited/`_super_`
+  method calls**, **built-in type methods** (`xs.sort(key = f, reverse = True)`, `s.split(sep = ",")`,
+  `d.get(key = k, default = 0)`), **native-object methods** (matrix/regex/io/net/…), and signatured
+  builtins/stdlib functions (the shared `makeMethod` helper gives any native member function keyword
+  support). Parameters and the return value take optional **enforcing type
   annotations** (`Function(d : Dict) -> Float:`): unlike Python hints these are *checked at runtime* —
   the argument must be an instance of the named type (inheritance-aware: a subclass satisfies a base
   annotation) and the function must return that type, else a clear error. `Any` / no annotation

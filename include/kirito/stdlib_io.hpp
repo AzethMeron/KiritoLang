@@ -65,14 +65,14 @@ public:
     }
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
-        auto bind = [&](const char* nm, NativeFn fn) {
-            return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+        auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
+            return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
         };
         auto file = [](KiritoVM& vm, Handle self) -> FileVal& {
             return static_cast<FileVal&>(vm.arena().deref(self));
         };
         if (name == "read")
-            return bind("read", [self, file](KiritoVM& vm, std::span<const Handle> a) {
+            return bind("read", {"size"}, [self, file](KiritoVM& vm, std::span<const Handle> a) {
                 std::optional<std::size_t> n;
                 if (!a.empty()) {
                     int64_t want = argInt(vm, a[0], "read");
@@ -81,21 +81,21 @@ public:
                 return vm.makeString(file(vm, self).streamRead(n));
             });
         if (name == "readline")
-            return bind("readline", [self, file](KiritoVM& vm, std::span<const Handle>) {
+            return bind("readline", {}, [self, file](KiritoVM& vm, std::span<const Handle>) {
                 return vm.makeString(file(vm, self).streamReadLine());
             });
         if (name == "write")
-            return bind("write", [self, file](KiritoVM& vm, std::span<const Handle> a) {
+            return bind("write", {"data"}, [self, file](KiritoVM& vm, std::span<const Handle> a) {
                 file(vm, self).streamWrite(argString(vm, a[0], "write"));
                 return vm.none();
             });
         if (name == "close" || name == "_exit_")
-            return bind("close", [self, file](KiritoVM& vm, std::span<const Handle>) {
+            return bind("close", {}, [self, file](KiritoVM& vm, std::span<const Handle>) {
                 file(vm, self).stream.close();
                 return vm.none();
             });
         if (name == "readlines")
-            return bind("readlines", [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return bind("readlines", {}, [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 RootScope rs(vm);
                 auto list = std::make_unique<ListVal>();
                 std::string line;
@@ -103,7 +103,7 @@ public:
                 return vm.alloc(std::move(list));
             });
         if (name == "writelines")
-            return bind("writelines", [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("writelines", {"lines"}, [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 auto items = vm.arena().deref(a[0]).iterate(vm);
                 auto& f = file(vm, self);
                 for (Handle h : items.value()) {
@@ -114,16 +114,16 @@ public:
                 return vm.none();
             });
         if (name == "flush")
-            return bind("flush", [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return bind("flush", {}, [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 file(vm, self).stream.flush();
                 return vm.none();
             });
         if (name == "tell")
-            return bind("tell", [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return bind("tell", {}, [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 return vm.makeInt(static_cast<int64_t>(file(vm, self).stream.tellg()));
             });
         if (name == "seek")
-            return bind("seek", [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("seek", {"offset", "whence"}, [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 int64_t pos = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
                 auto& s = file(vm, self).stream;
                 s.clear();
@@ -132,7 +132,7 @@ public:
                 return vm.none();
             });
         if (name == "_enter_")
-            return bind("_enter_", [self](KiritoVM&, std::span<const Handle>) { return self; });
+            return bind("_enter_", {}, [self](KiritoVM&, std::span<const Handle>) { return self; });
         return Object::getAttr(vm, self, name);
     }
 };
@@ -176,20 +176,20 @@ public:
     }
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
-        auto bind = [&](const char* nm, NativeFn fn) {
-            return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+        auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
+            return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
         };
         auto io = [](KiritoVM& vm, Handle self) -> BytesIO& {
             return static_cast<BytesIO&>(vm.arena().deref(self));
         };
         if (name == "write")
-            return bind("write", [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("write", {"data"}, [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 const std::string& data = argString(vm, a[0], "BytesIO.write");
                 io(vm, self).streamWrite(data);
                 return vm.makeInt(static_cast<int64_t>(data.size()));
             });
         if (name == "read")
-            return bind("read", [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("read", {"size"}, [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 std::optional<std::size_t> n;
                 if (!a.empty()) {
                     const Object& o = vm.arena().deref(a[0]);
@@ -201,21 +201,21 @@ public:
                 return vm.makeString(io(vm, self).streamRead(n));
             });
         if (name == "readline")
-            return bind("readline", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return bind("readline", {}, [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 return vm.makeString(io(vm, self).streamReadLine());
             });
         if (name == "flush")
-            return bind("flush", [](KiritoVM& vm, std::span<const Handle>) -> Handle { return vm.none(); });
+            return bind("flush", {}, [](KiritoVM& vm, std::span<const Handle>) -> Handle { return vm.none(); });
         if (name == "getvalue")
-            return bind("getvalue", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return bind("getvalue", {}, [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 return vm.makeString(io(vm, self).buf);
             });
         if (name == "tell")
-            return bind("tell", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return bind("tell", {}, [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 return vm.makeInt(static_cast<int64_t>(io(vm, self).pos));
             });
         if (name == "seek")
-            return bind("seek", [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("seek", {"offset", "whence"}, [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 auto& b = io(vm, self);
                 int64_t off = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
                 int whence = a.size() > 1 ? static_cast<int>(static_cast<const IntVal&>(vm.arena().deref(a[1])).value()) : 0;
@@ -227,19 +227,19 @@ public:
                 return vm.makeInt(np);
             });
         if (name == "size" || name == "_len_")
-            return bind("size", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return bind("size", {}, [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 return vm.makeInt(static_cast<int64_t>(io(vm, self).buf.size()));
             });
         if (name == "truncate")
-            return bind("truncate", [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return bind("truncate", {}, [self, io](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 auto& b = io(vm, self);
                 b.buf.resize(b.pos);
                 return vm.makeInt(static_cast<int64_t>(b.buf.size()));
             });
         if (name == "_enter_")
-            return bind("_enter_", [self](KiritoVM&, std::span<const Handle>) { return self; });
+            return bind("_enter_", {}, [self](KiritoVM&, std::span<const Handle>) { return self; });
         if (name == "_exit_" || name == "close")
-            return bind("close", [](KiritoVM& vm, std::span<const Handle>) { return vm.none(); });
+            return bind("close", {}, [](KiritoVM& vm, std::span<const Handle>) { return vm.none(); });
         return Object::getAttr(vm, self, name);
     }
 };
@@ -288,33 +288,33 @@ public:
     }
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
-        auto bind = [&](const char* nm, NativeFn fn) {
-            return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+        auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
+            return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
         };
         auto me = [](KiritoVM& vm, Handle self) -> StdStream& { return static_cast<StdStream&>(vm.arena().deref(self)); };
         if (name == "write")
-            return bind("write", [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("write", {"data"}, [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 me(vm, self).streamWrite(argString(vm, a[0], "write"));
                 return vm.none();
             });
         if (name == "read")
-            return bind("read", [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("read", {"size"}, [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 std::optional<std::size_t> n;
                 if (!a.empty()) { int64_t w = argInt(vm, a[0], "read"); if (w >= 0) n = static_cast<std::size_t>(w); }
                 return vm.makeString(me(vm, self).streamRead(n));
             });
         if (name == "readline")
-            return bind("readline", [self, me](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return bind("readline", {}, [self, me](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 return vm.makeString(me(vm, self).streamReadLine());
             });
         if (name == "flush")
-            return bind("flush", [self, me](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return bind("flush", {}, [self, me](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 me(vm, self).streamFlush(); return vm.none();
             });
         if (name == "_enter_")
-            return bind("_enter_", [self](KiritoVM&, std::span<const Handle>) { return self; });
+            return bind("_enter_", {}, [self](KiritoVM&, std::span<const Handle>) { return self; });
         if (name == "_exit_" || name == "close")
-            return bind("close", [](KiritoVM& vm, std::span<const Handle>) { return vm.none(); });
+            return bind("close", {}, [](KiritoVM& vm, std::span<const Handle>) { return vm.none(); });
         return Object::getAttr(vm, self, name);
     }
 };

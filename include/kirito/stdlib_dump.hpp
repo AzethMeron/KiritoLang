@@ -171,25 +171,25 @@ public:
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         if (name == "size")
-            return vm.alloc(std::make_unique<NativeFunction>(
-                "size", [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return makeMethod(vm,
+                "size", {}, [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
                     return vm.makeInt(static_cast<int64_t>(static_cast<DumpVal&>(vm.arena().deref(self)).data.size()));
-                }, std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         if (name == "bytes")
-            return vm.alloc(std::make_unique<NativeFunction>(
-                "bytes", [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return makeMethod(vm,
+                "bytes", {}, [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
                     return vm.makeString(static_cast<DumpVal&>(vm.arena().deref(self)).data);
-                }, std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         if (name == "save")
-            return vm.alloc(std::make_unique<NativeFunction>(
-                "save", [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return makeMethod(vm,
+                "save", {"path"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                     const Object& o = vm.arena().deref(a[0]);
                     if (o.kind() != ValueKind::String) throw KiritoError("save expects a path String");
                     std::ofstream f(static_cast<const StrVal&>(o).value(), std::ios::binary);
                     if (!f) throw KiritoError("could not open file for saving");
                     f << static_cast<DumpVal&>(vm.arena().deref(self)).data;
                     return vm.none();
-                }, std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         return Object::getAttr(vm, self, name);
     }
 };

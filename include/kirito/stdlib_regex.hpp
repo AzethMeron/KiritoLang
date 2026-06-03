@@ -69,14 +69,14 @@ public:
     }
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
-        auto bind = [&](const char* nm, NativeFn fn) {
-            return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+        auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
+            return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
         };
         auto me = [](KiritoVM& vm, Handle self) -> MatchVal& { return static_cast<MatchVal&>(vm.arena().deref(self)); };
 
         if (name == "string") return subject;          // attribute: the original subject String
         if (name == "group")
-            return bind("group", [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("group", {"index"}, [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 MatchVal& M = me(vm, self);
                 if (a.empty()) return M.groupString(vm, 0);
                 if (a.size() == 1) return M.groupString(vm, M.groupOf(vm, a[0]));
@@ -86,7 +86,7 @@ public:
                 return out.build().handle();
             });
         if (name == "groups")
-            return bind("groups", [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("groups", {"default"}, [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 MatchVal& M = me(vm, self);
                 Handle dflt = a.empty() ? vm.none() : a[0];
                 List out(vm);
@@ -95,7 +95,7 @@ public:
                 return out.build().handle();
             });
         if (name == "groupdict")
-            return bind("groupdict", [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("groupdict", {"default"}, [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 MatchVal& M = me(vm, self);
                 Handle dflt = a.empty() ? vm.none() : a[0];
                 Dict out(vm);
@@ -105,19 +105,19 @@ public:
                 return out.build().handle();
             });
         if (name == "start")
-            return bind("start", [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("start", {"group"}, [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 MatchVal& M = me(vm, self);
                 int g = a.empty() ? 0 : M.groupOf(vm, a[0]);
                 return vm.makeInt(M.slots[2 * g]);
             });
         if (name == "end")
-            return bind("end", [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("end", {"group"}, [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 MatchVal& M = me(vm, self);
                 int g = a.empty() ? 0 : M.groupOf(vm, a[0]);
                 return vm.makeInt(M.slots[2 * g + 1]);
             });
         if (name == "span")
-            return bind("span", [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("span", {"group"}, [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 MatchVal& M = me(vm, self);
                 int g = a.empty() ? 0 : M.groupOf(vm, a[0]);
                 List out(vm); out.add(vm.makeInt(M.slots[2 * g])).add(vm.makeInt(M.slots[2 * g + 1]));
@@ -211,8 +211,8 @@ public:
     std::string str(StringifyCtx&) const override { return "<Regex /" + pattern + "/>"; }
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
-        auto bind = [&](const char* nm, NativeFn fn) {
-            return vm.alloc(std::make_unique<NativeFunction>(nm, std::move(fn), std::vector<Handle>{self}));
+        auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
+            return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
         };
         auto re = [](KiritoVM& vm, Handle self) -> RegexVal& { return static_cast<RegexVal&>(vm.arena().deref(self)); };
 
@@ -224,7 +224,7 @@ public:
             return d.build().handle();
         }
         if (name == "match" || name == "search" || name == "fullmatch")
-            return bind(std::string(name).c_str(), [self, re, name = std::string(name)](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind(std::string(name).c_str(), {"string", "pos", "endpos"}, [self, re, name = std::string(name)](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 RegexVal& R = re(vm, self);
                 Args args(vm, a, name.c_str());
                 std::string s = args.at(0).asString(name.c_str());
@@ -238,7 +238,7 @@ public:
                 return redetail::makeMatch(vm, args[0].handle(), r, R.prog);
             });
         if (name == "finditer")
-            return bind("finditer", [self, re](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("finditer", {"string", "pos", "endpos"}, [self, re](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 RegexVal& R = re(vm, self);
                 Args args(vm, a, "finditer");
                 std::string s = args.at(0).asString("finditer");
@@ -250,7 +250,7 @@ public:
                 return out.build().handle();
             });
         if (name == "findall")
-            return bind("findall", [self, re](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("findall", {"string", "pos", "endpos"}, [self, re](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 RegexVal& R = re(vm, self);
                 Args args(vm, a, "findall");
                 std::string s = args.at(0).asString("findall");
@@ -273,7 +273,7 @@ public:
                 return out.build().handle();
             });
         if (name == "sub")
-            return bind("sub", [self, re](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("sub", {"repl", "string", "count"}, [self, re](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 RegexVal& R = re(vm, self);
                 Args args(vm, a, "sub");
                 Handle repl = args.at(0).handle();
@@ -309,7 +309,7 @@ public:
                 return vm.makeString(out);
             });
         if (name == "split")
-            return bind("split", [self, re](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("split", {"string", "maxsplit"}, [self, re](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 RegexVal& R = re(vm, self);
                 Args args(vm, a, "split");
                 std::string s = args.at(0).asString("split");

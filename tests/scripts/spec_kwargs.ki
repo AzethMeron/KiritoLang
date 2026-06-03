@@ -4,6 +4,8 @@
 # adversarial + a small fuzz sweep.
 var io = import("io")
 var math = import("math")
+var regex = import("regex")
+var matrix = import("matrix")
 
 # --- type constructors / converters take their parameter by keyword ---
 assert Integer(x="42") == 42, "Integer(x=)"
@@ -139,5 +141,90 @@ while i < 500:
 # --- fuzz: sorted(key=, reverse=) keyword combos agree with manual reverse ---
 var data = [5, 3, 8, 1, 9, 2, 7]
 assert sorted(data, key=negate) == sorted(data, reverse=True), "key=negate equals reverse=True"
+
+# ============================================================ keyword args on MEMBER functions too
+# Class constructors forward keywords to _init_ (incl. through inheritance / _super_), instance
+# methods take keywords, and every built-in type method + native-object method does as well.
+
+# --- constructors + methods + super ---
+class Vec:
+    var _init_ = Function(self, x, y = 0, z = 0):
+        self.x = x
+        self.y = y
+        self.z = z
+    var scale = Function(self, factor = 1, bias = 0):
+        return Vec(self.x * factor + bias, self.y * factor + bias, self.z * factor + bias)
+    var total = Function(self):
+        return self.x + self.y + self.z
+assert Vec(1, z = 5).z == 5, "constructor keyword"
+assert Vec(x = 2, y = 3).total() == 5, "constructor all-keyword"
+assert Vec(1, 1, 1).scale(factor = 2, bias = 1).total() == 9, "method out-of-order keywords"
+class Vec4(Vec):
+    var _init_ = Function(self, x, w = 0):
+        self._super_()._init_(x, y = x, z = x)
+        self.w = w
+assert Vec4(3).total() == 9, "super()._init_ forwards keywords"
+assert Vec4(x = 2, w = 7).w == 7, "subclass constructor keywords"
+
+# --- List methods ---
+var lx = [5, 3, 8, 1, 9, 2]
+lx.sort(reverse = True)
+assert lx == [9, 8, 5, 3, 2, 1], "list.sort(reverse=)"
+lx.append(item = 0)
+lx.insert(index = 0, item = 100)
+assert lx[0] == 100 and lx[len(lx) - 1] == 0, "list.append/insert keywords"
+assert [1, 2, 2, 3, 2].count(value = 2) == 3, "list.count(value=)"
+assert [1, 2, 3, 2].index(value = 2, start = 2) == 3, "list.index(value=, start=)"
+assert [10, 20, 30].pop(index = 1) == 20, "list.pop(index=)"
+
+# --- Dict methods ---
+var dd = {"a": 1, "b": 2}
+assert dd.get(key = "z", default = 99) == 99, "dict.get(key=, default=)"
+assert dd.pop(key = "z", default = -1) == -1, "dict.pop(key=, default=)"
+dd.setdefault(key = "c", default = 3)
+assert dd.get(key = "c") == 3, "dict.setdefault keywords"
+
+# --- Set methods ---
+var ss = {1, 2, 3}
+ss.add(value = 4)
+assert ss.contains(value = 4), "set.add/contains keywords"
+assert ss.union(other = {4, 5}).contains(value = 5), "set.union(other=)"
+assert ss.issuperset(other = {1, 2}), "set.issuperset(other=)"
+
+# --- String methods ---
+assert "a,b,c,d".split(sep = ",", maxsplit = 2) == ["a", "b", "c,d"], "str.split(sep=, maxsplit=)"
+assert "hello".replace(old = "l", new = "L", count = 1) == "heLlo", "str.replace keywords"
+assert "hello world".find(sub = "world") == 6, "str.find(sub=)"
+assert "hello".startswith(prefix = "he"), "str.startswith(prefix=)"
+assert "xxhi".strip(chars = "x") == "hi", "str.strip(chars=)"
+assert "5".rjust(width = 3, fillchar = "0") == "005", "str.rjust(width=, fillchar=)"
+assert "a=b=c".partition(sep = "=") == ["a", "=", "b=c"], "str.partition(sep=)"
+assert "banana".count(sub = "a", start = 2) == 2, "str.count(sub=, start=)"
+assert "-".join(iterable = ["x", "y"]) == "x-y", "str.join(iterable=)"
+
+# --- enumerate / sum gained a start= keyword ---
+assert enumerate(["a", "b"], start = 1) == [[1, "a"], [2, "b"]], "enumerate(start=)"
+assert sum([1, 2, 3], start = 10) == 16, "sum(start=)"
+
+# --- native-object methods (matrix / regex / BytesIO) ---
+var mm = matrix.identity(3)
+assert mm.get(row = 0, col = 0) == 1.0, "matrix.get(row=, col=)"
+mm.set(row = 0, col = 1, value = 5.0)
+assert mm.get(row = 0, col = 1) == 5.0, "matrix.set(row=, col=, value=)"
+var pat = regex.compile(pattern = "(\\d+)")
+assert pat.search(string = "abc123").group(index = 1) == "123", "regex Match.group(index=)"
+assert regex.compile("\\d").sub(repl = "X", string = "a1b2") == "aXbX", "regex Pattern.sub keywords"
+var buf = io.BytesIO()
+discard buf.write(data = "hello")
+discard buf.seek(offset = 0)
+assert buf.read(size = 5) == "hello", "BytesIO read/write/seek keywords"
+
+# --- adversarial on member functions: unknown keyword rejected by name ---
+var mthrew = False
+try:
+    discard [1, 2, 3].count(bogus = 2)
+catch as e:
+    mthrew = "unexpected keyword argument 'bogus'" in e
+assert mthrew, "unknown keyword on a List method rejected"
 
 io.print("OK")
