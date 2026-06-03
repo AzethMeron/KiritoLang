@@ -9,19 +9,50 @@ var copy = Function(obj):
 
 var deepcopy = Function(obj):
     var t = type(obj)
-    if t == "List":
-        var out = []
-        for x in obj:
-            out.append(deepcopy(x))
-        return out
-    if t == "Dict":
-        var out = {}
-        for pair in obj.items():
-            out[deepcopy(pair[0])] = deepcopy(pair[1])
-        return out
-    if t == "Set":
-        var out = Set()
-        for x in obj:
-            out.add(deepcopy(x))
-        return out
-    return obj
+    if t != "List" and t != "Dict" and t != "Set":
+        return obj
+    # Iterative + cycle-safe (recursion would overflow / loop on deep or self-referential data):
+    # 1) discover every reachable container and give it an empty shell, keyed by id(original);
+    # 2) fill the shells, mapping each child to its shell (or itself for scalars). Shared references
+    #    and cycles are preserved because each original maps to exactly one shell.
+    var memo = {}
+    var order = []
+    var stack = [obj]
+    while len(stack) > 0:
+        var cur = stack.pop()
+        var cid = id(cur)
+        if cid in memo:
+            continue
+        var ct = type(cur)
+        if ct == "List":
+            memo[cid] = []
+        elif ct == "Dict":
+            memo[cid] = {}
+        elif ct == "Set":
+            memo[cid] = Set()
+        else:
+            continue
+        order.append(cur)
+        if ct == "Dict":
+            for pair in cur.items():
+                stack.append(pair[0])
+                stack.append(pair[1])
+        else:
+            for x in cur:
+                stack.append(x)
+    var mapped = Function(x):
+        var xid = id(x)
+        return memo[xid] if xid in memo else x
+    for cur in order:
+        var ct = type(cur)
+        var shell = memo[id(cur)]
+        if ct == "List":
+            for x in cur:
+                shell.append(mapped(x))
+        elif ct == "Set":
+            for x in cur:
+                shell.add(mapped(x))
+        else:
+            for pair in cur.items():
+                shell[mapped(pair[0])] = mapped(pair[1])
+    return memo[id(obj)]

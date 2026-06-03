@@ -1274,6 +1274,46 @@ var strMethod = Function(St, recv, name, args):
         if ri < 0:
             return ["", "", recv]
         return [recv[0:ri], args[0], recv[ri + len(args[0]):]]
+    if name == "levenshtein":
+        # Unicode (code-point) edit distance to a String, or to each String in a List. Two rolling
+        # rows (O(min) memory), insert/delete/substitute cost 1 each.
+        var dist1 = Function(a, b):
+            if len(a) == 0:
+                return len(b)
+            if len(b) == 0:
+                return len(a)
+            var prev = []
+            var j0 = 0
+            while j0 <= len(a):
+                prev.append(j0)
+                j0 = j0 + 1
+            var jb = 1
+            while jb <= len(b):
+                var cur = [jb]
+                var ia = 1
+                while ia <= len(a):
+                    var cost = 0 if a[ia - 1] == b[jb - 1] else 1
+                    var m = prev[ia] + 1
+                    if cur[ia - 1] + 1 < m:
+                        m = cur[ia - 1] + 1
+                    if prev[ia - 1] + cost < m:
+                        m = prev[ia - 1] + cost
+                    cur.append(m)
+                    ia = ia + 1
+                prev = cur
+                jb = jb + 1
+            return prev[len(a)]
+        var other = args[0]
+        if isinstance(other, "List"):
+            var out = []
+            for s in other:
+                if not isinstance(s, "String"):
+                    rtError("levenshtein: the List must contain only Strings")
+                out.append(dist1(recv, s))
+            return out
+        if not isinstance(other, "String"):
+            rtError("levenshtein expects a String or a List of Strings")
+        return dist1(recv, other)
     rtError("'String' object has no method '" + name + "'")
 
 var _isAlnumCh = Function(c):
@@ -1526,6 +1566,8 @@ var builtinLen = Function(St, args, kwargs):
         if m != None:
             return callValue(St, mkBound(x, m), [], [])
         rtError("object of type '" + x["cls"]["name"] + "' has no len()")
+    if boxKind(x) == "hostobj" and x["kind"] == "bytesio":
+        return len(x["data"])
     return len(x)
 
 var builtinRange = Function(St, args, kwargs):
@@ -1746,17 +1788,29 @@ var builtinAbs = Function(St, a, k):
         return -a[0]
     return a[0]
 var builtinRound = Function(St, a, k):
+    var nd = None
     if len(a) == 2:
-        return round(a[0], a[1])
+        nd = a[1]
+    for kw in k:
+        if kw[0] == "ndigits":
+            nd = kw[1]
+    if nd != None:
+        return round(a[0], nd)
     return round(a[0])
 var builtinDivmod = Function(St, a, k):
     return [a[0] // a[1], a[0] % a[1]]
 # integer/float exponent (host `**`), or 3-arg modular exponentiation by squaring
 var builtinPow = Function(St, a, k):
+    var modArg = None
     if len(a) == 3:
-        var base = a[0] % a[2]
+        modArg = a[2]
+    for kw in k:
+        if kw[0] == "mod":
+            modArg = kw[1]
+    if modArg != None:
+        var base = a[0] % modArg
         var ex = a[1]
-        var mod = a[2]
+        var mod = modArg
         var r = 1
         while ex > 0:
             if ex % 2 == 1:
@@ -2038,7 +2092,7 @@ var mkStream = Function(kind):
     return {"sk": "hostobj", "kind": kind}
 
 var mkBytesIO = Function(initial):
-    return {"sk": "hostobj", "kind": "bytesio", "data": initial, "pos": len(initial)}
+    return {"sk": "hostobj", "kind": "bytesio", "data": initial, "pos": 0}
 
 # Write `text` into a BytesIO at its current position (overwriting/extending), advancing pos.
 var _bytesWrite = Function(stream, text):
@@ -2170,8 +2224,17 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
         if name == "size":
             return len(recv["data"])
         if name == "seek":
-            recv["pos"] = args[0]
-            return None
+            var off = args[0]
+            var whence = 0
+            if len(args) >= 2:
+                whence = args[1]
+            if whence == 1:
+                recv["pos"] = recv["pos"] + off
+            elif whence == 2:
+                recv["pos"] = len(recv["data"]) + off
+            else:
+                recv["pos"] = off
+            return recv["pos"]
         if name == "tell":
             return recv["pos"]
         if name == "read":
@@ -2182,6 +2245,22 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
                 r = d[p:p + args[0]]
             recv["pos"] = p + len(r)
             return r
+        if name == "readline":
+            var d2 = recv["data"]
+            var p2 = recv["pos"]
+            var nl = _find(d2[p2:], "\n", 0)
+            if nl < 0:
+                recv["pos"] = len(d2)
+                return d2[p2:]
+            recv["pos"] = p2 + nl + 1
+            return d2[p2:p2 + nl]
+        if name == "truncate":
+            recv["data"] = recv["data"][0:recv["pos"]]
+            return len(recv["data"])
+        if name == "flush":
+            return None
+        if name == "_len_":
+            return len(recv["data"])
         if name == "close":
             return None
     if recv["kind"] == "stdout" or recv["kind"] == "stderr":

@@ -28,17 +28,35 @@ class Random:
     var randint = Function(self, a, b):
         return a + Integer(self.random() * Float(b - a + 1))
 
-    var randrange = Function(self, a, b = None, step = None):
+    var randrange = Function(self, start = None, stop = None, step = None):
+        # randrange(stop) | randrange(start, stop[, step]) — with start/stop/step keyword names.
         var lo = 0
-        var hi = a
+        var hi = 0
         var st = 1
-        if b != None:
-            lo = a
-            hi = b
         if step != None:
             st = step
-        var nchoices = (hi - lo + st - 1) // st
+        if st == 0:
+            throw "randrange: step must not be zero"
+        if stop == None:
+            hi = start                       # the lone value is the stop bound
+        else:
+            lo = 0 if start == None else start
+            hi = stop
+        var nchoices = 0
+        if st > 0 and hi > lo:
+            nchoices = (hi - lo + st - 1) // st
+        elif st < 0 and lo > hi:
+            nchoices = (lo - hi + (-st) - 1) // (-st)
+        if nchoices <= 0:
+            throw "randrange: empty range"
         return lo + st * Integer(self.random() * Float(nchoices))
+
+    var seed = Function(self, n):
+        self._state = n * 2862933555777941757 + 3037000493
+        return None
+
+    var normalvariate = Function(self, mu, sigma):
+        return self.gauss(mu, sigma)
 
     var choice = Function(self, seq):
         if len(seq) == 0:
