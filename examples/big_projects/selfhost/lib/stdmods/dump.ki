@@ -16,6 +16,8 @@ var dumps = Function(v):
     return Dump(serialize.dumps(v))
 
 var loads = Function(d):
+    if type(d) == "String":
+        return serialize.loads(d)
     return serialize.loads(d.bytes())
 
 var save = Function(v, path):

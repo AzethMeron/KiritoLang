@@ -206,7 +206,7 @@ var _dump = Function(v, indent, depth):
         return _dumpSeq(v, indent, depth, "[", "]", False)
     if t == "Dict":
         return _dumpSeq(v, indent, depth, "{", "}", True)
-    return _escapeStr(String(v))
+    throw "json: cannot serialize type '" + t + "'"
 
 var _pad = Function(indent, depth):
     if indent <= 0:

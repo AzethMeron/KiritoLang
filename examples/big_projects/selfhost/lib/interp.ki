@@ -878,6 +878,7 @@ var execClass = Function(St, env, node):
             methods[stmt["target"]["v"]] = evalExpr(St, classEnv, stmt["e"])
     var cls = mkClass(node["name"], base, methods)
     envDefine(env, node["name"], cls)
+    St["classes"][node["name"]] = cls   # name->class registry (for serialize reconstruction)
     return NORMAL
 
 var execWith = Function(St, env, node):
@@ -2032,6 +2033,31 @@ var builtinImport = Function(St, a, k):
     return importModule(St, a[0])
 var builtinId = Function(St, a, k):
     return id(a[0])
+# Reflection primitives used by the pure-Kirito serialize/dump modules to (de)serialize user-class
+# instances by attribute (the interp owns the boxed representation, so this stays pure Kirito).
+var builtinInstAttrs = Function(St, a, k):
+    if boxKind(a[0]) == "instance":
+        return a[0]["attrs"]
+    return None
+var builtinInstName = Function(St, a, k):
+    if boxKind(a[0]) == "instance":
+        return a[0]["cls"]["name"]
+    return None
+var builtinHasMethod = Function(St, a, k):
+    if boxKind(a[0]) == "instance":
+        return classLookup(a[0]["cls"], a[1]) != None
+    return False
+var builtinInstNew = Function(St, a, k):
+    var clsname = a[0]
+    if not (clsname in St["classes"]):
+        rtError("cannot deserialize unknown class '" + clsname + "'")
+    var inst = mkInstance(St["classes"][clsname])
+    inst["id"] = St["nextid"]
+    St["nextid"] = St["nextid"] + 1
+    var attrs = a[1]
+    for key in attrs:
+        inst["attrs"][key] = attrs[key]
+    return inst
 var builtinInspect = Function(St, a, k):
     var v = a[0]
     var kind = boxKind(v)
@@ -2144,6 +2170,10 @@ var makeGlobal = Function(St):
     def("Dict", builtinDictC)
     def("import", builtinImport)
     def("id", builtinId)
+    def("__instattrs__", builtinInstAttrs)
+    def("__instname__", builtinInstName)
+    def("__hasmethod__", builtinHasMethod)
+    def("__instnew__", builtinInstNew)
     def("inspect", builtinInspect)
     def("bitand", builtinBitand)
     def("bitor", builtinBitor)
@@ -2445,7 +2475,7 @@ var run4 = Function(src, inputText, importdirs):
     var inlines = []
     if len(inputText) > 0:
         inlines = inputText.split("\n")
-    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0, "importdirs": importdirs}
+    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0, "importdirs": importdirs, "classes": {}}
     var g = makeGlobal(St)
     St["global"] = g
     var failed = None
