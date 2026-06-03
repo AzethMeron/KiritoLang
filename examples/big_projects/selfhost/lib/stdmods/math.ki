@@ -380,9 +380,9 @@ var perm = Function(n, k):
         i = i + 1
     return p
 
-var prod = Function(xs):
-    var p = 1
-    for v in xs:
+var prod = Function(iterable, start = 1):
+    var p = start
+    for v in iterable:
         p = p * v
     return p
 

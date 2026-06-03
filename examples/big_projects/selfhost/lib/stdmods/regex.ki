@@ -230,6 +230,17 @@ var _parseGroupName = Function(P, close):
         throw "RegexError: malformed group name"
     if out == "":
         throw "RegexError: empty group name"
+    # A group name must be an identifier: a letter or '_' then letters/digits/'_'.
+    var i = 0
+    while i < len(out):
+        var ch = out[i]
+        var isLetter = (ch >= "A" and ch <= "Z") or (ch >= "a" and ch <= "z") or ch == "_"
+        var isDigit = ch >= "0" and ch <= "9"
+        if i == 0 and not isLetter:
+            throw "RegexError: bad group name '" + out + "'"
+        if not isLetter and not isDigit:
+            throw "RegexError: bad group name '" + out + "'"
+        i = i + 1
     return out
 
 var _parseAlternation = None   # forward (mutually recursive)

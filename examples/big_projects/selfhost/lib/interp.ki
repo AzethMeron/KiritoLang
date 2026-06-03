@@ -2274,6 +2274,14 @@ var _bytesWrite = Function(stream, text):
     return len(text)
 
 var streamWrite = Function(St, stream, text):
+    # A rebound stream may be any object exposing `write` (duck-typed): a user class instance
+    # (e.g. a Tee), a host file, or one of the built-in std/bytesio streams.
+    if boxKind(stream) == "instance":
+        var m = classLookup(stream["cls"], "write")
+        if m == None:
+            rtError("'" + stream["cls"]["name"] + "' object has no 'write' method")
+        callValue(St, mkBound(stream, m), [text], [])
+        return None
     var kind = stream["kind"]
     if kind == "stdout":
         St["out"].append(text)
@@ -2281,6 +2289,8 @@ var streamWrite = Function(St, stream, text):
         St["err"].append(text)
     elif kind == "bytesio":
         _bytesWrite(stream, text)
+    elif kind == "file":
+        discard _fileMethod(stream["h"], "write", [text])
     else:
         rtError("cannot write to stream of kind '" + kind + "'")
     return None
