@@ -60,7 +60,7 @@ public:
             return static_cast<RandomState&>(vm.arena().deref(self));
         };
         if (name == "seed")
-            return bind("seed", {"a"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return bind("seed", {"n"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 rng(vm, self).engine.seed(static_cast<uint64_t>(asInt(vm, a[0])));
                 return vm.none();
             });

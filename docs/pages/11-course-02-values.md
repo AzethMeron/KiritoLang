@@ -39,7 +39,7 @@ this catches typos early:
 
 <!--norun (demonstrates an intentional error)-->
 ```kirito
-total = 5               # NameError: 'total' is not defined  (you meant `var total = 5`)
+total = 5               # error: name 'total' is not defined  (you meant `var total = 5`)
 ```
 
 ## Truthiness

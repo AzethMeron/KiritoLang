@@ -59,7 +59,7 @@ counter = counter + <span class="num">1</span>   <span class="com"># update — 
 io.<span class="builtin">print</span>(counter)       <span class="com"># =&gt; 2</span></code></pre>
 <p>Using <code>=</code> on a name that was never declared is an error (a <code>NameError</code>), not a silent new variable — this catches typos early:</p>
 <p>&lt;!--norun (demonstrates an intentional error)--&gt;</p>
-<pre><code>total = <span class="num">5</span>               <span class="com"># NameError: &#x27;total&#x27; is not defined  (you meant `var total = 5`)</span></code></pre>
+<pre><code>total = <span class="num">5</span>               <span class="com"># error: name &#x27;total&#x27; is not defined  (you meant `var total = 5`)</span></code></pre>
 <h2 id="truthiness">Truthiness</h2>
 <p>Every value is either &quot;truthy&quot; or &quot;falsy&quot; when used as a condition. The falsy values are <code>False</code>, <a class="xref" href="types.html#none"><code>None</code></a>, zero (<code>0</code>, <code>0.0</code>), the empty String <code>&quot;&quot;</code>, and any empty collection. Everything else is truthy:</p>
 <pre><code><span class="kw">var</span> name = <span class="str">&quot;&quot;</span>

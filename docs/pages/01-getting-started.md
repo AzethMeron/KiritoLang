@@ -10,20 +10,20 @@ The interpreter core is **header-only**; CMake builds only the `ki` executable a
 ## Building
 
 ```
-cmake --preset debug          # or: release / strict / asan
-cmake --build build
+cmake --preset debug          # or: release / asan
+cmake --build build-debug
 ```
 
 Presets (`CMakePresets.json`):
 
 | Preset | What it is |
 |--------|-----------|
-| `debug` | everyday build, assertions on |
-| `release` | optimized |
-| `strict` | `-O2 -Werror -Wall -Wextra -Wpedantic ...` — the quality gate |
-| `asan` | AddressSanitizer + UBSan (memory/UB checks) |
+| `debug` | `-O2` with the hardened warning set (`-Werror -Wall -Wextra -Wconversion -Wpedantic -fstack-protector-all -Wshadow ...`) — the strictest compile gate (binary dir `build-debug`) |
+| `release` | `-O2`, the looser warnings-as-errors set (no `-Wconversion`/`-Wshadow`); the build to benchmark and ship (`build-release`) |
+| `asan` | AddressSanitizer + UBSan with the same hardened warnings (memory/UB checks) (`build-asan`) |
 
-The standalone binary is statically linked by default, so `build/ki` is self-contained.
+The standalone binary is statically linked by default, so `build-debug/ki` (or the release build's
+`build-release/ki`) is self-contained.
 
 ## Running
 
@@ -74,8 +74,9 @@ Kirito has an extensive CTest suite (unit tests, golden `.ki` scripts, error-mes
 adversarial/fuzz suite, and an embedding test). Run it with:
 
 ```
-ctest --test-dir build --output-on-failure
+ctest --test-dir build-debug --output-on-failure
 ```
 
-The `scripts/post_work_check.sh` routine clean-builds every variant (debug/strict/asan) and runs
-the whole suite — the bar a change must clear before it's "done".
+The `scripts/post_work_check.sh` routine clean-builds the variants **sequentially** — `debug`, then
+`release`, commit+push once both are green, then `asan` — running the whole suite for each: the bar a
+change must clear before it's "done".
