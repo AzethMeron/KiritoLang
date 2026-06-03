@@ -42,12 +42,28 @@ while k < 2000:
     k = k + 1
 assert len(counts) == 6, "randint covers all 6 faces over many rolls"
 
-# --- randrange ---
+# --- randrange (stop | start,stop | start,stop,step, like range) ---
 var z = 0
+var seenA = Set()
+var seenB = Set()
 while z < 500:
     var rv = rr.randrange(10)
     assert rv >= 0 and rv < 10, "randrange(10) in [0,10)"
+    var rw = rr.randrange(5, 10)
+    assert rw >= 5 and rw < 10, "randrange(5,10) in [5,10)"
+    seenA.add(rw)
+    seenB.add(rr.randrange(0, 10, 2))      # only even members
     z = z + 1
+assert seenA == Set([5, 6, 7, 8, 9]), "randrange(5,10) covers exactly its members"
+assert seenB == Set([0, 2, 4, 6, 8]), "randrange(start,stop,step) honors step"
+assert rr.randrange(stop = 4) < 4, "randrange(stop=) keyword"
+assert rr.randrange(start = 2, stop = 3) == 2, "randrange(start=,stop=) single member"
+var rrthrew = False
+try:
+    discard rr.randrange(5, 5)
+catch as e:
+    rrthrew = "empty range" in e
+assert rrthrew, "randrange of an empty range raises"
 
 # --- choice picks an element of the sequence ---
 var pool = ["a", "b", "c", "d"]

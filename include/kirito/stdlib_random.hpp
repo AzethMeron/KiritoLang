@@ -83,11 +83,23 @@ public:
                 if (lo > hi) throw KiritoError("randint: empty range");
                 return vm.makeInt(std::uniform_int_distribution<int64_t>(lo, hi)(rng(vm, self).engine));
             });
-        if (name == "randrange")  // [0, n)
+        if (name == "randrange")  // randrange(stop) | randrange(start, stop[, step]) — like range
             return bind("randrange", {"start", "stop", "step"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                int64_t n = asInt(vm, a[0]);
-                if (n <= 0) throw KiritoError("randrange: argument must be positive");
-                return vm.makeInt(std::uniform_int_distribution<int64_t>(0, n - 1)(rng(vm, self).engine));
+                auto optInt = [&](Handle h, int64_t dflt) -> int64_t {
+                    return vm.arena().deref(h).kind() == ValueKind::None ? dflt : asInt(vm, h);
+                };
+                int64_t start = 0, stop = 0, step = 1;
+                if (a.size() == 1) stop = asInt(vm, a[0]);                       // randrange(stop)
+                else if (a.size() == 2) { start = optInt(a[0], 0); stop = asInt(vm, a[1]); }
+                else if (a.size() == 3) { start = optInt(a[0], 0); stop = asInt(vm, a[1]); step = optInt(a[2], 1); }
+                else throw KiritoError("randrange expects 1 to 3 arguments");
+                if (step == 0) throw KiritoError("randrange: step must not be zero");
+                // Count the members of range(start, stop, step); pick one uniformly.
+                int64_t count = step > 0 ? (stop > start ? (stop - start + step - 1) / step : 0)
+                                         : (start > stop ? (start - stop + (-step) - 1) / (-step) : 0);
+                if (count <= 0) throw KiritoError("randrange: empty range");
+                int64_t k = std::uniform_int_distribution<int64_t>(0, count - 1)(rng(vm, self).engine);
+                return vm.makeInt(start + k * step);
             });
         if (name == "choice")
             return bind("choice", {"seq"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {

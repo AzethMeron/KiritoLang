@@ -7,7 +7,7 @@ These names are available everywhere without an `import`. Each entry lists a sig
 its parameters by name and in any order, with defaults — e.g. `Integer(x = "42")`,
 `round(3.14159, ndigits = 2)`, `sorted(xs, reverse = True)`, `pow(2, 10, mod = 1000)`. `inspect(fn)`
 prints those parameter names, types, and return type live. Genuinely **variadic** builtins
-(`min`, `max`, `zip`, `range`, `sum`) take a positional list and advertise themselves as `name(...)`
+(`min`, `max`, `zip`, `range`) take a positional list and advertise themselves as `name(...)`
 under `inspect`; `min`/`max` additionally accept the keyword options `key=` and `default=`.
 
 A leading `*args` below denotes a variadic positional list; `[arg]` denotes an optional argument.
@@ -47,8 +47,9 @@ parameter name.
 - `sorted(iterable[, key][, reverse]) → List` — a new **stable**-sorted list. `key` is an optional
   function mapping each element to its comparison key (computed once per element); `reverse = True`
   sorts descending. `sorted(xs, key = len, reverse = True)`.
-- `sum(iterable) → Number` — the sum of a sequence of numbers; an `Integer` if every element is an
-  Integer, otherwise a `Float`. `sum([])` is `0`.
+- `sum(iterable, start = 0) → Number` — the sum of a sequence of numbers, added onto `start`; an
+  `Integer` if every element (and `start`) is an Integer, otherwise a `Float`. `sum([])` is `start`
+  (`0` by default).
 - `min(*args[, key][, default]) → value` / `max(*args[, key][, default]) → value` — the smallest /
   largest of a single iterable (`min(xs)`) or of several positional values (`min(a, b, c)`). `key` is
   an optional function producing the comparison key; `default` is returned when the (single) iterable

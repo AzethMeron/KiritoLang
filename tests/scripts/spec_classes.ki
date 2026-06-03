@@ -37,6 +37,8 @@ assert (b - a) == Vec(2, 2), "_sub_"
 assert (a * 3) == Vec(3, 6), "_mul_"
 assert (-a) == Vec(-1, -2), "_neg_"
 assert a == Vec(1, 2) and a != b, "_eq_ / _ne_ fallback"
+# _ne_ defaults to "not _eq_": two DISTINCT-but-value-equal instances (only _eq_ defined) must agree
+assert a == Vec(1, 2) and not (a != Vec(1, 2)), "_ne_ defaults to not _eq_ (distinct but equal)"
 assert a < b and not (b < a), "_lt_"
 assert b[0] == 3 and b[1] == 4 and len(b) == 2, "_getitem_ / _len_"
 assert String(a) == "Vec(1, 2)" and f"{a}" == "Vec(1, 2)", "_str_ in String() and f-string"

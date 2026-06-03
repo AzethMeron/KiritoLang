@@ -81,7 +81,7 @@ Square roots, logs, trig, constants — they live in `math`:
 ```kirito
 var math = import("math")
 io.print(math.sqrt(144))                  # => 12.0
-io.print(math.pi)                          # => 3.141592653589793
+io.print(math.pi)                          # => 3.14159265358979  (15 significant digits)
 io.print(math.floor(3.7), math.ceil(3.2)) # => 3 4
 io.print(math.gcd(24, 36))                 # => 12
 io.print(math.factorial(5))                # => 120

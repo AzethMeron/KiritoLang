@@ -151,4 +151,20 @@ while trial < 400:
     assert same(tree, back), "fuzz: tree survives serialize -> parse round-trip"
     trial = trial + 1
 
+# A pathologically deep tree: tostring/itertext are iterative, so this must not overflow the stack.
+var deep = ""
+var depth = 2000
+var di = 0
+while di < depth:
+    deep = "<n>" + deep
+    di = di + 1
+deep = deep + "leaf"
+di = 0
+while di < depth:
+    deep = deep + "</n>"
+    di = di + 1
+var deeproot = xml.fromstring(deep)
+assert "leaf" in xml.tostring(deeproot), "deep tree serializes without recursion"
+assert "leaf" in deeproot.itertext(), "deep tree itertext without recursion"
+
 io.print("OK")

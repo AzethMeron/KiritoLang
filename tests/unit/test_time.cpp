@@ -34,7 +34,7 @@ b >= a
     CHECK(evalStr(vm, "import(\"time\").datetime(1609459200).day") == "1");
     CHECK(evalStr(vm, "import(\"time\").datetime(1609459200).hour") == "0");
     CHECK(evalStr(vm, "import(\"time\").datetime(1609459200).iso()") == "2021-01-01T00:00:00");
-    CHECK(evalStr(vm, "import(\"time\").datetime(1609459200).timestamp()") == "1609459200");
+    CHECK(evalStr(vm, "import(\"time\").datetime(1609459200).timestamp") == "1609459200");
 
     // a precise mid-day timestamp: 2021-06-15 12:30:45 UTC = 1623760245
     CHECK(evalStr(vm, "import(\"time\").datetime(1623760245).iso()") == "2021-06-15T12:30:45");
@@ -56,10 +56,10 @@ b >= a
     CHECK(evalStr(vm, "type(import(\"time\").now())") == "DateTime");
     CHECK(evalStr(vm, "import(\"time\").now().year >= 2024") == "True");
 
-    // round-trip: datetime(ts).timestamp() == ts
+    // round-trip: datetime(ts).timestamp == ts
     CHECK(evalStr(vm, R"(
 var t = import("time")
-t.datetime(1700000000).timestamp() == 1700000000
+t.datetime(1700000000).timestamp == 1700000000
 )") == "True");
 
     // sleep with a tiny duration returns None and doesn't hang

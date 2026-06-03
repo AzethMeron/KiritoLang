@@ -263,7 +263,7 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 
 ### Response object
 
-- `r.status` (`Integer`, alias `r.statuscode`), `r.reason` (`String`), `r.ok` (`Bool`, true for < 400).
+- `r.status` (`Integer`, alias `r.statuscode`), `r.reason` (`String`), `r.ok` (`Bool`, true for a 1xx–3xx status, i.e. `100 ≤ status < 400`).
 - `r.url` — the final URL (after any redirects).
 - `r.text` — the response body (`String`); `r.body` and `r.content` are aliases of it.
 - `r.headers` — a Dict of response headers; `r.header(name)` looks one up **case-insensitively**.
@@ -306,8 +306,8 @@ Process environment and platform.
 - `gettempdir() → String` — the system temp directory (honors `TMPDIR`/`TMP`/`TEMP`, falls back to
   `/tmp`). Pairs with `io` to build scratch file paths:
   `io.open(sys.joinpath(sys.gettempdir(), "scratch.txt"), "w")`.
-- `joinpath(*parts) → String` — join path components with the platform separator (`os.path.join`
-  semantics: a later component that is absolute resets the result). Needs at least one part.
+- `joinpath(*parts) → String` — join path components with `/` (`os.path.join` semantics: a later
+  component that is absolute resets the result). Needs at least one part.
 - `exit(code: Integer = 0)` — terminate the process with the given exit code.
 
 ---
@@ -472,7 +472,8 @@ rather than a lazy sequence.
 - `dropwhile(pred, iterable) → List` — the rest, after that leading run.
 - `filterfalse(pred, iterable) → List` — elements where `pred` is falsy.
 - `compress(data, selectors) → List` — `data` elements where the matching selector is truthy.
-- `starmap(func, argtuples) → List` — `func(*args)` for each argument tuple.
+- `starmap(func, argtuples) → List` — call `func` once per tuple, passing the whole tuple as a single
+  List argument (Kirito has no `*args` spread): `func(t)` where `t` is `[a, b, …]`.
 - `pairwise(iterable) → List` — consecutive overlapping pairs.
 - `ziplongest(lists, fillvalue = None) → List` — zip a list-of-iterables, padding short ones with `fillvalue`.
 - `groupby(iterable[, key]) → List` — group consecutive elements sharing a key.
@@ -709,7 +710,7 @@ A min-heap maintained inside an ordinary List.
 - `heappush(heap, item) → None` — push onto `heap` in place, keeping the heap invariant.
 - `heappop(heap)` — pop and return the smallest element.
 - `heapreplace(heap, item)` — pop the smallest, then push `item` (one pass).
-- `merge(*lists) → List` — merge sorted inputs into one sorted List.
+- `merge(lists) → List` — merge already-sorted inputs (a List of Lists) into one sorted List.
 - `nlargest(n, items) → List` — the `n` largest elements.
 - `nsmallest(n, items) → List` — the `n` smallest elements.
 

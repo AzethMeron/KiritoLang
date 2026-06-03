@@ -19,6 +19,9 @@ assert time.perfcounterns() >= 0, "perfcounterns non-negative"
 var dt = time.make(2024, 6, 1, 13, 30, 45)
 assert dt.year == 2024 and dt.month == 6 and dt.day == 1, "make: date fields"
 assert dt.hour == 13 and dt.minute == 30 and dt.second == 45, "make: time fields"
+# timestamp is an Integer ATTRIBUTE (no parentheses), like the other UTC fields
+assert type(dt.timestamp) == "Integer", "timestamp is an attribute, not a method"
+assert time.make(2020, 1, 1, 0, 0, 0).timestamp == 1577836800, "timestamp = epoch seconds (UTC)"
 
 # --- formatting / iso ---
 var s = dt.format("%Y-%m-%d")

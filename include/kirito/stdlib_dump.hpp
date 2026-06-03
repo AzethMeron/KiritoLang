@@ -227,6 +227,15 @@ public:
             // Dump(bytes) wraps an existing byte String as a Dump value.
             return vm.alloc(std::make_unique<DumpVal>(Args(vm, a, "Dump")[0].asString("Dump bytes")));
         });
+        m.fn("save", {{"value"}, {"path", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            // save(value, path): serialize `value` straight to a file (dumps + write in one step).
+            Args args(vm, a, "save");
+            std::string bytes = dumpfmt::write(vm, args[0]);
+            std::ofstream f(args[1].asString("save path"), std::ios::binary);
+            if (!f) throw KiritoError("could not open file for saving");
+            f << bytes;
+            return vm.none();
+        });
         m.fn("load", {{"path", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::ifstream f(Args(vm, a, "load")[0].asString("load path"), std::ios::binary);
             if (!f) throw KiritoError("could not open file for loading");

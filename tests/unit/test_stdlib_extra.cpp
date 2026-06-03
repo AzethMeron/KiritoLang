@@ -26,7 +26,7 @@ int main() {
         // strptime -> timestamp -> datetime round-trips
         CHECK(run(vm,
             "var t = import(\"time\")\nvar p = t.strptime(\"2023-06-15\", \"%Y-%m-%d\")\n"
-            "t.datetime(p.timestamp()).iso()") == "2023-06-15T00:00:00");
+            "t.datetime(p.timestamp).iso()") == "2023-06-15T00:00:00");
         // bad format raises
         try { vm.runSource("import(\"time\").strptime(\"nope\", \"%Y-%m-%d\")"); CHECK(false); }
         catch (const KiritoError&) {}

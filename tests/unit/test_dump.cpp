@@ -92,6 +92,16 @@ String(loaded["name"]) + ":" + String(loaded["scores"][2]) + ":" + String(loaded
 )") == "Kirito:30:1");
     std::filesystem::remove(std::filesystem::temp_directory_path() / "kirito_dump_test.bin");
 
+    // module-level save(value, path) (symmetric with serialize.save): dumps + write in one step
+    CHECK(evalStr(vm, R"(
+var d = import("dump")
+var f = import("sys").gettempdir() + "/kirito_dump_save.bin"
+d.save([1, 2, {"k": "v"}], f)
+var loaded = d.load(f)
+String(loaded[2]["k"]) + ":" + String(len(loaded))
+)") == "v:3");
+    std::filesystem::remove(std::filesystem::temp_directory_path() / "kirito_dump_save.bin");
+
     // a large/deep structure
     CHECK(evalStr(vm, R"(
 var d = import("dump")

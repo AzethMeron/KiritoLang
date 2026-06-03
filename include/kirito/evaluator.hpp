@@ -485,10 +485,20 @@ public:
             // guarded by a kind() check — the scalar fast path never pays for it.
             Object& l = vm_.arena().deref(lhs);
             if (l.kind() == ValueKind::Instance) {
-                if (auto* inst = dynamic_cast<InstanceValue*>(&l);
-                    inst && inst->findMethod(vm_.arena(), binOpMethod(e.op))) {
-                    result_ = located(e.span, [&] { return l.binary(vm_, e.op, lhs, rhs); });
-                    return;
+                if (auto* inst = dynamic_cast<InstanceValue*>(&l)) {
+                    // A direct operator method (_eq_ for ==, _ne_ for !=) wins.
+                    if (inst->findMethod(vm_.arena(), binOpMethod(e.op))) {
+                        result_ = located(e.span, [&] { return l.binary(vm_, e.op, lhs, rhs); });
+                        return;
+                    }
+                    // _ne_ defaults to "not _eq_" when only _eq_ is defined, so == and != stay consistent.
+                    if (e.op == BinOp::Ne && inst->findMethod(vm_.arena(), "_eq_")) {
+                        result_ = located(e.span, [&] {
+                            Handle eqr = l.binary(vm_, BinOp::Eq, lhs, rhs);
+                            return vm_.makeBool(!vm_.arena().deref(eqr).truthy());
+                        });
+                        return;
+                    }
                 }
             }
             bool eq = l.equals(vm_.arena(), vm_.arena().deref(rhs));

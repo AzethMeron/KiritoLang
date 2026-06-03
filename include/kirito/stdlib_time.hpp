@@ -95,7 +95,7 @@ public:
     std::vector<std::string> inspectMembers() const override {
         return {"year: Integer", "month: Integer", "day: Integer", "hour: Integer",
                 "minute: Integer", "second: Integer", "weekday: Integer", "yearday: Integer",
-                "timestamp() -> Integer", "add(seconds) -> DateTime", "sub(seconds) -> DateTime",
+                "timestamp: Integer", "add(seconds) -> DateTime", "sub(seconds) -> DateTime",
                 "diff(other) -> Integer", "iso() -> String", "format(fmt) -> String"};
     }
 
@@ -108,12 +108,7 @@ public:
         if (name == "second") return vm.makeInt(tm.tm_sec);
         if (name == "weekday") return vm.makeInt(tm.tm_wday);   // 0 = Sunday
         if (name == "yearday") return vm.makeInt(tm.tm_yday + 1);
-        if (name == "timestamp")
-            return makeMethod(vm,
-                "timestamp", {},
-                [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
-                    return vm.makeInt(static_cast<DateTime&>(vm.arena().deref(self)).epoch);
-                }, std::vector<Handle>{self});
+        if (name == "timestamp") return vm.makeInt(epoch);   // an attribute, like the other UTC fields
         // Arithmetic: add/sub a number of seconds -> a new DateTime; diff -> seconds between two.
         if (name == "add" || name == "sub")
             return makeMethod(vm,
