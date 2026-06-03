@@ -35,6 +35,13 @@ class Matrix:
             throw "matrix index out of range"
         self._data[i][j] = Float(v)
 
+    var get = Function(self, row, col):
+        return self._getitem_(row, col)
+
+    var set = Function(self, row, col, value):
+        self._setitem_(row, col, value)
+        return None
+
     var _ew = Function(self, o, add):
         if self._r != o._r or self._c != o._c:
             throw "matrix: shape mismatch"

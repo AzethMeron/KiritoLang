@@ -514,9 +514,21 @@ var evalCall = Function(St, env, node):
         kwargs.append([kw[0], evalExpr(St, env, kw[1])])
     return callValue(St, fn, args, kwargs)
 
+# Fixed-arity builtins that take their arguments by name. (range/sum/min/max/sorted/enumerate/round/
+# pow/map/filter/zip and the converters self-handle keywords or are variadic, so they're absent here
+# and receive raw args+kwargs.)
+var _BUILTIN_PARAMS = {"isinstance": ["value", "type"], "abs": ["x"], "ord": ["char"],
+    "chr": ["codepoint"], "bin": ["n"], "oct": ["n"], "hex": ["n"], "len": ["x"], "type": ["x"],
+    "id": ["x"], "all": ["iterable"], "any": ["iterable"], "reversed": ["iterable"],
+    "divmod": ["a", "b"], "bitand": ["a", "b"], "bitor": ["a", "b"], "bitxor": ["a", "b"],
+    "bitnot": ["a"], "shl": ["a", "n"], "shr": ["a", "n"], "format": ["value", "spec"]}
+
 var callValue = Function(St, fn, args, kwargs):
     var k = boxKind(fn)
     if k == "native":
+        var nm = fn["name"]
+        if (len(kwargs) > 0) and (nm in _BUILTIN_PARAMS):
+            return fn["fn"](St, _mbind(args, kwargs, _BUILTIN_PARAMS[nm], nm), [])
         return fn["fn"](St, args, kwargs)
     if k == "function":
         return callFunction(St, fn, args, kwargs, None)
@@ -895,20 +907,105 @@ var execWith = Function(St, env, node):
         throw err
     return result
 
+# --- keyword-argument binding for built-in type methods -------------------------------------------
+# Ordered parameter names per type method, so a keyword call binds to the right positional slot
+# (mirrors the real interpreter's makeMethod). A method absent here takes no keywords (any keyword is
+# then "unexpected").
+var _STR_PARAMS = {"strip": ["chars"], "lstrip": ["chars"], "rstrip": ["chars"],
+    "split": ["sep", "maxsplit"], "rsplit": ["sep", "maxsplit"], "join": ["iterable"],
+    "replace": ["old", "new", "count"], "find": ["sub", "start", "end"], "rfind": ["sub", "start", "end"],
+    "index": ["sub", "start", "end"], "rindex": ["sub", "start", "end"], "count": ["sub", "start", "end"],
+    "startswith": ["prefix", "start", "end"], "endswith": ["suffix", "start", "end"],
+    "ljust": ["width", "fillchar"], "rjust": ["width", "fillchar"], "center": ["width", "fillchar"],
+    "zfill": ["width"], "removeprefix": ["prefix"], "removesuffix": ["suffix"],
+    "partition": ["sep"], "rpartition": ["sep"], "levenshtein": ["other"]}
+var _LIST_PARAMS = {"append": ["item"], "insert": ["index", "item"], "remove": ["value"],
+    "pop": ["index"], "index": ["value", "start", "end"], "count": ["value"], "extend": ["iterable"],
+    "sort": ["key", "reverse"]}
+var _DICT_PARAMS = {"get": ["key", "default"], "pop": ["key", "default"],
+    "setdefault": ["key", "default"], "update": ["other"], "remove": ["key"]}
+var _SET_PARAMS = {"add": ["value"], "discard": ["value"], "remove": ["value"], "contains": ["value"],
+    "union": ["other"], "intersection": ["other"], "difference": ["other"],
+    "symmetricdifference": ["other"], "issubset": ["other"], "issuperset": ["other"],
+    "isdisjoint": ["other"]}
+
+var _paramsFor = Function(tn, name):
+    var tbl = {}
+    if tn == "String":
+        tbl = _STR_PARAMS
+    elif tn == "List":
+        tbl = _LIST_PARAMS
+    elif tn == "Dict":
+        tbl = _DICT_PARAMS
+    elif tn == "Set":
+        tbl = _SET_PARAMS
+    if name in tbl:
+        return tbl[name]
+    return []
+
+# Merge positional args + [name,value] kwargs into one positional list using the ordered `params`.
+var _mbind = Function(args, kwargs, params, mname):
+    if len(kwargs) == 0:
+        return args
+    var nparams = len(params)
+    var total = nparams
+    if len(args) > total:
+        total = len(args)
+    var slots = []
+    var isset = []
+    var i = 0
+    while i < total:
+        slots.append(None)
+        isset.append(False)
+        i = i + 1
+    i = 0
+    while i < len(args):
+        slots[i] = args[i]
+        isset[i] = True
+        i = i + 1
+    for kw in kwargs:
+        var idx = -1
+        var j = 0
+        while j < nparams:
+            if params[j] == kw[0]:
+                idx = j
+            j = j + 1
+        if idx < 0:
+            rtError(mname + "() got an unexpected keyword argument '" + kw[0] + "'")
+        if isset[idx]:
+            rtError(mname + "() got multiple values for argument '" + kw[0] + "'")
+        slots[idx] = kw[1]
+        isset[idx] = True
+    var outlen = 0
+    i = 0
+    while i < total:
+        if isset[i]:
+            outlen = i + 1
+        i = i + 1
+    return slots[0:outlen]
+
 # --- host-value method dispatch -------------------------------------------------------------------
+var _HOST_PARAMS = {"write": ["data"], "read": ["size"], "seek": ["offset", "whence"],
+    "writelines": ["lines"], "truncate": ["size"]}
+var _hostParamsFor = Function(name):
+    if name in _HOST_PARAMS:
+        return _HOST_PARAMS[name]
+    return []
+
 var callMethod = Function(St, recv, name, args, kwargs):
     var t = boxKind(recv)
     if t == "hostfile" or t == "hostobj":
-        return hostObjMethod(St, recv, name, args, kwargs)
+        return hostObjMethod(St, recv, name, _mbind(args, kwargs, _hostParamsFor(name), name), [])
     var tn = type(recv)
+    var bound = _mbind(args, kwargs, _paramsFor(tn, name), name)
     if tn == "List":
-        return listMethod(St, recv, name, args, kwargs)
+        return listMethod(St, recv, name, bound, [])
     if tn == "String":
-        return strMethod(St, recv, name, args)
+        return strMethod(St, recv, name, bound)
     if tn == "Dict":
-        return dictMethod(St, recv, name, args)
+        return dictMethod(St, recv, name, bound)
     if tn == "Set":
-        return setMethod(St, recv, name, args)
+        return setMethod(St, recv, name, bound)
     rtError("'" + tn + "' object has no method '" + name + "'")
 
 # List methods. The storage primitives are append and pop (and index get/set via []); everything
