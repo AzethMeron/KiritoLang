@@ -300,6 +300,7 @@ public:
             }
         }
         scope().define(s.name, clsHandle);
+        vm_.registerClass(s.name, clsHandle);  // so serialize/dump can reconstruct instances by class name
         result_ = vm_.none();
     }
 

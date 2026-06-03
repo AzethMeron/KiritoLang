@@ -103,6 +103,15 @@ inline std::string encode(const std::vector<serde::Node>& nodes, uint32_t rootId
                 putU32(b, static_cast<uint32_t>(n.links.size() / 2));
                 for (uint32_t id : n.links) putU32(b, id);
                 break;
+            case serde::Tag::Object:  // class name + key/val id pairs
+                putU32(b, static_cast<uint32_t>(n.s.size())); b.append(n.s);
+                putU32(b, static_cast<uint32_t>(n.links.size() / 2));
+                for (uint32_t id : n.links) putU32(b, id);
+                break;
+            case serde::Tag::Stateful:  // class name + single state id
+                putU32(b, static_cast<uint32_t>(n.s.size())); b.append(n.s);
+                putU32(b, n.links.empty() ? 0u : n.links[0]);
+                break;
         }
     }
     putU32(b, rootId);
@@ -130,6 +139,8 @@ inline std::pair<std::vector<serde::Node>, uint32_t> decode(const std::string& d
             case 5: { nd.tag = serde::Tag::List; uint32_t c = r.u32(); for (uint32_t k = 0; k < c; ++k) nd.links.push_back(r.u32()); break; }
             case 6: { nd.tag = serde::Tag::Dict; uint32_t c = r.u32(); for (uint32_t k = 0; k < c * 2; ++k) nd.links.push_back(r.u32()); break; }
             case 7: { nd.tag = serde::Tag::Set; uint32_t c = r.u32(); for (uint32_t k = 0; k < c; ++k) nd.links.push_back(r.u32()); break; }
+            case 8: { nd.tag = serde::Tag::Object; nd.s = r.bytes(r.u32()); uint32_t c = r.u32(); for (uint32_t k = 0; k < c * 2; ++k) nd.links.push_back(r.u32()); break; }
+            case 9: { nd.tag = serde::Tag::Stateful; nd.s = r.bytes(r.u32()); nd.links.push_back(r.u32()); break; }
             default: throw KiritoError("bad dump tag");
         }
     }

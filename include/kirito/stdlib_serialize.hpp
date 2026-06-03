@@ -35,6 +35,8 @@ inline char tagLetter(serde::Tag t) {
         case serde::Tag::List: return 'L';
         case serde::Tag::Dict: return 'D';
         case serde::Tag::Set: return 'T';
+        case serde::Tag::Object: return 'O';
+        case serde::Tag::Stateful: return 'P';
     }
     return '?';
 }
@@ -63,6 +65,13 @@ inline std::string encode(const std::vector<serde::Node>& nodes, uint32_t rootId
             case serde::Tag::Dict:
                 out << (n.links.size() / 2) << " ";
                 for (uint32_t id : n.links) out << id << " ";
+                break;
+            case serde::Tag::Object:  // class name, then key/val id pairs (like a Dict)
+                out << n.s.size() << " " << n.s << " " << (n.links.size() / 2) << " ";
+                for (uint32_t id : n.links) out << id << " ";
+                break;
+            case serde::Tag::Stateful:  // class name, then the single state id
+                out << n.s.size() << " " << n.s << " " << (n.links.empty() ? 0 : n.links[0]) << " ";
                 break;
         }
     }
@@ -95,6 +104,17 @@ public:
                 nd.tag = serde::Tag::Dict;
                 int pairs = std::stoi(token());
                 for (int k = 0; k < pairs * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
+            } else if (t == "O") {
+                nd.tag = serde::Tag::Object;
+                int len = std::stoi(token());
+                nd.s = rawBytes(len);
+                int pairs = std::stoi(token());
+                for (int k = 0; k < pairs * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
+            } else if (t == "P") {
+                nd.tag = serde::Tag::Stateful;
+                int len = std::stoi(token());
+                nd.s = rawBytes(len);
+                nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
             } else throw KiritoError("bad serialization tag '" + t + "'");
         }
         uint32_t rootId = static_cast<uint32_t>(std::stoul(token()));

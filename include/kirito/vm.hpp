@@ -97,6 +97,7 @@ public:
         for (const auto& [name, h] : moduleCache_) enqueue(h);
         for (const auto& [p, h] : pathCache_) enqueue(h);
         if (arglist_.slot) enqueue(arglist_);  // the per-file `arglist`, shared by every module scope
+        for (const auto& [name, h] : classRegistry_) enqueue(h);  // keep deserializable classes alive
         for (Handle h : tempRoots_) enqueue(h);
         std::vector<Handle> childbuf;
         while (!work.empty()) {
@@ -145,6 +146,22 @@ public:
     void addLibPath(std::string dir) { libPaths_.push_back(std::move(dir)); }
     const std::vector<std::string>& libPaths() const { return libPaths_; }
 
+    // Class + deserializer registries (used by serialize/dump to reconstruct objects by class name).
+    void registerClass(const std::string& name, Handle cls) { classRegistry_[name] = cls; }
+    // The class registered under `name`, or nullptr if none.
+    const Handle* findClass(const std::string& name) const {
+        auto it = classRegistry_.find(name);
+        return it != classRegistry_.end() ? &it->second : nullptr;
+    }
+    // A native type opts into deserialization by registering reconstructor(vm, state) -> object.
+    void registerDeserializer(std::string name, std::function<Handle(KiritoVM&, Handle)> fn) {
+        deserializers_[std::move(name)] = std::move(fn);
+    }
+    const std::function<Handle(KiritoVM&, Handle)>* findDeserializer(const std::string& name) const {
+        auto it = deserializers_.find(name);
+        return it != deserializers_.end() ? &it->second : nullptr;
+    }
+
     std::string stringify(Handle h) const {
         StringifyCtx ctx{arena_, {}, const_cast<KiritoVM*>(this)};
         return arena_.deref(h).str(ctx);
@@ -186,6 +203,11 @@ private:
     bool replScopeReady_ = false;
     Handle arglist_{};  // the command-line arguments as a List, bound as `arglist` in every module scope
     std::vector<Handle> tempRoots_;
+    // Class + deserializer registries for object-graph deserialization (serialize/dump): a class is
+    // registered by name when defined, so a serialized instance can be reconstructed by looking its
+    // class up here; a native type can register a reconstructor(state)->object to participate.
+    std::unordered_map<std::string, Handle> classRegistry_;
+    std::unordered_map<std::string, std::function<Handle(KiritoVM&, Handle)>> deserializers_;
     std::vector<Handle> smallInts_;
     static constexpr int64_t kSmallIntLo = -256;
     static constexpr int64_t kSmallIntHi = 256;

@@ -202,7 +202,11 @@ a stability fuzzer, and a benchmark). Working today:
     dumps/loads, Dump(bytes), save/load. `serialize` (text) and `dump` (binary) are two formats of
     the same feature: they share one graph walk + reconstruction core (`serde::flatten`/`rebuild` in
     `stdlib_serde.hpp`) and supply only their byte codec — unlike `json`, which is flat data
-    interchange with no reference/cycle preservation.
+    interchange with no reference/cycle preservation. Both handle the built-in value types
+    (None/Bool/Integer/Float/String/List/Dict/Set) **and user `class` instances** — serialized by
+    attributes (reconstructed by looking the class up by name; a name→class registry is kept on the
+    VM, set when a class is defined) or via the **`_getstate_`/`_setstate_`** protocol when the class
+    defines it (a native C++ type opts in the same way + `vm.registerDeserializer(name, factory)`).
   - `net` — TCP sockets (connect/bind/listen/accept/send/recv/recvall/settimeout) **and** a
     full-fledged HTTP/1.1 client (requests-style): `request(method, url[, opts])` plus
     `get/post/put/delete/patch/head/options` returning a rich

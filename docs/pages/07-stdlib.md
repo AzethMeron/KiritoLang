@@ -204,7 +204,16 @@ JSON parsing and serialization (flat data interchange — for reference/cycle-pr
 preserves shared references and cycles (a `pickle`-style snapshot, unlike `json` which is flat data
 interchange with no aliasing). They share one graph walk and reconstruction core and differ only in
 output: **`serialize` is human-readable text**, **`dump` is compact binary**. Supported value types:
-`None`/`Bool`/`Integer`/`Float`/`String`/`List`/`Dict`/`Set`.
+`None`/`Bool`/`Integer`/`Float`/`String`/`List`/`Dict`/`Set`, **plus user `class` instances**.
+
+A class instance is serialized **by its attributes** by default and reconstructed by looking the
+class up by name in the loading VM (so the class must be defined there; `_init_` is *not* re-run). A
+class can override this with the **`_getstate_`/`_setstate_` protocol**: `_getstate_(self)` returns
+the serializable state to store, and `_setstate_(self, state)` restores it — useful to drop transient
+fields (recomputing them on load) or to reduce a value to plain serializable data. A native (C++)
+type participates the same way: define `_getstate_`/`_setstate_` and register a reconstructor with
+`vm.registerDeserializer(typeName, factory)`. (`json` has no object notion, so it can't serialize
+instances.)
 
 Human-readable **text** serialization → a `String`.
 
