@@ -129,12 +129,16 @@ public:
             });
         if (name == "seek")
             return bind("seek", {"offset", "whence"}, [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                int64_t pos = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
+                int64_t off = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
+                int64_t whence = (a.size() > 1) ? static_cast<const IntVal&>(vm.arena().deref(a[1])).value() : 0;
+                std::ios_base::seekdir dir = std::ios::beg;            // 0=set, 1=cur, 2=end
+                if (whence == 1) dir = std::ios::cur;
+                else if (whence == 2) dir = std::ios::end;
                 auto& s = file(vm, self).stream;
                 s.clear();
-                s.seekg(pos);
-                s.seekp(pos);
-                return vm.none();
+                s.seekg(static_cast<std::streamoff>(off), dir);
+                s.seekp(static_cast<std::streamoff>(off), dir);
+                return vm.makeInt(static_cast<int64_t>(s.tellg()));    // Python returns the new position
             });
         if (name == "_enter_")
             return bind("_enter_", {}, [self](KiritoVM&, std::span<const Handle>) { return self; });
@@ -184,6 +188,10 @@ public:
         return {"read(size) -> String", "readline() -> String", "write(data) -> Integer",
                 "getvalue() -> String", "seek(offset, whence) -> Integer", "tell() -> Integer",
                 "size() -> Integer", "truncate() -> Integer", "flush()", "close()"};
+    }
+
+    std::optional<int64_t> length(KiritoVM&) override {   // len(b) -> number of buffered bytes
+        return static_cast<int64_t>(buf.size());
     }
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {

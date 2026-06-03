@@ -106,6 +106,7 @@ public:
     Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;
     Handle unary(KiritoVM&, UnOp, Handle self) override;
     Handle call(KiritoVM&, std::span<const Handle> args) override;
+    Handle callKw(KiritoVM&, std::span<const Handle> args, std::span<const NamedArg> named);  // _call_ + kwargs
     Handle getItem(KiritoVM&, std::span<const Handle> keys) override;
     void setItem(KiritoVM&, std::span<const Handle> keys, Handle value) override;
     std::optional<int64_t> length(KiritoVM&) override;

@@ -588,12 +588,22 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
         });
     if (name == "update")
         return bind("update", {"other"}, [self, dict](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            // update(other): merge another Dict (its entries override).
+            // update(other): merge another Dict, or an iterable of [key, value] pairs (entries override).
             if (a.size() != 1) throw KiritoError("update expected 1 argument");
-            const Object& o = vm.arena().deref(a[0]);
-            if (o.kind() != ValueKind::Dict) throw KiritoError("update expects a Dict");
-            for (const auto& [k, v] : static_cast<const DictVal&>(o).pairs())
-                dict(vm, self).set(vm.arena(), k, v);
+            Object& o = vm.arena().deref(a[0]);
+            if (o.kind() == ValueKind::Dict) {
+                for (const auto& [k, v] : static_cast<const DictVal&>(o).pairs())
+                    dict(vm, self).set(vm.arena(), k, v);
+                return vm.none();
+            }
+            auto it = o.iterate(vm);
+            if (!it) throw KiritoError("update expects a Dict or an iterable of [key, value] pairs");
+            for (Handle pairH : *it) {
+                auto pit = vm.arena().deref(pairH).iterate(vm);
+                if (!pit || pit->size() != 2)
+                    throw KiritoError("update: each pair must have exactly 2 elements (key, value)");
+                dict(vm, self).set(vm.arena(), (*pit)[0], (*pit)[1]);
+            }
             return vm.none();
         });
     if (name == "setdefault")
@@ -1255,7 +1265,35 @@ inline bool kiEquals(KiritoVM& vm, Handle a, Handle b) {
     };
     if (auto r = viaEq(a, b)) return *r;
     if (auto r = viaEq(b, a)) return *r;
-    return vm.arena().deref(a).equals(vm.arena(), vm.arena().deref(b));
+    Object& oa = vm.arena().deref(a);
+    Object& ob = vm.arena().deref(b);
+    // Containers compare element-wise with VM-aware equality, so a nested instance's _eq_ is honored
+    // (the VM-less Object::equals would fall back to identity for instance elements/values). The
+    // identity short-circuit applies only to containers — scalars must not (NaN != NaN).
+    if (oa.kind() == ValueKind::List && ob.kind() == ValueKind::List) {
+        if (&oa == &ob) return true;                         // same list object (cycle/self-reference)
+        auto& la = static_cast<ListVal&>(oa);
+        auto& lb = static_cast<ListVal&>(ob);
+        if (la.elems.size() != lb.elems.size()) return false;
+        EqualsGuard guard;                                   // cyclic-structure depth guard
+        for (std::size_t i = 0; i < la.elems.size(); ++i)
+            if (!kiEquals(vm, la.elems[i], lb.elems[i])) return false;
+        return true;
+    }
+    if (oa.kind() == ValueKind::Dict && ob.kind() == ValueKind::Dict) {
+        if (&oa == &ob) return true;                         // same dict object (cycle/self-reference)
+        auto& da = static_cast<DictVal&>(oa);
+        auto& db = static_cast<DictVal&>(ob);
+        auto pa = da.pairs();
+        if (pa.size() != db.pairs().size()) return false;
+        EqualsGuard guard;
+        for (const auto& [k, v] : pa) {                      // keys are hashable scalars -> structural lookup
+            const Handle* vb = db.find(vm.arena(), k);
+            if (!vb || !kiEquals(vm, v, *vb)) return false;
+        }
+        return true;
+    }
+    return oa.equals(vm.arena(), ob);
 }
 
 inline bool ListVal::contains(KiritoVM& vm, Handle value) {
@@ -1381,6 +1419,23 @@ inline Handle InstanceValue::unary(KiritoVM& vm, UnOp op, Handle) {
 }
 inline Handle InstanceValue::call(KiritoVM& vm, std::span<const Handle> args) {
     return invokeOp(vm, *this, "_call_", args, "'" + className + "' object is not callable");
+}
+inline Handle InstanceValue::callKw(KiritoVM& vm, std::span<const Handle> args,
+                                    std::span<const NamedArg> named) {
+    // Calling an instance dispatches to _call_, forwarding keyword arguments (kwargs everywhere).
+    if (named.empty()) return call(vm, args);
+    const Handle* m = findMethod(vm.arena(), "_call_");
+    if (!m) throw KiritoError("'" + className + "' object is not callable");
+    RootScope rs(vm);
+    Handle mh = rs.add(*m);
+    std::vector<Handle> full;
+    full.reserve(args.size() + 1);
+    full.push_back(selfHandle);
+    for (Handle a : args) full.push_back(rs.add(a));
+    Object& mo = vm.arena().deref(mh);
+    if (mo.kind() == ValueKind::Function)
+        return static_cast<KiFunction&>(mo).callFull(vm, full, named);
+    throw KiritoError("'" + className + "' _call_ does not accept keyword arguments");
 }
 inline Handle InstanceValue::getItem(KiritoVM& vm, std::span<const Handle> keys) {
     return invokeOp(vm, *this, "_getitem_", keys, "'" + className + "' object is not indexable");

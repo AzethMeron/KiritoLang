@@ -96,7 +96,7 @@ public:
         return {"year: Integer", "month: Integer", "day: Integer", "hour: Integer",
                 "minute: Integer", "second: Integer", "weekday: Integer", "yearday: Integer",
                 "timestamp: Integer", "add(seconds) -> DateTime", "sub(seconds) -> DateTime",
-                "diff(other) -> Integer", "iso() -> String", "format(fmt) -> String"};
+                "diff(other) -> Integer", "iso() -> String", "isoformat() -> String", "format(fmt) -> String"};
     }
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
@@ -116,8 +116,10 @@ public:
                 [self, sub = (name == "sub")](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                     if (a.size() != 1) throw KiritoError("add/sub expects 1 argument (seconds)");
                     const Object& o = vm.arena().deref(a[0]);
-                    if (o.kind() != ValueKind::Integer) throw KiritoError("add/sub expects an Integer (seconds)");
-                    int64_t delta = static_cast<const IntVal&>(o).value();
+                    int64_t delta;
+                    if (o.kind() == ValueKind::Integer) delta = static_cast<const IntVal&>(o).value();
+                    else if (o.kind() == ValueKind::Float) delta = static_cast<int64_t>(static_cast<const FloatVal&>(o).value());
+                    else throw KiritoError("add/sub expects a number of seconds");
                     int64_t base = static_cast<DateTime&>(vm.arena().deref(self)).epoch;
                     return vm.alloc(std::make_unique<DateTime>(base + (sub ? -delta : delta)));
                 }, std::vector<Handle>{self});

@@ -41,8 +41,9 @@ namespace detail {
 inline thread_local int g_equalsDepth = 0;
 }
 struct EqualsGuard {
+    static constexpr int kMaxDepth = 1000;   // bounds equality recursion (VM-aware kiEquals included)
     EqualsGuard() {
-        if (++detail::g_equalsDepth > 8000) {
+        if (++detail::g_equalsDepth > kMaxDepth) {
             --detail::g_equalsDepth;
             throw KiritoError("maximum equality recursion depth exceeded (cyclic structure?)");
         }

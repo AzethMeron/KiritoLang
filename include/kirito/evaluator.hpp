@@ -21,6 +21,8 @@ namespace kirito {
 
 // Defined in runtime.hpp; used for f-string format specs (f"{x:05d}").
 inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string& spec);
+// Defined in runtime.hpp; VM-aware deep equality honoring nested instance _eq_ (used by ==/!=).
+inline bool kiEquals(KiritoVM& vm, Handle a, Handle b);
 
 // A tiny argument buffer: holds up to kInline handles inline (the typical call has few args), and
 // spills to the heap only for larger arg lists. Avoids a per-call vector allocation on the hot
@@ -375,12 +377,19 @@ public:
     }
 
     void visit(const ast::UnaryExpr& e) override {
-        if (e.op == UnOp::Not) {
-            result_ = vm_.makeBool(!truthy(eval(*e.operand)));
-            return;
-        }
         RootScope rs(vm_);
         Handle operand = rs.add(eval(*e.operand));
+        if (e.op == UnOp::Not) {
+            // An instance may override `not` via _not_; otherwise negate truthiness.
+            Object& o = vm_.arena().deref(operand);
+            if (o.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&o) &&
+                static_cast<InstanceValue&>(o).findMethod(vm_.arena(), "_not_")) {
+                result_ = located(e.span, [&] { return o.unary(vm_, e.op, operand); });
+            } else {
+                result_ = vm_.makeBool(!vm_.arena().deref(operand).truthy());
+            }
+            return;
+        }
         result_ = located(e.span, [&] { return vm_.arena().deref(operand).unary(vm_, e.op, operand); });
     }
 
@@ -468,6 +477,11 @@ public:
                 for (Handle h : bound) rs.add(h);
                 return nf.call(vm_, bound);
             });
+        } else if (c.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&c)) {
+            // Calling an instance forwards keyword arguments to its _call_ method.
+            result_ = located(e.span, [&] {
+                return static_cast<InstanceValue&>(c).callKw(vm_, positional, named);
+            });
         } else {
             throw KiritoError("this callable does not accept keyword arguments", e.span);
         }
@@ -501,7 +515,7 @@ public:
                     }
                 }
             }
-            bool eq = l.equals(vm_.arena(), vm_.arena().deref(rhs));
+            bool eq = kiEquals(vm_, lhs, rhs);   // VM-aware: honors nested instance _eq_ in containers
             result_ = vm_.makeBool(e.op == BinOp::Eq ? eq : !eq);
             return;
         }

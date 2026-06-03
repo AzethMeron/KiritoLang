@@ -436,7 +436,7 @@ class ResponseVal : public NativeClass<ResponseVal> {
 public:
     static constexpr const char* kTypeName = "Response";
     std::vector<std::string> inspectMembers() const override {
-        return {"status: Integer", "statuscode: Integer", "reason: String", "ok: Bool", "url: String", "text: String", "headers: Dict", "cookies: Dict", "json() -> Any", "header(name) -> String", "raiseforstatus()"};
+        return {"status: Integer", "statuscode: Integer", "reason: String", "ok: Bool", "url: String", "text: String", "body: String", "content: String", "headers: Dict", "cookies: Dict", "json() -> Any", "header(name, default) -> String", "raiseforstatus()"};
     }
     int status = 0;
     std::string reason, url, body;

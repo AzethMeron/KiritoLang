@@ -32,7 +32,7 @@ class MatchVal : public NativeClass<MatchVal> {
 public:
     static constexpr const char* kTypeName = "Match";
     std::vector<std::string> inspectMembers() const override {
-        return {"group(index) -> String", "groups(default) -> List", "groupdict(default) -> Dict", "start(group) -> Integer", "end(group) -> Integer", "span(group) -> List"};
+        return {"string: String", "group(index) -> String", "groups(default) -> List", "groupdict(default) -> Dict", "start(group) -> Integer", "end(group) -> Integer", "span(group) -> List"};
     }
     Handle subject;                                  // the String matched against (kept alive via children)
     std::vector<int> slots;                          // 2*(numGroups+1) code-point indices, -1 = absent
@@ -140,10 +140,10 @@ inline Handle makeMatch(KiritoVM& vm, Handle subject, const reng::MatchResult& r
 // Successive non-overlapping matches over the whole text (Python finditer semantics, incl. the
 // empty-match advance). Returns the raw results so callers can build Matches/strings/splits.
 inline std::vector<reng::MatchResult> allMatches(const reng::Program& p, const std::vector<int32_t>& text,
-                                                 int maxCount) {
+                                                 int maxCount, int startPos = 0) {
     std::vector<reng::MatchResult> out;
     int n = static_cast<int>(text.size());
-    int pos = 0;
+    int pos = startPos < 0 ? 0 : startPos;
     while (pos <= n) {
         if (maxCount >= 0 && static_cast<int>(out.size()) >= maxCount) break;
         reng::MatchResult r = reng::run(p, text, pos, /*anchored=*/false, /*requireEnd=*/false);
@@ -207,7 +207,8 @@ class RegexVal : public NativeClass<RegexVal> {
 public:
     static constexpr const char* kTypeName = "Regex";
     std::vector<std::string> inspectMembers() const override {
-        return {"match(string, pos, endpos) -> Match", "search(string, pos, endpos) -> Match", "fullmatch(string, pos, endpos) -> Match", "findall(string, pos, endpos) -> List", "finditer(string, pos, endpos) -> List", "sub(repl, string, count) -> String", "split(string, maxsplit) -> List"};
+        return {"pattern: String", "groups: Integer", "groupindex: Dict",
+                "match(string, pos, endpos) -> Match", "search(string, pos, endpos) -> Match", "fullmatch(string, pos, endpos) -> Match", "findall(string, pos, endpos) -> List", "finditer(string, pos, endpos) -> List", "sub(repl, string, count) -> String", "split(string, maxsplit) -> List"};
     }
     reng::Program prog;
     std::string pattern;
@@ -237,6 +238,13 @@ public:
                 auto text = reng::toCodepoints(s);
                 int pos = (a.size() > 1) ? static_cast<int>(args[1].asInt("pos")) : 0;
                 if (pos < 0) pos = 0;
+                // endpos makes the subject look exactly `endpos` code points long (so `$`/`\b` anchor
+                // there) — implemented by truncating the searched view; group offsets stay valid.
+                if (a.size() > 2) {
+                    int endpos = static_cast<int>(args[2].asInt("endpos"));
+                    if (endpos < 0) endpos = 0;
+                    if (endpos < static_cast<int>(text.size())) text.resize(static_cast<std::size_t>(endpos));
+                }
                 bool anchored = (name != "search");
                 bool requireEnd = (name == "fullmatch");
                 reng::MatchResult r = reng::run(R.prog, text, pos, anchored, requireEnd);
@@ -249,9 +257,16 @@ public:
                 Args args(vm, a, "finditer");
                 std::string s = args.at(0).asString("finditer");
                 auto text = reng::toCodepoints(s);
+                int pos = (a.size() > 1) ? static_cast<int>(args[1].asInt("pos")) : 0;
+                if (pos < 0) pos = 0;
+                if (a.size() > 2) {
+                    int endpos = static_cast<int>(args[2].asInt("endpos"));
+                    if (endpos < 0) endpos = 0;
+                    if (endpos < static_cast<int>(text.size())) text.resize(static_cast<std::size_t>(endpos));
+                }
                 RootScope rs(vm);
                 List out(vm);
-                for (auto& r : redetail::allMatches(R.prog, text, -1))
+                for (auto& r : redetail::allMatches(R.prog, text, -1, pos))
                     out.add(rs.add(redetail::makeMatch(vm, args[0].handle(), r, R.prog)));
                 return out.build().handle();
             });
@@ -262,8 +277,15 @@ public:
                 std::string s = args.at(0).asString("findall");
                 auto text = reng::toCodepoints(s);
                 auto starts = utf8Starts(s);
+                int pos = (a.size() > 1) ? static_cast<int>(args[1].asInt("pos")) : 0;
+                if (pos < 0) pos = 0;
+                if (a.size() > 2) {
+                    int endpos = static_cast<int>(args[2].asInt("endpos"));
+                    if (endpos < 0) endpos = 0;
+                    if (endpos < static_cast<int>(text.size())) text.resize(static_cast<std::size_t>(endpos));
+                }
                 List out(vm);
-                for (auto& r : redetail::allMatches(R.prog, text, -1)) {
+                for (auto& r : redetail::allMatches(R.prog, text, -1, pos)) {
                     auto gtext = [&](int g) { return r.slots[2 * g] < 0 ? std::string("")
                                               : cpSlice(s, starts, r.slots[2 * g], r.slots[2 * g + 1]); };
                     if (R.prog.numGroups == 0) {
