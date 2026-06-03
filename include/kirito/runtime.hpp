@@ -1225,6 +1225,11 @@ inline bool SetVal::contains(KiritoVM& vm, Handle value) {
 // --- Classes & instances ---------------------------------------------------------------------
 
 inline Handle ClassValue::call(KiritoVM& vm, std::span<const Handle> args) {
+    return callFull(vm, args, {});
+}
+
+inline Handle ClassValue::callFull(KiritoVM& vm, std::span<const Handle> args,
+                                   std::span<const NamedArg> named) {
     auto inst = std::make_unique<InstanceValue>();
     inst->cls = selfHandle;
     inst->className = name;
@@ -1238,7 +1243,14 @@ inline Handle ClassValue::call(KiritoVM& vm, std::span<const Handle> args) {
         full.reserve(args.size() + 1);
         full.push_back(instH);
         for (Handle a : args) full.push_back(a);
-        vm.arena().deref(initH).call(vm, full);
+        Object& initObj = vm.arena().deref(initH);
+        // A Kirito `_init_` binds keyword args; a native `_init_` (rare) takes positional only.
+        if (initObj.kind() == ValueKind::Function)
+            static_cast<KiFunction&>(initObj).callFull(vm, full, named);
+        else
+            initObj.call(vm, full);
+    } else if (!named.empty()) {
+        throw KiritoError(name + "() takes no arguments (no _init_ defined)");
     }
     return instH;
 }
@@ -1250,17 +1262,23 @@ inline Handle InstanceValue::getAttr(KiritoVM& vm, Handle self, std::string_view
     const Handle* method = klass.findMethod(vm.arena(), std::string(name));
     if (!method)
         throw KiritoError("'" + className + "' object has no attribute '" + std::string(name) + "'");
-    // Return a bound method: a callable that prepends the receiver before invoking the function.
+    // Return a bound method: a callable that prepends the receiver before invoking the function. It
+    // is kwarg-aware so `obj.method(x, k = 1)` forwards keyword arguments to the underlying Kirito
+    // function — method calls accept keywords exactly like plain function calls.
     Handle methodH = *method;
     return vm.alloc(std::make_unique<NativeFunction>(
         std::string(name),
-        [self, methodH](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        NativeFnKw{[self, methodH](KiritoVM& vm, std::span<const Handle> args,
+                                   std::span<const NamedArg> named) -> Handle {
             std::vector<Handle> full;
             full.reserve(args.size() + 1);
             full.push_back(self);
             for (Handle a : args) full.push_back(a);
-            return vm.arena().deref(methodH).call(vm, full);
-        },
+            Object& m = vm.arena().deref(methodH);
+            if (m.kind() == ValueKind::Function)
+                return static_cast<KiFunction&>(m).callFull(vm, full, named);
+            return m.call(vm, full);  // native method: positional only
+        }},
         std::vector<Handle>{self, methodH}));
 }
 
@@ -1275,13 +1293,17 @@ inline Handle SuperValue::getAttr(KiritoVM& vm, Handle, std::string_view name) {
     Handle inst = instance;
     return vm.alloc(std::make_unique<NativeFunction>(
         std::string(name),
-        [inst, methodH](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        NativeFnKw{[inst, methodH](KiritoVM& vm, std::span<const Handle> args,
+                                   std::span<const NamedArg> named) -> Handle {
             std::vector<Handle> full;
             full.reserve(args.size() + 1);
             full.push_back(inst);
             for (Handle a : args) full.push_back(a);
-            return vm.arena().deref(methodH).call(vm, full);
-        },
+            Object& m = vm.arena().deref(methodH);
+            if (m.kind() == ValueKind::Function)
+                return static_cast<KiFunction&>(m).callFull(vm, full, named);
+            return m.call(vm, full);
+        }},
         std::vector<Handle>{inst, methodH}));
 }
 
@@ -2349,6 +2371,7 @@ inline void KiritoVM::installStandardLibrary() {
     registerSourceModule("textwrap", kimod::textwrap);
     registerSourceModule("base64", kimod::base64);
     registerSourceModule("csv", kimod::csv);
+    registerSourceModule("pandas", kimod::pandas);
     registerSourceModule("heapq", kimod::heapq);
     registerSourceModule("bisect", kimod::bisect);
     registerSourceModule("copy", kimod::copy_mod);

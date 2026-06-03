@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string>
 
 namespace kirito {
 
@@ -16,6 +17,10 @@ struct Handle {
     uint32_t generation = 0;
     bool operator==(const Handle&) const = default;
 };
+
+// A keyword (named) call argument: `f(name = value)`. Lives here, in a low-level header, so both
+// the class/instance call paths and the function machinery can name it.
+struct NamedArg { std::string name; Handle value; };
 
 }  // namespace kirito
 

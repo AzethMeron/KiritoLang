@@ -1,4 +1,5 @@
 #include <string>
+#include <vector>
 
 #include "../check.hpp"
 #include "kirito.hpp"
@@ -34,6 +35,27 @@ int main() {
     // surrounding whitespace inside the braces is allowed (f"{ x }")
     CHECK(evalStr(vm, "var x = 5\nf\"{ x }\"") == "5");
     CHECK(evalStr(vm, "var x = 5\nf\"a{  x  }b\"") == "a5b");
+
+    // the SAME f-string behaves identically in all four f-flavours (f"", f'', f"""""", f'''''') and
+    // the raw-f variants leave backslashes alone while still interpolating.
+    {
+        // (open, close) for f-string flavours whose body uses neither the closing quote nor a backslash
+        struct Q { std::string open, close; };
+        std::vector<Q> flav = {{"f\"", "\""}, {"f'", "'"}, {"f\"\"\"", "\"\"\""}, {"f'''", "'''"}};
+        for (const auto& q : flav) {
+            CHECK(evalStr(vm, "var n = 7\n" + q.open + "n is {n}" + q.close) == "n is 7");
+            CHECK(evalStr(vm, "var a = 3\nvar b = 4\n" + q.open + "{a} + {b} = {a + b}" + q.close) == "3 + 4 = 7");
+            CHECK(evalStr(vm, q.open + "{{esc}} {1 + 1}" + q.close) == "{esc} 2");
+            CHECK(evalStr(vm, "var x = 42\n" + q.open + "{x:05d}" + q.close) == "00042");
+            CHECK(evalStr(vm, q.open + "no placeholders" + q.close) == "no placeholders");
+            CHECK(evalStr(vm, "var p = [5, 9]\n" + q.open + "sum is {p[0] + p[1]}" + q.close) == "sum is 14");
+        }
+        // raw f-strings: backslashes are literal, expression still evaluated
+        CHECK(evalStr(vm, "var n = 7\nrf\"a\\t{n}\"") == "a\\t7");
+        CHECK(evalStr(vm, "var n = 7\nfr'{n}\\n'") == "7\\n");
+        // single-quote keys inside a double-quoted f-string (impossible before single-quote strings)
+        CHECK(evalStr(vm, "var d = {\"k\": 8}\nf\"{d['k']}\"") == "8");
+    }
 
     return RUN_TESTS();
 }

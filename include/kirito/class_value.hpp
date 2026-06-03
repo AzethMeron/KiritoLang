@@ -73,6 +73,9 @@ public:
     }
 
     Handle call(KiritoVM&, std::span<const Handle> args) override;  // instantiate (runtime.hpp)
+    // Instantiate, forwarding keyword arguments to `_init_` (so `C(x, y = 1)` works). `call` above
+    // delegates here with no named args. Defined in runtime.hpp.
+    Handle callFull(KiritoVM&, std::span<const Handle> positional, std::span<const NamedArg> named);
 };
 
 // An instance of a user class: its own attribute table plus a handle to its class for method

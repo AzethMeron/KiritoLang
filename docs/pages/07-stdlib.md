@@ -556,10 +556,81 @@ Operates on **byte values** as a `List` of Integers (0–255), not text strings.
 
 ## csv
 
+Low-level CSV parsing/formatting (RFC-4180-style quoting). For tabular data analysis, see
+[`pandas`](#pandas), which builds on this.
+
 - `parse(text)` — parse CSV text into a List of rows (each a List of fields).
 - `parserow(line)` — parse one CSV line into a List of fields.
 - `format(rows) → String` — serialize a List of rows to CSV text.
 - `formatrow(fields) → String` — serialize one row.
+
+---
+
+## pandas
+
+A pandas-like data-analysis library: a labelled 1-D **`Series`** and 2-D **`DataFrame`**, with CSV
+I/O, label/position indexing, boolean masking, element-wise arithmetic, aggregations, group-by,
+joins, and missing-data handling. Public names follow Kirito's lowercase-no-underscore convention
+(`readcsv`, `sortvalues`, `valuecounts`, `resetindex`, ...).
+
+> **Column order from a dict.** Kirito dicts are not insertion-ordered, so
+> `DataFrame({"a": ..., "b": ...})` does not guarantee column order. Pass `columns=[...]` (or use
+> `readcsv`, whose header row is an ordered List) when order matters.
+
+### Module functions
+
+- `Series(values, index = None, name = None)` — a 1-D labelled column.
+- `DataFrame(data = None, columns = None, index = None)` — `data` is a Dict of `column → values`, a
+  List of row-Lists (pair with `columns`), or a List of row-Dicts (columns are the key union).
+- `readcsv(source, header = True, infer = True)` — build a DataFrame from CSV text (or a filename).
+  With `infer`, each cell becomes Integer/Float/Bool/None/String; an empty cell is `None` (missing).
+- `merge(left, right, on, how = "inner")` — join two DataFrames on a key column; `how` is
+  `"inner"`/`"left"`/`"right"`/`"outer"`.
+- `concat(frames)` — stack DataFrames vertically (column union, missing filled with `None`).
+
+### Series
+
+Indexing: `s[label]` (by index label, falling back to position), `s.iat(pos)`. Element-wise `+ - *
+/ // %` and comparisons `> >= < <=` against a scalar or another Series (the comparisons return a
+**boolean Series** for masking); `s.eq(x)`/`s.ne(x)`/`s.isin(values)`.
+
+- Aggregations (skip missing; Bool counts as 0/1): `sum`, `mean`, `min`, `max`, `median`, `variance`,
+  `std`, `prod`, `count`.
+- `unique()`, `nunique()`, `valuecounts()` (a Series of counts, descending).
+- `apply(fn)`/`map(fn)`, `astype("Integer"|"Float"|"Bool"|"String")`.
+- `fillna(value)`, `dropna()`, `head(n=5)`, `tail(n=5)`, `sortvalues(ascending=True)`, `resetindex()`,
+  `tolist()`, `copy()`.
+
+### DataFrame
+
+- Selection: `df["col"]` → Series; `df[["a", "b"]]` → DataFrame; `df[boolean_series]` → masked rows;
+  `df.iloc[i]`/`df.iloc[[i, j]]` (by position), `df.loc[label]`/`df.loc[[l1, l2]]` (by label);
+  `df.column(name)`, `df.at(label, col)`, `df.iat(pos, col)`.
+- `df["new"] = series_or_list_or_scalar` adds/replaces a column; `assign(name, value)` returns a copy
+  with the column added.
+- Shape/views: `shape()` → `[rows, cols]`, `columns`, `index`, `len(df)`, `head`/`tail`/`slice`,
+  `rename(columns)`, `drop(columns)`, `setindex(col)`, `resetindex()`, `copy()`, `todict()`,
+  `torows()`, `iterrows()`, `tocsv()`.
+- Aggregations over **numeric** columns → a Series indexed by column: `sum`, `mean`, `min`, `max`,
+  `std`, `count`; `describe()` → a DataFrame of count/mean/std/min/median/max.
+- `sortvalues(by, ascending = True)`, `groupby(col)`, `merge(other, on, how)`, `dropna()`,
+  `fillna(value)`.
+
+### GroupBy
+
+`df.groupby(col)` returns a grouping with numeric-column reductions `sum`/`mean`/`min`/`max`/`std`/
+`count`, `size()` (a Series of group sizes), `agg({col: "sum"|"mean"|...})`, and `apply(fn)` (fn
+receives each group's sub-DataFrame).
+
+```kirito
+var io = import("io")
+var pd = import("pandas")
+
+var df = pd.readcsv("name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130")
+io.print(df[df["salary"] > 100]["name"].tolist())     # [Ada, Alan, Edsger]
+io.print(df.groupby("dept").mean()["salary"].tolist()) # [115.0, 112.5]
+io.print(df.sortvalues("salary", ascending=False)["name"].tolist())
+```
 
 ---
 

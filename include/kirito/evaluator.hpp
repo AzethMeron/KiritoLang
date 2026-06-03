@@ -451,6 +451,9 @@ public:
         Object& c = vm_.arena().deref(callee);
         if (c.kind() == ValueKind::Function) {
             result_ = located(e.span, [&] { return static_cast<KiFunction&>(c).callFull(vm_, positional, named); });
+        } else if (c.kind() == ValueKind::Class) {
+            // Instantiating a class with keyword arguments forwards them to `_init_`.
+            result_ = located(e.span, [&] { return static_cast<ClassValue&>(c).callFull(vm_, positional, named); });
         } else if (c.kind() == ValueKind::NativeFunction &&
                    static_cast<NativeFunction&>(c).acceptsKwargs()) {
             result_ = located(e.span, [&] {

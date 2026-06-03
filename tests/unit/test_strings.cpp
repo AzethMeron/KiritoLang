@@ -1,4 +1,5 @@
 #include <string>
+#include <vector>
 
 #include "../check.hpp"
 #include "kirito.hpp"
@@ -12,13 +13,21 @@ static std::string evalStr(KiritoVM& vm, const std::string& src) {
 int main() {
     KiritoVM vm;
 
-    // length and indexing (with negative indices)
-    CHECK(evalStr(vm, "len(\"hello\")") == "5");
-    CHECK(evalStr(vm, "\"abc\"[0]") == "a");
-    CHECK(evalStr(vm, "\"abc\"[-1]") == "c");
-    CHECK_THROWS(vm.runSource("\"abc\"[9]"));
+    // length and indexing (with negative indices) — checked in every non-f literal form, since a
+    // string behaves the same however it is written.
+    const std::vector<std::string> openers = {"\"", "'", "\"\"\"", "'''", "r\"", "r'", "r\"\"\"", "r'''"};
+    for (const std::string& q : openers) {
+        // q is the OPENING delimiter; mirror it to the matching close
+        std::string close = q;
+        if (close.rfind("r", 0) == 0) close = close.substr(1);          // raw prefix isn't part of the close
+        std::string h = q + "hello" + close, a = q + "abc" + close;
+        CHECK(evalStr(vm, "len(" + h + ")") == "5");
+        CHECK(evalStr(vm, a + "[0]") == "a");
+        CHECK(evalStr(vm, a + "[-1]") == "c");
+        CHECK_THROWS(vm.runSource(a + "[9]"));
+    }
 
-    // iteration over characters
+    // iteration over characters (double, single, and triple forms)
     CHECK(evalStr(vm, R"(
 var s = ""
 for c in "abc":
@@ -27,7 +36,13 @@ s
 )") == "abc");
     CHECK(evalStr(vm, R"(
 var n = 0
-for c in "hello":
+for c in 'hello':
+    n = n + 1
+n
+)") == "5");
+    CHECK(evalStr(vm, R"(
+var n = 0
+for c in """hello""":
     n = n + 1
 n
 )") == "5");

@@ -865,14 +865,30 @@ private:
             } else if (c == '}') {
                 if (i + 1 < raw.size() && raw[i + 1] == '}') { lit += '}'; i += 2; continue; }
                 throw KiritoError("single '}' in f-string", t.span);
-            } else if (c == '\\' && i + 1 < raw.size()) {
+            } else if (c == '\\' && !t.raw && i + 1 < raw.size()) {
                 char e = raw[i + 1];
+                if (e == 'x' && i + 3 < raw.size()) {
+                    auto hex = [](char d) -> int {
+                        if (d >= '0' && d <= '9') return d - '0';
+                        if (d >= 'a' && d <= 'f') return d - 'a' + 10;
+                        if (d >= 'A' && d <= 'F') return d - 'A' + 10;
+                        return -1;
+                    };
+                    int hi = hex(raw[i + 2]), lo = hex(raw[i + 3]);
+                    if (hi < 0 || lo < 0)
+                        throw KiritoError("invalid \\x escape (expected hex digit)", t.span);
+                    lit += static_cast<char>(hi * 16 + lo);
+                    i += 4;
+                    continue;
+                }
                 switch (e) {
                     case 'n': lit += '\n'; break;
                     case 't': lit += '\t'; break;
                     case 'r': lit += '\r'; break;
+                    case '0': lit += '\0'; break;
                     case '\\': lit += '\\'; break;
                     case '"': lit += '"'; break;
+                    case '\'': lit += '\''; break;
                     default: lit += e; break;
                 }
                 i += 2;

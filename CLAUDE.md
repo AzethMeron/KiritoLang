@@ -39,7 +39,8 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   current scope; bare `=` rebinds the nearest existing binding (a `NameError` if undefined).
 - **First-class functions**: `var main = Function():` followed by an indented block, called as `main()`.
   Parameters take **keyword arguments** (`f(b = 2, a = 1)`, any order) and **default values**
-  (`Function(base, exp = 2):`). Parameters and the return value take optional **enforcing type
+  (`Function(base, exp = 2):`) — keywords work uniformly across plain calls, **class instantiation**
+  (forwarded to `_init_`: `Point(x = 1, y = 2)`), and **instance/inherited/`_super_` method calls**. Parameters and the return value take optional **enforcing type
   annotations** (`Function(d : Dict) -> Float:`): unlike Python hints these are *checked at runtime* —
   the argument must be an instance of the named type (inheritance-aware: a subclass satisfies a base
   annotation) and the function must return that type, else a clear error. `Any` / no annotation
@@ -125,8 +126,17 @@ a stability fuzzer, and a benchmark). Working today:
   catchable String), so a C++ module that throws can't escape a Kirito `try`.
 - **Context managers**: `with ... as ...` (enter/exit protocol).
 - **Garbage collection**: precise mark-sweep with rooted intermediates (AddressSanitizer-clean).
+- **String literals** in every spelling: **single- or double-quoted** (`'x'` / `"x"` — pick one to
+  embed the other quote unescaped), each **triplable** (`'''…'''` / `"""…"""`) for **multiline**
+  strings that span newlines and hold lone quotes, with two combinable prefixes — `r` for **raw**
+  (backslashes literal: `r"\n"` is two chars) and `f` for **f-strings** (`rf`/`fr` combine). Cooked
+  escapes: `\n \t \r \0 \\ \" \'` and `\xHH`. A single-line form can't cross a newline; an
+  unterminated string, a bad escape, or a raw string ending in a lone backslash is a clear lex error.
+  All of this is one unified lexer routine (`Lexer::stringLiteral`).
 - **f-strings** `f"{expr}"` (with optional `:format-spec` — `f"{x:05d}"`, `f"{pi:.2f}"` — and
-  surrounding whitespace allowed inside the braces); inline anonymous functions `Function(x): return x*x`.
+  surrounding whitespace allowed inside the braces) in any quote style/flavour (`f'…'`, `f"""…"""`,
+  raw `rf"…"`); because `'…'` strings exist, an f-string can hold a single-quoted key:
+  `f"{d['k']}"`. Inline anonymous functions `Function(x): return x*x`.
 - **Static warnings + `discard`**: a non-fatal analysis pass (`analyzer.hpp`) run before execution
   flags: function-local variables assigned-but-never-used; bare expression statements whose
   non-`None` value is dropped; a `var` re-declared in the same block; unreachable code after a
@@ -220,7 +230,12 @@ a stability fuzzer, and a benchmark). Working today:
     dropwhile/filterfalse/compress/starmap/pairwise/ziplongest/groupby), `functools`
     (reduce/partial/cache), `collections` (deque/Counter/defaultdict), `statistics`
     (mean/median/mode/variance/stdev/multimode/quantiles/...), `string` (constants + capwords),
-    `textwrap` (wrap/fill/indent/dedent), `base64` (+urlsafe), `csv`, `heapq`
+    `textwrap` (wrap/fill/indent/dedent), `base64` (+urlsafe), `csv` (low-level parse/format),
+    `pandas` (a pandas-like data-analysis library: labelled 1-D `Series` + 2-D `DataFrame`,
+    `readcsv`/`tocsv` with type inference, column/`loc`/`iloc`/boolean-mask selection, element-wise
+    arithmetic & comparisons, aggregations [sum/mean/min/max/std/median/...], `groupby`+`agg`,
+    `sortvalues`, `merge` [inner/left/right/outer], `concat`, `describe`, `dropna`/`fillna`,
+    `valuecounts`/`unique`/`apply`; numeric-only reductions treat Bool as 0/1), `heapq`
     (+nlargest/heapreplace/merge), `bisect`, `copy` (copy/deepcopy), `enum`, `tee` (a `Tee`
     fan-out stream that clones writes to extra streams — e.g. stdout to a log file — plus
     `tee_stdout`/`tee_stderr` context managers that hook the std streams), `arg` (an argparse-style

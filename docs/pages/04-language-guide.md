@@ -86,6 +86,36 @@ var n = 5
 f"n squared is {n * n}"
 ```
 
+### String literals
+
+A string can be written with **single or double quotes** — pick whichever lets you embed the other
+quote without escaping — and either spelling can be **tripled** (`'''`/`"""`) to make a **multiline**
+string that runs across newlines and may contain lone quotes. Two **prefixes** modify how the body is
+read: `r` makes a **raw** string (backslashes are literal — `\n` is a backslash then an `n`, not a
+newline), and `f` makes an **f-string** (interpolates `{expr}`). They combine as `rf`/`fr`.
+
+```kirito
+'single quotes'                  # same as "double quotes"
+"it's got an apostrophe"         # ' is just a character inside "..."
+'she said "hi"'                  # and " is just a character inside '...'
+"""
+a multiline string
+spanning several lines
+"""
+r"C:\Users\name\file"            # raw: no escape processing
+var name = "Kirito"
+f'hi {name}'                     # f-strings work with any quote style...
+f"""report for {name}:
+  line 2
+"""                              # ...including triple-quoted, multiline
+rf"raw\path\{name}"              # raw f-string: backslashes literal, {expr} still interpolated
+```
+
+Because `'...'` exists, an f-string can hold a single-quoted string key inside its braces:
+`f"{d['key']}"`. Escapes in cooked (non-raw) strings: `\n \t \r \0 \\ \" \'` and `\xHH` (a byte from
+two hex digits). A single-line string can't span a newline (use a triple-quoted form); an
+unterminated string, a bad escape, or a raw string ending in a lone backslash is a clear lex error.
+
 Methods: `upper`, `lower` (Unicode-aware), `strip`/`lstrip`/`rstrip`, `split`, `join`, `replace`,
 `startswith`, `endswith`, `find`/`rfind`, `index`/`rindex`, `count`, `format`, the `is...` predicates
 (`isdigit`/`isalpha`/`isalnum`/`isspace`/`islower`/`isupper`), `removeprefix`/`removesuffix`,

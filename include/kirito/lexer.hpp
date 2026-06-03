@@ -29,6 +29,9 @@ struct Token {
     TokenType type;
     std::string text;  // literal text for numbers; empty otherwise
     SourceSpan span;
+    bool raw = false;  // set on an FString token from a raw prefix (rf"..."): suppress \-escapes in
+                       // its literal segments. Plain String tokens are fully decoded in the lexer, so
+                       // this never applies to them.
 };
 
 // Turns source text into a flat token stream. Tracks 1-based line/col so every token (and any
@@ -62,10 +65,10 @@ public:
                 }
             } else if (std::isdigit(static_cast<unsigned char>(c))) {
                 out.push_back(number());
-            } else if (c == '"') {
-                out.push_back(string());
-            } else if (c == 'f' && peek(1) == '"') {
-                out.push_back(fstring());
+            } else if (c == '"' || c == '\'') {
+                out.push_back(stringLiteral(/*isRaw=*/false, /*isF=*/false));
+            } else if ((c == 'r' || c == 'R' || c == 'f' || c == 'F') && tryStringLiteral(out)) {
+                // a prefixed string literal (r"..", f"..", rf".." / fr"..) was lexed
             } else if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
                 out.push_back(identifier());
             } else {
@@ -92,8 +95,8 @@ private:
         size_t i = pos_ + ahead;
         return i < src_.size() ? src_[i] : '\0';
     }
-    Token make(TokenType t, uint32_t line, uint32_t col, std::string text = {}) const {
-        return Token{t, std::move(text), SourceSpan{line, col, 0}};
+    Token make(TokenType t, uint32_t line, uint32_t col, std::string text = {}, bool raw = false) const {
+        return Token{t, std::move(text), SourceSpan{line, col, 0}, raw};
     }
 
     // At a logical line start: measure indentation and emit Indent / Dedent(s). Blank lines and
@@ -230,72 +233,110 @@ private:
         return make(type, line, col, std::move(text));
     }
 
-    Token string() {
-        uint32_t line = line_, col = col_;
-        advance();  // opening quote
-        std::string text;
-        while (peek() != '"') {
-            char c = peek();
-            if (c == '\0' || c == '\n')
-                throw KiritoError("unterminated string", SourceSpan{line, col, 1});
-            if (c == '\\') {
-                advance();
-                char e = peek();
-                if (e == 'x') {
-                    // \xHH — a byte from two hex digits.
-                    advance();  // consume 'x'
-                    auto hex = [&](char d) -> int {
-                        if (d >= '0' && d <= '9') return d - '0';
-                        if (d >= 'a' && d <= 'f') return d - 'a' + 10;
-                        if (d >= 'A' && d <= 'F') return d - 'A' + 10;
-                        return -1;
-                    };
-                    int hi = hex(peek());
-                    if (hi < 0) throw KiritoError("invalid \\x escape (expected hex digit)", SourceSpan{line_, col_, 1});
-                    advance();
-                    int lo = hex(peek());
-                    if (lo < 0) throw KiritoError("invalid \\x escape (expected hex digit)", SourceSpan{line_, col_, 1});
-                    text += static_cast<char>(hi * 16 + lo);
-                    advance();
-                    continue;
-                }
-                switch (e) {
-                    case 'n': text += '\n'; break;
-                    case 't': text += '\t'; break;
-                    case 'r': text += '\r'; break;
-                    case '0': text += '\0'; break;
-                    case '\\': text += '\\'; break;
-                    case '"': text += '"'; break;
-                    default:
-                        throw KiritoError(std::string("invalid escape '\\") + e + "'",
-                                          SourceSpan{line_, col_, 1});
-                }
-                advance();
-            } else {
-                text += c;
-                advance();
-            }
+    // Probe for a prefixed string literal at the current position: an optional `r` (raw) and/or `f`
+    // (f-string) prefix — in either order, each at most once, case-insensitive — immediately followed
+    // by a quote. If matched, lex it and return true; otherwise consume nothing and return false (so
+    // the caller falls through to identifier lexing — `rf` alone is just a name).
+    bool tryStringLiteral(std::vector<Token>& out) {
+        std::size_t p = pos_;
+        bool isRaw = false, isF = false;
+        while (p < src_.size()) {
+            char c = src_[p];
+            if ((c == 'r' || c == 'R') && !isRaw) { isRaw = true; ++p; }
+            else if ((c == 'f' || c == 'F') && !isF) { isF = true; ++p; }
+            else break;
         }
-        advance();  // closing quote
-        return make(TokenType::String, line, col, std::move(text));
+        if (p >= src_.size() || (src_[p] != '"' && src_[p] != '\'')) return false;
+        out.push_back(stringLiteral(isRaw, isF));
+        return true;
     }
 
-    // f-string: keep the raw inner text (braces and escapes preserved); the parser splits it into
-    // literal segments and embedded {expression} parts.
-    Token fstring() {
+    // Unified string-literal lexer covering every spelling: plain/`r`/`f`/`rf`, single- or
+    // double-quoted, and single-line or triple-quoted (multiline). Plain strings are decoded here
+    // (escapes resolved, or kept verbatim when raw); f-strings keep their inner text RAW for the
+    // parser to split into literal/`{expr}` parts, with `raw` recorded so the parser knows whether to
+    // decode escapes in the literal pieces.
+    Token stringLiteral(bool isRaw, bool isF) {
         uint32_t line = line_, col = col_;
-        advance();  // 'f'
+        while (peek() == 'r' || peek() == 'R' || peek() == 'f' || peek() == 'F') advance();  // prefix
+        char q = peek();
         advance();  // opening quote
-        std::string raw;
-        while (peek() != '"') {
+        bool triple = (peek() == q && peek(1) == q);
+        if (triple) { advance(); advance(); }
+        const char* what = isF ? "f-string" : "string";
+
+        auto atClose = [&]() -> bool {
+            if (peek() != q) return false;
+            return !triple || (peek(1) == q && peek(2) == q);
+        };
+        auto unterminated = [&]() -> KiritoError {
+            return KiritoError(std::string("unterminated ") + (triple ? "triple-quoted " : "") + what,
+                               SourceSpan{line, col, 1});
+        };
+
+        std::string text;
+        while (!atClose()) {
             char c = peek();
-            if (c == '\0' || c == '\n')
-                throw KiritoError("unterminated f-string", SourceSpan{line, col, 1});
-            if (c == '\\') { raw += c; advance(); raw += peek(); advance(); }
-            else { raw += c; advance(); }
+            if (c == '\0') throw unterminated();
+            if (c == '\n' && !triple) throw unterminated();  // single-line forms can't span lines
+            if (c == '\\') {
+                // f-strings (raw or not) keep escapes verbatim; the parser decodes them later, so a
+                // backslash here also shields the next char from terminating the literal.
+                if (isF || isRaw) {
+                    text += c; advance();
+                    char e = peek();
+                    if (e == '\0') throw unterminated();
+                    if (e == '\n' && !triple) throw unterminated();
+                    text += e; advance();
+                    continue;
+                }
+                text += decodeEscape();  // cooked plain string: resolve the escape now
+                continue;
+            }
+            text += c;
+            advance();
         }
         advance();  // closing quote
-        return make(TokenType::FString, line, col, std::move(raw));
+        if (triple) { advance(); advance(); }
+        return make(isF ? TokenType::FString : TokenType::String, line, col, std::move(text), isRaw);
+    }
+
+    // Decode one backslash escape of a cooked (non-raw) plain string, with the backslash at peek().
+    // Returns the decoded text (usually one char; possibly more for future multi-char escapes).
+    std::string decodeEscape() {
+        advance();  // backslash
+        char e = peek();
+        if (e == 'x') {
+            advance();  // 'x'
+            auto hex = [&](char d) -> int {
+                if (d >= '0' && d <= '9') return d - '0';
+                if (d >= 'a' && d <= 'f') return d - 'a' + 10;
+                if (d >= 'A' && d <= 'F') return d - 'A' + 10;
+                return -1;
+            };
+            int hi = hex(peek());
+            if (hi < 0) throw KiritoError("invalid \\x escape (expected hex digit)", SourceSpan{line_, col_, 1});
+            advance();
+            int lo = hex(peek());
+            if (lo < 0) throw KiritoError("invalid \\x escape (expected hex digit)", SourceSpan{line_, col_, 1});
+            advance();
+            return std::string(1, static_cast<char>(hi * 16 + lo));
+        }
+        char out;
+        switch (e) {
+            case 'n': out = '\n'; break;
+            case 't': out = '\t'; break;
+            case 'r': out = '\r'; break;
+            case '0': out = '\0'; break;
+            case '\\': out = '\\'; break;
+            case '"': out = '"'; break;
+            case '\'': out = '\''; break;
+            default:
+                throw KiritoError(std::string("invalid escape '\\") + e + "'",
+                                  SourceSpan{line_, col_, 1});
+        }
+        advance();
+        return std::string(1, out);
     }
 
     Token op() {

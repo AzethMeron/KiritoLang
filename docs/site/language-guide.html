@@ -76,6 +76,23 @@ s[::-<span class="num">1</span>]             <span class="com"># reversed</span>
 <span class="str">&quot;ab&quot;</span> * <span class="num">3</span>            # <span class="str">&quot;ababab&quot;</span>
 <span class="kw">var</span> n = <span class="num">5</span>
 f<span class="str">&quot;n squared is {n * n}&quot;</span></code></pre>
+<h3 id="string-literals">String literals</h3>
+<p>A string can be written with <strong>single or double quotes</strong> — pick whichever lets you embed the other quote without escaping — and either spelling can be <strong>tripled</strong> (<code>&#x27;&#x27;&#x27;</code>/<code>&quot;&quot;&quot;</code>) to make a <strong>multiline</strong> string that runs across newlines and may contain lone quotes. Two <strong>prefixes</strong> modify how the body is read: <code>r</code> makes a <strong>raw</strong> string (backslashes are literal — <code>\n</code> is a backslash then an <code>n</code>, not a newline), and <code>f</code> makes an <strong>f-string</strong> (interpolates <code>{expr}</code>). They combine as <code>rf</code>/<code>fr</code>.</p>
+<pre><code>&#x27;single quotes&#x27;                  # same <span class="kw">as</span> <span class="str">&quot;double quotes&quot;</span>
+<span class="str">&quot;it&#x27;s got an apostrophe&quot;</span>         # &#x27; is just a character inside <span class="str">&quot;...&quot;</span>
+&#x27;she said <span class="str">&quot;hi&quot;</span>&#x27;                  # <span class="kw">and</span> &quot; is just a character inside &#x27;...&#x27;
+<span class="str">&quot;&quot;</span>&quot;
+a multiline string
+spanning several lines
+<span class="str">&quot;&quot;</span>&quot;
+r<span class="str">&quot;C:\Users\name\file&quot;</span>            <span class="com"># raw: no escape processing</span>
+<span class="kw">var</span> name = <span class="str">&quot;Kirito&quot;</span>
+f&#x27;hi {name}&#x27;                     <span class="com"># f-strings work with any quote style...</span>
+f<span class="str">&quot;&quot;</span>&quot;report <span class="kw">for</span> {name}:
+  line <span class="num">2</span>
+<span class="str">&quot;&quot;</span>&quot;                              <span class="com"># ...including triple-quoted, multiline</span>
+rf<span class="str">&quot;raw\path\{name}&quot;</span>              <span class="com"># raw f-string: backslashes literal, {expr} still interpolated</span></code></pre>
+<p>Because <code>&#x27;...&#x27;</code> exists, an f-string can hold a single-quoted string key inside its braces: <code>f&quot;{d[&#x27;key&#x27;]}&quot;</code>. Escapes in cooked (non-raw) strings: <code>\n \t \r \0 \\ \&quot; \&#x27;</code> and <code>\xHH</code> (a byte from two hex digits). A single-line string can&#x27;t span a newline (use a triple-quoted form); an unterminated string, a bad escape, or a raw string ending in a lone backslash is a clear lex error.</p>
 <p>Methods: <code>upper</code>, <code>lower</code> (Unicode-aware), <code>strip</code>/<code>lstrip</code>/<code>rstrip</code>, <a class="xref" href="stdlib.html#sym-split"><code>split</code></a>, <a class="xref" href="stdlib.html#sym-join"><code>join</code></a>, <code>replace</code>, <code>startswith</code>, <code>endswith</code>, <code>find</code>/<code>rfind</code>, <code>index</code>/<code>rindex</code>, <a class="xref" href="stdlib.html#sym-count"><code>count</code></a>, <code>format</code>, the <code>is...</code> predicates (<code>isdigit</code>/<code>isalpha</code>/<code>isalnum</code>/<code>isspace</code>/<code>islower</code>/<code>isupper</code>), <code>removeprefix</code>/<code>removesuffix</code>, <code>ljust</code>/<code>rjust</code>/<code>center</code>/<code>zfill</code>, and <code>partition</code>/<code>rpartition</code>.</p>
 <h2 id="collections">Collections</h2>
 <pre><code><span class="kw">var</span> xs = [<span class="num">3</span>, <span class="num">1</span>, <span class="num">2</span>]

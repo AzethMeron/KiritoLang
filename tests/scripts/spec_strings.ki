@@ -80,4 +80,21 @@ assert "{0}-{1}-{0}".format("a", "b") == "a-b-a", "str.format indexed"
 assert len("a\tb\nc") == 5, "escape sequences"
 assert String(42) == "42" and String([1, 2]) == "[1, 2]" and String(None) == "None", "String() conversion"
 
+# --- the SAME behaviors hold no matter how the literal is written: ', ", ''', """, and raw ---
+assert "abcdef" == 'abcdef' and 'abcdef' == """abcdef""" and """abcdef""" == '''abcdef''', "form equivalence"
+assert 'abcdef'[1:3] == "bc" and r"abcdef"[::-1] == "fedcba", "slice across forms"
+assert 'Hello'.upper() == "HELLO" and """Hello""".lower() == 'hello', "case across forms"
+assert 'a,b,c'.split(",") == """a,b,c""".split(",") and r"a,b,c".split(",") == ["a", "b", "c"], "split across forms"
+assert ('ab' + """cd""") == r"abcd" and 'x' * 3 == "xxx", "concat/repeat across forms"
+assert 'cd' in """abcdef""" and "xy" not in r'abcdef', "membership across forms"
+# raw keeps backslashes; cooked decodes them; triple spans lines
+assert r"a\nb" == "a\\nb" and len(r"a\nb") == 4, "raw backslash literal"
+assert """one
+two""" == "one\ntwo", "triple multiline == escaped newline"
+assert '''tab\there''' == "tab\there", "escape in triple-single"
+# f-strings in each flavour, plus a single-quote key inside a double-quoted f-string
+var d = {"k": 3}
+assert f"{d['k']}" == "3" and f'{n}' == "7" and f"""{n}""" == "7" and f'''{n}''' == "7", "f flavours"
+assert rf"x\t{n}" == "x\\t7", "raw f keeps backslash, interpolates"
+
 io.print("OK")

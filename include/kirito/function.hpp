@@ -18,8 +18,8 @@ namespace kirito {
 // Kirito function.
 using NativeFn = std::function<Handle(KiritoVM&, std::span<const Handle>)>;
 
-// A named (keyword) argument passed at a call site. Shared by Kirito and native functions.
-struct NamedArg { std::string name; Handle value; };
+// (NamedArg — a keyword call argument — now lives in handle.hpp so the class/instance call paths
+// can see it too; it is still spelled `kirito::NamedArg` everywhere.)
 
 // A variadic native that ALSO receives keyword arguments (positional *args + named). Used for the
 // few builtins that are both variadic and want named options (e.g. io.print(..., stream=f)).

@@ -46,6 +46,17 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 io.<span class="builtin">print</span>(greeting + <span class="str">&quot;, &quot;</span> + subject + <span class="str">&quot;!&quot;</span>)   <span class="com"># =&gt; Hello, world!   (+ concatenates)</span>
 io.<span class="builtin">print</span>(<span class="str">&quot;ab&quot;</span> * <span class="num">3</span>)                            <span class="com"># =&gt; ababab          (* repeats)</span>
 io.<span class="builtin">print</span>(<span class="builtin">len</span>(<span class="str">&quot;café&quot;</span>))                         <span class="com"># =&gt; 4   (4 code points, not 5 bytes)</span></code></pre>
+<h2 id="ways-to-write-a-string">Ways to write a string</h2>
+<p>Quote a string with <code>&#x27;</code> or <code>&quot;</code> — use whichever lets you put the <em>other</em> quote inside without escaping. Tripling either quote (<code>&#x27;&#x27;&#x27;</code>/<code>&quot;&quot;&quot;</code>) makes a <strong>multiline</strong> string. An <code>r</code> prefix makes a <strong>raw</strong> string where backslashes are literal:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+io.<span class="builtin">print</span>(&#x27;single quotes work too&#x27;)
+io.<span class="builtin">print</span>(<span class="str">&quot;it&#x27;s an apostrophe&quot;</span>)        # &#x27; inside <span class="str">&quot;...&quot;</span> is just a character
+io.<span class="builtin">print</span>(&#x27;she said <span class="str">&quot;hello&quot;</span>&#x27;)          # &quot; inside &#x27;...&#x27; is just a character
+io.<span class="builtin">print</span>(<span class="str">&quot;&quot;</span>&quot;a string
+that spans
+several lines<span class="str">&quot;&quot;</span>&quot;)
+io.<span class="builtin">print</span>(r<span class="str">&quot;C:\path\to\file&quot;</span>)          <span class="com"># raw: \p \t \f stay as backslash + letter</span></code></pre>
+<p>Inside a normal (non-raw) string, <strong>escapes</strong> stand for special characters: <code>\n</code> newline, <code>\t</code> tab, <code>\\</code> a backslash, <code>\&quot;</code>/<code>\&#x27;</code> a quote, and <code>\xHH</code> a byte from two hex digits. A raw string interprets none of these. (These prefixes and quote styles also apply to f-strings: <code>f&#x27;...&#x27;</code>, <code>f&quot;&quot;&quot;...&quot;&quot;&quot;</code>, and raw <code>rf&quot;...&quot;</code> all work.)</p>
 <h2 id="f-strings-the-readable-way-to-build-text">f-strings: the readable way to build text</h2>
 <p>An <code>f&quot;...&quot;</code> string evaluates <code>{expression}</code> pieces inline. This is almost always clearer than chains of <code>+</code> and <a class="xref" href="types.html#string"><code>String(...)</code></a>:</p>
 <pre><code><span class="kw">var</span> name = <span class="str">&quot;Ada&quot;</span>

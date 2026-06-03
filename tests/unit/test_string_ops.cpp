@@ -1,4 +1,5 @@
 #include <string>
+#include <vector>
 
 #include "../check.hpp"
 #include "kirito.hpp"
@@ -64,6 +65,47 @@ n
     CHECK(evalStr(vm, "\"{} + {} = {}\".format(1, 2, 3)") == "1 + 2 = 3");
     CHECK(evalStr(vm, "\"{0} {0}\".format(\"hi\")") == "hi hi");
     CHECK(evalStr(vm, "\"{}%\".format(50)") == "50%");
+
+    // --- every operation/method gives the SAME result no matter how the subject literal is written:
+    // double / single / triple-double / triple-single, plain or raw. The body has no escapes, so the
+    // raw and cooked spellings denote the same string.
+    {
+        // wrap a quote-free, escape-free body in each of the eight non-f literal forms
+        auto forms = [](const std::string& body) {
+            return std::vector<std::string>{
+                "\"" + body + "\"", "'" + body + "'",
+                "\"\"\"" + body + "\"\"\"", "'''" + body + "'''",
+                "r\"" + body + "\"", "r'" + body + "'",
+                "r\"\"\"" + body + "\"\"\"", "r'''" + body + "'''",
+            };
+        };
+        for (const std::string& s : forms("Hello")) {
+            CHECK(evalStr(vm, s + ".upper()") == "HELLO");
+            CHECK(evalStr(vm, s + ".lower()") == "hello");
+            CHECK(evalStr(vm, "len(" + s + ")") == "5");
+            CHECK(evalStr(vm, s + "[0]") == "H");
+            CHECK(evalStr(vm, s + "[-1]") == "o");
+            CHECK(evalStr(vm, s + "[1:4]") == "ell");
+            CHECK(evalStr(vm, s + "[::-1]") == "olleH");
+            CHECK(evalStr(vm, s + " * 2") == "HelloHello");
+            CHECK(evalStr(vm, s + ".startswith('He')") == "True");
+            CHECK(evalStr(vm, "'ell' in " + s) == "True");
+            CHECK(evalStr(vm, s + " == 'Hello'") == "True");
+        }
+        for (const std::string& s : forms("a,b,c")) {
+            CHECK(evalStr(vm, "len(" + s + ".split(','))") == "3");
+            CHECK(evalStr(vm, s + ".split(',')[1]") == "b");
+            CHECK(evalStr(vm, s + ".replace(',', '-')") == "a-b-c");
+            CHECK(evalStr(vm, s + ".count(',')") == "2");
+        }
+        for (const std::string& s : forms("  hi  "))
+            CHECK(evalStr(vm, s + ".strip()") == "hi");
+        // .format works the same from any form, and an f-string reproduces the same result
+        for (const std::string& s : forms("{} + {} = {}"))
+            CHECK(evalStr(vm, s + ".format(1, 2, 3)") == "1 + 2 = 3");
+        CHECK(evalStr(vm, "var x = 5\nf'{x} + {x}'") == "5 + 5");
+        CHECK(evalStr(vm, "var x = 5\nf\"\"\"{x} + {x}\"\"\"") == "5 + 5");
+    }
 
     return RUN_TESTS();
 }

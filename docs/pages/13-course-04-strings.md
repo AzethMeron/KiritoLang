@@ -14,6 +14,28 @@ io.print("ab" * 3)                            # => ababab          (* repeats)
 io.print(len("café"))                         # => 4   (4 code points, not 5 bytes)
 ```
 
+## Ways to write a string
+
+Quote a string with `'` or `"` — use whichever lets you put the *other* quote inside without
+escaping. Tripling either quote (`'''`/`"""`) makes a **multiline** string. An `r` prefix makes a
+**raw** string where backslashes are literal:
+
+```kirito
+var io = import("io")
+io.print('single quotes work too')
+io.print("it's an apostrophe")        # ' inside "..." is just a character
+io.print('she said "hello"')          # " inside '...' is just a character
+io.print("""a string
+that spans
+several lines""")
+io.print(r"C:\path\to\file")          # raw: \p \t \f stay as backslash + letter
+```
+
+Inside a normal (non-raw) string, **escapes** stand for special characters: `\n` newline, `\t` tab,
+`\\` a backslash, `\"`/`\'` a quote, and `\xHH` a byte from two hex digits. A raw string interprets
+none of these. (These prefixes and quote styles also apply to f-strings: `f'...'`, `f"""..."""`, and
+raw `rf"..."` all work.)
+
 ## f-strings: the readable way to build text
 
 An `f"..."` string evaluates `{expression}` pieces inline. This is almost always clearer than
