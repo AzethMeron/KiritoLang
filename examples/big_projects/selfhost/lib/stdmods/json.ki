@@ -236,7 +236,10 @@ var _dumpSeq = Function(v, indent, depth, openc, closec, isObj):
             out = out + sep
         out = out + _pad(indent, depth + 1)
         if isObj:
-            out = out + _escapeStr(item) + ": " + _dump(v[item], indent, depth + 1)
+            var keyStr = item                        # non-string keys become strings, JSON-style
+            if type(item) != "String":
+                keyStr = String(item)
+            out = out + _escapeStr(keyStr) + ": " + _dump(v[item], indent, depth + 1)
         else:
             out = out + _dump(item, indent, depth + 1)
         idx = idx + 1

@@ -91,6 +91,13 @@ var typeName = Function(v):
         return v["cls"]["name"]
     if k == "module":
         return "Module"
+    if k == "hostobj":
+        var hk = v["kind"]
+        if hk == "bytesio":
+            return "BytesIO"
+        if hk == "file":
+            return "File"
+        return "Stream"
     return type(v)
 
 # Find a method along the class chain; returns the func value or None.
