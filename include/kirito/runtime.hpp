@@ -2374,7 +2374,8 @@ inline void KiritoVM::installStandardLibrary() {
     registerSourceModule("textwrap", kimod::textwrap);
     registerSourceModule("base64", kimod::base64);
     registerSourceModule("csv", kimod::csv);
-    registerSourceModule("pandas", kimod::pandas);
+    registerSourceModule("tabular", kimod::tabular);
+    registerSourceModule("xml", kimod::xml);
     registerSourceModule("heapq", kimod::heapq);
     registerSourceModule("bisect", kimod::bisect);
     registerSourceModule("copy", kimod::copy_mod);

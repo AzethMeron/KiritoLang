@@ -235,11 +235,14 @@ a stability fuzzer, and a benchmark). Working today:
     (reduce/partial/cache), `collections` (deque/Counter/defaultdict), `statistics`
     (mean/median/mode/variance/stdev/multimode/quantiles/...), `string` (constants + capwords),
     `textwrap` (wrap/fill/indent/dedent), `base64` (+urlsafe), `csv` (low-level parse/format),
-    `pandas` (a pandas-like data-analysis library: labelled 1-D `Series` + 2-D `DataFrame`,
+    `tabular` (a dataframe-style, pandas-like data-analysis library: labelled 1-D `Series` + 2-D `DataFrame`,
     `readcsv`/`tocsv` with type inference, column/`loc`/`iloc`/boolean-mask selection, element-wise
     arithmetic & comparisons, aggregations [sum/mean/min/max/std/median/...], `groupby`+`agg`,
     `sortvalues`, `merge` [inner/left/right/outer], `concat`, `describe`, `dropna`/`fillna`,
-    `valuecounts`/`unique`/`apply`; numeric-only reductions treat Bool as 0/1), `heapq`
+    `valuecounts`/`unique`/`apply`; numeric-only reductions treat Bool as 0/1), `xml` (an
+    ElementTree-style XML parser/serializer: `parse`/`fromstring`/`tostring` + an `Element` tree with
+    `tag`/`attrib`/`text`/`tail`/`children` and `find`/`findall`/`findtext`/`get`/`itertext`; handles
+    attributes, entities [named + numeric], comments, CDATA, the `<?xml?>` declaration; lenient), `heapq`
     (+nlargest/heapreplace/merge), `bisect`, `copy` (copy/deepcopy), `enum`, `tee` (a `Tee`
     fan-out stream that clones writes to extra streams — e.g. stdout to a log file — plus
     `tee_stdout`/`tee_stderr` context managers that hook the std streams), `arg` (an argparse-style
@@ -254,7 +257,9 @@ a stability fuzzer, and a benchmark). Working today:
   `__name__ == "__main__"`). Small-integer interning, flat-vector scopes, a
   no-temporaries fast call path, and other non-invasive perf wins.
 - **Sample projects** in `examples/` (complex linear-system solver, rule34 image downloader,
-  word-frequency analyzer, RPN calculator) demonstrate non-trivial programs in pure Kirito.
+  word-frequency analyzer, RPN calculator, and three `tabular`-library data-analysis demos —
+  `tabular_iris.ki` on the bundled `data/iris.csv`, `tabular_sales.ki`, `tabular_survey.ki`) demonstrate
+  non-trivial programs in pure Kirito.
   `examples/big_projects/` holds larger ones with Python test harnesses that double as interpreter
   stress tests: `sqldb` (a networked SQL database), `webserver` (an HTTP/1.1 server + a small
   routing framework — method+path routing with `:name` params, middleware, JSON, static files), and
@@ -262,6 +267,9 @@ a stability fuzzer, and a benchmark). Working today:
   with a computational graph, SGD/Adam, Linear/Conv2d/BatchNorm/activations as PyTorch-style Modules,
   MSE/BCE/CE/NLL losses, Dataset/DataLoader, PCA, weight serialization, and a backend abstraction
   ready for a future GPU device — trains an MLP that solves XOR; conv backward is gradient-checked).
+  `sqldb_kwargs`/`webserver_kwargs` are copies of those two refactored so *every* call site passes
+  arguments by keyword — an end-to-end test that keyword arguments work across every callable; they
+  pass the same test harnesses.
 
 Tested under strict flags (`-O2 -Werror -Wall -Wextra -Wformat=2 -Wpointer-arith -Wpedantic
 -fstack-protector`, preset `strict`) and AddressSanitizer/UBSan (preset `asan`); an 11k-input fuzzer
@@ -277,7 +285,7 @@ calling a change done.
 the dependency-free `docs/build_docs.py` into `docs/site/` (intro, build, embedding, extending,
 language guide, a built-in **types + special-methods/operator-overloading** reference, builtins
 reference, a **comprehensive per-function stdlib reference** with signatures/inputs/outputs, recipes,
-and a 22-lesson course). `build_docs.py` auto-anchors every documented
+and a 23-lesson course). `build_docs.py` auto-anchors every documented
 symbol and turns later `inline code` mentions into clickable cross-links.
 Documentation is authored in those `.md` files, NOT scraped from code comments.
 

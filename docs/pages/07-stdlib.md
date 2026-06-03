@@ -557,7 +557,7 @@ Operates on **byte values** as a `List` of Integers (0–255), not text strings.
 ## csv
 
 Low-level CSV parsing/formatting (RFC-4180-style quoting). For tabular data analysis, see
-[`pandas`](#pandas), which builds on this.
+[`tabular`](#tabular), which builds on this.
 
 - `parse(text)` — parse CSV text into a List of rows (each a List of fields).
 - `parserow(line)` — parse one CSV line into a List of fields.
@@ -566,9 +566,9 @@ Low-level CSV parsing/formatting (RFC-4180-style quoting). For tabular data anal
 
 ---
 
-## pandas
+## tabular
 
-A pandas-like data-analysis library: a labelled 1-D **`Series`** and 2-D **`DataFrame`**, with CSV
+A dataframe-style (pandas-like) data-analysis library: a labelled 1-D **`Series`** and 2-D **`DataFrame`**, with CSV
 I/O, label/position indexing, boolean masking, element-wise arithmetic, aggregations, group-by,
 joins, and missing-data handling. Public names follow Kirito's lowercase-no-underscore convention
 (`readcsv`, `sortvalues`, `valuecounts`, `resetindex`, ...).
@@ -624,12 +624,57 @@ receives each group's sub-DataFrame).
 
 ```kirito
 var io = import("io")
-var pd = import("pandas")
+var tb = import("tabular")
 
-var df = pd.readcsv("name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130")
+var df = tb.readcsv("name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130")
 io.print(df[df["salary"] > 100]["name"].tolist())     # [Ada, Alan, Edsger]
 io.print(df.groupby("dept").mean()["salary"].tolist()) # [115.0, 112.5]
 io.print(df.sortvalues("salary", ascending=False)["name"].tolist())
+```
+
+---
+
+## xml
+
+A small, dependency-free XML parser/serializer in the spirit of Python's `ElementTree`. It parses
+elements, attributes, text, nested children, comments, the `<?xml?>` declaration, `<!DOCTYPE>`,
+`<![CDATA[…]]>` sections, and the standard entities (`&lt; &gt; &amp; &quot; &apos;` and numeric
+`&#65;` / `&#x41;`); it serializes a tree back to XML. The parser is **lenient** — malformed markup
+is tolerated rather than raising.
+
+### Module functions
+
+- `parse(text: String) → Element` — parse a document and return its root `Element` (or `None` if the
+  text contains no element). `fromstring` is an alias.
+- `tostring(element) → String` — serialize an element (and its subtree) back to XML.
+- `Element(tag, attrib = None) → Element` — construct an element directly (for building a tree).
+
+### Element
+
+An element exposes `.tag` (String), `.attrib` (a Dict of attribute → value), `.text` (character data
+before the first child), `.tail` (character data after this element's end tag, ElementTree-style),
+and `.children` (a List of child `Element`s). It is iterable (yields its children), supports `len`
+and indexing (`elem[0]`).
+
+- `get(key, default = None)` — an attribute value, or `default` if absent.
+- `find(tag)` — the first child with that tag, or `None`.
+- `findall(tag)` — a List of all children with that tag.
+- `findtext(tag, default = "")` — the text of the first matching child, or `default`.
+- `itertext()` — a List of all text in document order (this element's text, then each child's text and
+  tail, recursively).
+- `tostring()` — serialize this element (also its `_str_`).
+
+```kirito
+var io = import("io")
+var xml = import("xml")
+
+var root = xml.parse("<books><book id='1'><title>The Hobbit</title></book>" +
+                     "<book id='2'><title>SICP</title></book></books>")
+for book in root.findall("book"):
+    io.print(book.get("id") + ": " + book.findtext("title"))
+# 1: The Hobbit
+# 2: SICP
+io.print(xml.tostring(root.find("book")))   # <book id="1"><title>The Hobbit</title></book>
 ```
 
 ---
@@ -745,7 +790,7 @@ p.flag("loud")              # --loud
 
 var opts = p.parse(arglist)   # you choose when/what to parse
 if opts != None:              # None means --help was shown
-    var greeting = f"Hello, {opts["name"]}!"
+    var greeting = f"Hello, {opts['name']}!"
     if opts["loud"]:
         greeting = greeting.upper()
     var i = 0

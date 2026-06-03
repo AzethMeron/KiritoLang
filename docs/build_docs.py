@@ -279,11 +279,20 @@ def render_markdown(md):
                 i += 1
             out.append(f"<blockquote>{render_inline(' '.join(buf))}</blockquote>")
             continue
-        # lists
+        # lists (a wrapped/indented continuation line — non-blank, not itself a new block — folds
+        # into the current item, so a bullet's text may span several source lines)
         if re.match(r"^\s*[-*]\s+", line):
             buf = []
-            while i < n and re.match(r"^\s*[-*]\s+", lines[i]):
-                buf.append(re.sub(r"^\s*[-*]\s+", "", lines[i]))
+            def _is_block_start(s):
+                return (re.match(r"^\s*[-*]\s+", s) or re.match(r"^\s*\d+\.\s+", s)
+                        or s.startswith("#") or s.startswith(">") or s.startswith("```")
+                        or s.strip() == "")
+            while i < n and (re.match(r"^\s*[-*]\s+", lines[i])
+                             or (buf and not _is_block_start(lines[i]))):
+                if re.match(r"^\s*[-*]\s+", lines[i]):
+                    buf.append(re.sub(r"^\s*[-*]\s+", "", lines[i]))
+                else:
+                    buf[-1] = buf[-1] + " " + lines[i].strip()  # continuation of the bullet above
                 i += 1
             items = []
             for x in buf:

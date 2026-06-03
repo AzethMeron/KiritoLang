@@ -184,26 +184,28 @@ struct Vec2 : NativeClass<Vec2> {
         return "Vec2(" + std::to_string(x) + ", " + std::to_string(y) + ")";
     }
 
-    // Attribute reads return values directly; a method name returns a NativeFunction with `self`
-    // bound, so v.length() / v.dot(o) arrive with the receiver already in hand.
+    // Attribute reads return values directly; a method name returns a callable with `self` bound, so
+    // v.length() / v.dot(o) arrive with the receiver already in hand. Build methods with `makeMethod`
+    // (see below): name them parameters and they accept keyword arguments — v.dot(other = o) — exactly
+    // like a Kirito method. The impl still receives a plain positional `span`.
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         if (name == "x") return val(vm, x);
         if (name == "y") return val(vm, y);
         if (name == "length")
-            return vm.alloc(std::make_unique<NativeFunction>("length",
+            return makeMethod(vm, "length", {},          // no params
                 [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
                     auto& v = static_cast<Vec2&>(vm.arena().deref(self));
                     return val(vm, std::sqrt(v.x * v.x + v.y * v.y));
-                }, std::vector<Handle>{self}));            // <-- bind self into the method
+                }, std::vector<Handle>{self});            // <-- bind self into the method
         if (name == "dot")
-            return vm.alloc(std::make_unique<NativeFunction>("dot",
+            return makeMethod(vm, "dot", {"other"},       // v.dot(o) or v.dot(other = o)
                 [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                     Args args(vm, a, "dot");
                     auto& v = static_cast<Vec2&>(vm.arena().deref(self));
                     auto* o = dynamic_cast<const Vec2*>(&vm.arena().deref(args.at(0)));
                     if (!o) throw KiritoError("dot expects a Vec2");
                     return val(vm, v.x * o->x + v.y * o->y);
-                }, std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         return Object::getAttr(vm, self, name);            // unknown attr -> a clear error
     }
 
@@ -230,12 +232,25 @@ var a = Vec2(3, 4)
 a.x                       # 3.0
 a.length()                # 5.0
 a.dot(Vec2(1, 0))         # 3.0
+a.dot(other = Vec2(1, 0)) # 3.0   — methods built with makeMethod accept keyword arguments
 String(a + Vec2(1, 1))    # "Vec2(4, 5)"
 ```
 
 `vm.alloc(std::make_unique<T>(...))` boxes any `Object` (a built-in *or* a `NativeClass`) into the
-arena and returns a `Handle`. The bound-`self` third argument to `NativeFunction` is exactly how
-built-in methods such as `list.append` carry their receiver.
+arena and returns a `Handle`.
+
+### Methods that accept keyword arguments — `makeMethod`
+
+`makeMethod(vm, name, {param names…}, impl, {self})` is the one helper you need for member functions.
+It binds `self` (so the receiver arrives in the closure) **and** gives the method **keyword-argument
+support**: positional arguments fill the named slots left-to-right, keywords bind by name, and the
+impl still receives the same flat positional `span` it always would — so you write the body once and
+get `obj.method(a, b)` *and* `obj.method(b = …, a = …)` for free. Naming a slot `{}` (no params) makes
+a nullary method that cleanly rejects any stray keyword. This is exactly how every built-in type
+method (`xs.sort(key = f, reverse = True)`, `s.split(sep = ",")`) and every stdlib native-class method
+gains keyword arguments; prefer it over a raw `NativeFunction` for anything reachable as `obj.method`.
+(For a free function or a module function, declare a [signature](#declaring-a-signature-keyword-arguments-inspect)
+instead — that additionally surfaces the parameters in `inspect`.)
 
 ### The protocol slots
 

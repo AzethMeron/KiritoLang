@@ -1,0 +1,161 @@
+# Serialization coverage for every built-in value type across all three formats:
+#   json       — flat data interchange (no Set; Dict keys become Strings)
+#   serialize  — text object graph, preserves shared references AND cycles
+#   dump       — binary object graph, preserves shared references AND cycles
+# Typical round-trips, edge values, reference/cycle preservation, adversarial limits (what each
+# format CANNOT do, asserted explicitly), and a randomized fuzz round-trip vs the original.
+var io = import("io")
+var json = import("json")
+var serialize = import("serialize")
+var dump = import("dump")
+var random = import("random")
+
+# --- helpers: a value round-trips unchanged through serialize and dump (the two graph formats) ---
+var graphrt = Function(v) -> Bool:
+    return serialize.loads(serialize.dumps(v)) == v and dump.loads(dump.dumps(v)) == v
+var jsonrt = Function(v) -> Bool:
+    return json.loads(json.dumps(v)) == v
+
+# ================================================================= TYPICAL: every core type
+# serialize + dump handle every built-in value type
+assert graphrt(None), "None graph round-trip"
+assert graphrt(True) and graphrt(False), "Bool graph round-trip"
+assert graphrt(0) and graphrt(42) and graphrt(-7), "Integer graph round-trip"
+assert graphrt(3.14) and graphrt(-2.5e10) and graphrt(0.0), "Float graph round-trip"
+assert graphrt("") and graphrt("héllo, 世界"), "String graph round-trip (incl. unicode)"
+assert graphrt([]) and graphrt([1, 2, 3]), "List graph round-trip"
+assert graphrt({}) and graphrt({"a": 1, "b": 2}), "Dict graph round-trip"
+assert graphrt(Set([])) and graphrt({1, 2, 3}), "Set graph round-trip"
+assert graphrt([None, True, 1, 2.5, "x", [1, [2]], {"k": [3]}, {4, 5}]), "deeply mixed graph round-trip"
+
+# json handles every JSON-representable type (everything except Set)
+assert jsonrt(None) and jsonrt(True) and jsonrt(42) and jsonrt(3.14) and jsonrt("hi"), "json scalars"
+assert jsonrt([1, [2, 3], {"k": 4}]) and jsonrt({"a": [1, 2], "b": {"c": 3}}), "json nested containers"
+assert jsonrt({}) and jsonrt([]) and jsonrt(""), "json empties"
+
+# ================================================================= EDGE: boundary values
+assert graphrt(9223372036854775807), "Integer max round-trips"
+assert graphrt(-9223372036854775808), "Integer min round-trips"
+assert graphrt(["\n\t\"\\", "tab\there", ""]), "strings with escapes round-trip"
+# deeply nested (lists 40 deep)
+var deep = 0
+var nest = [deep]
+var di = 0
+while di < 40:
+    nest = [nest]
+    di = di + 1
+assert graphrt(nest), "deeply nested list round-trips"
+# a Dict with Integer keys: graph formats preserve them exactly...
+assert graphrt({1: "a", 2: "b", 10: "c"}), "graph formats keep Integer keys"
+# ...but JSON keys are always Strings, so an Integer-keyed Dict does NOT compare equal after JSON
+assert not jsonrt({1: "a"}), "json coerces Integer keys to Strings (documented loss)"
+assert json.loads(json.dumps({1: "a"})) == {"1": "a"}, "json int key becomes the String '1'"
+
+# ================================================================= REFERENCES & CYCLES
+# serialize/dump preserve SHARED references: the two slots remain the same object after a round-trip
+var inner = [1, 2]
+var shared = [inner, inner]
+var sb = serialize.loads(serialize.dumps(shared))
+assert sb[0] == sb[1], "serialize: shared refs stay equal"
+sb[0].append(99)
+assert sb[1][2] == 99, "serialize: shared refs are truly aliased (mutation visible through both)"
+var db = dump.loads(dump.dumps(shared))
+db[0].append(7)
+assert db[1][len(db[1]) - 1] == 7, "dump: shared refs are truly aliased"
+# cycles survive (a list containing itself)
+var cyc = []
+cyc.append(cyc)
+var sc = serialize.loads(serialize.dumps(cyc))
+assert len(sc) == 1 and sc[0] == sc, "serialize: a self-referential cycle round-trips"
+var dc = dump.loads(dump.dumps(cyc))
+assert len(dc) == 1 and dc[0] == dc, "dump: a self-referential cycle round-trips"
+
+# ================================================================= ADVERSARIAL: documented limits
+var throws = Function(fn) -> Bool:
+    try:
+        discard fn()
+        return False
+    catch as e:
+        return True
+# json cannot represent a Set
+assert throws(Function(): return json.dumps({1, 2, 3})), "json.dumps rejects a Set"
+# a user class instance is not serializable by any format
+class Point:
+    var _init_ = Function(self, x):
+        self.x = x
+assert throws(Function(): return serialize.dumps(Point(1))), "serialize rejects a class instance"
+assert throws(Function(): return dump.dumps(Point(1))), "dump rejects a class instance"
+assert throws(Function(): return json.dumps(Point(1))), "json rejects a class instance"
+# malformed input raises on load
+assert throws(Function(): return json.loads("{not valid")), "json.loads rejects malformed text"
+assert throws(Function(): return serialize.loads("@@@garbage@@@")), "serialize.loads rejects garbage"
+
+# ================================================================= FUZZ: random structures round-trip
+var rng = random.Random(20260603)
+var randvalue = Function(depth):
+    var pick = rng.randint(0, 9)
+    if depth <= 0 or pick < 4:
+        # a scalar leaf
+        var s = rng.randint(0, 5)
+        if s == 0:
+            return None
+        if s == 1:
+            return rng.randint(-1000, 1000)
+        if s == 2:
+            return rng.randint(0, 1) == 1
+        if s == 3:
+            return rng.uniform(-100.0, 100.0)
+        if s == 4:
+            return "s" + String(rng.randint(0, 99))
+        return rng.randint(-5, 5)
+    if pick < 7:
+        # a List
+        var lst = []
+        var n = rng.randint(0, 4)
+        var i = 0
+        while i < n:
+            lst.append(randvalue(depth - 1))
+            i = i + 1
+        return lst
+    if pick < 9:
+        # a Dict (String keys, so it's json-safe too)
+        var d = {}
+        var n = rng.randint(0, 4)
+        var i = 0
+        while i < n:
+            d["k" + String(i)] = randvalue(depth - 1)
+            i = i + 1
+        return d
+    # a Set of small integers
+    var st = Set([])
+    var n = rng.randint(0, 5)
+    var i = 0
+    while i < n:
+        st.add(rng.randint(0, 20))
+        i = i + 1
+    return st
+
+var hasset = Function(v) -> Bool:
+    if isinstance(v, "Set"):
+        return True
+    if isinstance(v, "List"):
+        for x in v:
+            if hasset(x):
+                return True
+    if isinstance(v, "Dict"):
+        for k in v.keys():
+            if hasset(v[k]):
+                return True
+    return False
+
+var trial = 0
+while trial < 1000:
+    var v = randvalue(4)
+    assert serialize.loads(serialize.dumps(v)) == v, "fuzz: serialize round-trip"
+    assert dump.loads(dump.dumps(v)) == v, "fuzz: dump round-trip"
+    # json only for Set-free structures (Set isn't JSON-representable)
+    if not hasset(v):
+        assert json.loads(json.dumps(v)) == v, "fuzz: json round-trip (Set-free)"
+    trial = trial + 1
+
+io.print("OK")

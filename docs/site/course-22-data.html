@@ -1,0 +1,135 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 22 — Tabular Data Analysis — Kirito</title><style>
+:root{--bg:#16161a;--fg:#e4e4ea;--muted:#9a9aa6;--accent:#9b87ff;--code-bg:#1e1e25;
+--border:#2c2c35;--side:#1b1b21;--side-hover:#26262f}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:var(--side-hover);text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#16161a}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:var(--fg)}
+.kw{color:#c678dd}.str{color:#98c379}.com{color:#7f848e;font-style:italic}.num{color:#d19a66}
+.builtin{color:#61afef}
+a.xref{text-decoration:none}
+a.xref:hover{text-decoration:underline}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values.html">Lesson 2 — Values and Variables</a><a href="course-03-numbers.html">Lesson 3 — Numbers and Arithmetic</a><a href="course-04-strings.html">Lesson 4 — Strings</a><a href="course-05-control-flow.html">Lesson 5 — Booleans and Control Flow</a><a href="course-06-loops.html">Lesson 6 — Loops and Iteration</a><a href="course-07-lists.html">Lesson 7 — Lists</a><a href="course-08-sets-dicts.html">Lesson 8 — Sets and Dictionaries</a><a href="course-09-unpacking.html">Lesson 9 — Packing and Unpacking</a><a href="course-10-functions.html">Lesson 10 — Functions</a><a href="course-11-closures.html">Lesson 11 — Closures and First-Class Functions</a><a href="course-12-annotations.html">Lesson 12 — Type Annotations and Runtime Checks</a><a href="course-13-classes.html">Lesson 13 — Classes I: Data and Behavior</a><a href="course-14-operators.html">Lesson 14 — Classes II: Operators and Protocols</a><a href="course-15-inheritance.html">Lesson 15 — Classes III: Inheritance and super</a><a href="course-16-errors.html">Lesson 16 — Errors and Exceptions</a><a href="course-17-context-managers.html">Lesson 17 — Context Managers and with</a><a href="course-18-files-io.html">Lesson 18 — Files, I/O, and Streams</a><a href="course-19-stdlib-tour.html">Lesson 19 — A Tour of the Standard Library</a><a href="course-20-regex.html">Lesson 20 — Regular Expressions</a><a href="course-21-cli.html">Lesson 21 — Command-Line Programs</a><a href="course-22-data.html" class="active">Lesson 22 — Tabular Data Analysis</a><a href="course-23-capstone.html">Lesson 23 — Capstone: A Contact Book</a></nav><main id="content"><h1 id="lesson-22-tabular-data-analysis">Lesson 22 — Tabular Data Analysis</h1>
+<p>When you have <em>tabular</em> data — rows and columns, like a spreadsheet or a CSV — looping over lists of dicts gets tedious fast. Kirito ships a <strong>dataframe-style</strong> library (<code>import(&quot;tabular&quot;)</code>, pandas-like) built on the low-level <a href="07-stdlib.html#csv"><a class="xref" href="stdlib.html#csv"><code>csv</code></a></a> module, with two core types: a 1-D labelled <strong><a class="xref" href="stdlib.html#series"><code>Series</code></a></strong> (one column) and a 2-D <strong><a class="xref" href="stdlib.html#dataframe"><code>DataFrame</code></a></strong> (a whole table). This lesson is a practical tour.</p>
+<h2 id="a-series-is-a-labelled-column">A Series is a labelled column</h2>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
+
+<span class="kw">var</span> s = tb.Series([<span class="num">10</span>, <span class="num">20</span>, <span class="num">30</span>, <span class="num">40</span>])
+io.<span class="builtin">print</span>(s.<span class="builtin">sum</span>())          <span class="com"># 100</span>
+io.<span class="builtin">print</span>(s.mean())         <span class="com"># 25.0</span>
+io.<span class="builtin">print</span>(s.<span class="builtin">max</span>())          <span class="com"># 40</span>
+io.<span class="builtin">print</span>((s * <span class="num">2</span>).tolist()) <span class="com"># [20, 40, 60, 80]   — element-wise arithmetic</span></code></pre>
+<p>Comparisons produce a <strong>boolean Series</strong>, which is the key to filtering tables:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
+<span class="kw">var</span> s = tb.Series([<span class="num">10</span>, <span class="num">20</span>, <span class="num">30</span>, <span class="num">40</span>])
+io.<span class="builtin">print</span>((s &gt; <span class="num">20</span>).tolist())   <span class="com"># [False, False, True, True]</span></code></pre>
+<h2 id="building-a-dataframe">Building a DataFrame</h2>
+<p>You can build a table from a Dict of columns, a list of rows (with <code>columns=</code>), or — most often — by reading CSV. (Because Kirito dicts aren&#x27;t ordered, pass <code>columns=</code> when you care about column order; <a class="xref" href="stdlib.html#sym-readcsv"><code>readcsv</code></a> preserves the header order for you.)</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
+
+<span class="kw">var</span> df = tb.DataFrame(
+    [[<span class="str">&quot;Ada&quot;</span>, <span class="str">&quot;eng&quot;</span>, <span class="num">120</span>], [<span class="str">&quot;Alan&quot;</span>, <span class="str">&quot;eng&quot;</span>, <span class="num">110</span>], [<span class="str">&quot;Grace&quot;</span>, <span class="str">&quot;ops&quot;</span>, <span class="num">95</span>], [<span class="str">&quot;Edsger&quot;</span>, <span class="str">&quot;ops&quot;</span>, <span class="num">130</span>]],
+    columns=[<span class="str">&quot;name&quot;</span>, <span class="str">&quot;dept&quot;</span>, <span class="str">&quot;salary&quot;</span>])
+io.<span class="builtin">print</span>(df.shape())       <span class="com"># [4, 3]   (rows, cols)</span>
+io.<span class="builtin">print</span>(df.columns)       <span class="com"># [name, dept, salary]</span>
+io.<span class="builtin">print</span>(df)               <span class="com"># pretty-prints the table</span></code></pre>
+<h2 id="reading-csv-with-type-inference">Reading CSV (with type inference)</h2>
+<p><a class="xref" href="stdlib.html#sym-readcsv"><code>readcsv</code></a> accepts CSV <strong>text</strong> (or a filename). Each cell is inferred to Integer / Float / Bool / String, and an empty cell becomes <a class="xref" href="types.html#none"><code>None</code></a> (missing):</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
+
+<span class="kw">var</span> csv = <span class="str">&quot;name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130&quot;</span>
+<span class="kw">var</span> df = tb.readcsv(csv)
+io.<span class="builtin">print</span>(<span class="builtin">type</span>(df[<span class="str">&quot;salary&quot;</span>][<span class="num">0</span>]))   <span class="com"># Integer  (inferred)</span>
+io.<span class="builtin">print</span>(df[<span class="str">&quot;dept&quot;</span>].tolist())     <span class="com"># [eng, eng, ops, ops]</span></code></pre>
+<h2 id="selecting-and-filtering">Selecting and filtering</h2>
+<p>Index a column by name; pass a list of names for a sub-table; pass a <strong>boolean Series</strong> to keep matching rows. <code>df.iloc[i]</code> / <code>df.loc[label]</code> get a row.</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
+<span class="kw">var</span> df = tb.readcsv(<span class="str">&quot;name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130&quot;</span>)
+
+io.<span class="builtin">print</span>(df[<span class="str">&quot;salary&quot;</span>].mean())                       <span class="com"># 113.75</span>
+io.<span class="builtin">print</span>(df[df[<span class="str">&quot;salary&quot;</span>] &gt; <span class="num">100</span>][<span class="str">&quot;name&quot;</span>].tolist())   <span class="com"># [Ada, Alan, Edsger]   (boolean mask)</span>
+io.<span class="builtin">print</span>(df[[<span class="str">&quot;name&quot;</span>, <span class="str">&quot;salary&quot;</span>]].columns)            <span class="com"># [name, salary]        (column subset)</span>
+io.<span class="builtin">print</span>(df.iloc[<span class="num">0</span>][<span class="str">&quot;name&quot;</span>])                        <span class="com"># Ada                    (first row)</span></code></pre>
+<h2 id="group-by-and-aggregation-the-workhorse">Group-by and aggregation — the workhorse</h2>
+<p><code>groupby(col)</code> splits the table by a key column; then <a class="xref" href="builtins.html#sym-sum"><code>sum</code></a>/<a class="xref" href="stdlib.html#sym-mean"><code>mean</code></a>/<code>min</code>/<code>max</code>/<code>std</code>/<a class="xref" href="stdlib.html#sym-count"><code>count</code></a> reduce each numeric column per group, or <code>agg({col: &quot;reduction&quot;})</code> picks per-column reductions.</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
+<span class="kw">var</span> df = tb.readcsv(<span class="str">&quot;name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130&quot;</span>)
+
+io.<span class="builtin">print</span>(df.groupby(<span class="str">&quot;dept&quot;</span>).mean())                 <span class="com"># mean salary per dept</span>
+io.<span class="builtin">print</span>(df.groupby(<span class="str">&quot;dept&quot;</span>).agg({<span class="str">&quot;salary&quot;</span>: <span class="str">&quot;max&quot;</span>})) <span class="com"># top salary per dept</span></code></pre>
+<p>prints (eng then ops, in first-seen order):</p>
+<pre><code>     salary
+eng   115.0
+ops   112.5
+     salary
+eng     120
+ops     130</code></pre>
+<h2 id="sorting-new-columns-and-describe">Sorting, new columns, and <code>describe</code></h2>
+<p>Assigning a Series (or a list, or a scalar) adds/replaces a column. <a class="xref" href="stdlib.html#sym-sortvalues"><code>sortvalues</code></a> orders rows; <code>describe</code> gives count/mean/std/min/median/max for every numeric column.</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
+<span class="kw">var</span> df = tb.readcsv(<span class="str">&quot;name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130&quot;</span>)
+
+df[<span class="str">&quot;bonus&quot;</span>] = df[<span class="str">&quot;salary&quot;</span>] * <span class="num">0.1</span>                    <span class="com"># derived column</span>
+io.<span class="builtin">print</span>(df.sortvalues(<span class="str">&quot;salary&quot;</span>, ascending=<span class="kw">False</span>)[<span class="str">&quot;name&quot;</span>].tolist())  <span class="com"># [Edsger, Ada, Alan, Grace]</span>
+io.<span class="builtin">print</span>(df.describe())                             <span class="com"># numeric summary</span></code></pre>
+<h2 id="missing-data">Missing data</h2>
+<p>Real data has gaps. An empty CSV cell is <a class="xref" href="types.html#none"><code>None</code></a>; numeric aggregations skip it, <a class="xref" href="stdlib.html#sym-count"><code>count()</code></a> tallies the non-null values (of any type), and <code>dropna</code>/<a class="xref" href="stdlib.html#sym-fillna"><code>fillna</code></a> clean it up.</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
+
+<span class="kw">var</span> df = tb.readcsv(<span class="str">&quot;name,age\nAda,36\nBjarne,\nGrace,85&quot;</span>)
+io.<span class="builtin">print</span>(df[<span class="str">&quot;age&quot;</span>].count())          <span class="com"># 2   (the blank is skipped)</span>
+io.<span class="builtin">print</span>(df[<span class="str">&quot;age&quot;</span>].mean())           <span class="com"># 60.5</span>
+io.<span class="builtin">print</span>(df.dropna()[<span class="str">&quot;name&quot;</span>].tolist())          <span class="com"># [Ada, Grace]</span>
+io.<span class="builtin">print</span>(df.fillna(<span class="num">0</span>)[<span class="str">&quot;age&quot;</span>].tolist())          <span class="com"># [36, 0, 85]</span></code></pre>
+<h2 id="joining-and-stacking">Joining and stacking</h2>
+<p><code>merge</code> joins two tables on a key column (<code>how</code> = <code>&quot;inner&quot;</code>/<code>&quot;left&quot;</code>/<code>&quot;right&quot;</code>/<code>&quot;outer&quot;</code>); <a class="xref" href="stdlib.html#sym-concat"><code>concat</code></a> stacks tables vertically.</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
+
+<span class="kw">var</span> orders = tb.DataFrame([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">2</span>, <span class="num">3</span>]], columns=[<span class="str">&quot;id&quot;</span>, <span class="str">&quot;product_id&quot;</span>])
+<span class="kw">var</span> products = tb.DataFrame([[<span class="num">2</span>, <span class="str">&quot;Mouse&quot;</span>], [<span class="num">3</span>, <span class="str">&quot;Monitor&quot;</span>]], columns=[<span class="str">&quot;product_id&quot;</span>, <span class="str">&quot;name&quot;</span>])
+<span class="kw">var</span> joined = tb.merge(orders, products, on=<span class="str">&quot;product_id&quot;</span>)
+io.<span class="builtin">print</span>(joined[<span class="str">&quot;name&quot;</span>].tolist())    <span class="com"># [Mouse, Monitor]</span></code></pre>
+<h2 id="putting-it-together">Putting it together</h2>
+<p>The <code>examples/</code> directory has three complete programs built on this library: <a href="https://github.com/AzethMeron/KiritoLang/blob/main/examples/tabular_iris.ki"><code>tabular_iris.ki</code></a> (a full exploratory analysis of the iris dataset — group means, a derived feature, a correlation), <a href="https://github.com/AzethMeron/KiritoLang/blob/main/examples/tabular_sales.ki"><code>tabular_sales.ki</code></a> (a generated sales dataset joined to a catalog, then revenue ranked by region and product), and <a href="https://github.com/AzethMeron/KiritoLang/blob/main/examples/tabular_survey.ki"><code>tabular_survey.ki</code></a> (a messy survey CSV cleaned with <code>dropna</code>/<a class="xref" href="stdlib.html#sym-fillna"><code>fillna</code></a>/<a class="xref" href="stdlib.html#sym-apply"><code>apply</code></a>/<code>astype</code>).</p>
+<h2 id="what-you-learned">What you learned</h2>
+<ul><li><strong><a class="xref" href="stdlib.html#series"><code>Series</code></a></strong> (a labelled column) supports element-wise arithmetic and comparisons; a comparison yields a boolean Series for masking.</li><li><strong><a class="xref" href="stdlib.html#dataframe"><code>DataFrame</code></a></strong> is a table you build from columns, rows, or <a class="xref" href="stdlib.html#sym-readcsv"><code>readcsv</code></a> (with type inference); select a column with <a class="xref" href="stdlib.html#sym-df"><code>df[&quot;c&quot;]</code></a>, a subset with <a class="xref" href="stdlib.html#sym-df"><code>df[[&quot;a&quot;, &quot;b&quot;]]</code></a>, and matching rows with a boolean mask.</li><li><strong><code>groupby(col).agg(...)</code></strong> is the analysis workhorse; <a class="xref" href="stdlib.html#sym-sortvalues"><code>sortvalues</code></a>, derived columns, and <code>describe</code> round out the toolkit, and <code>dropna</code>/<a class="xref" href="stdlib.html#sym-fillna"><code>fillna</code></a> handle missing data.</li><li>For the full method list, see the <strong>Standard Library</strong> reference&#x27;s <a href="07-stdlib.html#tabular"><a class="xref" href="stdlib.html#tabular"><code>tabular</code></a></a> section.</li></ul>
+<p>One lesson to go — the capstone, where we assemble a complete program from everything you&#x27;ve learned.</p>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

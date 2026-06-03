@@ -1,8 +1,8 @@
-# pandas-like Series/DataFrame, exercised from Kirito: construction, CSV round-trip, label/position
+# tabular (dataframe-style) Series/DataFrame, exercised from Kirito: construction, CSV round-trip, label/position
 # indexing, boolean masking, element-wise ops, aggregations, group-by, sorting, joins, concat,
 # missing-data handling — plus randomized fuzz against oracles computed the long way in plain Kirito.
 var io = import("io")
-var pd = import("pandas")
+var pd = import("tabular")
 var random = import("random")
 
 # ----------------------------------------------------------------- Series basics
@@ -14,6 +14,8 @@ assert s.min() == 10 and s.max() == 40, "series min/max"
 assert s.median() == 25.0, "series median (even)"
 assert pd.Series([3, 1, 2]).median() == 2, "series median (odd)"
 assert s.count() == 4, "series count"
+assert pd.Series(["a", None, "b", None]).count() == 2, "count is a non-null tally of any type"
+assert pd.Series([1, None, 3]).count() == 2, "count skips missing numerics"
 assert (s + 1).tolist() == [11, 21, 31, 41], "series scalar add"
 assert (s * 2).tolist() == [20, 40, 60, 80], "series scalar mul"
 assert (s / 10).tolist() == [1.0, 2.0, 3.0, 4.0], "series scalar div"
@@ -213,5 +215,92 @@ while trial < 300:
         k = k + 1
     assert masked == expected, "fuzz boolean mask matches manual filter"
     trial = trial + 1
+
+# ================================================================= EDGE CASES
+# empty Series: aggregations degrade gracefully (sum 0, mean/min/max/median None, count 0)
+var empty = pd.Series([])
+assert len(empty) == 0 and empty.sum() == 0 and empty.count() == 0, "empty series len/sum/count"
+assert empty.mean() == None and empty.min() == None and empty.median() == None, "empty series None aggs"
+assert empty.dropna().tolist() == [] and empty.tolist() == [], "empty series dropna/tolist"
+# an all-missing column
+var allnull = pd.Series([None, None, None])
+assert allnull.count() == 0 and allnull.mean() == None, "all-missing count/mean"
+assert allnull.dropna().tolist() == [], "all-missing dropna empties"
+assert allnull.fillna(0).tolist() == [0, 0, 0], "all-missing fillna"
+# a single element
+assert pd.Series([42]).mean() == 42.0 and pd.Series([42]).median() == 42, "single element"
+assert pd.Series([7]).std() == None, "std needs >= 2 values"
+# head/tail beyond the bounds, and head(0)
+var d3 = pd.DataFrame({"a": [1, 2, 3]}, columns=["a"])
+assert d3.head(0).shape() == [0, 1], "head(0) keeps columns, no rows"
+assert d3.head(99).shape() == [3, 1] and d3.tail(99).shape() == [3, 1], "head/tail past the end clamp"
+# readcsv corner inputs
+assert pd.readcsv("").shape() == [0, 0], "readcsv of empty text"
+assert pd.readcsv("a,b,c").shape() == [0, 3], "readcsv header-only: columns, no rows"
+# concat with an empty frame, and a one-to-many / no-match merge
+var ce = pd.DataFrame({"a": []}, columns=["a"])
+var cf = pd.DataFrame({"a": [1, 2]}, columns=["a"])
+assert pd.concat([ce, cf])["a"].tolist() == [1, 2], "concat empty + non-empty"
+var lm = pd.DataFrame([[1, "a"], [2, "b"]], columns=["id", "x"])
+var rm = pd.DataFrame([[1, "p"], [1, "q"], [2, "r"]], columns=["id", "y"])
+assert len(pd.merge(lm, rm, on="id")) == 3, "one-to-many merge expands rows"
+assert len(pd.merge(lm, pd.DataFrame([[9, "z"]], columns=["id", "y"]), on="id")) == 0, "inner merge, no matches"
+# groupby where every key is distinct
+assert len(pd.DataFrame({"k": [1, 2, 3], "v": [9, 9, 9]}, columns=["k", "v"]).groupby("k").sum().index) == 3, "groupby all-distinct keys"
+# sortvalues is stable: equal keys keep their input order
+var stab = pd.DataFrame([[1, "a"], [1, "b"], [1, "c"]], columns=["k", "tag"])
+assert stab.sortvalues("k")["tag"].tolist() == ["a", "b", "c"], "sortvalues is stable on ties"
+
+# ================================================================= ADVERSARIAL (must raise)
+var throws = Function(fn) -> Bool:
+    try:
+        discard fn()
+        return False
+    catch as e:
+        return True
+assert throws(Function(): return pd.DataFrame({"a": [1]}, columns=["a"])["nope"]), "missing column raises"
+assert throws(Function(): return pd.Series([1, 2, 3]) + pd.Series([1, 2])), "Series length mismatch raises"
+assert throws(Function(): return pd.DataFrame({"a": [1]}, columns=["a"]).iloc[5]), "iloc out of range raises"
+assert throws(Function(): return pd.DataFrame({"a": [1]}, columns=["a"]).groupby("nope")), "groupby on missing column raises"
+assert throws(Function(): return pd.DataFrame({"k": ["x"], "v": [1]}, columns=["k", "v"]).groupby("k").agg({"v": "bogus"})), "agg with unknown reduction raises"
+assert throws(Function(): return pd.merge(lm, rm, on="missing")), "merge on a missing key raises"
+assert throws(Function(): return pd.DataFrame({"a": [1, 2], "b": [1]}, columns=["a", "b"])), "ragged columns raise"
+assert throws(Function(): return pd.Series([1, 2], index=["only_one"])), "index length mismatch raises"
+
+# ================================================================= FUZZ #4: merge vs a manual oracle
+var trial4 = 0
+while trial4 < 200:
+    var nL = rng.randint(1, 12)
+    var lids = []
+    var lval = []
+    var i4 = 0
+    while i4 < nL:
+        lids.append(rng.randint(0, 6))
+        lval.append(rng.randint(0, 100))
+        i4 = i4 + 1
+    var nR = rng.randint(1, 12)
+    var rids = []
+    var rval = []
+    i4 = 0
+    while i4 < nR:
+        rids.append(rng.randint(0, 6))
+        rval.append(rng.randint(0, 100))
+        i4 = i4 + 1
+    var lf = pd.DataFrame({"id": lids, "lv": lval}, columns=["id", "lv"])
+    var rf = pd.DataFrame({"id": rids, "rv": rval}, columns=["id", "rv"])
+    var inner = pd.merge(lf, rf, on="id")
+    # oracle: the inner join row count is sum over left rows of (count of right rows with same id)
+    var rcount = {}
+    var k4 = 0
+    while k4 < nR:
+        rcount[rids[k4]] = rcount.get(rids[k4], 0) + 1
+        k4 = k4 + 1
+    var expect = 0
+    k4 = 0
+    while k4 < nL:
+        expect = expect + rcount.get(lids[k4], 0)
+        k4 = k4 + 1
+    assert len(inner) == expect, "fuzz inner-merge row count matches oracle"
+    trial4 = trial4 + 1
 
 io.print("OK")

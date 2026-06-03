@@ -297,4 +297,4 @@ Drop `wordcount(arglist)` behind an `if argmain:` and the same file becomes a re
 - Parsing **raises clear, catchable errors** on bad input, so a `try` around `parse` gives friendly
   diagnostics.
 
-One lesson to go — the capstone, where we assemble a complete program from everything you've learned.
+Next up: tabular **data analysis** with the pandas-like library, before the final capstone.
