@@ -79,7 +79,15 @@ inline std::pair<std::vector<Node>, uint32_t> flatten(KiritoVM& vm, Handle root,
         uint32_t id = static_cast<uint32_t>(nodes.size());
         ids[op] = id;
         nodes.emplace_back();   // reserve the slot first, so a reference back here (a cycle) resolves
-        if (++depth > 10000) throw KiritoError(std::string("structure too deeply nested to ") + verb);
+        // Guard against overflowing the native stack on a pathologically deep graph. ASan enlarges
+        // every frame, so the recursive walk overflows far sooner there — use a smaller ceiling.
+#if defined(KIRITO_SANITIZER_BUILD)
+        constexpr int kMaxFlattenDepth = 1500;
+#else
+        constexpr int kMaxFlattenDepth = 10000;
+#endif
+        if (++depth > kMaxFlattenDepth)
+            throw KiritoError(std::string("structure too deeply nested to ") + verb);
         Node n;
         Object& o = vm.arena().deref(h);
         switch (o.kind()) {

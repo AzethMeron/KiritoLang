@@ -36,6 +36,11 @@ assert "Dump object:" in du and "bytes() -> String" in du and "save(path)" in du
 var sk = inspect(net.Socket())
 assert "Socket object:" in sk and "connect(host, port)" in sk and "recv(size) -> String" in sk, "Socket members"
 
+# --- a frozen-source (Kirito) module exposes its API, not the injected arglist/argmain env bindings ---
+var cins = inspect(import("copy"))
+assert "module copy:" in cins and "deepcopy" in cins, "frozen module lists its functions"
+assert "arglist" not in cins and "argmain" not in cins, "frozen module inspect hides arglist/argmain"
+
 # --- the other value kinds still describe correctly ---
 assert "module random:" in inspect(random), "module inspect"
 assert "Random(seed = None) -> Random" in inspect(random), "module lists its constructor with signature"

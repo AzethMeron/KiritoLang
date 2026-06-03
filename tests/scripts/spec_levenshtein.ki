@@ -45,6 +45,10 @@ assert string.similarity("abc", "abc") == 1.0, "identical similarity is 1.0"
 assert string.similarity("", "") == 1.0, "two empties are identical"
 assert string.similarity("abc", "xyz") == 0.0, "no overlap -> 0.0"
 assert string.similarity("kitten", "sitting") == 1.0 - 3.0 / 7, "similarity ratio"
+# similarity also accepts a List as `b`, returning one score per candidate (single native call)
+var sims = string.similarity("abc", ["abc", "abd", "xyz", ""])
+assert sims == [1.0, 1.0 - 1.0 / 3, 0.0, 0.0], "similarity against a List -> per-candidate scores"
+assert string.similarity("", []) == [], "similarity against an empty List is empty"
 var langs = ["python", "javascript", "ruby", "rust", "kotlin"]
 assert string.closest("pyhton", langs) == "python", "closest fixes a typo"
 assert string.closest("rist", langs) == "rust", "closest picks nearest"

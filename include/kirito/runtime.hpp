@@ -1590,7 +1590,9 @@ inline void KiritoVM::registerSourceModule(std::string name, std::string_view so
         ev.run(program);
         auto mod = std::make_unique<ModuleValue>(modName);
         for (const auto& [k, v] : static_cast<EnvValue&>(vm.arena().deref(scope)).locals())
-            if (!k.empty() && k.front() != '_') mod->members[k] = v;  // hide private top-level names
+            // hide private top-level names and the injected per-file env (arglist/argmain)
+            if (!k.empty() && k.front() != '_' && k != "arglist" && k != "argmain")
+                mod->members[k] = v;
         return vm.alloc(std::move(mod));
     });
 }
@@ -1638,7 +1640,8 @@ inline Handle KiritoVM::importModule(const std::string& name) {
             ev.run(program);
             auto mod = std::make_unique<ModuleValue>(name);
             for (const auto& [k, v] : static_cast<EnvValue&>(arena_.deref(scope)).locals())
-                mod->members[k] = v;
+                if (k != "arglist" && k != "argmain")  // exclude the injected per-file env
+                    mod->members[k] = v;
             Handle h = alloc(std::move(mod));
             moduleCache_[name] = h;
             pathCache_[key] = h;

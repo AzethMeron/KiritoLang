@@ -86,35 +86,49 @@ var permutations = Function(items, r = None):
     if k == None:
         k = n
     var result = []
-    var helper = Function(chosen, used):
+    if k > n or k < 0:
+        return result
+    # Iterative DFS (recursion is discouraged in Kirito): each frame is a list of chosen indices.
+    # Pushing candidate indices in descending order makes the smallest pop first, so the emission
+    # order matches the classic recursive enumeration exactly.
+    var stack = [[]]
+    while len(stack) > 0:
+        var chosen = stack.pop()
         if len(chosen) == k:
-            result.append(chosen.copy())
-            return None
-        for i in range(n):
-            if not used[i]:
-                used[i] = True
-                chosen.append(items[i])
-                helper(chosen, used)
-                chosen.pop()
-                used[i] = False
-    var used0 = []
-    for i in range(n):
-        used0.append(False)
-    helper([], used0)
+            var perm = []
+            for idx in chosen:
+                perm.append(items[idx])
+            result.append(perm)
+            continue
+        var i = n - 1
+        while i >= 0:
+            if i not in chosen:
+                stack.append(chosen + [i])
+            i = i - 1
     return result
 
 var combinations = Function(items, r):
     var n = len(items)
     var result = []
-    var helper = Function(start, chosen):
+    if r > n or r < 0:
+        return result
+    # Iterative DFS (no recursion): each frame is [chosen indices, next-start]. Pushing the next
+    # candidate indices in descending order keeps emission in ascending lexicographic order.
+    var stack = [[[], 0]]
+    while len(stack) > 0:
+        var frame = stack.pop()
+        var chosen = frame[0]
+        var start = frame[1]
         if len(chosen) == r:
-            result.append(chosen.copy())
-            return None
-        for i in range(start, n):
-            chosen.append(items[i])
-            helper(i + 1, chosen)
-            chosen.pop()
-    helper(0, [])
+            var comb = []
+            for idx in chosen:
+                comb.append(items[idx])
+            result.append(comb)
+            continue
+        var i = n - 1
+        while i >= start:
+            stack.append([chosen + [i], i + 1])
+            i = i - 1
     return result
 
 var takewhile = Function(pred, iterable):
@@ -428,11 +442,21 @@ var capwords = Function(s) -> String:
 
 # --- fuzzy comparison (built on the native String.levenshtein edit distance) -------------------
 # A 0.0..1.0 similarity ratio: 1 - editdistance / longerlength. Two empty strings are identical (1.0).
-var similarity = Function(a, b) -> Float:
-    var longer = len(a) if len(a) >= len(b) else len(b)
-    if longer == 0:
-        return 1.0
-    return 1.0 - a.levenshtein(b) / longer
+# similarity(a, b): `a` is a String; `b` is either a String (-> one Float score in [0, 1]) or a List
+# of Strings (-> a List of per-candidate scores). The List form runs a single native levenshtein call.
+var _ratio = Function(alen, dist, blen) -> Float:
+    var longer = alen if alen >= blen else blen
+    return 1.0 if longer == 0 else 1.0 - dist / longer
+var similarity = Function(a, b):
+    if type(b) == "List":
+        var dists = a.levenshtein(b)
+        var scores = []
+        var i = 0
+        while i < len(b):
+            scores.append(_ratio(len(a), dists[i], len(b[i])))
+            i = i + 1
+        return scores
+    return _ratio(len(a), a.levenshtein(b), len(b))
 
 # The candidate most similar to `query` (smallest edit distance), or None for an empty list. Ties go
 # to the earliest candidate. One native call computes every distance at once.
@@ -763,22 +787,53 @@ var copy = Function(obj):
 
 var deepcopy = Function(obj):
     var t = type(obj)
-    if t == "List":
-        var out = []
-        for x in obj:
-            out.append(deepcopy(x))
-        return out
-    if t == "Dict":
-        var out = {}
-        for pair in obj.items():
-            out[deepcopy(pair[0])] = deepcopy(pair[1])
-        return out
-    if t == "Set":
-        var out = Set()
-        for x in obj:
-            out.add(deepcopy(x))
-        return out
-    return obj
+    if t != "List" and t != "Dict" and t != "Set":
+        return obj
+    # Iterative + cycle-safe (recursion would overflow / loop on deep or self-referential data):
+    # 1) discover every reachable container and give it an empty shell, keyed by id(original);
+    # 2) fill the shells, mapping each child to its shell (or itself for scalars). Shared references
+    #    and cycles are preserved because each original maps to exactly one shell.
+    var memo = {}
+    var order = []
+    var stack = [obj]
+    while len(stack) > 0:
+        var cur = stack.pop()
+        var cid = id(cur)
+        if cid in memo:
+            continue
+        var ct = type(cur)
+        if ct == "List":
+            memo[cid] = []
+        elif ct == "Dict":
+            memo[cid] = {}
+        elif ct == "Set":
+            memo[cid] = Set()
+        else:
+            continue
+        order.append(cur)
+        if ct == "Dict":
+            for pair in cur.items():
+                stack.append(pair[0])
+                stack.append(pair[1])
+        else:
+            for x in cur:
+                stack.append(x)
+    var mapped = Function(x):
+        var xid = id(x)
+        return memo[xid] if xid in memo else x
+    for cur in order:
+        var ct = type(cur)
+        var shell = memo[id(cur)]
+        if ct == "List":
+            for x in cur:
+                shell.append(mapped(x))
+        elif ct == "Set":
+            for x in cur:
+                shell.add(mapped(x))
+        else:
+            for pair in cur.items():
+                shell[mapped(pair[0])] = mapped(pair[1])
+    return memo[id(obj)]
 )KI";
 
 // --- enum (a tiny enum factory) ----------------------------------------------------------------
@@ -2066,28 +2121,55 @@ class Element:
         return e.text if e != None else default
 
     var itertext = Function(self):
-        # all text in document order: this element's text, then each child's text + its tail
+        # all text in document order: this element's text, then each child's text + its tail.
+        # Iterative (no recursion): a work stack of ["text", s] / ["node", elem] items, expanded
+        # in reverse so the document order is preserved on pop.
         var parts = []
-        if self.text != "":
-            parts.append(self.text)
-        for c in self.children:
-            for t in c.itertext():
-                parts.append(t)
-            if c.tail != "":
-                parts.append(c.tail)
+        var stack = [["node", self]]
+        while len(stack) > 0:
+            var item = stack.pop()
+            if item[0] == "text":
+                if item[1] != "":
+                    parts.append(item[1])
+            else:
+                var e = item[1]
+                var work = [["text", e.text]]
+                for c in e.children:
+                    work.append(["node", c])
+                    work.append(["text", c.tail])
+                var j = len(work) - 1
+                while j >= 0:
+                    stack.append(work[j])
+                    j = j - 1
         return parts
 
     var tostring = Function(self) -> String:
-        var out = "<" + self.tag
-        for k in self.attrib.keys():
-            out = out + " " + k + "=\"" + _escape_attr(String(self.attrib[k])) + "\""
-        if len(self.children) == 0 and self.text == "":
-            return out + " />"
-        out = out + ">"
-        out = out + _escape(self.text)
-        for c in self.children:
-            out = out + c.tostring() + _escape(c.tail)
-        return out + "</" + self.tag + ">"
+        # Iterative serialization (no recursion): a work stack of ["str", s] fragments and
+        # ["open", elem] expansions, pushed in reverse so they concatenate in document order.
+        var out = ""
+        var stack = [["open", self]]
+        while len(stack) > 0:
+            var item = stack.pop()
+            if item[0] == "str":
+                out = out + item[1]
+            else:
+                var e = item[1]
+                var head = "<" + e.tag
+                for k in e.attrib.keys():
+                    head = head + " " + k + "=\"" + _escape_attr(String(e.attrib[k])) + "\""
+                if len(e.children) == 0 and e.text == "":
+                    out = out + head + " />"
+                else:
+                    var work = [["str", head + ">"], ["str", _escape(e.text)]]
+                    for c in e.children:
+                        work.append(["open", c])
+                        work.append(["str", _escape(c.tail)])
+                    work.append(["str", "</" + e.tag + ">"])
+                    var j = len(work) - 1
+                    while j >= 0:
+                        stack.append(work[j])
+                        j = j - 1
+        return out
 
     var _str_ = Function(self) -> String:
         return self.tostring()

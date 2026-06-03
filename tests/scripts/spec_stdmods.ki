@@ -124,6 +124,24 @@ var orig2 = [[1]]
 var d2 = copy.deepcopy(orig2)
 d2[0].append(2)
 assert orig2[0] == [1], "deepcopy does not touch the original's nested objects"
+# deepcopy is iterative + cycle-safe (the recursive version would loop/overflow on these). Compare by
+# identity, not ==, since structural equality on a cyclic value isn't cycle-aware.
+var cyc = [1]
+cyc.append(cyc)
+var dcyc = copy.deepcopy(cyc)
+assert dcyc[0] == 1, "deepcopy cycle: scalar element preserved"
+assert id(dcyc[1]) == id(dcyc), "deepcopy cycle: the self-reference is recreated"
+assert id(dcyc) != id(cyc), "deepcopy produced a fresh object"
+var sh = [0]
+var dsh = copy.deepcopy([sh, sh])
+assert id(dsh[0]) == id(dsh[1]), "deepcopy preserves a shared reference (copied once)"
+var deepN = [0]
+var dn = 0
+while dn < 20000:
+    deepN = [deepN]
+    dn = dn + 1
+discard copy.deepcopy(deepN)         # 20000 deep: must not overflow the native stack
+assert True, "deepcopy of a very deep structure does not recurse"
 
 # ===== enum =====
 var enum = import("enum")
