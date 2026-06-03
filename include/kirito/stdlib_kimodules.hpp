@@ -425,6 +425,43 @@ var capwords = Function(s) -> String:
         else:
             parts.append(word)
     return " ".join(parts)
+
+# --- fuzzy comparison (built on the native String.levenshtein edit distance) -------------------
+# A 0.0..1.0 similarity ratio: 1 - editdistance / longerlength. Two empty strings are identical (1.0).
+var similarity = Function(a, b) -> Float:
+    var longer = len(a) if len(a) >= len(b) else len(b)
+    if longer == 0:
+        return 1.0
+    return 1.0 - a.levenshtein(b) / longer
+
+# The candidate most similar to `query` (smallest edit distance), or None for an empty list. Ties go
+# to the earliest candidate. One native call computes every distance at once.
+var closest = Function(query, candidates):
+    if len(candidates) == 0:
+        return None
+    var dists = query.levenshtein(candidates)
+    var best = 0
+    var i = 1
+    while i < len(dists):
+        if dists[i] < dists[best]:
+            best = i
+        i = i + 1
+    return candidates[best]
+
+# Every candidate whose similarity to `query` is at least `cutoff`, as [candidate, score] pairs sorted
+# by score descending (like Python's difflib.get_close_matches, but score-annotated).
+var fuzzymatch = Function(query, candidates, cutoff = 0.6):
+    var dists = query.levenshtein(candidates)
+    var scored = []
+    var i = 0
+    while i < len(candidates):
+        var longer = len(query) if len(query) >= len(candidates[i]) else len(candidates[i])
+        var score = 1.0 if longer == 0 else 1.0 - dists[i] / longer
+        if score >= cutoff:
+            scored.append([candidates[i], score])
+        i = i + 1
+    scored.sort(Function(p): return p[1], True)   # by score, descending
+    return scored
 )KI";
 
 // --- textwrap ----------------------------------------------------------------------------------

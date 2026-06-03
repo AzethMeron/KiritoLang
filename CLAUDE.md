@@ -121,7 +121,9 @@ a stability fuzzer, and a benchmark). Working today:
   — search/replace methods honor Python's optional args (strip(chars), split(sep, maxsplit),
   replace(old, new, count), find/index/rfind/rindex/count/startswith/endswith with code-point
   [start[, end]]) — and the format mini-spec's `#` alternate form adds the 0b/0o/0x base prefix —
-  partition/rpartition) and `.format()`.
+  partition/rpartition, and `levenshtein` (the Unicode/code-point edit distance to a String, or to
+  each String in a List — computed in C++; the `string` module's `similarity`/`closest`/`fuzzymatch`
+  build fuzzy matching on it) and `.format()`.
 - **User-defined `class`es** with methods, attributes, inheritance, Python-style operator methods
   (`_add_`/`_str_`/`_getitem_`/...), and private `_members`.
 - **Exceptions**: `try`/`catch [Type as e]`/`finally`/`throw` (typed matching via the class chain).
@@ -239,7 +241,7 @@ a stability fuzzer, and a benchmark). Working today:
     (chain/repeat/cycle/islice/accumulate/product/permutations/combinations/count/takewhile/
     dropwhile/filterfalse/compress/starmap/pairwise/ziplongest/groupby), `functools`
     (reduce/partial/cache), `collections` (deque/Counter/defaultdict), `statistics`
-    (mean/median/mode/variance/stdev/multimode/quantiles/...), `string` (constants + capwords),
+    (mean/median/mode/variance/stdev/multimode/quantiles/...), `string` (constants + capwords + levenshtein-based `similarity`/`closest`/`fuzzymatch`),
     `textwrap` (wrap/fill/indent/dedent), `base64` (+urlsafe), `csv` (low-level parse/format),
     `tabular` (a dataframe-style, pandas-like data-analysis library: labelled 1-D `Series` + 2-D `DataFrame`,
     `readcsv`/`tocsv` with type inference, column/`loc`/`iloc`/boolean-mask selection, element-wise

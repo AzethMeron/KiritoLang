@@ -107,5 +107,19 @@ n
         CHECK(evalStr(vm, "var x = 5\nf\"\"\"{x} + {x}\"\"\"") == "5 + 5");
     }
 
+    // --- Levenshtein (Unicode edit distance), scalar + List forms ---
+    CHECK(evalStr(vm, "\"kitten\".levenshtein(\"sitting\")") == "3");
+    CHECK(evalStr(vm, "\"abc\".levenshtein(\"abc\")") == "0");
+    CHECK(evalStr(vm, "\"\".levenshtein(\"abc\")") == "3");
+    CHECK(evalStr(vm, "\"caf\xc3\xa9\".levenshtein(\"cafe\")") == "1");      // é vs e: one code point
+    CHECK(evalStr(vm, "\"a\xf0\x9f\x98\x80\".levenshtein(\"a\")") == "1");   // a + emoji vs a: one edit
+    CHECK(evalStr(vm, "\"kitten\".levenshtein([\"sitting\", \"kitten\", \"kit\"])") == "[3, 0, 3]");
+    CHECK(evalStr(vm, "\"cat\".levenshtein(other = \"cut\")") == "1");       // keyword arg
+    CHECK_THROWS(vm.runSource("\"abc\".levenshtein(5)"));                     // bad argument type
+    CHECK_THROWS(vm.runSource("\"abc\".levenshtein([\"ok\", 7])"));          // non-String in List
+    // the `string` module's fuzzy helpers, built on it
+    CHECK(evalStr(vm, "import(\"string\").closest(\"pyhton\", [\"python\", \"ruby\", \"rust\"])") == "python");
+    CHECK(evalStr(vm, "import(\"string\").similarity(\"abc\", \"abc\")") == "1.0");
+
     return RUN_TESTS();
 }

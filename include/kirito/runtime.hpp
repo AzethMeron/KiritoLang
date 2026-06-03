@@ -858,6 +858,35 @@ inline std::size_t cpIndexToByte(const std::string& s, int64_t cp, bool isEnd) {
     (void)isEnd;
 }
 
+// Decode a UTF-8 string to its code points (so edit distance is by character, not byte).
+inline std::vector<uint32_t> strCodepoints(const std::string& s) {
+    std::vector<uint32_t> cps;
+    for (std::size_t st : utf8Starts(s)) cps.push_back(utf8DecodeAt(s, st));
+    return cps;
+}
+
+// Levenshtein (edit) distance between two code-point sequences — the classic O(m·n) dynamic
+// program with two rolling rows (O(min(m,n)) memory). Insert/delete/substitute each cost 1.
+inline int64_t levenshteinDistance(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) {
+    if (a.empty()) return static_cast<int64_t>(b.size());
+    if (b.empty()) return static_cast<int64_t>(a.size());
+    // Iterate over the longer string's columns with the shorter along the rows to bound memory.
+    const std::vector<uint32_t>& s = a.size() <= b.size() ? a : b;
+    const std::vector<uint32_t>& t = a.size() <= b.size() ? b : a;
+    std::size_t m = s.size(), n = t.size();
+    std::vector<int64_t> prev(m + 1), cur(m + 1);
+    for (std::size_t i = 0; i <= m; ++i) prev[i] = static_cast<int64_t>(i);
+    for (std::size_t j = 1; j <= n; ++j) {
+        cur[0] = static_cast<int64_t>(j);
+        for (std::size_t i = 1; i <= m; ++i) {
+            int64_t cost = (s[i - 1] == t[j - 1]) ? 0 : 1;
+            cur[i] = std::min({prev[i] + 1, cur[i - 1] + 1, prev[i - 1] + cost});
+        }
+        std::swap(prev, cur);
+    }
+    return prev[m];
+}
+
 inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
     auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
         return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
@@ -1180,6 +1209,28 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             return vm.alloc(std::move(t));
         });
     }
+    // levenshtein(other): the Unicode (code-point) edit distance to another String -> Integer, or to
+    // EACH String in a List -> a List of Integers (the source is decoded once, reused per candidate).
+    if (name == "levenshtein")
+        return bind("levenshtein", {"other"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::vector<uint32_t> src = strCodepoints(recv(vm, self));
+            const Object& arg = vm.arena().deref(a[0]);
+            if (arg.kind() == ValueKind::String)
+                return vm.makeInt(levenshteinDistance(src, strCodepoints(static_cast<const StrVal&>(arg).value())));
+            if (arg.kind() == ValueKind::List) {
+                RootScope rs(vm);
+                auto out = std::make_unique<ListVal>();
+                for (Handle e : static_cast<const ListVal&>(arg).elems) {
+                    const Object& eo = vm.arena().deref(e);
+                    if (eo.kind() != ValueKind::String)
+                        throw KiritoError("levenshtein: the List must contain only Strings");
+                    out->elems.push_back(rs.add(vm.makeInt(
+                        levenshteinDistance(src, strCodepoints(static_cast<const StrVal&>(eo).value())))));
+                }
+                return vm.alloc(std::move(out));
+            }
+            throw KiritoError("levenshtein expects a String or a List of Strings");
+        });
     return Object::getAttr(vm, self, name);
 }
 

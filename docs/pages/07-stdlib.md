@@ -541,6 +541,18 @@ rather than a lazy sequence.
 - Constants: `ascii_letters`, `ascii_lowercase`, `ascii_uppercase`, `digits`, `hexdigits`, `octdigits`, `punctuation`, `whitespace` (all `String`).
 - `capwords(s) → String` — capitalize each whitespace-separated word.
 
+Fuzzy comparison, built on the native `String.levenshtein` edit distance:
+
+- `similarity(a, b) → Float` — a `0.0`–`1.0` ratio, `1 - editdistance / longerlength` (two empty strings are `1.0`).
+- `closest(query, candidates) → String` — the candidate with the smallest edit distance (ties to the earliest), or `None` for an empty list. One native call computes every distance at once.
+- `fuzzymatch(query, candidates, cutoff = 0.6) → List` — every `[candidate, score]` pair whose similarity is at least `cutoff`, sorted by score descending (à la `difflib.get_close_matches`).
+
+```kirito
+var string = import("string")
+string.closest("pyhton", ["python", "ruby", "rust"])   # "python"   (typo correction)
+string.similarity("kitten", "sitting")                  # ~0.571
+```
+
 ---
 
 ## textwrap

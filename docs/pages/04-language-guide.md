@@ -119,7 +119,10 @@ unterminated string, a bad escape, or a raw string ending in a lone backslash is
 Methods: `upper`, `lower` (Unicode-aware), `strip`/`lstrip`/`rstrip`, `split`, `join`, `replace`,
 `startswith`, `endswith`, `find`/`rfind`, `index`/`rindex`, `count`, `format`, the `is...` predicates
 (`isdigit`/`isalpha`/`isalnum`/`isspace`/`islower`/`isupper`), `removeprefix`/`removesuffix`,
-`ljust`/`rjust`/`center`/`zfill`, and `partition`/`rpartition`.
+`ljust`/`rjust`/`center`/`zfill`, `partition`/`rpartition`, and `levenshtein` — the Unicode
+(code-point) edit distance to another String, or to **each** String in a List (`"kitten".levenshtein(
+["sitting", "kit"])` → `[3, 3]`); the [`string`](07-stdlib.html#string) module builds fuzzy matching
+on it.
 
 ## Collections
 
