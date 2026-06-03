@@ -543,7 +543,7 @@ rather than a lazy sequence.
 
 Fuzzy comparison, built on the native `String.levenshtein` edit distance:
 
-- `similarity(a, b) → Float` — a `0.0`–`1.0` ratio, `1 - editdistance / longerlength` (two empty strings are `1.0`).
+- `similarity(a, b) → Float | List` — a `0.0`–`1.0` ratio, `1 - editdistance / longerlength` (two empty strings are `1.0`). `b` may be a single String (returns one `Float`) **or a List of candidate Strings** (returns one score per candidate, computed in a single native call).
 - `closest(query, candidates) → String` — the candidate with the smallest edit distance (ties to the earliest), or `None` for an empty list. One native call computes every distance at once.
 - `fuzzymatch(query, candidates, cutoff = 0.6) → List` — every `[candidate, score]` pair whose similarity is at least `cutoff`, sorted by score descending (à la `difflib.get_close_matches`).
 
@@ -551,6 +551,7 @@ Fuzzy comparison, built on the native `String.levenshtein` edit distance:
 var string = import("string")
 string.closest("pyhton", ["python", "ruby", "rust"])   # "python"   (typo correction)
 string.similarity("kitten", "sitting")                  # ~0.571
+string.similarity("abc", ["abc", "abd", "xyz"])         # [1.0, 0.667, 0.0]  (List form)
 ```
 
 ---

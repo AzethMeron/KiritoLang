@@ -115,6 +115,7 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 | `s.zfill(w)` | Left-pad with zeros to width `w` (sign-aware). |
 | `s.partition(sep)` | Split once at the first `sep` into `[head, sep, tail]`. |
 | `s.rpartition(sep)` | Split once at the last `sep` into `[head, sep, tail]`. |
+| `s.levenshtein(other)` | Unicode (code-point) edit distance. `other` is a String (→ `Integer`) or a List of Strings (→ a List of distances, computed in one native call). Insert/delete/substitute each cost 1. The `string` module's `similarity`/`closest`/`fuzzymatch` build on this. |
 
 ## List
 
