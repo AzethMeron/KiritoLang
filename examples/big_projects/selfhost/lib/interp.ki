@@ -2203,7 +2203,7 @@ var builtinInspect = Function(St, a, k):
             clines.append("  " + _memberLine(nm, v["methods"][nm]))
         return "\n".join(clines)
     if kind == "instance":
-        var attrs = __instattrs__(v)
+        var attrs = v["attrs"]
         var ilines = [v["cls"]["name"] + " instance:"]
         var anames = []
         for nm in attrs.keys():
