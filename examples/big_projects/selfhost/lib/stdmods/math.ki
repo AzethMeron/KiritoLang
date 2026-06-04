@@ -144,7 +144,7 @@ var log1p = Function(x):
     return _ln(1.0 + x)
 
 # --- roots / powers -------------------------------------------------------------------------------
-var sqrt = Function(x):
+var sqrt = Function(x) -> Float:
     if x < 0.0:
         return nan                          # IEEE: sqrt of a negative is NaN, not an error
     if x == 0.0:

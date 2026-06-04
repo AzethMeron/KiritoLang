@@ -532,12 +532,20 @@ var _BUILTIN_PARAMS = {"isinstance": ["value", "type"], "abs": ["x"], "ord": ["c
     "round": ["x", "ndigits"], "sum": ["iterable", "start"], "enumerate": ["iterable", "start"],
     "pow": ["base", "exp", "mod"]}
 
+# Number of LEADING required parameters for a fixed-arity builtin (the rest are optional). Absent =>
+# every listed parameter is required.
+var _BUILTIN_REQUIRED = {"round": 1, "sum": 1, "enumerate": 1, "pow": 2}
+var _builtinRequired = Function(nm):
+    if nm in _BUILTIN_REQUIRED:
+        return _BUILTIN_REQUIRED[nm]
+    return len(_BUILTIN_PARAMS[nm])
+
 var callValue = Function(St, fn, args, kwargs):
     var k = boxKind(fn)
     if k == "native":
         var nm = fn["name"]
-        if (len(kwargs) > 0) and (nm in _BUILTIN_PARAMS):
-            return fn["fn"](St, _mbind(args, kwargs, _BUILTIN_PARAMS[nm], nm), [])
+        if nm in _BUILTIN_PARAMS:
+            return fn["fn"](St, _mbind(args, kwargs, _BUILTIN_PARAMS[nm], nm, _builtinRequired(nm)), [])
         return fn["fn"](St, args, kwargs)
     if k == "function":
         return callFunction(St, fn, args, kwargs, None)
@@ -954,8 +962,10 @@ var _paramsFor = Function(tn, name):
     return []
 
 # Merge positional args + [name,value] kwargs into one positional list using the ordered `params`.
-var _mbind = Function(args, kwargs, params, mname):
+var _mbind = Function(args, kwargs, params, mname, required = -1):
     if len(kwargs) == 0:
+        if required >= 0 and len(args) < required:
+            rtError(mname + "() missing required argument '" + params[len(args)] + "'")
         return args
     var nparams = len(params)
     var total = nparams
@@ -986,6 +996,12 @@ var _mbind = Function(args, kwargs, params, mname):
             rtError(mname + "() got multiple values for argument '" + kw[0] + "'")
         slots[idx] = kw[1]
         isset[idx] = True
+    if required >= 0:
+        i = 0
+        while i < required:
+            if not isset[i]:
+                rtError(mname + "() missing required argument '" + params[i] + "'")
+            i = i + 1
     var outlen = 0
     i = 0
     while i < total:
@@ -1322,7 +1338,13 @@ var strMethod = Function(St, recv, name, args):
             rtError("substring not found")
         return fi
     if name == "count":
-        return _count(recv, args[0])
+        var startC = 0
+        if len(args) >= 2 and args[1] != None:
+            startC = args[1]
+        var endC = len(recv)
+        if len(args) >= 3 and args[2] != None:
+            endC = args[2]
+        return _count(recv[startC:endC], args[0])
     if name == "isdigit":
         return _allChars(recv, _isDigitCh)
     if name == "isalpha":
@@ -1750,19 +1772,27 @@ var builtinRange = Function(St, args, kwargs):
     return out
 
 var builtinSorted = Function(St, args, kwargs):
-    var items = materialize(St, args[0])
+    var iterable = None
     var keyFn = None
     var rev = False
+    if len(args) >= 1:
+        iterable = args[0]
     if len(args) >= 2 and args[1] != None:
         keyFn = args[1]
     if len(args) >= 3:
         rev = args[2]
     for kw in kwargs:
-        if kw[0] == "key":
+        if kw[0] == "iterable":
+            iterable = kw[1]
+        elif kw[0] == "key":
             keyFn = kw[1]
-        if kw[0] == "reverse":
+        elif kw[0] == "reverse":
             rev = kw[1]
-    return mergeSort(St, items, keyFn, rev)
+        else:
+            rtError("sorted() got an unexpected keyword argument '" + kw[0] + "'")
+    if iterable == None:
+        rtError("sorted() missing required argument 'iterable'")
+    return mergeSort(St, materialize(St, iterable), keyFn, rev)
 
 var builtinReduceMinMax = Function(St, args, kwargs, wantMax):
     var items = None
@@ -1773,12 +1803,17 @@ var builtinReduceMinMax = Function(St, args, kwargs, wantMax):
     var keyFn = None
     var defaultVal = None
     var hasDefault = False
+    var who = "min"
+    if wantMax:
+        who = "max"
     for kw in kwargs:
         if kw[0] == "key":
             keyFn = kw[1]
         elif kw[0] == "default":
             defaultVal = kw[1]
             hasDefault = True
+        else:
+            rtError(who + "() got an unexpected keyword argument '" + kw[0] + "'")
     if len(items) == 0:
         if hasDefault:
             return defaultVal
@@ -1900,15 +1935,22 @@ var builtinType = Function(St, args, kwargs):
 # Conversion constructors: String() honours _str_; the rest delegate to the host.
 # The Integer/Float/String/Bool/List/Set/Dict converters take a single value `x`, positional OR as a
 # keyword: this folds a lone keyword into the positional slot so `Integer(x = "42")` works.
-var _conv1 = Function(a, k):
+var _conv1 = Function(a, k, cname, pname):
+    if len(a) > 1:
+        rtError(cname + "() takes at most 1 argument (" + String(len(a)) + " given)")
+    for kw in k:
+        if kw[0] != pname:
+            rtError(cname + "() got an unexpected keyword argument '" + kw[0] + "'")
     if len(a) >= 1:
+        if len(k) >= 1:
+            rtError(cname + "() got multiple values for argument '" + pname + "'")
         return a
     if len(k) >= 1:
         return [k[len(k) - 1][1]]
     return a
 
 var builtinString = Function(St, args, kwargs):
-    var a = _conv1(args, kwargs)
+    var a = _conv1(args, kwargs, "String", "x")
     if len(a) == 0:
         return ""
     return stringify(St, a[0])
@@ -2022,32 +2064,32 @@ var _parseIntStr = Function(s):
     return v
 
 var builtinInteger = Function(St, a0, k):
-    var a = _conv1(a0, k)
+    var a = _conv1(a0, k, "Integer", "x")
     if len(a) == 0:
         return 0
     if type(a[0]) == "String":
         return _parseIntStr(a[0])
     return Integer(a[0])
 var builtinFloat = Function(St, a0, k):
-    var a = _conv1(a0, k)
+    var a = _conv1(a0, k, "Float", "x")
     if len(a) == 0:
         return 0.0
     return Float(a[0])
 var builtinBoolC = Function(St, a0, k):
-    var a = _conv1(a0, k)
+    var a = _conv1(a0, k, "Bool", "x")
     return truthy(St, a[0])
 var builtinListC = Function(St, a0, k):
-    var a = _conv1(a0, k)
+    var a = _conv1(a0, k, "List", "iterable")
     if len(a) == 0:
         return []
     return materialize(St, a[0])
 var builtinSetC = Function(St, a0, k):
-    var a = _conv1(a0, k)
+    var a = _conv1(a0, k, "Set", "iterable")
     if len(a) == 0:
         return Set()
     return Set(materialize(St, a[0]))
 var builtinDictC = Function(St, a0, k):
-    var a = _conv1(a0, k)
+    var a = _conv1(a0, k, "Dict", "iterable")
     if len(a) == 0:
         return {}
     return Dict(a[0])
@@ -2080,21 +2122,104 @@ var builtinInstNew = Function(St, a, k):
     for key in attrs:
         inst["attrs"][key] = attrs[key]
     return inst
+# inspect: describe the public surface of a value. Native builtins with a known signature render it
+# exactly (others fall back to the variadic `NAME(...)  [native]` form); functions/modules show
+# parameter names, annotations, defaults and return types.
+var _NATIVE_SIGS = {"Integer": "Integer(x) -> Integer", "Float": "Float(x) -> Float", "String": "String(x) -> String", "Bool": "Bool(x) -> Bool", "List": "List(iterable = None) -> List", "Set": "Set(iterable = None) -> Set", "Dict": "Dict(iterable = None) -> Dict", "round": "round(x: Number, ndigits = None)", "sorted": "sorted(iterable, key = None, reverse: Bool = False) -> List", "len": "len(x) -> Integer", "abs": "abs(x) -> Number", "type": "type(x) -> String"}
+
+var _nativeSig = Function(v):
+    if v["name"] in _NATIVE_SIGS:
+        return _NATIVE_SIGS[v["name"]]
+    return v["name"] + "(...)  [native]"
+
+# Render a literal default-value AST node back to source text (simple literals only).
+var _renderDefault = Function(node):
+    var dk = node["k"]
+    if dk == "int" or dk == "float":
+        return String(node["v"])
+    if dk == "str":
+        return "\"" + node["v"] + "\""
+    if dk == "name":
+        return node["v"]
+    return "..."
+
+# Render a pure-Kirito function value's signature: name(p: ann = default, ...) -> ret.
+var _funcSig = Function(name, fn):
+    var out = name + "("
+    var ps = fn["params"]
+    var i = 0
+    while i < len(ps):
+        if i > 0:
+            out = out + ", "
+        var p = ps[i]
+        out = out + p["name"]
+        if p["ann"] != None and p["ann"] != "":
+            out = out + ": " + p["ann"]
+        if p["has"]:
+            out = out + " = " + _renderDefault(p["default"])
+        i = i + 1
+    out = out + ")"
+    if fn["ret"] != None and fn["ret"] != "":
+        out = out + " -> " + fn["ret"]
+    return out
+
+var _memberLine = Function(nm, m):
+    var bk = boxKind(m)
+    if bk == "function":
+        return _funcSig(nm, m)
+    if bk == "native":
+        return _nativeSig(m)
+    if bk == "class":
+        return "class " + nm
+    return nm + ": " + typeName(m)
+
 var builtinInspect = Function(St, a, k):
     var v = a[0]
     var kind = boxKind(v)
+    if kind == "native":
+        return _nativeSig(v)
+    if kind == "function" or kind == "bound":
+        var fn = v
+        var nm = "<anonymous>"
+        if kind == "bound":
+            fn = v["func"]
+        if "name" in fn and fn["name"] != None and fn["name"] != "":
+            nm = fn["name"]
+        return _funcSig(nm, fn)
     if kind == "module":
         var names = []
         for nm in v["members"].keys():
             names.append(nm)
-        return "module " + v["name"] + ": " + ", ".join(sorted(names))
+        var lines = ["module " + v["name"] + ":"]
+        for nm in sorted(names):
+            lines.append("  " + _memberLine(nm, v["members"][nm]))
+        return "\n".join(lines)
     if kind == "class":
         var ms = []
         for nm in v["methods"].keys():
             ms.append(nm)
-        return "class " + v["name"] + ": " + ", ".join(sorted(ms))
+        var clines = ["class " + v["name"] + ":"]
+        for nm in sorted(ms):
+            clines.append("  " + _memberLine(nm, v["methods"][nm]))
+        return "\n".join(clines)
     if kind == "instance":
-        return "instance of " + v["cls"]["name"]
+        var attrs = __instattrs__(v)
+        var ilines = [v["cls"]["name"] + " instance:"]
+        var anames = []
+        for nm in attrs.keys():
+            anames.append(nm)
+        for nm in sorted(anames):
+            ilines.append("  attr " + nm + ": " + typeName(attrs[nm]))
+        var mnames = []
+        var c = v["cls"]
+        while c != None:
+            for nm in c["methods"].keys():
+                if not (nm in mnames):
+                    mnames.append(nm)
+            c = c["base"]
+        for nm in sorted(mnames):
+            ilines.append("  " + _memberLine(nm, classLookup(v["cls"], nm)))
+        return "\n".join(ilines)
     return typeName(v) + " value"
 # Bitwise ops over int64, two's-complement. Floor div/mod give the correct bits of negatives, and
 # host integer arithmetic wraps on overflow, so the sign bit (2**63) falls out naturally.
