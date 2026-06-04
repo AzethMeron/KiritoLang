@@ -200,8 +200,8 @@ def collect_symbols(pages):
 
 
 def _row_anchor(first_cell):
-    # Returns an ` id="..."` for a table row / list item that *defines* a symbol on the current page
-    # (first occurrence only), else "".
+    # Returns the anchor name ("sym-…") for a table row / list item that *defines* a symbol on the
+    # current page (first occurrence only), else "".
     name = _lead_ident(first_cell) if first_cell.lstrip().startswith("`") else None
     if not name or name not in SYMBOLS:
         return ""
@@ -210,7 +210,14 @@ def _row_anchor(first_cell):
     if not anchor.startswith("sym-") or file != _CUR_FILE or (file, anchor) in _EMITTED:
         return ""
     _EMITTED.add((file, anchor))
-    return f' id="{anchor}"'
+    return anchor
+
+
+def _anchor_first_code(cell_html, anchor):
+    # Put the definition's id on its own <code> element. That makes it a scroll target AND keeps it
+    # out of linkify (which only rewrites attribute-less <code>), so a definition never links to
+    # itself — only later *mentions* of the name become links to it.
+    return cell_html.replace("<code>", f'<code id="{anchor}">', 1) if anchor else cell_html
 
 
 def linkify(body):
@@ -312,8 +319,11 @@ def render_markdown(md):
                 i += 1
             t = "<table><thead><tr>" + "".join(f"<th>{render_inline(h)}</th>" for h in header) + "</tr></thead><tbody>"
             for r in rows:
-                rid = _row_anchor(r[0]) if r else ""
-                t += f"<tr{rid}>" + "".join(f"<td>{render_inline(c)}</td>" for c in r) + "</tr>"
+                anchor = _row_anchor(r[0]) if r else ""
+                cells = [render_inline(c) for c in r]
+                if anchor and cells:
+                    cells[0] = _anchor_first_code(cells[0], anchor)   # anchor the defining <code>, not the <tr>
+                t += "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
             t += "</tbody></table>"
             out.append(t)
             continue
@@ -338,8 +348,8 @@ def render_markdown(md):
                 i += 1
             items = []
             for x in buf:
-                lid = _row_anchor(x.lstrip("*")) if x.lstrip("*").lstrip().startswith("`") else ""
-                items.append(f"<li{lid}>{render_inline(x)}</li>")
+                anchor = _row_anchor(x.lstrip("*")) if x.lstrip("*").lstrip().startswith("`") else ""
+                items.append(f"<li>{_anchor_first_code(render_inline(x), anchor)}</li>")
             out.append("<ul>" + "".join(items) + "</ul>")
             continue
         if re.match(r"^\s*\d+\.\s+", line):

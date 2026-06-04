@@ -14,6 +14,7 @@ names can share one collection and see each other's mutations.
 | `Integer` | `42`, `-7`, `0xFF`, `0b101` | — | yes | 64-bit, two's-complement wraparound |
 | `Float` | `3.14`, `1e10`, `2e-3` | — | yes | IEEE-754 double |
 | `String` | `"hi"`, `f"{x}"` | no | yes | Unicode, indexed by code point |
+| `Bytes` | `Bytes([72, 105])` | no | yes | immutable raw bytes (0–255), the binary counterpart to `String` |
 | `List` | `[1, 2, 3]` | yes | no | ordered sequence |
 | `Set` | `{1, 2, 3}` | yes | no | unordered unique elements |
 | `Dict` | `{"a": 1}` | yes | no | unordered key→value map (hashable keys) |
