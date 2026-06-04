@@ -78,9 +78,11 @@ assert throws(Function(): return json.loads("")), "json rejects empty"
 # --- dump corrupt input raises cleanly, never crashes ---
 assert throws(Function(): return dump.loads("not a dump blob at all")), "dump rejects garbage"
 
-# --- native objects raise a clear opt-in error (sockets/files can't auto-serialize) ---
+# --- resource-like natives (live sockets/streams) raise a clear opt-in error; value-like natives
+#     (matrix/complex/datetime/...) opt in via _getstate_/_setstate_ and round-trip ---
 assert throws(Function(): return serialize.dumps(import("net").Socket())), "native Socket not auto-serializable"
-assert throws(Function(): return dump.dumps(import("matrix").identity(2))), "native Matrix not auto-serializable"
+var mtx = import("matrix").identity(2)
+assert dump.loads(dump.dumps(mtx)) == mtx, "native Matrix round-trips (opted-in via _getstate_)"
 
 # --- FUZZ: random nested structures round-trip through both formats and equal themselves ---
 var rng = random.Random(20260603)

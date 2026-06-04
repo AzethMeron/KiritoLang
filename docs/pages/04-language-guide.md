@@ -357,6 +357,12 @@ var math = import("math")
 math.sqrt(2)
 ```
 
+A module's members only become visible once its body has finished running, so a **circular import**
+— a module that imports itself, directly or through a chain (`a` imports `b` imports `a`) — cannot
+be satisfied. Kirito detects the loop and raises a clear `circular import detected: a -> b -> a`
+error naming the chain, instead of looping until the stack is exhausted. Re-importing a module that
+has already finished loading is fine (a diamond `a` → {`b`, `c`} → `d` loads `d` once and shares it).
+
 ### `arglist` and `argmain`
 
 Every file runs with two names already bound in its scope:

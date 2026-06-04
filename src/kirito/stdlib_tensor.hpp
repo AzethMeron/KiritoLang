@@ -1826,7 +1826,11 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         tns::checkSize(shape);
         if (dtype == "Complex") {
             std::vector<cdouble> data;
-            for (Value e : items[2].items()) { auto p = e.items(); data.push_back(cdouble(p[0].asFloat("re"), p[1].asFloat("im"))); }
+            for (Value e : items[2].items()) {
+                auto p = e.items();   // guard: a corrupt/hand-crafted state could give a short pair
+                if (p.size() < 2) throw KiritoError("Tensor _setstate_: complex element must be [re, im]");
+                data.push_back(cdouble(p[0].asFloat("re"), p[1].asFloat("im")));
+            }
             t.store = TensorVal::CT(shape, std::move(data));
         } else {
             std::vector<double> data;

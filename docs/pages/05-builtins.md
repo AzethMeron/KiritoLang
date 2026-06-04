@@ -38,7 +38,8 @@ parameter name.
 - `range(stop) → List` / `range(start, stop[, step]) → List` — integers from `start` (default `0`)
   up to but excluding `stop`, stepping by `step` (default `1`, may be negative). Materializes a List;
   a step of `0` raises, and an over-large result raises rather than exhausting memory.
-- `enumerate(iterable) → List` — a list of `[index, value]` pairs, indices starting at `0`.
+- `enumerate(iterable[, start]) → List` — a list of `[index, value]` pairs, indices starting at
+  `0` (or at `start`, e.g. `enumerate(xs, start = 1)`).
 - `zip(*iterables) → List` — a list of `[a, b, …]` tuples drawn position-wise from the inputs,
   truncated to the shortest. Variadic.
 - `map(function, iterable) → List` — apply `function` to every element, collecting the results.
@@ -63,7 +64,8 @@ parameter name.
   `INT64_MIN`, consistent with Kirito's fixed-width integers).
 - `round(x[, ndigits]) → Number` — with `ndigits` omitted (or `None`), round to the nearest
   `Integer`; with `ndigits` given, round to that many decimal places, yielding a `Float`.
-  `round(pi, ndigits = 2)`.
+  `round(pi, ndigits = 2)`. Ties round **half away from zero** (`round(0.5) == 1`, `round(-1.5) == -2`),
+  not Python's round-half-to-even.
 - `divmod(a, b) → List` — `[a // b, a % b]` in one step, using floor semantics.
 - `pow(base, exp[, mod]) → Number` — exponentiation; the 3-argument form is modular,
   `(base ** exp) % mod`, computed efficiently. `pow(2, 10, mod = 1000)`.
@@ -99,6 +101,9 @@ format(-42, "+06d")      # "-00042"    (sign + zero-pad)
 ## Introspection and modules
 
 - `import(name) → Module` — load and return the named module (cached per VM). `import(name = "io")`.
+  A circular import (a module that imports itself directly or through a chain `a → b → a`) is
+  detected and raises `circular import detected: ...` naming the cycle, rather than recursing until
+  the stack overflows.
 - `inspect(x) → String` — a human-readable description of the public methods/attributes (with
   signatures, type annotations, and defaults) of a class, instance, module, function, or **native
   object** (e.g. a `Random`, `Matrix`, `BytesIO`, `DateTime`, regex `Pattern`/`Match`, `Socket`,

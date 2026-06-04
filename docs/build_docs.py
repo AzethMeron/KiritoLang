@@ -247,6 +247,14 @@ def render_markdown(md):
             else:
                 out.append(f"<pre><code>{html.escape(code)}</code></pre>")
             continue
+        # HTML comment lines (e.g. the `<!--norun ...-->` markers that flag a code block as not to be
+        # executed by the snippet checker): authoring/tooling metadata, never display content — skip
+        # them so they don't render as a literal paragraph. Handles a comment spanning several lines.
+        if line.lstrip().startswith("<!--"):
+            while i < n and "-->" not in lines[i]:
+                i += 1
+            i += 1  # consume the line that closes the comment
+            continue
         # headings
         m = re.match(r"^(#{1,4})\s+(.*)$", line)
         if m:

@@ -5,6 +5,7 @@
 #include <memory>
 #include <random>
 #include <span>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -141,6 +142,25 @@ public:
                 }
                 return vm.alloc(std::move(out));
             });
+        // --- serialization (serialize / dump): the full Mersenne-Twister state, so a restored
+        // generator continues the exact same stream (reproducible checkpoints, like Python's). The
+        // standard engine's stream operators emit/parse its complete internal state. ---
+        if (name == "_getstate_")
+            return bind("_getstate_", {}, [self, rng](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                std::ostringstream os;
+                os << rng(vm, self).engine;
+                return vm.makeString(os.str());
+            });
+        if (name == "_setstate_")
+            return bind("_setstate_", {"state"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                const Object& o = vm.arena().deref(a[0]);
+                if (o.kind() != ValueKind::String)
+                    throw KiritoError("Random _setstate_: expected the engine-state String");
+                std::istringstream is(static_cast<const StrVal&>(o).value());
+                if (!(is >> rng(vm, self).engine))
+                    throw KiritoError("Random _setstate_: malformed engine state");
+                return vm.none();
+            });
         return Object::getAttr(vm, self, name);
     }
 };
@@ -149,6 +169,10 @@ class RandomModule : public NativeModule {
 public:
     std::string name() const override { return "random"; }
     void setup(ModuleBuilder& m) override {
+        // Let serialize/dump reconstruct a Random: build a default one; _setstate_ restores its state.
+        m.vm().registerDeserializer("Random", [](KiritoVM& vm, Handle) -> Handle {
+            return vm.alloc(std::make_unique<RandomState>());
+        });
         m.fn("Random", {{"seed", "", m.vm().none()}}, "Random", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Args args(vm, a, "Random");
             if (args.empty() || args[0].isNone()) return vm.alloc(std::make_unique<RandomState>());

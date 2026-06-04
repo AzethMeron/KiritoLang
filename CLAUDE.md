@@ -257,6 +257,12 @@ a stability fuzzer, and a benchmark). Working today:
     attributes (reconstructed by looking the class up by name; a name→class registry is kept on the
     VM, set when a class is defined) or via the **`_getstate_`/`_setstate_`** protocol when the class
     defines it (a native C++ type opts in the same way + `vm.registerDeserializer(name, factory)`).
+    The native **value** types opt in and round-trip through both formats: **Matrix/Vector**
+    (`matrix`), **Complex/ComplexMatrix** (`complex`), **DateTime** (`time`), **Random** (`random` —
+    restores the generator's exact stream, a reproducible checkpoint), and gradient-free **Tensor**
+    (`tensor`). Resource-like natives that wrap live state (`Socket`/`Session`, open files/`BytesIO`/
+    streams, compiled regex `Pattern`/`Match`, the opaque `Dump` blob) are intentionally **not**
+    serializable and raise a clear, catchable error.
   - `net` — TCP sockets (connect/bind/listen/accept/send/recv/recvall/settimeout) **and** a
     full-fledged HTTP/1.1 client (requests-style): `request(method, url[, opts])` plus
     `get/post/put/delete/patch/head/options` returning a rich
@@ -271,7 +277,8 @@ a stability fuzzer, and a benchmark). Working today:
   - `sys` — environment (getenv/setenv/unsetenv/environ), `platform`, `exit`.
   - `time` — high-precision clocks (time/timens/monotonic/perfcounterns), sleep, and Python-like
     calendar time (`now`/`datetime`/`make`/`strptime`; `DateTime` with fields, iso/format,
-    add/sub/diff arithmetic).
+    add/sub/diff arithmetic). `DateTime` has **value equality + hashing** by instant (epoch), so two
+    DateTimes for the same instant compare equal and can be Dict/Set keys, and it is serializable.
   - `zlib` — compress/decompress (standard zlib streams), raw deflate/inflate, adler32 — a
     self-contained DEFLATE/INFLATE, no external dependency, interoperable with real zlib.
   - `hash` — md5/sha1/sha256 hex digests (self-contained, standard-conformant).
@@ -305,7 +312,13 @@ a stability fuzzer, and a benchmark). Working today:
 - **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, the
   script's directory, the `KIRITO_PATH` env var [PATH-style], and the per-user package dir
   `~/.kirito/packages` + each package sub-dir), lexed+parsed+evaluated once per VM and cached by
-  resolved path. The env/package paths live in the CLI only (`src/kirito/cli_paths.hpp`,
+  resolved path. **Circular imports are detected and rejected**: a module's members are published to
+  the cache only after its body finishes, so a re-entrant import of an in-progress module (a self
+  import, or a chain `a → b → a`) raises a clear `circular import detected: a -> b -> a` error naming
+  the cycle (tracked by both module name and resolved path) instead of recursing until the native
+  stack or the call-depth guard blows; the in-progress set is unwound on failure so a later import on
+  the same VM still works, and re-importing an already-finished module (a non-cyclic diamond) is fine.
+  The env/package paths live in the CLI only (`src/kirito/cli_paths.hpp`,
   unit-tested), not the embeddable VM core. The `ki` CLI
   is Python-like: REPL with no file (multi-line blocks via a `...` continuation prompt until a blank
   line), runs a file otherwise. Every file scope is pre-bound with **`arglist`** (the command-line

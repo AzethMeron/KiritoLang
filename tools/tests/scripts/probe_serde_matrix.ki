@@ -102,21 +102,40 @@ assert throws(Function(): return json.dumps(Set([1]))), "json rejects Set"
 assert throws(Function(): return json.dumps(n1)), "json rejects instance"
 assert throws(Function(): return json.loads("{bad")), "json rejects malformed"
 
-# --- (7) EVERY native object type raises a clean (catchable) opt-in error, never crashes ---
-var natives = [
+# --- (7a) native VALUE types opt into both graph formats via _getstate_/_setstate_ and round-trip
+#          identically (matrix/complex/datetime/tensor all have value equality) ---
+var mat = import("matrix")
+var cpx = import("complex")
+var serializableNatives = [
+    ["Matrix", mat.Matrix([[1.0, 2.0], [3.0, 4.0]])],
+    ["Vector", mat.vector([1.0, 2.0, 3.0])],
+    ["Complex", cpx.of(1.5, -2.5)],
+    ["ComplexMatrix", cpx.identity(3)],
+    ["DateTime", import("time").make(2021, 6, 15, 8, 30, 0)],
+    ["Tensor", import("tensor").Tensor([[1.0, 2.0], [3.0, 4.0]])]
+]
+for nv in serializableNatives:
+    assert serialize.loads(serialize.dumps(nv[1])) == nv[1], "serialize round-trips native " + nv[0]
+    assert dump.loads(dump.dumps(nv[1])) == nv[1], "dump round-trips native " + nv[0]
+# Random has no value equality, so verify the restored generator continues the exact same stream.
+var rgen = import("random").Random(99)
+discard rgen.random()
+var rclone = dump.loads(dump.dumps(rgen))
+assert rgen.random() == rclone.random(), "Random restores its exact stream"
+
+# --- (7b) RESOURCE-like natives (live sockets/streams, compiled regex, opaque blobs) cannot be
+#          serialized and raise a clean (catchable) error, never crash ---
+var resourceNatives = [
     ["Socket", Function(): return import("net").Socket()],
     ["Session", Function(): return import("net").Session()],
-    ["Matrix", Function(): return import("matrix").identity(2)],
-    ["Random", Function(): return import("random").Random()],
-    ["DateTime", Function(): return import("time").now()],
     ["Regex", Function(): return import("regex").compile("a")],
     ["Match", Function(): return import("regex").compile("(a)").search("a")],
     ["BytesIO", Function(): return import("io").BytesIO()],
     ["Dump", Function(): return import("dump").dumps([1])]
 ]
-for nv in natives:
-    assert throws(Function(): return serialize.dumps(nv[1]())), "serialize rejects native " + nv[0]
-    assert throws(Function(): return dump.dumps(nv[1]())), "dump rejects native " + nv[0]
+for nv in resourceNatives:
+    assert throws(Function(): return serialize.dumps(nv[1]())), "serialize rejects resource native " + nv[0]
+    assert throws(Function(): return dump.dumps(nv[1]())), "dump rejects resource native " + nv[0]
 
 # --- (8) corrupt/garbage inputs to loaders raise cleanly ---
 assert throws(Function(): return dump.loads("garbage not a blob")), "dump.loads rejects garbage"

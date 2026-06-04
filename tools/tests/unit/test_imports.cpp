@@ -136,6 +136,59 @@ int main() {
         }
     }
 
+    // --- circular import detection & prevention ------------------------------------------------
+    // A module is published to the cache only AFTER its body finishes, so a re-entrant import of an
+    // in-progress module is a cycle. It must raise a clear diagnostic rather than recurse until the
+    // native stack or the call-depth guard blows.
+    {
+        KiritoVM v;
+        v.addLibPath(dir.string());
+
+        // self-import: a module that imports itself.
+        { std::ofstream f(dir / "selfimp.ki"); f << "var me = import(\"selfimp\")\n"; }
+        std::string msg;
+        try { v.runSource("import(\"selfimp\")"); } catch (const KiritoError& e) { msg = e.what(); }
+        CHECK(msg.find("circular import") != std::string::npos);
+
+        // mutual import: A imports B, B imports A.
+        { std::ofstream f(dir / "cyca.ki"); f << "var b = import(\"cycb\")\nvar x = 1\n"; }
+        { std::ofstream f(dir / "cycb.ki"); f << "var a = import(\"cyca\")\nvar y = 2\n"; }
+        msg.clear();
+        try { v.runSource("import(\"cyca\")"); } catch (const KiritoError& e) { msg = e.what(); }
+        CHECK(msg.find("circular import") != std::string::npos);
+        CHECK(msg.find("cyca") != std::string::npos && msg.find("cycb") != std::string::npos);
+
+        // three-way cycle: A -> B -> C -> A.
+        { std::ofstream f(dir / "c3a.ki"); f << "var x = import(\"c3b\")\n"; }
+        { std::ofstream f(dir / "c3b.ki"); f << "var x = import(\"c3c\")\n"; }
+        { std::ofstream f(dir / "c3c.ki"); f << "var x = import(\"c3a\")\n"; }
+        msg.clear();
+        try { v.runSource("import(\"c3a\")"); } catch (const KiritoError& e) { msg = e.what(); }
+        CHECK(msg.find("circular import") != std::string::npos);
+
+        // RECOVERY: a failed cyclic import unwinds the in-progress set (RAII), so a later normal
+        // import on the SAME VM still succeeds — the guard isn't left poisoned.
+        CHECK(v.stringify(v.runSource("import(\"math\").sqrt(81)")) == "9.0");
+        CHECK(v.stringify(v.runSource("import(\"mymod\").answer")) == "42");
+        // retrying the cyclic import still detects the cycle (partial modules were never cached).
+        msg.clear();
+        try { v.runSource("import(\"cyca\")"); } catch (const KiritoError& e) { msg = e.what(); }
+        CHECK(msg.find("circular import") != std::string::npos);
+    }
+
+    // A non-cyclic diamond (top -> {mid1, mid2} -> leaf) is NOT a cycle: the shared leaf is loaded
+    // once and both mids see the SAME module object. Re-importing an already-finished module is fine.
+    {
+        KiritoVM v;
+        v.addLibPath(dir.string());
+        { std::ofstream f(dir / "dleaf.ki"); f << "var val = 99\n"; }
+        { std::ofstream f(dir / "dmid1.ki"); f << "var d = import(\"dleaf\")\n"; }
+        { std::ofstream f(dir / "dmid2.ki"); f << "var d = import(\"dleaf\")\n"; }
+        { std::ofstream f(dir / "dtop.ki");  f << "var a = import(\"dmid1\")\nvar b = import(\"dmid2\")\n"; }
+        CHECK(v.stringify(v.runSource("import(\"dtop\").a.d.val")) == "99");
+        CHECK(v.runSource("import(\"dtop\").a.d") == v.runSource("import(\"dtop\").b.d"));  // shared leaf
+    }
+
     std::filesystem::remove_all(dir);
     return RUN_TESTS();
 }

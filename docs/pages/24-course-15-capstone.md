@@ -1,214 +1,217 @@
-# Lesson 15 — Capstone: A Contact Book
+# Lesson 15 — Capstone: A Task Manager
 
-Time to bring it all together. In this final lesson we build a small but complete program — a
-**contact book** that stores people, looks them up, and persists to a JSON file on disk. It uses
-nearly everything from the course: classes, private state, exceptions, type annotations, files,
-the `json` module, sorting with a key, and clean function composition.
+Time to bring it all together. In this final lesson we build one small but complete program — a
+**task manager** that holds a to-do list, keeps it ordered by urgency, and saves it to disk as JSON.
+It exercises nearly everything from the course: classes with annotations, **operator overloading**
+(so your own objects sort themselves), private state, exceptions, f-strings, `with`-blocks, files,
+and the `json` module.
 
-Read it top to bottom; each piece builds on the last, and the whole thing runs as one program.
+The code below is **one program**, shown a section at a time — paste the blocks into a single file,
+top to bottom, and it runs. Nothing is repeated; each section adds the next piece.
 
-## The data: a `Contact`
+## The `Task`
 
-A `Contact` is a small value type with a friendly `_str_` and a method to turn itself into a plain
-Dict (so the `json` module can serialize it):
+A `Task` is a small value type: a title, a priority, and a done flag. Two things make it pleasant to
+work with. Its `_str_` prints a tidy one-liner, and its `_lt_` defines an **ordering** — once a class
+says how two of its instances compare, `sorted()`, `min()`, `max()` and the `<` operator all work on
+it for free.
 
+<!--norun (one section of the single program assembled across this lesson)-->
 ```kirito
 var io = import("io")
 var json = import("json")
 
-class Contact:
-    var _init_ = Function(self, name : String, email : String, phone : String):
-        self.name = name
-        self.email = email
-        self.phone = phone
+# Priorities, ranked most urgent (0) to least. The rank drives the ordering below.
+var RANK = {"high": 0, "medium": 1, "low": 2}
 
+class Task:
+    var _init_ = Function(self, title : String, priority : String = "medium"):
+        if not (priority in RANK):
+            throw f"unknown priority: {priority}"
+        self.title = title
+        self.priority = priority
+        self.done = False
+
+    # A one-line view: a checkbox, the priority in a fixed-width column, then the title.
     var _str_ = Function(self) -> String:
-        return f"{self.name} <{self.email}> {self.phone}"
+        var box = "[x]" if self.done else "[ ]"
+        return f"{box} {self.priority:<6} {self.title}"
 
-    # Convert to a plain Dict for JSON storage.
+    # The sort key: pending tasks before done ones, then by priority rank, then by title.
+    # Returning a List lets one comparison rank on three fields at once — Lists compare
+    # element by element, so `[0, 0, "a"] < [0, 1, "b"]`.
+    var _key = Function(self):
+        return [Integer(self.done), RANK[self.priority], self.title]
+
+    # With _lt_ defined, sorted()/min()/max()/< all order Tasks — no key function needed anywhere.
+    var _lt_ = Function(self, other : Task) -> Bool:
+        return self._key() < other._key()
+
+    # Reduce to a plain Dict so the json module can store it.
     var to_dict = Function(self) -> Dict:
-        return {"name": self.name, "email": self.email, "phone": self.phone}
+        return {"title": self.title, "priority": self.priority, "done": self.done}
 ```
 
-## The errors
+`_key` has a **single leading underscore**, so it's private — part of how `Task` orders itself, not
+something callers should touch.
 
-Specific exception types let callers react precisely. We define two:
+## Reporting errors
 
+When a caller asks for a task that isn't there, we raise a **specific** exception type so the caller
+can catch exactly that case:
+
+<!--norun (one section of the single program assembled across this lesson)-->
 ```kirito
-class DuplicateContact:
-    var _init_ = Function(self, name):
-        self.name = name
-
-class ContactNotFound:
-    var _init_ = Function(self, name):
-        self.name = name
+class TaskNotFound:
+    var _init_ = Function(self, title):
+        self.title = title
 ```
 
-## The collection: a `ContactBook`
+## The `TaskList`
 
-The book keeps contacts in a **private** Dict keyed by name, and exposes a clean interface. Notice
-how each method has one job, validates its inputs, and throws a specific error when something's
-wrong:
+The list keeps its tasks in a **private** `List` and exposes a clean interface. Each method does one
+job. Note how `ordered` just calls `sorted(self._tasks)` — because `Task` defined `_lt_`, that's all
+it takes — and how `save`/`load` use a `with` block so the file is always closed:
 
+<!--norun (one section of the single program assembled across this lesson)-->
 ```kirito
-class ContactBook:
+class TaskList:
     var _init_ = Function(self):
-        self._by_name = {}              # private: name -> Contact
+        self._tasks = []                       # private: a List of Task
 
-    var add = Function(self, contact : Contact):
-        if contact.name in self._by_name:
-            throw DuplicateContact(contact.name)
-        self._by_name[contact.name] = contact
+    var add = Function(self, task : Task):
+        self._tasks.append(task)
 
-    var find = Function(self, name : String) -> Contact:
-        if name in self._by_name:
-            return self._by_name[name]
-        throw ContactNotFound(name)
+    var complete = Function(self, title : String):
+        for task in self._tasks:
+            if task.title == title:
+                task.done = True
+                return
+        throw TaskNotFound(title)
 
-    var remove = Function(self, name : String):
-        if name in self._by_name:
-            self._by_name.remove(name)
-        else:
-            throw ContactNotFound(name)
+    # Only the unfinished tasks.
+    var pending = Function(self):
+        var out = []
+        for task in self._tasks:
+            if not task.done:
+                out.append(task)
+        return out
 
-    var count = Function(self) -> Integer:
-        return len(self._by_name)
+    # len(tasklist) works because of _len_.
+    var _len_ = Function(self) -> Integer:
+        return len(self._tasks)
 
-    # All contacts, sorted alphabetically by name (sorted() with a key function).
-    var all_sorted = Function(self):
-        return sorted(self._by_name.values(), key=Function(c): return c.name)
-```
-
-## Persistence: save and load JSON
-
-Saving walks the contacts into a List of plain Dicts and writes JSON; loading parses it back and
-rebuilds `Contact` instances. Both use a `with` block so the file is always closed:
-
-```kirito
-class ContactBook:
-    var _init_ = Function(self):
-        self._by_name = {}
-
-    var add = Function(self, contact : Contact):
-        if contact.name in self._by_name:
-            throw DuplicateContact(contact.name)
-        self._by_name[contact.name] = contact
-
-    var find = Function(self, name : String) -> Contact:
-        if name in self._by_name:
-            return self._by_name[name]
-        throw ContactNotFound(name)
-
-    var remove = Function(self, name : String):
-        if name in self._by_name:
-            self._by_name.remove(name)
-        else:
-            throw ContactNotFound(name)
-
-    var count = Function(self) -> Integer:
-        return len(self._by_name)
-
-    var all_sorted = Function(self):
-        return sorted(self._by_name.values(), key=Function(c): return c.name)
+    # Tasks in urgency order — sorted() leans on Task._lt_.
+    var ordered = Function(self):
+        return sorted(self._tasks)
 
     var save = Function(self, path : String):
         var records = []
-        for contact in self.all_sorted():
-            records.append(contact.to_dict())
+        for task in self.ordered():
+            records.append(task.to_dict())
         with io.open(path, "w") as f:
-            f.write(json.dumps(records, indent=2))
+            f.write(json.dumps(records, indent = 2))
 
     var load = Function(self, path : String):
         with io.open(path, "r") as f:
             var records = json.loads(f.read())
         for record in records:
-            self.add(Contact(record["name"], record["email"], record["phone"]))
+            var task = Task(record["title"], record["priority"])
+            task.done = record["done"]
+            self.add(task)
 ```
 
-> We repeated the earlier methods here because each documentation block is a standalone program; in
-> your own file you'd write the class once with all its methods together.
+## Running it
 
-## The driver: exercising the program
+Now we drive the program: add tasks, complete one, print them in order, persist to disk, reload into a
+fresh list, and handle a missing task gracefully — every failure is caught and the program keeps
+running:
 
-Now we use the book — adding people, handling a duplicate, saving, loading into a fresh book, looking
-someone up, and handling a missing name. Every failure mode is caught and reported, and the program
-keeps running:
-
+<!--norun (the finished program: assemble the sections above into one file to run it)-->
 ```kirito
-var book = ContactBook()
-book.add(Contact("Ada Lovelace", "ada@analytical.engine", "555-0100"))
-book.add(Contact("Alan Turing", "alan@bombe.uk", "555-0011"))
-book.add(Contact("Grace Hopper", "grace@cobol.navy", "555-0001"))
+var inbox = TaskList()
+inbox.add(Task("Write the report", "high"))
+inbox.add(Task("Water the plants", "low"))
+inbox.add(Task("Reply to Ada", "medium"))
+inbox.add(Task("Ship the release", "high"))
 
-# Adding a duplicate is caught, not fatal.
-try:
-    book.add(Contact("Ada Lovelace", "dup@example.com", "555-9999"))
-catch DuplicateContact as e:
-    io.print(f"skipped duplicate: {e.name}")
+inbox.complete("Water the plants")
 
-io.print(f"book has {book.count()} contacts:")
-for contact in book.all_sorted():
-    io.print(f"  {contact}")            # uses Contact._str_
+io.print(f"{len(inbox)} tasks, {len(inbox.pending())} still pending:")
+for task in inbox.ordered():
+    io.print(f"  {task}")                       # uses Task._str_
 
-# Persist to disk and reload into a brand-new book.
-var path = io.join(io.getcwd(), "contacts.json")
-book.save(path)
+# Persist to disk and reload into a brand-new list.
+var path = io.join(io.getcwd(), "tasks.json")
+inbox.save(path)
 
-var reloaded = ContactBook()
+var reloaded = TaskList()
 reloaded.load(path)
-io.print(f"reloaded {reloaded.count()} contacts from disk")
-var found = reloaded.find("Grace Hopper")
-io.print(f"lookup: {found}")
+io.print(f"reloaded {len(reloaded)} tasks from disk")
 
-# A missing lookup is handled gracefully.
+# Completing a task that doesn't exist is handled, not fatal.
 try:
-    discard reloaded.find("Nobody")
-catch ContactNotFound as e:
-    io.print(f"no contact named {e.name}")
+    reloaded.complete("Take over the world")
+catch TaskNotFound as e:
+    io.print(f"no such task: {e.title}")
 
-discard io.remove(path)                 # clean up the demo file
+discard io.remove(path)                         # clean up the demo file
 ```
 
-Running this prints:
+Running it prints:
 
 ```text
-skipped duplicate: Ada Lovelace
-book has 3 contacts:
-  Ada Lovelace <ada@analytical.engine> 555-0100
-  Alan Turing <alan@bombe.uk> 555-0011
-  Grace Hopper <grace@cobol.navy> 555-0001
-reloaded 3 contacts from disk
-lookup: Grace Hopper <grace@cobol.navy> 555-0001
-no contact named Nobody
+4 tasks, 3 still pending:
+  [ ] high   Ship the release
+  [ ] high   Write the report
+  [ ] medium Reply to Ada
+  [x] low    Water the plants
+reloaded 4 tasks from disk
+no such task: Take over the world
 ```
 
-## Walkthrough — what each part of the course contributed
+The two `high` tasks come first (alphabetical between them), then `medium`, and the completed task
+sinks to the bottom — all from that one `_lt_` definition.
 
-- **Classes (Lessons 13–14):** `Contact` bundles a person's data with a `_str_` so it prints itself;
-  `ContactBook` bundles the storage with the operations on it.
-- **Private state (13):** `_by_name` is private — callers go through `add`/`find`/`remove`, so the
-  book stays consistent and you could change the storage later.
-- **Exceptions (16):** `DuplicateContact` and `ContactNotFound` turn "bad input" into specific,
-  catchable events; the driver recovers from each and carries on.
-- **Annotations (12):** `: Contact`, `: String`, `-> Contact` document and enforce the contracts at
-  each method boundary.
-- **Files + JSON (18, 19):** `save`/`load` persist the whole book to human-readable JSON inside a
-  `with` block that closes the file no matter what.
-- **Functions & sorting (10, 7):** `all_sorted` returns contacts ordered by name using `sorted` with
-  an inline key function.
+## What each lesson contributed
+
+- **Classes (Lessons 8–9):** `Task` bundles a person-sized value with the behavior that belongs to
+  it; `TaskList` bundles the storage with the operations on it.
+- **Operators & protocols (Lesson 9):** `_str_` makes a `Task` print itself, `_lt_` makes it
+  **sortable** (so `sorted(self._tasks)` needs no key), and `_len_` makes `len(tasklist)` work.
+- **Private state (Lesson 8):** `_tasks` and `_key` are private — callers go through the public
+  methods, so the list stays consistent and you could swap the storage later.
+- **Annotations (Lesson 7):** `: Task`, `: String`, `-> Bool`/`-> Integer` document *and* enforce the
+  contract at each boundary.
+- **Exceptions (Lesson 11):** `TaskNotFound` turns "bad input" into a specific, catchable event; the
+  driver recovers from it and carries on.
+- **Context managers & files (Lessons 12–13):** `save`/`load` persist the whole list inside a `with`
+  block that closes the file no matter what.
+- **The standard library (Lesson 14):** `json` serializes the records; `io.join`/`getcwd`/`remove`
+  handle the path.
+- **Collections, strings & functions (Lessons 5, 3, 6):** a `List` of tasks ordered by a
+  List-valued key; f-strings with a `:<6` alignment spec; `sorted` doing the work.
 
 ## Where to go next
 
 You now know enough to write real programs. To go further:
 
-- **Extend this project:** add search by partial name, an `update` method, or load/save on startup
-  and exit so the book persists across runs. Wrap it in an `io.input` loop for an interactive CLI.
-- **Read the reference pages:** the **Standard Library**, **Built-in Functions**, and **Types**
-  pages document every function and method with signatures.
+- **Extend this project:** add due dates with the `time` module, a `priority` filter, or load on
+  startup and save on exit so the list survives across runs. Wrap it in an `io.input` loop for an
+  interactive CLI — see the [command-line lesson](bonus-02-cli.html) for argument parsing.
+- **Persist objects directly:** instead of hand-writing `to_dict`/`load`, the `serialize` and `dump`
+  modules save a whole object graph (shared references and all) in one call — try replacing `save`
+  with `serialize.save(self._tasks, path)`.
+- **Read the reference pages:** the [Standard Library](stdlib.html), [Built-in Functions](builtins.html),
+  and [Types](types.html) pages document every function and method with signatures.
 - **Study real programs:** the `examples/` directory has complete projects — an RPN calculator, a
-  word-frequency analyzer, a linear-system solver — and `examples/big_projects/` has larger ones
-  (a networked SQL database, an HTTP server, a deep-learning library) written entirely in Kirito.
-- **Embed or extend Kirito in C++:** the **Embedding** and **Extending** pages show how to run Kirito
-  inside a C++ program and how to add your own native functions, modules, and types.
+  word-frequency analyzer, a linear-system solver — and `examples/big_projects/` has larger ones (a
+  networked SQL database, an HTTP server, a deep-learning library) written entirely in Kirito.
+- **Embed or extend Kirito in C++:** the [Embedding](embedding.html) and [Extending](extending.html)
+  pages show how to run Kirito inside a C++ program and add your own native functions, modules, and
+  types.
 
-Congratulations — you've finished the **core course**. What follows are **bonus lessons**: deeper dives into specialized libraries — regular expressions, command-line programs, tabular data analysis, linear algebra, and tensors with automatic differentiation. Take them in any order, or go build something.
+Congratulations — you've finished the **core course**. What follows are **bonus lessons**: deeper
+dives into specialized libraries — regular expressions, command-line programs, tabular data analysis,
+linear algebra, and tensors with automatic differentiation. Take them in any order, or go build
+something.

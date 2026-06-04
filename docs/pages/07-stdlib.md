@@ -516,6 +516,15 @@ type participates the same way: define `_getstate_`/`_setstate_` and register a 
 `vm.registerDeserializer(typeName, factory)`. (`json` has no object notion, so it can't serialize
 instances.)
 
+The native **value** types opt in and round-trip through both `serialize` and `dump`: **`Matrix`**
+and **`Vector`** (`matrix`), **`Complex`** and **`ComplexMatrix`** (`complex`), **`DateTime`**
+(`time`), **`Random`** (`random`, restoring the generator's exact stream — a reproducible
+checkpoint), and gradient-free **`Tensor`** (`tensor`; a Tensor that requires grad must be
+`detach()`-ed first). They can be stored standalone or nested inside Lists/Dicts/Sets/instances, with
+shared references preserved. Resource-like natives that wrap live state — `Socket`/`Session` (`net`),
+open files/`BytesIO`/streams (`io`), compiled `Pattern`/`Match` (`regex`), and the opaque `Dump`
+blob — are **not** serializable and raise a clear, catchable error instead.
+
 Human-readable **text** serialization → a `String`.
 
 - `dumps(value) → String` — serialize to a text blob.

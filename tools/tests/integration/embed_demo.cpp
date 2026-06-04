@@ -60,25 +60,23 @@ struct Vec2 : NativeClass<Vec2> {
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
         if (name == "x") return val(vm, x);
         if (name == "y") return val(vm, y);
+        // makeMethod wraps a positional impl so the method ALSO accepts keyword arguments (here
+        // `v.dot(other = ...)`); the named slots are declared as its `params`.
         if (name == "length")
-            return vm.alloc(std::make_unique<NativeFunction>(
-                "length",
+            return makeMethod(vm, "length", {},
                 [self](KiritoVM& mv, std::span<const Handle>) -> Handle {
                     auto& v = static_cast<Vec2&>(mv.arena().deref(self));
                     return val(mv, std::sqrt(v.x * v.x + v.y * v.y));
-                },
-                std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         if (name == "dot")
-            return vm.alloc(std::make_unique<NativeFunction>(
-                "dot",
+            return makeMethod(vm, "dot", {"other"},
                 [self](KiritoVM& mv, std::span<const Handle> a) -> Handle {
                     Args args(mv, a, "dot");
                     auto& v = static_cast<Vec2&>(mv.arena().deref(self));
                     auto* o = dynamic_cast<const Vec2*>(&mv.arena().deref(args.at(0)));
                     if (!o) throw KiritoError("dot expects a Vec2");
                     return val(mv, v.x * o->x + v.y * o->y);
-                },
-                std::vector<Handle>{self}));
+                }, std::vector<Handle>{self});
         return Object::getAttr(vm, self, name);  // anything else -> a clear "no attribute" error
     }
 
@@ -112,6 +110,7 @@ int main() {
     CHECK(vm.stringify(vm.runSource("Vec2(3, 4).x")) == "3.0");
     CHECK(vm.stringify(vm.runSource("Vec2(3, 4).length()")) == "5.0");
     CHECK(vm.stringify(vm.runSource("Vec2(1, 2).dot(Vec2(3, 4))")) == "11.0");
+    CHECK(vm.stringify(vm.runSource("Vec2(1, 2).dot(other = Vec2(3, 4))")) == "11.0");  // method keyword arg (makeMethod)
     CHECK(vm.stringify(vm.runSource("var s = Vec2(1, 2) + Vec2(3, 4)\nString(s)")) == "Vec2(4, 6)");
     CHECK(vm.stringify(vm.runSource("Vec2(x=3, y=4).length()")) == "5.0");  // constructor keyword args
 
