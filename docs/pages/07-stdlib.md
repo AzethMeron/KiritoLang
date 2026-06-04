@@ -160,7 +160,7 @@ Object-based RNG — no global state; create a generator and call methods on it.
 
 ## matrix
 
-Dense real matrices (no complex numbers).
+Dense real matrices. For complex-valued numbers and matrices, see the `complex` module below.
 
 - `Matrix(rows: List) → Matrix` — build from a nested list of numbers (rows must be equal length).
 - `Matrix(rows: Integer, cols: Integer) → Matrix` — a zero matrix of the given shape.
@@ -187,6 +187,65 @@ Dense real matrices (no complex numbers).
 - `m.trace() → Float` — sum of the diagonal.
 - `m.sum() → Float` — sum of every element.
 - `m.apply(fn) → Matrix` — a new matrix with `fn` applied to each element.
+
+---
+
+## complex
+
+Complex numbers and complex matrices, implemented in C++ (`std::complex<double>`). Reals coerce to
+the real axis, so any function or operator below also accepts plain `Integer`/`Float` arguments.
+
+### Constructors and constants
+
+- `Complex(re: Number, im: Number = 0) → Complex` — build `re + im·i`.
+- `of(re: Number, im: Number) → Complex` — the two-argument constructor.
+- `real(re: Number) → Complex` — a real number on the complex plane (`re + 0i`).
+- `polar(r: Number, theta: Number) → Complex` — from polar form, `r·(cos θ + i·sin θ)`.
+- `i`, `zero`, `one` — the imaginary unit, `0`, and `1` as `Complex` values.
+- `pi`, `e`, `tau` — the usual real constants (Floats), for convenience.
+
+### Complex object
+
+- `z.re → Float`, `z.im → Float` — the real and imaginary parts (also `z.real`/`z.imag`).
+- `z1 + z2`, `z1 - z2`, `z1 * z2`, `z1 / z2`, `z1 ** z2`, `-z` — arithmetic. A `Complex` must be the
+  left operand when mixing with a number (`z + 2`, not `2 + z`). Division by zero raises.
+- `z1 == z2 → Bool` — equality within a small tolerance; a `Complex` with zero imaginary part also
+  equals the matching real number (`Complex(2, 0) == 2`).
+- Complex numbers are **unordered**: `<`, `<=`, `>`, `>=` raise.
+- `z.conjugate() → Complex` — the complex conjugate.
+- `z.modulus() → Float` — the magnitude `|z|` (also `z.magnitude()` / `z.abs()`).
+- `z.argument() → Float` — the phase angle in radians (also `z.arg()` / `z.phase()`).
+- `z.norm2() → Float` — the squared magnitude `|z|²` (no square root).
+- `z.is_zero() → Bool` — True when `z` is (numerically) zero.
+
+### Module functions
+
+Scalar reductions: `modulus(z)`, `abs(z)`, `phase(z)`, `argument(z)`, `norm2(z)` → `Float`;
+`conjugate(z)` → `Complex`.
+
+The analytic math set — the complex extensions of the `math` functions — each take a `Complex` or a
+number and return a `Complex`: `exp`, `log`, `log10`, `sqrt`, `cbrt`, `pow(z, w)`, `sin`, `cos`,
+`tan`, `asin`, `acos`, `atan`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`.
+
+### Complex matrices
+
+- `Matrix(rows: List) → ComplexMatrix` — build from a nested list whose cells are `Complex` values
+  or numbers (rows must be equal length).
+- `zeros(rows, cols)`, `ones(rows, cols)`, `identity(n) → ComplexMatrix` — factories.
+
+#### ComplexMatrix object
+
+- `m[i, j] → Complex`, `m[i] → List`, `m[i, j] = v` — element / row access and assignment.
+- `m.get(i, j)`, `m.set(i, j, v)`, `m.row(i)`, `m.rows()`, `m.cols()`, `m.shape()`.
+- `m1 == m2 → Bool` — element-wise equality (within a small tolerance).
+- `m + n`, `m - n`, `m * n` — addition/subtraction and matrix or scalar (`Complex`/number) multiply.
+- `m.transpose() → ComplexMatrix` — the transpose.
+- `m.conjugate() → ComplexMatrix` — element-wise complex conjugate.
+- `m.hermitian() → ComplexMatrix` — the conjugate transpose (also `m.conjugatetranspose()`).
+- `m.determinant() → Complex` — determinant via **Gaussian elimination** with partial pivoting.
+- `m.inverse() → ComplexMatrix` — inverse via **fast O(n³) Gauss-Jordan** elimination (raises if
+  singular).
+- `m.trace() → Complex` — sum of the diagonal.
 
 ---
 

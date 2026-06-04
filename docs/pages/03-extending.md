@@ -74,9 +74,9 @@ index, negative counts from the end), `v.items()` (iterate); and for Dicts `v.ge
 **Building a value:** `val(vm, 42)`, `val(vm, 3.14)`, `val(vm, "hi")`, `val(vm, true)`, `none(vm)`,
 `makeList(vm, {h1, h2})`, and the `List` / `Dict` / `Set` builders.
 
-Every bundled stdlib module — `io`, `math`, `random`, `matrix`, `json`, `serialize`, `dump`, `net`,
-`sys`, `time`, `zlib`, `hash` — is authored against this `Value` API, so their headers double as
-worked examples of idiomatic native code.
+Every bundled stdlib module — `io`, `math`, `random`, `matrix`, `complex`, `json`, `serialize`,
+`dump`, `net`, `sys`, `time`, `zlib`, `hash` — is authored against this `Value` API, so their headers
+double as worked examples of idiomatic native code.
 
 ## Adding a function
 
