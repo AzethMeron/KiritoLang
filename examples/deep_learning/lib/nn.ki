@@ -11,6 +11,12 @@ var _rng = random.Random(1234)
 var seed = Function(n):
     _rng = random.Random(n)                       # reseed the weight-init RNG (reproducible runs)
 
+# Global train/eval mode (held in a one-element list so it stays mutable). BatchNorm uses batch
+# statistics and updates its running averages while training; at eval time it uses those averages.
+var _mode = [True]
+var train = Function(flag : Bool):
+    _mode[0] = flag
+
 # A trainable tensor. Tensors are immutable and an update under `nograd` detaches, so the optimizer
 # rebinds `.t` to a fresh leaf each step — this indirection is how a parameter is "updated in place".
 class Parameter:
@@ -146,6 +152,41 @@ class AvgPool2d:
         return self.forward(x)
     var parameters = Function(self):
         return []
+
+# Batch normalization for conv feature maps (N, C, H, W): normalize each channel over the batch and
+# spatial dims, then scale/shift with learnable gamma/beta. While training it uses the batch
+# statistics (so gradients flow through them) and updates running averages; at eval time (nn.train(
+# False)) it normalizes with those running averages. The ConvNormAct building block is
+# Conv2d -> BatchNorm2d -> ReLU.
+class BatchNorm2d:
+    var _init_ = Function(self, channels : Integer, momentum : Float = 0.1, eps : Float = 1e-5):
+        self.c = channels
+        self.momentum = momentum
+        self.eps = eps
+        self.gamma = Parameter(T.ones([channels]))      # scale (init 1)
+        self.beta = Parameter(T.zeros([channels]))      # shift (init 0)
+        self.running_mean = T.zeros([channels])
+        self.running_var = T.ones([channels])
+    var forward = Function(self, x):
+        var shp = x.shape()
+        var c = shp[1]
+        var mean = self.running_mean
+        var varv = self.running_var
+        if _mode[0]:
+            # per-channel mean/variance over (N, H, W), computed on a (C, N*H*W) view
+            var flat = x.permute([1, 0, 2, 3]).reshape([c, shp[0] * shp[2] * shp[3]])
+            mean = flat.mean(axis = 1)
+            var centered = flat - mean.reshape([c, 1])
+            varv = (centered * centered).mean(axis = 1)
+            with T.nograd():                            # update the running averages (not tracked)
+                self.running_mean = (self.running_mean * (1.0 - self.momentum) + mean.detach() * self.momentum).detach()
+                self.running_var = (self.running_var * (1.0 - self.momentum) + varv.detach() * self.momentum).detach()
+        var xhat = (x - mean.reshape([1, c, 1, 1])) / (varv.reshape([1, c, 1, 1]) + self.eps).sqrt()
+        return xhat * self.gamma.t.reshape([1, c, 1, 1]) + self.beta.t.reshape([1, c, 1, 1])
+    var _call_ = Function(self, x):
+        return self.forward(x)
+    var parameters = Function(self):
+        return [self.gamma, self.beta]
 
 # A linear stack of layers. forward chains them; parameters gathers every child's parameters.
 class Sequential:

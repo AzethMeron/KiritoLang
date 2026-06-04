@@ -10,8 +10,10 @@ the tree-walking interpreter.
 
 Models are built from composable modules, exactly like PyTorch:
 
-- **Layers:** `Linear`, `Conv2d` (a differentiable im2col convolution), `AvgPool2d`, `Flatten`, and
-  the activations `ReLU` / `Sigmoid` / `Tanh`. `Sequential([...])` chains them.
+- **Layers:** `Linear`, `Conv2d` (a differentiable im2col convolution), `BatchNorm2d`, `AvgPool2d`,
+  `Flatten`, and the activations `ReLU` / `Sigmoid` / `Tanh`. `Sequential([...])` chains them; the
+  ConvNormAct block is `Conv2d -> BatchNorm2d -> ReLU`. `nn.train(flag)` toggles train/eval mode (for
+  BatchNorm's batch-vs-running statistics).
 - **Losses:** `mse_loss`, `cross_entropy` (softmax + NLL, numerically stable), `bce_loss` (BCE from
   logits).
 - **Optimizers:** `SGD` (with momentum) and `Adam`. Each `step()` reads the parameters' `.grad`
@@ -32,7 +34,7 @@ gzip-decompress + on-disk cache), `parse_csv`, `standardize`, `scale_range`, `tr
 | # | File | Task | Data |
 | - | ---- | ---- | ---- |
 | 1 | `01_iris_mlp.ki` | MLP classification on 1-D features | Iris (150×4, 3 classes) |
-| 2 | `02_digits_conv.ki` | **CNN** image classification (MNIST-style) | Digits (8×8, 10 classes) |
+| 2 | `02_digits_conv.ki` | **CNN** image classification (MNIST-style, two ConvNormAct blocks → ~98%) | Digits (8×8, 10 classes) |
 | 3 | `03_diabetes_regression.ki` | Linear regression (RMSE / R²) | Diabetes (442×10) |
 | 4 | `04_digits_autoencoder.ki` | Autoencoder (64→8→64 reconstruction) | Digits |
 | 5 | `05_breast_cancer_binary.ki` | Binary classification with BCE | Breast cancer (569×30) |

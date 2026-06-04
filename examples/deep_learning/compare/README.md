@@ -27,7 +27,7 @@ A representative run:
 | project | metric | Kirito | NumPy/sklearn |
 | --- | --- | --- | --- |
 | iris MLP | accuracy | 1.00 | 0.93 |
-| digits CNN | accuracy | 0.91 | 0.86 |
+| digits CNN (ConvNormAct) | accuracy | 0.98 | 0.99 |
 | diabetes regression | R² | 0.39 | 0.33 |
 | digits autoencoder | recon MSE | 0.029 | 0.025 |
 | breast-cancer | accuracy | 0.965 | 0.965 |

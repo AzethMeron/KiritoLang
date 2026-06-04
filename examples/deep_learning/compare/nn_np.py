@@ -6,6 +6,13 @@ plays in Kirito; the architectures, hyper-parameters, and datasets are identical
 """
 import numpy as np
 
+# Global train/eval mode (mirrors nn.ki's nn.train(flag)); BatchNorm consults it.
+TRAINING = [True]
+
+
+def train(flag):
+    TRAINING[0] = flag
+
 
 class Parameter:
     def __init__(self, t):
@@ -105,11 +112,55 @@ class Conv2d:
         self.b.grad = gflat.sum(0)
         gw = self.cols.reshape(n * self.ho * self.wo, -1).T @ gflat       # (k*k*cin, cout)
         self.W.grad = gw.reshape(self.k, self.k, self.cin, self.cout).transpose(3, 2, 0, 1)
-        # (input gradient is not needed — conv is the first layer)
-        return None
+        # input gradient via col2im (needed when a conv feeds another conv)
+        dcols = (gflat @ wflat.T).reshape(n, self.ho * self.wo, -1)
+        dx = np.zeros_like(self.x)
+        c, idx = self.cin, 0
+        for di in range(self.k):
+            for dj in range(self.k):
+                patch = dcols[:, :, idx * c:(idx + 1) * c].transpose(0, 2, 1).reshape(n, c, self.ho, self.wo)
+                dx[:, :, di:di + self.ho, dj:dj + self.wo] += patch
+                idx += 1
+        return dx
 
     def params(self):
         return [self.W, self.b]
+
+
+class BatchNorm2d:
+    """Batch norm over (N, H, W) per channel, with the standard compact backward — matching the
+    Kirito BatchNorm2d (batch stats + running averages, train/eval via the global TRAINING flag)."""
+
+    def __init__(self, c, momentum=0.1, eps=1e-5):
+        self.gamma = Parameter(np.ones(c))
+        self.beta = Parameter(np.zeros(c))
+        self.running_mean = np.zeros(c)
+        self.running_var = np.ones(c)
+        self.momentum, self.eps = momentum, eps
+
+    def forward(self, x):
+        if TRAINING[0]:
+            mean = x.mean(axis=(0, 2, 3))
+            var = x.var(axis=(0, 2, 3))
+            self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
+            self.running_var = (1 - self.momentum) * self.running_var + self.momentum * var
+        else:
+            mean, var = self.running_mean, self.running_var
+        self.std = np.sqrt(var.reshape(1, -1, 1, 1) + self.eps)
+        self.xhat = (x - mean.reshape(1, -1, 1, 1)) / self.std
+        return self.xhat * self.gamma.t.reshape(1, -1, 1, 1) + self.beta.t.reshape(1, -1, 1, 1)
+
+    def backward(self, g):
+        axes = (0, 2, 3)
+        m = g.shape[0] * g.shape[2] * g.shape[3]
+        self.gamma.grad = (g * self.xhat).sum(axes)
+        self.beta.grad = g.sum(axes)
+        gxhat = g * self.gamma.t.reshape(1, -1, 1, 1)
+        return (1.0 / self.std / m) * (m * gxhat - gxhat.sum(axes).reshape(1, -1, 1, 1)
+                                       - self.xhat * (gxhat * self.xhat).sum(axes).reshape(1, -1, 1, 1))
+
+    def params(self):
+        return [self.gamma, self.beta]
 
 
 class AvgPool2d:

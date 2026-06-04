@@ -61,14 +61,15 @@ def np_digits_conv():
     d = load_digits()
     X = (d.data / 16.0)
     Xtr, ytr, Xte, yte = split(X, d.target, 0.8, 11)
-    Xtr, ytr, Xte, yte = Xtr[:600], ytr[:600], Xte[:300], yte[:300]
     rng = np.random.default_rng(2)
-    model = nn.Sequential([nn.Conv2d(1, 8, 3, rng), nn.ReLU(), nn.AvgPool2d(2),
-                           nn.Flatten(), nn.Linear(8 * 3 * 3, 10, rng)])
-    opt = nn.Adam(model.params(), lr=0.01)
+    model = nn.Sequential([nn.Conv2d(1, 16, 3, rng), nn.BatchNorm2d(16), nn.ReLU(),
+                           nn.Conv2d(16, 32, 3, rng), nn.BatchNorm2d(32), nn.ReLU(),
+                           nn.AvgPool2d(2), nn.Flatten(), nn.Linear(32 * 2 * 2, 10, rng)])
+    opt = nn.Adam(model.params(), lr=0.005)
     img = lambda A: A.reshape(-1, 1, 8, 8)
     rng2 = np.random.default_rng(0)
-    for _ in range(8):
+    for _ in range(30):
+        nn.train(True)
         perm = rng2.permutation(len(Xtr))
         for i in range(0, len(Xtr), 64):
             b = perm[i:i + 64]
@@ -76,6 +77,7 @@ def np_digits_conv():
             _, g = nn.cross_entropy(logits, ytr[b], 10)
             model.backward(g)
             opt.step()
+    nn.train(False)
     return nn.accuracy(model.forward(img(Xte)).argmax(1), yte)
 
 
