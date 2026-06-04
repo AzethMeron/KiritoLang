@@ -29,6 +29,16 @@ inline uint32_t adler32(const std::string& data) {
     return (b << 16) | a;
 }
 
+// CRC-32 (IEEE 802.3, as gzip and PNG use). Table-free, so there is no mutable global state.
+inline uint32_t crc32(const std::string& data) {
+    uint32_t crc = 0xFFFFFFFFu;
+    for (unsigned char c : data) {
+        crc ^= c;
+        for (int k = 0; k < 8; ++k) crc = (crc & 1) ? (0xEDB88320u ^ (crc >> 1)) : (crc >> 1);
+    }
+    return crc ^ 0xFFFFFFFFu;
+}
+
 // ---- bit writer (LSB-first, as DEFLATE requires) ---------------------------------------------
 class BitWriter {
 public:

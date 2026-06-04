@@ -15,10 +15,19 @@
 #include <vector>
 
 #include "builtins.hpp"
+#include "bytes.hpp"
 #include "collections.hpp"
 #include "native.hpp"
 
 namespace kirito {
+
+// Raw bytes from a String or a Bytes argument (so binary write() / writelines() accept either).
+inline const std::string& ioRawBytes(KiritoVM& vm, Handle h, const char* who) {
+    Object& o = vm.arena().deref(h);
+    if (o.kind() == ValueKind::String) return static_cast<StrVal&>(o).value();
+    if (auto* b = dynamic_cast<BytesVal*>(&o)) return b->data;
+    throw KiritoError(std::string(who) + " expects a String or Bytes");
+}
 
 // The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
 // intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
@@ -49,8 +58,17 @@ public:
     static constexpr const char* kTypeName = "File";
     std::fstream stream;
     std::string path;
+    bool binary = false;   // opened with a "b" mode: read() yields Bytes, write() accepts Bytes
 
-    FileVal(const std::string& p, std::ios::openmode mode) : path(p) { stream.open(p, mode); }
+    FileVal(const std::string& p, std::ios::openmode mode, bool bin = false) : path(p), binary(bin) {
+        stream.open(p, mode);
+    }
+
+    // Wrap raw bytes read from the stream as a Bytes (binary mode) or a String (text mode).
+    Handle wrapRead(KiritoVM& vm, std::string s) const {
+        if (binary) return vm.alloc(std::make_unique<BytesVal>(std::move(s)));
+        return vm.makeString(std::move(s));
+    }
 
     void streamWrite(const std::string& s) override { stream << s; }
     std::string streamRead(std::optional<std::size_t> n) override {
@@ -68,7 +86,7 @@ public:
         RootScope rs(vm);
         std::vector<Handle> lines;
         std::string line;
-        while (std::getline(stream, line)) lines.push_back(rs.add(vm.makeString(line)));
+        while (std::getline(stream, line)) lines.push_back(rs.add(wrapRead(vm, line)));
         return lines;
     }
 
@@ -91,15 +109,17 @@ public:
                     int64_t want = argInt(vm, a[0], "read");
                     if (want >= 0) n = static_cast<std::size_t>(want);
                 }
-                return vm.makeString(file(vm, self).streamRead(n));
+                auto& f = file(vm, self);
+                return f.wrapRead(vm, f.streamRead(n));      // Bytes if binary, else String
             });
         if (name == "readline")
             return bind("readline", {}, [self, file](KiritoVM& vm, std::span<const Handle>) {
-                return vm.makeString(file(vm, self).streamReadLine());
+                auto& f = file(vm, self);
+                return f.wrapRead(vm, f.streamReadLine());
             });
         if (name == "write")
             return bind("write", {"data"}, [self, file](KiritoVM& vm, std::span<const Handle> a) {
-                file(vm, self).streamWrite(argString(vm, a[0], "write"));
+                file(vm, self).streamWrite(ioRawBytes(vm, a[0], "write"));  // String or Bytes
                 return vm.none();
             });
         if (name == "close" || name == "_exit_")
@@ -110,20 +130,17 @@ public:
         if (name == "readlines")
             return bind("readlines", {}, [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 RootScope rs(vm);
+                auto& f = file(vm, self);
                 auto list = std::make_unique<ListVal>();
                 std::string line;
-                while (std::getline(file(vm, self).stream, line)) list->elems.push_back(rs.add(vm.makeString(line)));
+                while (std::getline(f.stream, line)) list->elems.push_back(rs.add(f.wrapRead(vm, line)));
                 return vm.alloc(std::move(list));
             });
         if (name == "writelines")
             return bind("writelines", {"lines"}, [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 auto items = vm.arena().deref(a[0]).iterate(vm);
                 auto& f = file(vm, self);
-                for (Handle h : items.value()) {
-                    const Object& o = vm.arena().deref(h);
-                    if (o.kind() != ValueKind::String) throw KiritoError("writelines expects Strings");
-                    f.stream << static_cast<const StrVal&>(o).value();
-                }
+                for (Handle h : items.value()) f.stream << ioRawBytes(vm, h, "writelines");  // String or Bytes
                 return vm.none();
             });
         if (name == "flush")
@@ -492,16 +509,19 @@ public:
                 if (mo.kind() != ValueKind::String) throw KiritoError("open mode must be a String");
                 mode = static_cast<const StrVal&>(mo).value();
             }
-            // Always binary: Kirito strings are byte/code-point exact, so a file's contents and the
-            // tell()/seek()/read() offsets must be identical on every platform. Text mode would let
-            // Windows translate \n<->\r\n, desynchronising byte offsets from character counts.
+            // A trailing 'b' (e.g. "rb", "wb") makes read()/readline()/iteration yield Bytes instead
+            // of a String, for binary files. The underlying stream is always std::ios::binary anyway
+            // (Kirito strings are byte/code-point exact, so contents and tell()/seek()/read() offsets
+            // must be identical on every platform; text mode would let Windows translate \n<->\r\n).
+            bool binary = false;
+            if (!mode.empty() && mode.back() == 'b') { binary = true; mode.pop_back(); }
             std::ios::openmode flags = std::ios::binary;
             if (mode == "r") flags |= std::ios::in;
             else if (mode == "w") flags |= std::ios::out | std::ios::trunc;
             else if (mode == "a") flags |= std::ios::out | std::ios::app;
             else if (mode == "r+") flags |= std::ios::in | std::ios::out;
-            else throw KiritoError("unsupported file mode '" + mode + "'");
-            auto f = std::make_unique<FileVal>(path, flags);
+            else throw KiritoError("unsupported file mode '" + mode + (binary ? "b" : "") + "'");
+            auto f = std::make_unique<FileVal>(path, flags, binary);
             if (!f->stream.is_open()) throw KiritoError("could not open file '" + path + "'");
             return vm.alloc(std::move(f));
         });

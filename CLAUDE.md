@@ -74,6 +74,15 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   sense. Numeric/math depth was a *later* enrichment (the general scripting core came first) and is
   now delivered: the native `matrix` and `complex` modules (complex numbers + real/complex matrices
   and vectors).
+- **`Bytes`** — an immutable sequence of raw bytes (0–255), like Python's `bytes`: the byte-exact
+  counterpart to the Unicode (code-point) `String`. `b[i]` is an Integer byte, slicing yields Bytes,
+  iteration yields Integers; `+` concatenates, `*` repeats, lexicographic ordering, hashable. Convert
+  with `s.encode([enc])` (String → Bytes) and `b.decode([enc])` (Bytes → String); encodings `utf-8`
+  (default), `latin-1` (lossless byte↔code-point), `ascii`. `b.hex()` / `fromhex(s)`; `Bytes(x[, enc])`
+  builds from a List of Integers, an Integer n (n zero bytes), a String, or a Bytes. Serializable.
+  This is the right type for binary I/O — `net.get(url).content`, `io.open(path, "rb")`, gzip/zlib —
+  because a String, being UTF-8, merges valid multi-byte sequences and so cannot address arbitrary
+  bytes.
 - **Classes**: user-defined types in the Python spirit — `class` with methods and instance
   attributes, instantiated by calling the class. A class is just another first-class value, in the
   same value/object model as built-ins, so a C++-defined type and a Kirito `class` look alike to
@@ -191,7 +200,9 @@ a stability fuzzer, and a benchmark). Working today:
     `ModuleBuilder::kwfn` / `NativeFunction(NativeFnKw)`). A common
     stream protocol (`IoStream`: streamWrite/streamRead/streamReadLine/streamFlush) is implemented by
     `File`, `BytesIO`, and the std streams. `open` files & streams (read([n])/readline/readlines/
-    write/writelines/seek/tell/flush, iterable line-by-line, usable as a `with` context manager),
+    write/writelines/seek/tell/flush, iterable line-by-line, usable as a `with` context manager); a
+    **binary mode** (`"rb"`/`"wb"`/`"ab"`/`"r+b"`) makes read/readline/iteration yield `Bytes` and
+    write accept `Bytes` (the stream is always byte-exact internally),
     `BytesIO` (an in-memory binary buffer like Python's), plus filesystem helpers (exists/remove/
     rename/mkdir/getcwd/listdir/isfile/isdir/getsize/walk) and os.path-style path helpers
     (dirname/basename/splitext/join). Module members are rebindable (`ModuleValue::setAttr`).
@@ -208,7 +219,8 @@ a stability fuzzer, and a benchmark). Working today:
     element-wise comparisons (`eq/ne/lt/le/gt/ge` + the `< <= > >=` operators → 0/1 mask) and logic
     (`logicaland/or/xor/not`); `%`,`//`,`**` operators; `matmul` (2-D + batched), `dot`,
     `tensordot(a,b,axes)`/`contract` (general axis contraction), `transpose`/`permute`/`reshape`/
-    `flatten`, `apply` (element-wise map), `astype`; reductions `sum`/`mean`/`prod`/`min`/`max`/
+    `flatten`, `apply` (element-wise map), `astype`, `item()` (a one-element tensor → a Float/Complex
+    scalar), `tolist()` (→ a nested Kirito List); reductions `sum`/`mean`/`prod`/`min`/`max`/
     `argmin`/`argmax`/`std`/`var`/`all`/`any`/`ptp`/`median`/`cumsum`/`cumprod` (whole or per-axis);
     selection `where`/`clip`/`maximum`/`minimum`; structural `squeeze`/`expanddims`/`swapaxes`/`flip`/
     `broadcastto`/`repeat`/`tile`/`concatenate`/`stack`/`split`; creation `linspace`/`zeroslike`/
@@ -266,7 +278,8 @@ a stability fuzzer, and a benchmark). Working today:
   - `net` — TCP sockets (connect/bind/listen/accept/send/recv/recvall/settimeout) **and** a
     full-fledged HTTP/1.1 client (requests-style): `request(method, url[, opts])` plus
     `get/post/put/delete/patch/head/options` returning a rich
-    `Response` (`status`/`statuscode`/`reason`/`ok`/`url`/`text`/`headers`/`cookies`, `json()`,
+    `Response` (`status`/`statuscode`/`reason`/`ok`/`url`/`text` [decoded String]/`content` [raw
+    `Bytes`, for binary downloads]/`headers`/`cookies`, `json()`,
     `raiseforstatus()`, case-insensitive `header()`, and `["status"]`/`["body"]` indexing). Request
     `opts`: `headers`, `params`, `data` (string or form-Dict), `json`, `files` (multipart upload),
     `auth` (`[user, pass]` Basic), `timeout`, `allowredirects`/`maxredirects`, `verify` (TLS cert
@@ -279,9 +292,17 @@ a stability fuzzer, and a benchmark). Working today:
     calendar time (`now`/`datetime`/`make`/`strptime`; `DateTime` with fields, iso/format,
     add/sub/diff arithmetic). `DateTime` has **value equality + hashing** by instant (epoch), so two
     DateTimes for the same instant compare equal and can be Dict/Set keys, and it is serializable.
-  - `zlib` — compress/decompress (standard zlib streams), raw deflate/inflate, adler32 — a
-    self-contained DEFLATE/INFLATE, no external dependency, interoperable with real zlib.
-  - `hash` — md5/sha1/sha256 hex digests (self-contained, standard-conformant).
+  - `zlib` — compress/decompress (standard zlib streams, RFC 1950), raw deflate/inflate — a
+    self-contained DEFLATE/INFLATE, no external dependency, interoperable with real zlib (the
+    checksums live in `hash`). Every function accepts a `String` **or** a `Bytes` and returns the same
+    type as its input, so binary streams (downloads, files) stay byte-correct via `Bytes`.
+  - `gzip` — the gzip **container** (RFC 1952, `.gz` files / HTTP `Content-Encoding: gzip`): its own
+    module, distinct from the bare zlib stream. `compress`/`decompress` (aliases `gzip`/`gunzip`) —
+    `gzip(1)`-compatible, header flags + CRC-32 verified; String-or-Bytes in, same type out. Pair with
+    `net.get(url).content` (raw `Bytes`) to fetch and unpack a `.gz` (`gzip.decompress(resp.content)`).
+  - `hash` — md5/sha1/sha256 hex digests, plus the non-cryptographic checksums adler32/crc32 (Integer)
+    and crc64 (CRC-64/XZ, as a signed Integer). Self-contained, standard-conformant; every function
+    takes a `String` **or** a `Bytes` (so binary data hashes correctly).
   - `regex` — a from-scratch, **linear-time** regular-expression library (`regex_engine.hpp`: a
     recursive-descent parser → bytecode compiler → Thompson-NFA Pike VM with capture tracking; NO
     `std::regex`, NO backtracking, so `(a+)+b`-style patterns can't blow up). Python-`re`-style API:

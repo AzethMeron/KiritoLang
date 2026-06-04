@@ -20,6 +20,7 @@
 #endif
 
 #include "builtins.hpp"
+#include "bytes.hpp"
 #include "collections.hpp"
 #include "deflate.hpp"
 #include "native.hpp"
@@ -444,7 +445,7 @@ class ResponseVal : public NativeClass<ResponseVal> {
 public:
     static constexpr const char* kTypeName = "Response";
     std::vector<std::string> inspectMembers() const override {
-        return {"status: Integer", "statuscode: Integer", "reason: String", "ok: Bool", "url: String", "text: String", "body: String", "content: String", "headers: Dict", "cookies: Dict", "json() -> Any", "header(name, default) -> String", "raiseforstatus()"};
+        return {"status: Integer", "statuscode: Integer", "reason: String", "ok: Bool", "url: String", "text: String", "body: String", "content: Bytes", "headers: Dict", "cookies: Dict", "json() -> Any", "header(name, default) -> String", "raiseforstatus()"};
     }
     int status = 0;
     std::string reason, url, body;
@@ -802,7 +803,8 @@ inline Handle ResponseVal::getAttr(KiritoVM& vm, Handle self, std::string_view n
     if (name == "reason") return vm.makeString(reason);
     if (name == "ok") return vm.makeBool(status >= 100 && status < 400);
     if (name == "url") return vm.makeString(url);
-    if (name == "text" || name == "body" || name == "content") return vm.makeString(body);
+    if (name == "text" || name == "body") return vm.makeString(body);   // decoded text (a String)
+    if (name == "content") return vm.alloc(std::make_unique<BytesVal>(body));  // raw bytes (Bytes)
     if (name == "headers") return headersH;
     if (name == "cookies") return cookiesH;
     auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {

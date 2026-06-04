@@ -56,10 +56,10 @@ var data = "The quick brown fox " * 20
 z.inflate(z.deflate(data)) == data
 )") == "True");
 
-    // adler32 known values (matches RFC / Python's zlib.adler32)
-    CHECK(evalStr(vm, "import(\"zlib\").adler32(\"\")") == "1");
-    CHECK(evalStr(vm, "import(\"zlib\").adler32(\"hello\")") == "103547413");
-    CHECK(evalStr(vm, "import(\"zlib\").adler32(\"Wikipedia\")") == "300286872");
+    // adler32 known values (the adler32 checksum now lives in the hash module)
+    CHECK(evalStr(vm, "import(\"hash\").adler32(\"\")") == "1");
+    CHECK(evalStr(vm, "import(\"hash\").adler32(\"hello\")") == "103547413");
+    CHECK(evalStr(vm, "import(\"hash\").adler32(\"Wikipedia\")") == "300286872");
 
     // --- 10+ big Dump-serialized payloads: every one round-trips, and the compression ratio
     //     tracks the data's entropy (less entropy => smaller fraction). --------------------------
@@ -159,7 +159,7 @@ z.decompress(z.compress(s)) == s
     CHECK_THROWS(vm.runSource("import(\"zlib\").decompress(\"\\x78\\x9c\\xff\\xff\\xff\\xff\")"));  // bad body
     CHECK_THROWS(vm.runSource("import(\"zlib\").inflate(\"\\xff\\xff\\xff\")"));  // bad block type / truncated
     CHECK_THROWS(vm.runSource("import(\"zlib\").compress(42)"));  // wrong type
-    CHECK_THROWS(vm.runSource("import(\"zlib\").adler32([1, 2])"));  // wrong type
+    CHECK_THROWS(vm.runSource("import(\"hash\").adler32([1, 2])"));  // wrong type
 
     // corrupting a valid stream's checksum is detected
     CHECK(evalStr(vm, R"(

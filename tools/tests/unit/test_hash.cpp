@@ -77,10 +77,27 @@ var h = import("hash")
 h.sha256("hello") != h.sha256("hellp")
 )") == "True");
 
+    // --- checksums: Adler-32 / CRC-32 (the hash module's fast non-cryptographic digests) ---
+    CHECK(evalStr(vm, "import(\"hash\").crc32(\"hello\")") == "907060870");   // known constant
+    CHECK(evalStr(vm, "import(\"hash\").crc32(\"\")") == "0");
+    CHECK(evalStr(vm, "import(\"hash\").adler32(\"\")") == "1");
+    CHECK(evalStr(vm, "import(\"hash\").adler32(\"Wikipedia\")") == "300286872");  // the classic example
+    CHECK(evalStr(vm, "import(\"hash\").crc64(\"\")") == "0");
+    // CRC-64/XZ check value for "123456789" is 0x995dc9bbdf1939fa (a signed int64 -> negative)
+    CHECK(evalStr(vm, "import(\"hash\").crc64(\"123456789\")") == "-7395533204333446662");
+
+    // --- every function accepts a Bytes byte-identically to the same-byte String ---
+    CHECK(evalStr(vm, "var h = import(\"hash\")\nh.crc32(Bytes([104,101,108,108,111])) == h.crc32(\"hello\")") == "True");
+    CHECK(evalStr(vm, "var h = import(\"hash\")\nh.sha256(\"abc\".encode()) == h.sha256(\"abc\")") == "True");
+    CHECK(evalStr(vm, "var h = import(\"hash\")\nh.md5(Bytes([97,98,99])) == h.md5(\"abc\")") == "True");
+    // binary data with high bytes hashes (a String can't address these losslessly; Bytes can)
+    CHECK(evalStr(vm, "len(import(\"hash\").sha256(Bytes([0, 255, 128, 1, 254])))") == "64");
+
     // hostile: wrong argument types raise, not crash
     CHECK_THROWS(vm.runSource("import(\"hash\").md5(42)"));
     CHECK_THROWS(vm.runSource("import(\"hash\").sha256([1, 2, 3])"));
     CHECK_THROWS(vm.runSource("import(\"hash\").sha1(None)"));
+    CHECK_THROWS(vm.runSource("import(\"hash\").crc32(None)"));
 
     return RUN_TESTS();
 }

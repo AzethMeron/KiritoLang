@@ -938,6 +938,12 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         for (std::size_t st : utf8Starts(s)) utf8Encode(fn(utf8DecodeAt(s, st)), out);
         return out;
     };
+    if (name == "encode")
+        return bind("encode", {"encoding"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::string enc = "utf-8";
+            if (!a.empty() && vm.arena().deref(a[0]).kind() != ValueKind::None) enc = asStr(vm, a[0], "encode");
+            return vm.alloc(std::make_unique<BytesVal>(bytesutil::encode(recv(vm, self), enc)));
+        });
     if (name == "upper")
         return bind("upper", {}, [self, recv, mapCase](KiritoVM& vm, std::span<const Handle>) {
             return vm.makeString(mapCase(recv(vm, self), utf8ToUpperCp));
@@ -2092,6 +2098,25 @@ inline void KiritoVM::installBuiltins() {
         return vm.makeBool(vm.arena().deref(args[0]).truthy());
     });
 
+    // Bytes(x[, encoding]) — a raw byte sequence from a List of Integers (0..255), an Integer n
+    // (n zero bytes), a String (encoded; default utf-8), or another Bytes (copied).
+    defSig("Bytes", {{"x", "", none()}, {"encoding", "", none()}}, "Bytes", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        if (args.empty() || vm.arena().deref(args[0]).kind() == ValueKind::None)
+            return vm.alloc(std::make_unique<BytesVal>());
+        std::string enc = "utf-8";
+        if (args.size() > 1 && vm.arena().deref(args[1]).kind() != ValueKind::None)
+            enc = Value(vm, args[1]).asString("Bytes encoding");
+        return makeBytes(vm, args[0], enc);
+    });
+    // Bytes.fromhex equivalent as a free builtin: fromhex("48 65") -> Bytes.
+    defSig("fromhex", {{"s", "String"}}, "Bytes", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
+        return vm.alloc(std::make_unique<BytesVal>(bytesutil::fromHex(Value(vm, args[0]).asString("fromhex"))));
+    });
+    // Reconstruct a Bytes from its serialized (latin-1 String) state.
+    registerDeserializer("Bytes", [](KiritoVM& vm, Handle) -> Handle {
+        return vm.alloc(std::make_unique<BytesVal>());
+    });
+
     // Collection constructors: List()/Set()/Dict() build an empty collection; List(iterable) and
     // Set(iterable) build from any iterable. (Literals [] {} {,} remain the idiomatic shorthand.)
     // The `iterable` parameter is keyword-callable (List(iterable = xs)); its None default means
@@ -2548,6 +2573,7 @@ inline void KiritoVM::installStandardLibrary() {
     install<TimeModule>();
     install<DumpModule>();
     install<ZlibModule>();
+    install<GzipModule>();
     install<HashModule>();
     install<RegexModule>();
 

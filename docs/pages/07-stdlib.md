@@ -662,23 +662,54 @@ Its methods:
 
 ## zlib
 
-DEFLATE compression (interoperable with standard zlib), self-contained.
+DEFLATE compression (interoperable with standard zlib), self-contained. Every function takes a
+**String or a [`Bytes`](types.html#bytes)** and returns the **same type as its input**, so binary
+data (downloads, files) stays byte-correct as Bytes while text round-trips as a String. The gzip
+*container* is its own [`gzip`](#gzip) module.
 
-- `compress(data: String) → String` — zlib-format compress.
-- `decompress(data: String) → String` — zlib-format decompress (raises on bad data).
-- `deflate(data: String) → String` — raw DEFLATE compression (no zlib header).
-- `inflate(data: String) → String` — raw DEFLATE decompression (no zlib header).
-- `adler32(data: String) → Integer` — Adler-32 checksum.
+- `compress(data) → data` — zlib-format (RFC 1950) compress.
+- `decompress(data) → data` — zlib-format decompress (raises on bad data).
+- `deflate(data) → data` — raw DEFLATE compression (no zlib header).
+- `inflate(data) → data` — raw DEFLATE decompression (no zlib header).
+
+(The Adler-32 / CRC-32 / CRC-64 checksums live in the [`hash`](#hash) module.)
+
+---
+
+## gzip
+
+The gzip container format (RFC 1952) — `.gz` files and HTTP `Content-Encoding: gzip`. A DEFLATE
+stream wrapped with a header and a CRC-32 trailer; distinct from the bare zlib stream above, so it is
+its own module. Each function takes a **String or a [`Bytes`](types.html#bytes)** and returns the
+same type as its input.
+
+- `compress(data) → data` (alias `gzip`) — wrap in the gzip container, byte-for-byte as `gzip(1)`.
+- `decompress(data) → data` (alias `gunzip`) — validate the header, skip the optional filename/extra
+  fields, INFLATE, and verify the CRC-32 trailer (raises on a corrupt stream).
+
+Pair with `net.get(url).content` (raw `Bytes`) to fetch and unpack a `.gz` resource:
+
+```kirito
+var net = import("net")
+var gzip = import("gzip")
+var resp = net.get("https://example.com/data.csv.gz")
+var csv = gzip.decompress(resp.content).decode("utf-8")   # raw bytes -> text
+```
 
 ---
 
 ## hash
 
-Cryptographic hash digests (self-contained), returned as lowercase hex Strings.
+Digests and checksums of byte data (self-contained). Every function takes a **String or a
+[`Bytes`](types.html#bytes)**, so binary data hashes correctly.
 
-- `md5(data: String) → String` — MD5 hex digest.
-- `sha1(data: String) → String` — SHA-1 hex digest.
-- `sha256(data: String) → String` — SHA-256 hex digest.
+- `md5(data) → String` — MD5 lowercase-hex digest.
+- `sha1(data) → String` — SHA-1 lowercase-hex digest.
+- `sha256(data) → String` — SHA-256 lowercase-hex digest.
+- `adler32(data) → Integer` — Adler-32 checksum (as zlib uses).
+- `crc32(data) → Integer` — CRC-32 (IEEE) checksum (as gzip/PNG use).
+- `crc64(data) → Integer` — CRC-64/XZ checksum, returned as a signed Integer (the top bit makes large
+  values negative, since Kirito integers are 64-bit signed).
 
 ---
 

@@ -143,6 +143,39 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 | `s.partition(sep)` | Split once at the first `sep` into `[head, sep, tail]`. |
 | `s.rpartition(sep)` | Split once at the last `sep` into `[head, sep, tail]`. |
 | `s.levenshtein(other)` | Unicode (code-point) edit distance. `other` is a String (→ `Integer`) or a List of Strings (→ a List of distances, computed in one native call). Insert/delete/substitute each cost 1. The `string` module's `similarity`/`closest`/`fuzzymatch` build on this. |
+| `s.encode([encoding])` | Encode to a [`Bytes`](#bytes). `encoding` is `utf-8` (default), `latin-1`, or `ascii`. |
+
+## Bytes
+
+An **immutable sequence of raw bytes** (0–255), like Python's `bytes` — the byte-exact counterpart to
+the Unicode `String`. A `String` holds UTF-8 and indexes by *code point*, so it merges valid
+multi-byte sequences and cannot address arbitrary binary; `Bytes` indexes by *byte*, which is what
+binary data needs (network downloads, compressed streams, file contents). Iterating yields Integers,
+`b[i]` is an Integer (0–255), and slicing returns a `Bytes`. `Bytes` is hashable (a Dict/Set key),
+serializable, ordered lexicographically, and supports `+` (concatenate) and `*` (repeat).
+
+```kirito
+var b = Bytes([72, 105])          # from a List of byte values
+b                                 # b'Hi'
+b[0]                              # 72
+b[0:1]                           # b'H'
+"héllo".encode("utf-8")           # b'h\xc3\xa9llo'   (é is two UTF-8 bytes)
+Bytes([0xc3, 0xa9]).decode("utf-8")   # "é"
+```
+
+Construct with `Bytes(x[, encoding])` — from a List of Integers, an Integer `n` (`n` zero bytes), a
+String (encoded; default `utf-8`), or another Bytes (copied) — or `fromhex("48 69")`.
+
+| Method / function | Meaning |
+| --- | --- |
+| `b.decode([encoding])` | Decode to a `String` (`utf-8` default, or `latin-1`/`ascii`). |
+| `b.hex()` | Lowercase hex String (`b'Hi' → "4869"`). |
+| `fromhex(s)` | Build a Bytes from a hex String (whitespace ignored). |
+| `len(b)`, `b[i]`, `b[a:b:c]`, `x in b` | Byte length, byte at `i`, a Bytes slice, membership (Integer byte or Bytes subsequence). |
+
+> **latin-1 is the lossless byte↔code-point bridge**: every byte 0–255 maps to exactly one code point
+> and back, so `b.decode("latin-1").encode("latin-1") == b` for any Bytes — handy when you must move
+> raw bytes through a String.
 
 ## List
 

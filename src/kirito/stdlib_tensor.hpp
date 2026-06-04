@@ -99,6 +99,7 @@ public:
     }
     std::vector<std::string> inspectMembers() const override {
         return {"shape() -> List", "ndim() -> Integer", "size() -> Integer", "dtype() -> String",
+                "item() -> Number", "tolist() -> List",
                 "reshape(shape) -> Tensor", "transpose() -> Tensor", "permute(axes) -> Tensor",
                 "flatten() -> Tensor", "apply(fn) -> Tensor", "astype(dtype) -> Tensor",
                 "matmul(other) -> Tensor", "dot(other) -> Number",
@@ -1501,6 +1502,32 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         if (a.empty() || vm.arena().deref(a[0]).kind() == ValueKind::None) return -1;
         return Value(vm, a[0]).asInt("axis");
     };
+    // item() — extract a one-element tensor's single value as a plain Float (or Complex).
+    if (name == "item") return bind("item", {}, [self, self_t](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        auto& t = self_t(vm, self);
+        if (t.size() != 1) throw KiritoError("item() requires a tensor with exactly one element, got " +
+                                             std::to_string(t.size()));
+        if (t.isComplex()) return cpx::make(vm, std::get<CT>(t.store).data[0]);
+        return vm.makeFloat(std::get<FT>(t.store).data[0]);
+    });
+    // tolist() — convert to a nested Kirito List (Float/Complex leaves), mirroring the shape.
+    if (name == "tolist") return bind("tolist", {}, [self, self_t](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        auto& t = self_t(vm, self);
+        RootScope rs(vm);
+        const tensor::Shape& shp = t.shape();
+        std::function<Handle(std::size_t, std::size_t)> build = [&](std::size_t dim, std::size_t off) -> Handle {
+            if (dim == shp.size()) {  // a scalar leaf
+                if (t.isComplex()) return rs.add(cpx::make(vm, std::get<CT>(t.store).data[off]));
+                return vm.makeFloat(std::get<FT>(t.store).data[off]);
+            }
+            tensor::Shape st = t.isComplex() ? std::get<CT>(t.store).strides() : std::get<FT>(t.store).strides();
+            auto list = std::make_unique<ListVal>();
+            for (std::size_t i = 0; i < shp[dim]; ++i)
+                list->elems.push_back(build(dim + 1, off + i * st[dim]));
+            return rs.add(vm.alloc(std::move(list)));
+        };
+        return build(0, 0);
+    });
     if (name == "shape") return bind("shape", {}, [self, self_t](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto list = std::make_unique<ListVal>();
         for (std::size_t d : self_t(vm, self).shape()) list->elems.push_back(vm.makeInt(static_cast<int64_t>(d)));
