@@ -27,6 +27,22 @@ Documentation (and this markdown file, except for disclaimer) is written by AI a
 
 And why did i call it after MC of SAO? Dunno, just thought it's funny. Also I do have only warm memories of that anime.
 
+## Contents
+
+- [Why Kirito](#why-kirito)
+- [Limitations](#limitations)
+- [Benchmarks](#benchmarks)
+- [Embedding Kirito in C++](#embedding-kirito-in-c)
+- [Extending Kirito from C++](#extending-kirito-from-c)
+- [Installing](#installing)
+  - [Packages (`kpm`)](#packages-kpm)
+- [Repository structure](#repository-structure)
+- [Building and running](#building-and-running)
+  - [Building the release binaries (static, TLS)](#building-the-release-binaries-static-tls)
+  - [Testing the built executables](#testing-the-built-executables)
+- [Documentation](#documentation)
+- [License](#license)
+
 ## Why Kirito
 
 - **A high level of abstraction, with no boilerplate.** Significant indentation, first-class
