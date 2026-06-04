@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Kirito syntax highlighting for Notepad++ (User Defined Language) — LIGHT theme.
+
+  Install:  Notepad++ -> Language -> User Defined Language -> Define your language... -> Import...
+            -> pick this file -> restart Notepad++.  Then pick "Kirito (Light)" from the Language menu.
+
+  Use this file when Notepad++ is on a LIGHT theme; use kirito-dark.xml on a DARK theme. Notepad++'s
+  UDL cannot render a transparent background for the base text/operator styles (an unset background
+  becomes a solid box), so each file instead paints EVERY style's background to match its theme —
+  seamless, with no coloured boxes behind the text. The foreground palette here is tuned for a white
+  editor background.
+-->
+<NotepadPlus>
+    <UserLang name="Kirito (Light)" ext="ki" udlVersion="2.1">
+        <Settings>
+            <Global caseIgnored="no" allowFoldOfComments="no" foldCompact="no" forcePureLC="0" decimalSeparator="0" />
+            <Prefix Keywords1="no" Keywords2="no" Keywords3="no" Keywords4="no" Keywords5="no" Keywords6="no" Keywords7="no" Keywords8="no" />
+        </Settings>
+        <KeywordLists>
+            <Keywords name="Comments">00# 01 02 03 04</Keywords>
+            <Keywords name="Numbers, prefix1">0x 0X 0o 0O 0b 0B</Keywords>
+            <Keywords name="Numbers, prefix2"></Keywords>
+            <Keywords name="Numbers, extras1">.</Keywords>
+            <Keywords name="Numbers, extras2">e E _ a b c d f A B C D F</Keywords>
+            <Keywords name="Numbers, suffix1"></Keywords>
+            <Keywords name="Numbers, suffix2"></Keywords>
+            <Keywords name="Numbers, range">+ -</Keywords>
+            <Keywords name="Operators1">+ - * / % = &lt; &gt; ! : ( ) [ ] { } , . | &amp;</Keywords>
+            <Keywords name="Operators2"></Keywords>
+            <Keywords name="Folders in code1, open"></Keywords>
+            <Keywords name="Folders in code1, middle"></Keywords>
+            <Keywords name="Folders in code1, close"></Keywords>
+            <Keywords name="Folders in code2, open"></Keywords>
+            <Keywords name="Folders in code2, middle"></Keywords>
+            <Keywords name="Folders in code2, close"></Keywords>
+            <Keywords name="Folders in comment, open"></Keywords>
+            <Keywords name="Folders in comment, middle"></Keywords>
+            <Keywords name="Folders in comment, close"></Keywords>
+            <Keywords name="Keywords1">and as assert break case catch class continue default discard elif else finally for if in not or pass return switch throw todo try var while with Function</Keywords>
+            <Keywords name="Keywords2">True False None self</Keywords>
+            <Keywords name="Keywords3">Any Array Bool Dict Float Integer List Set String</Keywords>
+            <Keywords name="Keywords4">abs all any bin bitand bitnot bitor bitxor chr divmod enumerate filter format hex id import inspect isinstance len map max min oct ord pow range reversed round shl shr sorted sum type zip</Keywords>
+            <Keywords name="Keywords5"></Keywords>
+            <Keywords name="Keywords6"></Keywords>
+            <Keywords name="Keywords7"></Keywords>
+            <Keywords name="Keywords8"></Keywords>
+            <Keywords name="Delimiters">00&quot; 01\ 02&quot; 03f&quot; 04\ 05&quot; 06 07 08</Keywords>
+        </KeywordLists>
+        <Styles>
+            <!-- Every style shares the white background so nothing draws a coloured box. -->
+            <WordsStyle name="DEFAULT" fgColor="1F1F1F" bgColor="FFFFFF" fontStyle="0" nesting="0" />
+            <WordsStyle name="OPERATORS" fgColor="1F1F1F" bgColor="FFFFFF" fontStyle="0" nesting="0" />
+            <WordsStyle name="COMMENTS" fgColor="008000" bgColor="FFFFFF" fontStyle="2" nesting="0" />
+            <WordsStyle name="LINE COMMENTS" fgColor="008000" bgColor="FFFFFF" fontStyle="2" nesting="0" />
+            <WordsStyle name="NUMBERS" fgColor="098658" bgColor="FFFFFF" fontStyle="0" nesting="0" />
+            <WordsStyle name="KEYWORDS1" fgColor="AF00DB" bgColor="FFFFFF" fontStyle="1" nesting="0" />
+            <WordsStyle name="KEYWORDS2" fgColor="0000FF" bgColor="FFFFFF" fontStyle="1" nesting="0" />
+            <WordsStyle name="KEYWORDS3" fgColor="267F99" bgColor="FFFFFF" fontStyle="1" nesting="0" />
+            <WordsStyle name="KEYWORDS4" fgColor="795E26" bgColor="FFFFFF" fontStyle="0" nesting="0" />
+            <WordsStyle name="DELIMITERS1" fgColor="A31515" bgColor="FFFFFF" fontStyle="0" nesting="0" />
+            <WordsStyle name="DELIMITERS2" fgColor="A31515" bgColor="FFFFFF" fontStyle="0" nesting="0" />
+            <WordsStyle name="DELIMITERS3" fgColor="1F1F1F" bgColor="FFFFFF" fontStyle="0" nesting="0" />
+        </Styles>
+    </UserLang>
+</NotepadPlus>

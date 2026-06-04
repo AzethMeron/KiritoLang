@@ -46,9 +46,10 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>(On Windows that&#x27;s <code>%USERPROFILE%\.vscode\extensions\kirito-language-0.1.0</code>.) Reload VS Code and any <code>.ki</code> file lights up. To share it, package a <code>.vsix</code> with <code>vsce package</code> and <code>code --install-extension</code>.</p>
 <h2 id="notepad">Notepad++</h2>
 <p>Notepad++ has a built-in <strong>User Defined Language</strong> system, so no plugin is needed:</p>
-<ol><li><code>Language</code> menu → <code>User Defined Language</code> → <code>Define your language…</code></li><li>Click <code>Import…</code> and choose <code>editors/notepad++/kirito.xml</code>.</li><li>Restart Notepad++.</li></ol>
-<p><code>.ki</code> files are then highlighted automatically (or pick <strong>Kirito</strong> from the <code>Language</code> menu).</p>
-<blockquote>The colours are <strong>theme-agnostic</strong>: no style paints a background, so the editor&#x27;s own background shows through (no coloured boxes behind the text) on <strong>both light and dark</strong> Notepad++ themes. Meaningful tokens are tinted from a Solarized-style palette; plain text and operators use a muted slate foreground. Every style carries an explicit foreground colour (a Notepad++ UDL style with no colour set falls back to a white box, not transparency), and all the hues read on either background — so there&#x27;s nothing to hand-tweak when you switch themes.</blockquote>
+<p>Pick the colour file matching your Notepad++ theme — <code>editors/notepad++/kirito-dark.xml</code> (dark) or <code>kirito-light.xml</code> (light):</p>
+<ol><li><code>Language</code> menu → <code>User Defined Language</code> → <code>Define your language…</code></li><li>Click <code>Import…</code> and choose the file for your theme.</li><li>Restart Notepad++.</li></ol>
+<p><code>.ki</code> files are then highlighted automatically (or pick the matching <strong>Kirito (Dark/Light)</strong> entry from the <code>Language</code> menu).</p>
+<blockquote>Why two files? A Notepad++ UDL can&#x27;t make the base text/operator background transparent — leaving it unset paints a solid white box behind the text (obvious on a dark theme). So each file paints every style&#x27;s background to match its theme (seamless, no boxes) with foreground hues tuned for that background. Switching themes? Re-import the other file (UDL colours are cached — a re-import + restart picks up the change).</blockquote>
 <h2 id="vim-neovim">Vim / Neovim</h2>
 <p>Copy <code>editors/vim/kirito.vim</code> to <code>~/.vim/syntax/kirito.vim</code> (Neovim: <code>~/.config/nvim/syntax/kirito.vim</code>) and tell Vim to use it for <code>.ki</code>:</p>
 <pre><code>autocmd BufRead,BufNewFile *.ki set filetype=kirito</code></pre>

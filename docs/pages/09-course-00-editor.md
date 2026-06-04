@@ -24,18 +24,21 @@ cp -r editors/vscode ~/.vscode/extensions/kirito-language-0.1.0
 
 Notepad++ has a built-in **User Defined Language** system, so no plugin is needed:
 
+Pick the colour file matching your Notepad++ theme — `editors/notepad++/kirito-dark.xml` (dark) or
+`kirito-light.xml` (light):
+
 1. `Language` menu → `User Defined Language` → `Define your language…`
-2. Click `Import…` and choose `editors/notepad++/kirito.xml`.
+2. Click `Import…` and choose the file for your theme.
 3. Restart Notepad++.
 
-`.ki` files are then highlighted automatically (or pick **Kirito** from the `Language` menu).
+`.ki` files are then highlighted automatically (or pick the matching **Kirito (Dark/Light)** entry
+from the `Language` menu).
 
-> The colours are **theme-agnostic**: no style paints a background, so the editor's own background
-> shows through (no coloured boxes behind the text) on **both light and dark** Notepad++ themes.
-> Meaningful tokens are tinted from a Solarized-style palette; plain text and operators use a muted
-> slate foreground. Every style carries an explicit foreground colour (a Notepad++ UDL style with no
-> colour set falls back to a white box, not transparency), and all the hues read on either
-> background — so there's nothing to hand-tweak when you switch themes.
+> Why two files? A Notepad++ UDL can't make the base text/operator background transparent — leaving
+> it unset paints a solid white box behind the text (obvious on a dark theme). So each file paints
+> every style's background to match its theme (seamless, no boxes) with foreground hues tuned for
+> that background. Switching themes? Re-import the other file (UDL colours are cached — a re-import +
+> restart picks up the change).
 
 ## Vim / Neovim
 

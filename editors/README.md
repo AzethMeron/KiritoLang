@@ -11,18 +11,26 @@ Pick your editor:
 
 Notepad++ has a built-in **User Defined Language** system — no plugin required.
 
+There are **two** colour files — pick the one matching your Notepad++ theme:
+
+- [`notepad++/kirito-dark.xml`](notepad++/kirito-dark.xml) — for a **dark** theme (registers as
+  *Kirito (Dark)*).
+- [`notepad++/kirito-light.xml`](notepad++/kirito-light.xml) — for a **light** theme (registers as
+  *Kirito (Light)*).
+
 1. `Language` menu → `User Defined Language` → `Define your language…`
-2. Click `Import…` and choose [`notepad++/kirito.xml`](notepad++/kirito.xml).
+2. Click `Import…` and choose the file for your theme.
 3. Restart Notepad++.
 
-Any `.ki` file is now highlighted automatically (or pick **Kirito** from the `Language` menu).
-The colours are **theme-agnostic**: no style paints a background, so the editor's own background
-shows through (no coloured boxes behind the text) on **both light and dark** Notepad++ themes.
-Meaningful tokens (keywords, types, strings, numbers, comments) are tinted from a Solarized-style
-palette; plain identifiers and operators use a muted slate foreground — every style carries an
-explicit foreground colour, because a Notepad++ UDL style with *no* colour set falls back to a white
-box rather than staying transparent. All the hues stay readable on either background, so nothing
-needs hand-tweaking when you switch themes.
+Any `.ki` file is then highlighted automatically (or pick the matching **Kirito (Dark/Light)** entry
+from the `Language` menu).
+
+Why two files? A Notepad++ UDL **cannot** give the base text/operator styles a transparent
+background — when their background is left unset, Notepad++ paints a solid white box behind the text
+(it shows up immediately on a dark theme). So instead of fighting it, each file paints **every**
+style's background to match its theme, which renders seamlessly with no boxes; the foreground hues
+are then tuned for that background. If you switch your Notepad++ theme, re-import the other file (UDL
+colours are cached, so a re-import + restart is needed to pick up a change).
 
 > Note: UDL folding is brace-based, so Kirito's indentation blocks don't fold. For folding plus
 > bracket-matching, use the VS Code grammar below.
