@@ -48,7 +48,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Notepad++ has a built-in <strong>User Defined Language</strong> system, so no plugin is needed:</p>
 <ol><li><code>Language</code> menu → <code>User Defined Language</code> → <code>Define your language…</code></li><li>Click <code>Import…</code> and choose <code>editors/notepad++/kirito.xml</code>.</li><li>Restart Notepad++.</li></ol>
 <p><code>.ki</code> files are then highlighted automatically (or pick <strong>Kirito</strong> from the <code>Language</code> menu).</p>
-<blockquote>The bundled colours are tuned for a <strong>dark</strong> Notepad++ theme (Settings → Style Configurator → &quot;Dark Mode&quot;), to match the rest of the toolchain. If you use a light theme, open <em>Define your language…</em> and lift the per-style foreground/background colours to taste — a UDL stores its own colours rather than following the global theme.</blockquote>
+<blockquote>The colours are <strong>theme-agnostic</strong>: no style paints a background (the editor&#x27;s own background shows through) and only meaningful tokens are tinted, in hues chosen to read on <strong>both light and dark</strong> Notepad++ themes. Plain text and operators inherit the theme&#x27;s default colour, so there&#x27;s nothing to hand-tweak when you switch themes.</blockquote>
 <h2 id="vim-neovim">Vim / Neovim</h2>
 <p>Copy <code>editors/vim/kirito.vim</code> to <code>~/.vim/syntax/kirito.vim</code> (Neovim: <code>~/.config/nvim/syntax/kirito.vim</code>) and tell Vim to use it for <code>.ki</code>:</p>
 <pre><code>autocmd BufRead,BufNewFile *.ki set filetype=kirito</code></pre>

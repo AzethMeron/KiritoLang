@@ -8,6 +8,13 @@
 
   No plugin is required — UDL is built into Notepad++. Folding is brace/indent based and limited
   under UDL; for richer folding/IntelliSense use the VS Code grammar in ../vscode/.
+
+  THEME-AGNOSTIC BY DESIGN. No style sets a background colour, so the editor's own background shows
+  through — the highlighting looks right on BOTH a light and a dark Notepad++ theme. Neutral tokens
+  (plain identifiers, operators, punctuation) also omit a foreground colour so they inherit the
+  theme's default text colour (near-black on light, near-white on dark). Only the "meaningful"
+  tokens carry colour, and those hues are picked from a Solarized-style palette chosen to stay
+  legible against either a light or a dark background (no washed-out pastels, no near-black inks).
 -->
 <NotepadPlus>
     <UserLang name="Kirito" ext="ki" udlVersion="2.1">
@@ -46,18 +53,26 @@
             <Keywords name="Delimiters">00&quot; 01\ 02&quot; 03f&quot; 04\ 05&quot; 06 07 08</Keywords>
         </KeywordLists>
         <Styles>
-            <WordsStyle name="DEFAULT" fgColor="D4D4D4" bgColor="1E1E1E" fontStyle="0" nesting="0" />
-            <WordsStyle name="COMMENTS" fgColor="6A9955" bgColor="1E1E1E" fontStyle="2" nesting="0" />
-            <WordsStyle name="LINE COMMENTS" fgColor="6A9955" bgColor="1E1E1E" fontStyle="2" nesting="0" />
-            <WordsStyle name="NUMBERS" fgColor="B5CEA8" bgColor="1E1E1E" fontStyle="0" nesting="0" />
-            <WordsStyle name="KEYWORDS1" fgColor="C586C0" bgColor="1E1E1E" fontStyle="1" nesting="0" />
-            <WordsStyle name="KEYWORDS2" fgColor="569CD6" bgColor="1E1E1E" fontStyle="1" nesting="0" />
-            <WordsStyle name="KEYWORDS3" fgColor="4EC9B0" bgColor="1E1E1E" fontStyle="1" nesting="0" />
-            <WordsStyle name="KEYWORDS4" fgColor="DCDCAA" bgColor="1E1E1E" fontStyle="0" nesting="0" />
-            <WordsStyle name="OPERATORS" fgColor="D4D4D4" bgColor="1E1E1E" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS1" fgColor="CE9178" bgColor="1E1E1E" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS2" fgColor="CE9178" bgColor="1E1E1E" fontStyle="0" nesting="0" />
-            <WordsStyle name="DELIMITERS3" fgColor="D4D4D4" bgColor="1E1E1E" fontStyle="0" nesting="0" />
+            <!-- Neutral tokens omit fgColor/bgColor: they inherit the theme's text + background. -->
+            <WordsStyle name="DEFAULT" fontStyle="0" nesting="0" />
+            <WordsStyle name="OPERATORS" fontStyle="0" nesting="0" />
+            <!-- Comments: muted slate, italic. Mid-tone grey reads on light and dark alike. -->
+            <WordsStyle name="COMMENTS" fgColor="708890" fontStyle="2" nesting="0" />
+            <WordsStyle name="LINE COMMENTS" fgColor="708890" fontStyle="2" nesting="0" />
+            <!-- Numbers: magenta literal. -->
+            <WordsStyle name="NUMBERS" fgColor="D33682" fontStyle="0" nesting="0" />
+            <!-- Keywords / control flow: green, bold. -->
+            <WordsStyle name="KEYWORDS1" fgColor="859900" fontStyle="1" nesting="0" />
+            <!-- Constants True/False/None/self: orange, bold. -->
+            <WordsStyle name="KEYWORDS2" fgColor="CB4B16" fontStyle="1" nesting="0" />
+            <!-- Built-in types: amber, bold. -->
+            <WordsStyle name="KEYWORDS3" fgColor="B58900" fontStyle="1" nesting="0" />
+            <!-- Built-in functions: blue. -->
+            <WordsStyle name="KEYWORDS4" fgColor="268BD2" fontStyle="0" nesting="0" />
+            <!-- Strings + f-strings: cyan. -->
+            <WordsStyle name="DELIMITERS1" fgColor="2AA198" fontStyle="0" nesting="0" />
+            <WordsStyle name="DELIMITERS2" fgColor="2AA198" fontStyle="0" nesting="0" />
+            <WordsStyle name="DELIMITERS3" fontStyle="0" nesting="0" />
         </Styles>
     </UserLang>
 </NotepadPlus>

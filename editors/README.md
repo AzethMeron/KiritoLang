@@ -16,10 +16,11 @@ Notepad++ has a built-in **User Defined Language** system — no plugin required
 3. Restart Notepad++.
 
 Any `.ki` file is now highlighted automatically (or pick **Kirito** from the `Language` menu).
-The bundled colours are tuned for a **dark** Notepad++ theme (Settings → Style Configurator → enable
-Dark Mode), to match the rest of the toolchain. A UDL stores its own per-style colours rather than
-following the global theme, so on a **light** theme open *Define your language…* and lift the
-foreground/background colours to taste.
+The colours are **theme-agnostic**: no style paints a background, so the editor's own background
+shows through, and only meaningful tokens (keywords, types, strings, numbers, comments) are tinted —
+in hues picked to stay readable on **both light and dark** Notepad++ themes. Plain identifiers and
+operators inherit the theme's default text colour, so nothing needs hand-tweaking when you switch
+themes.
 
 > Note: UDL folding is brace-based, so Kirito's indentation blocks don't fold. For folding plus
 > bracket-matching, use the VS Code grammar below.
