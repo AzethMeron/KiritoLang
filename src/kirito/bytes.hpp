@@ -132,7 +132,7 @@ public:
     }
 
     std::vector<std::string> inspectMembers() const override {
-        return {"decode(encoding) -> String", "hex() -> String"};
+        return {"decode(encoding) -> String", "hex() -> String", "apply(fn) -> Bytes"};
     }
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override;
@@ -252,6 +252,21 @@ inline Handle BytesVal::getAttr(KiritoVM& vm, Handle self, std::string_view name
     if (name == "hex")
         return makeMethod(vm, "hex", {}, [self, self_b](KiritoVM& vm, std::span<const Handle>) -> Handle {
             return vm.makeString(bytesutil::toHex(self_b(vm, self).data));
+        }, std::vector<Handle>{self});
+    // apply(fn) — a new Bytes with `fn` applied to each byte (fn takes/returns an Integer 0..255).
+    if (name == "apply")
+        return makeMethod(vm, "apply", {"fn"}, [self, self_b](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Handle fn = a[0];
+            std::string src = self_b(vm, self).data;
+            std::string out;
+            out.reserve(src.size());
+            for (unsigned char c : src) {
+                std::array<Handle, 1> args{vm.makeInt(c)};
+                int64_t r = Value(vm, vm.arena().deref(fn).call(vm, args)).asInt("Bytes apply result");
+                if (r < 0 || r > 255) throw KiritoError("Bytes apply: result must be a byte (0..255)");
+                out += static_cast<char>(static_cast<unsigned char>(r));
+            }
+            return vm.alloc(std::make_unique<BytesVal>(std::move(out)));
         }, std::vector<Handle>{self});
     // serialization: round-trip the raw bytes as a latin-1 String (lossless byte<->code-point).
     if (name == "_getstate_")

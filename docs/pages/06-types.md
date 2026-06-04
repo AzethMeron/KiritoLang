@@ -144,6 +144,7 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 | `s.rpartition(sep)` | Split once at the last `sep` into `[head, sep, tail]`. |
 | `s.levenshtein(other)` | Unicode (code-point) edit distance. `other` is a String (→ `Integer`) or a List of Strings (→ a List of distances, computed in one native call). Insert/delete/substitute each cost 1. The `string` module's `similarity`/`closest`/`fuzzymatch` build on this. |
 | `s.encode([encoding])` | Encode to a [`Bytes`](#bytes). `encoding` is `utf-8` (default), `latin-1`, or `ascii`. |
+| `s.apply(fn)` | A new String with `fn` applied to each character (`fn` takes/returns a String). |
 
 ## Bytes
 
@@ -170,6 +171,7 @@ String (encoded; default `utf-8`), or another Bytes (copied) — or `fromhex("48
 | --- | --- |
 | `b.decode([encoding])` | Decode to a `String` (`utf-8` default, or `latin-1`/`ascii`). |
 | `b.hex()` | Lowercase hex String (`b'Hi' → "4869"`). |
+| `b.apply(fn)` | A new Bytes with `fn` applied to each byte (`fn` takes/returns an Integer 0–255). |
 | `fromhex(s)` | Build a Bytes from a hex String (whitespace ignored). |
 | `len(b)`, `b[i]`, `b[a:b:c]`, `x in b` | Byte length, byte at `i`, a Bytes slice, membership (Integer byte or Bytes subsequence). |
 
@@ -204,6 +206,7 @@ io.print(xs[0], xs[-1], xs[1:3])   # 1 4 [2, 3]
 | `xs.reverse()` | Reverse in place. |
 | `xs.sort([key][, reverse])` | Sort in place, **stable**; `key` precomputed once per element. |
 | `xs.extend(iter)` | Append all elements of an iterable. |
+| `xs.apply(fn)` | A new List with `fn` applied to each element (like `tensor.apply`). |
 | `xs.copy()` | A shallow copy. |
 | `xs.clear()` | Remove all elements. |
 
@@ -234,6 +237,7 @@ io.print(a.union(b), a.intersection(b))   # {1, 2, 3, 4} {3}
 | `s.issubset(other)` | Whether every element of `s` is in `other`. |
 | `s.issuperset(other)` | Whether `s` contains every element of `other`. |
 | `s.isdisjoint(other)` | True if the sets share no element. |
+| `s.apply(fn)` | A new Set with `fn` applied to each element (collisions collapse). |
 | `s.copy()` | A shallow copy of the set. |
 | `s.clear()` | Remove all elements. |
 
@@ -264,6 +268,7 @@ io.print(d.get("z", 0))    # 0 (default)
 | `d.popitem()` | Remove and return the last `[key, value]` pair. |
 | `d.setdefault(key[, default])` | Get `key`, inserting `default` first if absent. |
 | `d.update(other)` | Merge another Dict (or `[key, value]` pairs) in. |
+| `d.apply(fn)` | A new Dict with the same keys and `fn` applied to each value (like `tensor.apply`). |
 | `d.copy()` | A shallow copy of the dict. |
 | `d.clear()` | Remove all entries. |
 

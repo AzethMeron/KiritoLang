@@ -74,6 +74,12 @@ public:
     Handle slice(KiritoVM&, Handle start, Handle stop, Handle step) override;
     Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;  // ordering + concatenation (runtime.hpp)
     bool contains(KiritoVM&, Handle value) override;
+    std::vector<std::string> inspectMembers() const override {
+        return {"append(item)", "pop(index) -> item", "insert(index, item)", "remove(item)",
+                "index(item) -> Integer", "count(item) -> Integer", "extend(iterable)",
+                "reverse()", "sort(key = None, reverse = False)", "apply(fn) -> List",
+                "copy() -> List", "clear()"};
+    }
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };
 
@@ -175,6 +181,11 @@ public:
     Handle getItem(KiritoVM&, std::span<const Handle> keys) override;
     void setItem(KiritoVM&, std::span<const Handle> keys, Handle value) override;
     bool contains(KiritoVM&, Handle key) override;  // key membership
+    std::vector<std::string> inspectMembers() const override {
+        return {"keys() -> List", "values() -> List", "items() -> List", "get(key, default = None)",
+                "pop(key, default = None)", "remove(key)", "setdefault(key, default = None)",
+                "update(other)", "popitem() -> List", "apply(fn) -> Dict", "copy() -> Dict", "clear()"};
+    }
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };
 
@@ -247,6 +258,13 @@ public:
     std::optional<int64_t> length(KiritoVM&) override { return static_cast<int64_t>(count); }
     bool contains(KiritoVM&, Handle value) override;
 
+    std::vector<std::string> inspectMembers() const override {
+        return {"add(value)", "discard(value)", "remove(value)", "contains(value) -> Bool",
+                "pop() -> value", "union(other) -> Set", "intersection(other) -> Set",
+                "difference(other) -> Set", "symmetricdifference(other) -> Set",
+                "issubset(other) -> Bool", "issuperset(other) -> Bool", "isdisjoint(other) -> Bool",
+                "apply(fn) -> Set", "copy() -> Set", "clear()"};
+    }
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };
 

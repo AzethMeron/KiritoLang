@@ -399,6 +399,20 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
     auto self_list = [](KiritoVM& vm, Handle self) -> ListVal& {
         return static_cast<ListVal&>(vm.arena().deref(self));
     };
+    // apply(fn) — a new List with `fn` applied to each element (like tensor.apply: same type out).
+    if (name == "apply")
+        return makeMethod(vm, "apply", {"fn"}, [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Handle fn = a[0];
+            std::vector<Handle> src = self_list(vm, self).elems;   // snapshot: fn must not see the result
+            RootScope rs(vm);
+            auto out = std::make_unique<ListVal>();
+            out->elems.reserve(src.size());
+            for (Handle h : src) {
+                std::array<Handle, 1> args{h};
+                out->elems.push_back(rs.add(vm.arena().deref(fn).call(vm, args)));
+            }
+            return vm.alloc(std::move(out));
+        }, std::vector<Handle>{self});
     if (name == "reverse")
         return makeMethod(vm,
             "reverse", {}, [self, self_list](KiritoVM& vm, std::span<const Handle>) -> Handle {
@@ -531,6 +545,20 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
     auto dict = [](KiritoVM& vm, Handle self) -> DictVal& {
         return static_cast<DictVal&>(vm.arena().deref(self));
     };
+    // apply(fn) — a new Dict with the same keys and `fn` applied to each value (like tensor.apply).
+    if (name == "apply")
+        return bind("apply", {"fn"}, [self, dict](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Handle fn = a[0];
+            auto pairs = dict(vm, self).pairs();                  // snapshot
+            RootScope rs(vm);
+            auto out = std::make_unique<DictVal>();
+            for (auto& [k, v] : pairs) {
+                std::array<Handle, 1> args{v};
+                Handle nv = rs.add(vm.arena().deref(fn).call(vm, args));
+                out->set(vm.arena(), k, nv);
+            }
+            return vm.alloc(std::move(out));
+        });
     if (name == "keys")
         return bind("keys", {}, [self, dict](KiritoVM& vm, std::span<const Handle>) -> Handle {
             RootScope rs(vm);
@@ -643,6 +671,20 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
 }
 
 inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
+    // apply(fn) — a new Set with `fn` applied to each element (like tensor.apply: same type out;
+    // transformed elements that collide collapse, as in any Set).
+    if (name == "apply")
+        return makeMethod(vm, "apply", {"fn"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Handle fn = a[0];
+            std::vector<Handle> src = static_cast<SetVal&>(vm.arena().deref(self)).items();  // snapshot
+            RootScope rs(vm);
+            auto out = std::make_unique<SetVal>();
+            for (Handle h : src) {
+                std::array<Handle, 1> args{h};
+                out->add(vm.arena(), rs.add(vm.arena().deref(fn).call(vm, args)));
+            }
+            return vm.alloc(std::move(out));
+        }, std::vector<Handle>{self});
     if (name == "add")
         return makeMethod(vm, "add", {"value"},
             [self](KiritoVM& vm, std::span<const Handle> args) -> Handle {
@@ -943,6 +985,23 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             std::string enc = "utf-8";
             if (!a.empty() && vm.arena().deref(a[0]).kind() != ValueKind::None) enc = asStr(vm, a[0], "encode");
             return vm.alloc(std::make_unique<BytesVal>(bytesutil::encode(recv(vm, self), enc)));
+        });
+    // apply(fn) — a new String with `fn` applied to each character (fn takes/returns a String).
+    if (name == "apply")
+        return bind("apply", {"fn"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Handle fn = a[0];
+            std::string s = recv(vm, self);                  // copy: immutable, GC-safe across calls
+            std::vector<std::size_t> starts = utf8Starts(s);
+            std::string out;
+            for (std::size_t i = 0; i < starts.size(); ++i) {
+                std::size_t b = starts[i], e = (i + 1 < starts.size()) ? starts[i + 1] : s.size();
+                RootScope rs(vm);                            // root the per-char arg + result across the call
+                std::array<Handle, 1> args{rs.add(vm.makeString(s.substr(b, e - b)))};
+                const Object& r = vm.arena().deref(rs.add(vm.arena().deref(fn).call(vm, args)));
+                if (r.kind() != ValueKind::String) throw KiritoError("String apply: result must be a String");
+                out += static_cast<const StrVal&>(r).value();
+            }
+            return vm.makeString(std::move(out));
         });
     if (name == "upper")
         return bind("upper", {}, [self, recv, mapCase](KiritoVM& vm, std::span<const Handle>) {
@@ -1889,8 +1948,15 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
             return nf.hasSignature() ? inspectNativeSignature(vm, nf.name(), nf)
                                      : nf.name() + "(...)  [native]";
         }
-        default:
-            return o.typeName() + " value";
+        default: {
+            // Built-in types (List/Dict/Set/Bytes/…) that declare members list them; scalars don't.
+            std::vector<std::string> mem = o.inspectMembers();
+            if (mem.empty()) return o.typeName() + " value";
+            std::sort(mem.begin(), mem.end());
+            std::string out = o.typeName() + " value:\n";
+            for (const std::string& line : mem) out += "  " + line + "\n";
+            return out.substr(0, out.size() - 1);
+        }
     }
 }
 
