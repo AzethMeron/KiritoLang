@@ -30,10 +30,12 @@ Notepad++ has a built-in **User Defined Language** system, so no plugin is neede
 
 `.ki` files are then highlighted automatically (or pick **Kirito** from the `Language` menu).
 
-> The colours are **theme-agnostic**: no style paints a background (the editor's own background
-> shows through) and only meaningful tokens are tinted, in hues chosen to read on **both light and
-> dark** Notepad++ themes. Plain text and operators inherit the theme's default colour, so there's
-> nothing to hand-tweak when you switch themes.
+> The colours are **theme-agnostic**: no style paints a background, so the editor's own background
+> shows through (no coloured boxes behind the text) on **both light and dark** Notepad++ themes.
+> Meaningful tokens are tinted from a Solarized-style palette; plain text and operators use a muted
+> slate foreground. Every style carries an explicit foreground colour (a Notepad++ UDL style with no
+> colour set falls back to a white box, not transparency), and all the hues read on either
+> background — so there's nothing to hand-tweak when you switch themes.
 
 ## Vim / Neovim
 
