@@ -1,0 +1,97 @@
+#include <complex>
+#include <string>
+
+#include "../check.hpp"
+#include "kirito.hpp"
+#include "kirito/tensor.hpp"
+
+using namespace kirito;
+using tensor::Shape;
+using tensor::Tensor;
+
+static std::string evalStr(KiritoVM& vm, const std::string& src) { return vm.stringify(vm.runSource(src)); }
+
+int main() {
+    // ===== the engine (tensor.hpp), tested directly =====================================
+    // shape / strides / numel
+    CHECK(tensor::numel({2, 3, 4}) == 24);
+    CHECK(tensor::rowMajorStrides({2, 3, 4}) == Shape({12, 4, 1}));
+
+    // broadcasting rules
+    CHECK(tensor::broadcastShapes({2, 3}, {3}) == Shape({2, 3}));
+    CHECK(tensor::broadcastShapes({2, 1}, {1, 3}) == Shape({2, 3}));
+    CHECK_THROWS(tensor::broadcastShapes({2, 3}, {4}));
+
+    // construction + indexing
+    Tensor<double> a({2, 3}, {1, 2, 3, 4, 5, 6});
+    CHECK(a.ndim() == 2 && a.size() == 6);
+    CHECK(a.at({1, 2}) == 6.0);
+    CHECK_THROWS(a.at({2, 0}));            // out of range
+    CHECK_THROWS((Tensor<double>({2, 2}, {1, 2, 3})));  // data/shape mismatch
+
+    // reshape / flatten / transpose / permute
+    CHECK(tensor::reshape(a, {3, 2}).shape == Shape({3, 2}));
+    CHECK_THROWS(tensor::reshape(a, {4, 2}));
+    CHECK(tensor::flatten(a).shape == Shape({6}));
+    auto at = tensor::transpose(a);       // 3x2
+    CHECK(at.shape == Shape({3, 2}));
+    CHECK(at.at({0, 1}) == 4.0 && at.at({2, 0}) == 3.0);
+    CHECK(tensor::permute(a, {1, 0}).at({2, 0}) == 3.0);
+    CHECK_THROWS(tensor::permute(a, {0, 0}));  // not a permutation
+
+    // elementwise (with broadcasting) + scalar
+    CHECK(tensor::add(a, a).at({1, 2}) == 12.0);
+    Tensor<double> row({1, 3}, {10, 20, 30});
+    CHECK(tensor::add(a, row).at({1, 0}) == 14.0);   // broadcast the row
+    CHECK(tensor::scalarOp(a, 2.0, '*').at({0, 1}) == 4.0);
+    CHECK_THROWS(tensor::div(a, Tensor<double>({2, 3}, {0, 1, 1, 1, 1, 1})));  // divide by zero
+
+    // matmul (2-D) and batched
+    Tensor<double> p({2, 2}, {1, 2, 3, 4}), q({2, 2}, {5, 6, 7, 8});
+    auto pq = tensor::matmul(p, q);
+    CHECK(pq.at({0, 0}) == 19.0 && pq.at({1, 1}) == 50.0);
+    CHECK_THROWS(tensor::matmul(p, Tensor<double>({3, 2})));   // inner dims differ
+    Tensor<double> batch({2, 2, 2}, {1, 0, 0, 1, 2, 0, 0, 2});  // two diagonal matrices
+    CHECK(tensor::matmul(batch, batch).shape == Shape({2, 2, 2}));
+
+    // dot, reductions
+    CHECK(tensor::dot(Tensor<double>({3}, {1, 2, 3}), Tensor<double>({3}, {4, 5, 6})) == 32.0);
+    CHECK(tensor::sumAll(a) == 21.0);
+    CHECK(tensor::minAll(a) == 1.0 && tensor::maxAll(a) == 6.0);
+    auto s0 = tensor::reduceAxis(a, 0, [](double x, double y) { return x + y; });
+    CHECK(s0.shape == Shape({3}) && s0.at({0}) == 5.0 && s0.at({2}) == 9.0);
+
+    // linear algebra (square 2-D)
+    Tensor<double> A({2, 2}, {1, 2, 3, 4});
+    CHECK(tensor::determinant(A) == -2.0);
+    CHECK(tensor::trace(A) == 5.0);
+    auto inv = tensor::inverse(A);
+    auto I = tensor::matmul(A, inv);                // ~ identity
+    CHECK(std::fabs(I.at({0, 0}) - 1.0) < 1e-9 && std::fabs(I.at({0, 1})) < 1e-9);
+    CHECK_THROWS(tensor::inverse(Tensor<double>({2, 2}, {1, 2, 2, 4})));  // singular
+    CHECK_THROWS(tensor::determinant(Tensor<double>({2, 3})));            // non-square
+
+    // complex element type: the same engine, instantiated for std::complex<double>
+    using cd = std::complex<double>;
+    Tensor<cd> z({2, 2}, {cd(1, 1), cd(2, 0), cd(0, 1), cd(1, -1)});
+    CHECK(tensor::determinant(z) == cd(2, -2));     // (1+i)(1-i) - 2i = 2 - 2i
+    CHECK_THROWS(tensor::minAll(z));                // complex is unordered
+
+    // ===== the Kirito `tensor` module ===================================================
+    KiritoVM vm;
+    auto run = [&](const std::string& body) { return evalStr(vm, "var T = import(\"tensor\")\n" + body); };
+    CHECK(run("T.Tensor([[1, 2], [3, 4]])") == "[[1.0, 2.0], [3.0, 4.0]]");
+    CHECK(run("T.Tensor([[1, 2], [3, 4]]).dtype()") == "Float");
+    CHECK(run("T.zeros([2, 3]).shape()") == "[2, 3]");
+    CHECK(run("T.Tensor([1, 2, 3]) + T.Tensor([10, 20, 30])") == "[11.0, 22.0, 33.0]");
+    CHECK(run("T.Tensor([[1, 2], [3, 4]]).matmul(T.Tensor([[5, 6], [7, 8]]))") == "[[19.0, 22.0], [43.0, 50.0]]");
+    CHECK(run("T.Tensor([[1, 2], [3, 4]]).sum()") == "10.0");
+    CHECK(run("T.Tensor([[1, 2], [3, 4]]).sum(0)") == "[4.0, 6.0]");
+    CHECK(run("T.Tensor([1, 4, 9]).apply(Function(x): return x ** 0.5)") == "[1.0, 2.0, 3.0]");
+    CHECK(run("T.Tensor([[1, 2], [3, 4]], dtype=\"Complex\").dtype()") == "Complex");
+    CHECK(run("T.Tensor([1, 2, 3])[1]") == "2.0");
+    CHECK_THROWS(vm.runSource("import(\"tensor\").Tensor([[1, 2], [3]])\n"));            // ragged
+    CHECK_THROWS(vm.runSource("import(\"tensor\").Tensor([1, 2, 3], dtype=\"Complex\").min()\n"));  // complex min
+
+    return RUN_TESTS();
+}

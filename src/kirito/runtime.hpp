@@ -2508,6 +2508,7 @@ inline void KiritoVM::installStandardLibrary() {
     install<RandomModule>();
     install<MatrixModule>();
     install<ComplexModule>();
+    install<TensorModule>();
     install<JsonModule>();
     install<NetModule>();
     install<SerializeModule>();

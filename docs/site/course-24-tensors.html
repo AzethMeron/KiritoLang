@@ -1,0 +1,123 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 24 — Tensors — Kirito</title><style>
+:root{--bg:#16161a;--fg:#e4e4ea;--muted:#9a9aa6;--accent:#9b87ff;--code-bg:#1e1e25;
+--border:#2c2c35;--side:#1b1b21;--side-hover:#26262f}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:var(--side-hover);text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#16161a}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:var(--fg)}
+.kw{color:#c678dd}.str{color:#98c379}.com{color:#7f848e;font-style:italic}.num{color:#d19a66}
+.builtin{color:#61afef}
+a.xref{text-decoration:none}
+a.xref:hover{text-decoration:underline}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values.html">Lesson 2 — Values and Variables</a><a href="course-03-numbers.html">Lesson 3 — Numbers and Arithmetic</a><a href="course-04-strings.html">Lesson 4 — Strings</a><a href="course-05-control-flow.html">Lesson 5 — Booleans and Control Flow</a><a href="course-06-loops.html">Lesson 6 — Loops and Iteration</a><a href="course-07-lists.html">Lesson 7 — Lists</a><a href="course-08-sets-dicts.html">Lesson 8 — Sets and Dictionaries</a><a href="course-09-unpacking.html">Lesson 9 — Packing and Unpacking</a><a href="course-10-functions.html">Lesson 10 — Functions</a><a href="course-11-closures.html">Lesson 11 — Closures and First-Class Functions</a><a href="course-12-annotations.html">Lesson 12 — Type Annotations and Runtime Checks</a><a href="course-13-classes.html">Lesson 13 — Classes I: Data and Behavior</a><a href="course-14-operators.html">Lesson 14 — Classes II: Operators and Protocols</a><a href="course-15-inheritance.html">Lesson 15 — Classes III: Inheritance and super</a><a href="course-16-errors.html">Lesson 16 — Errors and Exceptions</a><a href="course-17-context-managers.html">Lesson 17 — Context Managers and with</a><a href="course-18-files-io.html">Lesson 18 — Files, I/O, and Streams</a><a href="course-19-stdlib-tour.html">Lesson 19 — A Tour of the Standard Library</a><a href="course-20-regex.html">Lesson 20 — Regular Expressions</a><a href="course-21-cli.html">Lesson 21 — Command-Line Programs</a><a href="course-22-data.html">Lesson 22 — Tabular Data Analysis</a><a href="course-23-linear-algebra.html">Lesson 23 — Matrices, Vectors &amp; Complex Numbers</a><a href="course-24-tensors.html" class="active">Lesson 24 — Tensors</a><a href="course-25-capstone.html">Lesson 25 — Capstone: A Contact Book</a></nav><main id="content"><h1 id="lesson-24-tensors">Lesson 24 — Tensors</h1>
+<p>A <strong>tensor</strong> is a dense array of any number of dimensions — the generalization of a matrix beyond 2-D. The <a class="xref" href="stdlib.html#tensor"><code>tensor</code></a> module is the engine the <a class="xref" href="stdlib.html#matrix"><code>matrix</code></a> and <a class="xref" href="stdlib.html#complex"><code>complex</code></a> matrix types are built on: a 2-D tensor <em>is</em> a matrix. It&#x27;s CPU-only and has no autograd — a solid numeric container with all the usual array operations and NumPy-style broadcasting.</p>
+<h2 id="creating-tensors">Creating tensors</h2>
+<p>Build one from a (rectangular) nested list — the nesting depth sets the <strong>rank</strong> — or with a factory:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+
+<span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], [<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]])      <span class="com"># a 2×3 tensor</span>
+io.<span class="builtin">print</span>(a.shape(), a.ndim(), a.dtype())      <span class="com"># [2, 3] 2 Float</span>
+io.<span class="builtin">print</span>(T.zeros([<span class="num">2</span>, <span class="num">2</span>]))                      <span class="com"># [[0.0, 0.0], [0.0, 0.0]]</span>
+io.<span class="builtin">print</span>(T.ones([<span class="num">3</span>]))                          <span class="com"># [1.0, 1.0, 1.0]</span>
+io.<span class="builtin">print</span>(T.eye(<span class="num">3</span>))                             <span class="com"># the 3×3 identity</span>
+io.<span class="builtin">print</span>(T.arange(<span class="num">0</span>, <span class="num">6</span>, <span class="num">2</span>))                    <span class="com"># [0.0, 2.0, 4.0]</span>
+io.<span class="builtin">print</span>(T.full([<span class="num">2</span>, <span class="num">2</span>], <span class="num">9</span>))                    <span class="com"># [[9.0, 9.0], [9.0, 9.0]]</span></code></pre>
+<p>A 3-D tensor is just a deeper nesting:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<span class="kw">var</span> cube = T.Tensor([[[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]], [[<span class="num">5</span>, <span class="num">6</span>], [<span class="num">7</span>, <span class="num">8</span>]]])   <span class="com"># shape [2, 2, 2]</span>
+io.<span class="builtin">print</span>(cube.shape())          <span class="com"># [2, 2, 2]</span>
+io.<span class="builtin">print</span>(cube.ndim())           <span class="com"># 3</span></code></pre>
+<h2 id="indexing">Indexing</h2>
+<p>A <strong>full</strong> index (one integer per dimension) returns the scalar element; a <strong>partial</strong> index returns the sub-tensor of the remaining axes:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<span class="kw">var</span> cube = T.Tensor([[[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]], [[<span class="num">5</span>, <span class="num">6</span>], [<span class="num">7</span>, <span class="num">8</span>]]])
+
+io.<span class="builtin">print</span>(cube[<span class="num">1</span>, <span class="num">0</span>, <span class="num">1</span>])         <span class="com"># 6.0   — a single element</span>
+io.<span class="builtin">print</span>(cube[<span class="num">0</span>])               <span class="com"># [[1.0, 2.0], [3.0, 4.0]]   — a 2×2 sub-tensor</span>
+cube[<span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>] = <span class="num">99</span>              <span class="com"># assign an element</span>
+io.<span class="builtin">print</span>(cube[<span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>])         <span class="com"># 99.0</span></code></pre>
+<h2 id="element-wise-arithmetic-and-broadcasting">Element-wise arithmetic and broadcasting</h2>
+<p><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code> are <strong>element-wise</strong> — note <code>*</code> is the Hadamard (element-wise) product, <strong>not</strong> matrix multiply. Shapes are combined with NumPy <strong>broadcasting</strong>: align from the right, and each axis must be equal or <code>1</code>.</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], [<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]])
+
+io.<span class="builtin">print</span>(a + a)                       <span class="com"># [[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]</span>
+io.<span class="builtin">print</span>(a * a)                       <span class="com"># element-wise square</span>
+io.<span class="builtin">print</span>(a * <span class="num">2</span>)                       <span class="com"># scalar multiply</span>
+io.<span class="builtin">print</span>(a + T.Tensor([[<span class="num">10</span>, <span class="num">20</span>, <span class="num">30</span>]]))   <span class="com"># broadcast a row over both rows</span>
+io.<span class="builtin">print</span>(a + T.Tensor([[<span class="num">100</span>], [<span class="num">200</span>]]))   <span class="com"># broadcast a column over all columns</span></code></pre>
+<h2 id="matrix-products-and-reductions">Matrix products and reductions</h2>
+<p>Matrix multiply is the <code>matmul</code> method (since <code>*</code> is element-wise); it also works <strong>batched</strong> over the leading dimensions. Reductions take an optional <code>axis</code>:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], [<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]])
+
+io.<span class="builtin">print</span>(T.Tensor([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]]).matmul(T.Tensor([[<span class="num">5</span>, <span class="num">6</span>], [<span class="num">7</span>, <span class="num">8</span>]])))  <span class="com"># [[19.0, 22.0], [43.0, 50.0]]</span>
+io.<span class="builtin">print</span>(T.Tensor([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>]).dot(T.Tensor([<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>])))                   <span class="com"># 32.0</span>
+
+io.<span class="builtin">print</span>(a.<span class="builtin">sum</span>())               <span class="com"># 21.0   — the whole tensor</span>
+io.<span class="builtin">print</span>(a.<span class="builtin">sum</span>(<span class="num">0</span>))              <span class="com"># [5.0, 7.0, 9.0]   — reduce axis 0</span>
+io.<span class="builtin">print</span>(a.<span class="builtin">sum</span>(<span class="num">1</span>))              <span class="com"># [6.0, 15.0]       — reduce axis 1</span>
+io.<span class="builtin">print</span>(a.mean(), a.<span class="builtin">min</span>(), a.<span class="builtin">max</span>())   <span class="com"># 3.5 1.0 6.0</span></code></pre>
+<h2 id="reshaping-and-mapping">Reshaping and mapping</h2>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], [<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]])
+
+io.<span class="builtin">print</span>(a.transpose())         <span class="com"># [[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]</span>
+io.<span class="builtin">print</span>(a.reshape([<span class="num">3</span>, <span class="num">2</span>]))     <span class="com"># same data, new shape</span>
+io.<span class="builtin">print</span>(a.flatten())           <span class="com"># [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]</span>
+io.<span class="builtin">print</span>(a.permute([<span class="num">1</span>, <span class="num">0</span>]))     <span class="com"># general axis reorder (== transpose for 2-D)</span>
+
+<span class="com"># apply maps a function over every element — the loop runs in C++:</span>
+io.<span class="builtin">print</span>(T.Tensor([<span class="num">1</span>, <span class="num">4</span>, <span class="num">9</span>]).apply(<span class="kw">Function</span>(x): <span class="kw">return</span> x ** <span class="num">0.5</span>))   <span class="com"># [1.0, 2.0, 3.0]</span></code></pre>
+<h2 id="complex-tensors">Complex tensors</h2>
+<p>Pass <code>dtype = &quot;Complex&quot;</code> to work over <code>std::complex&lt;double&gt;</code>. The same operations apply; <code>astype</code> converts between dtypes, and mixing a Float and a Complex tensor promotes the result to Complex.</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<span class="kw">var</span> C = <span class="kw">import</span>(<span class="str">&quot;complex&quot;</span>)
+
+<span class="kw">var</span> z = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]], dtype = <span class="str">&quot;Complex&quot;</span>)
+io.<span class="builtin">print</span>(z.dtype())             <span class="com"># Complex</span>
+io.<span class="builtin">print</span>(z[<span class="num">0</span>, <span class="num">0</span>])               <span class="com"># 1.0+0.0i   — elements are Complex values</span>
+io.<span class="builtin">print</span>(z.matmul(z))           <span class="com"># complex matrix product</span>
+io.<span class="builtin">print</span>(T.Tensor([<span class="num">1</span>, <span class="num">2</span>]).astype(<span class="str">&quot;Complex&quot;</span>).dtype())   <span class="com"># Complex</span>
+io.<span class="builtin">print</span>((T.Tensor([<span class="num">1</span>, <span class="num">2</span>]) + T.Tensor([<span class="num">1</span>, <span class="num">1</span>], dtype = <span class="str">&quot;Complex&quot;</span>)).dtype())   <span class="com"># Complex (promoted)</span></code></pre>
+<p>(<code>min</code>/<code>max</code> raise for a Complex tensor — complex numbers are unordered.)</p>
+<h2 id="recap">Recap</h2>
+<ul><li>A tensor is an N-dimensional array; <a class="xref" href="stdlib.html#matrix"><code>matrix</code></a> and <a class="xref" href="stdlib.html#complex"><code>complex</code></a> matrices are 2-D tensors.</li><li>Construct with <a class="xref" href="stdlib.html#sym-Tensor"><code>Tensor(nested)</code></a> or <code>zeros</code>/<code>ones</code>/<a class="xref" href="stdlib.html#sym-full"><code>full</code></a>/<a class="xref" href="stdlib.html#sym-eye"><code>eye</code></a>/<a class="xref" href="stdlib.html#sym-arange"><code>arange</code></a>; <code>dtype</code> is <code>&quot;Float&quot;</code> (default) or <code>&quot;Complex&quot;</code>.</li><li><code>t[i, j, ...]</code> is a full index (element); <code>t[i]</code> is a partial index (sub-tensor).</li><li><code>+ - * /</code> are element-wise with broadcasting; <strong><code>matmul</code></strong> is the matrix product (also batched).</li><li id="sym-transpose"><a class="xref" href="course-24-tensors.html#sym-transpose"><code>transpose</code></a>/<code>permute</code>/<code>reshape</code>/<code>flatten</code> reshape; <strong><code>apply</code></strong> maps a function over every element; <a class="xref" href="builtins.html#sym-sum"><code>sum</code></a>/<a class="xref" href="stdlib.html#sym-mean"><code>mean</code></a>/<a class="xref" href="stdlib.html#sym-prod"><code>prod</code></a>/<code>min</code>/<code>max</code> reduce (whole-tensor or along an <code>axis</code>).</li></ul>
+<p>Next: <strong><a href="34-course-25-capstone.html">Lesson 25 — Capstone</a></strong>.</p>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

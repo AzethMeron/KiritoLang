@@ -164,4 +164,4 @@ function, its parameters, and its return type — so you can explore the library
   `hermitian`, Gaussian `determinant`, Gauss-Jordan `inverse`).
 - All of it supports keyword arguments and `inspect`.
 
-Next: **[Lesson 24 — Capstone](33-course-24-capstone.html)**.
+Next: **[Lesson 24 — Tensors](33-course-24-tensors.html)**.

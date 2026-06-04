@@ -12,6 +12,7 @@
 #include "builtins.hpp"
 #include "collections.hpp"
 #include "native.hpp"
+#include "tensor.hpp"
 
 namespace kirito {
 
@@ -23,29 +24,32 @@ namespace kirito {
 #  pragma GCC diagnostic ignored "-Wshadow"
 #endif
 
-// A dense real-valued matrix (row-major). Element type is double; there are no complex numbers.
+// A dense real-valued matrix: a rank-2 `tensor::Tensor<double>`. The heavy operations (multiply,
+// transpose, determinant, inverse) are the tensor engine's — this class is just the Kirito-facing
+// 2-D view, with the familiar matrix API and the `*`-means-matrix-multiply convention.
 class MatrixVal : public NativeClass<MatrixVal> {
 public:
     static constexpr const char* kTypeName = "Matrix";
-    std::size_t rows = 0, cols = 0;
-    std::vector<double> data;
+    tensor::Tensor<double> t;  // t.shape == {rows, cols}
 
     MatrixVal() = default;
-    MatrixVal(std::size_t r, std::size_t c, double fill = 0.0) : rows(r), cols(c), data(r * c, fill) {}
+    MatrixVal(std::size_t r, std::size_t c, double fill = 0.0) : t(tensor::Shape{r, c}, fill) {}
+    explicit MatrixVal(tensor::Tensor<double> tt) : t(std::move(tt)) {}
 
-    double& at(std::size_t r, std::size_t c) { return data[r * cols + c]; }
-    double at(std::size_t r, std::size_t c) const { return data[r * cols + c]; }
-
-    // A matrix with one of its dimensions equal to 1 is a vector (a row 1×n or column n×1). Its
-    // elements are then `data` in order, regardless of orientation.
-    bool isVector() const { return rows == 1 || cols == 1; }
+    std::size_t rows() const { return t.shape.empty() ? 0 : t.shape[0]; }
+    std::size_t cols() const { return t.shape.size() < 2 ? 0 : t.shape[1]; }
+    std::vector<double>& data() { return t.data; }
+    const std::vector<double>& data() const { return t.data; }
+    double& at(std::size_t r, std::size_t c) { return t.data[r * cols() + c]; }
+    double at(std::size_t r, std::size_t c) const { return t.data[r * cols() + c]; }
+    bool isVector() const { return rows() == 1 || cols() == 1; }
 
     std::string str(StringifyCtx&) const override {
         std::string s = "[";
-        for (std::size_t r = 0; r < rows; ++r) {
+        for (std::size_t r = 0; r < rows(); ++r) {
             if (r) s += ", ";
             s += "[";
-            for (std::size_t c = 0; c < cols; ++c) {
+            for (std::size_t c = 0; c < cols(); ++c) {
                 if (c) s += ", ";
                 s += floatToString(at(r, c));
             }
@@ -54,11 +58,10 @@ public:
         return s + "]";
     }
     bool equals(const ObjectArena&, const Object& other) const override {
-        if (other.kind() != ValueKind::Instance) return false;
         const auto* m = dynamic_cast<const MatrixVal*>(&other);
-        if (!m || m->rows != rows || m->cols != cols) return false;
-        for (std::size_t i = 0; i < data.size(); ++i)
-            if (std::fabs(data[i] - m->data[i]) > 1e-9) return false;
+        if (!m || m->t.shape != t.shape) return false;
+        for (std::size_t i = 0; i < t.data.size(); ++i)
+            if (std::fabs(t.data[i] - m->t.data[i]) > 1e-9) return false;
         return true;
     }
 
@@ -103,54 +106,10 @@ inline std::unique_ptr<MatrixVal> make(std::size_t r, std::size_t c, double fill
     if (c != 0 && r > kMaxMatrixElems / c) throw KiritoError("Matrix too large");
     return std::make_unique<MatrixVal>(r, c, fill);
 }
-
-// Determinant via Gaussian elimination with partial pivoting (works on a copy).
-inline double determinant(const MatrixVal& m) {
-    if (m.rows != m.cols) throw KiritoError("determinant requires a square Matrix");
-    std::size_t n = m.rows;
-    std::vector<double> a = m.data;
-    double det = 1.0;
-    for (std::size_t k = 0; k < n; ++k) {
-        std::size_t piv = k;
-        for (std::size_t i = k + 1; i < n; ++i)
-            if (std::fabs(a[i * n + k]) > std::fabs(a[piv * n + k])) piv = i;
-        if (std::fabs(a[piv * n + k]) < 1e-15) return 0.0;
-        if (piv != k) { for (std::size_t j = 0; j < n; ++j) std::swap(a[k * n + j], a[piv * n + j]); det = -det; }
-        det *= a[k * n + k];
-        for (std::size_t i = k + 1; i < n; ++i) {
-            double f = a[i * n + k] / a[k * n + k];
-            for (std::size_t j = k; j < n; ++j) a[i * n + j] -= f * a[k * n + j];
-        }
-    }
-    return det;
-}
-
-// Inverse via Gauss-Jordan on [A | I].
-inline std::unique_ptr<MatrixVal> inverse(const MatrixVal& m) {
-    if (m.rows != m.cols) throw KiritoError("inverse requires a square Matrix");
-    std::size_t n = m.rows;
-    std::vector<double> a = m.data;
-    auto inv = make(n, n);
-    for (std::size_t i = 0; i < n; ++i) inv->at(i, i) = 1.0;
-    for (std::size_t k = 0; k < n; ++k) {
-        std::size_t piv = k;
-        for (std::size_t i = k + 1; i < n; ++i)
-            if (std::fabs(a[i * n + k]) > std::fabs(a[piv * n + k])) piv = i;
-        if (std::fabs(a[piv * n + k]) < 1e-15) throw KiritoError("Matrix is singular (no inverse)");
-        if (piv != k)
-            for (std::size_t j = 0; j < n; ++j) {
-                std::swap(a[k * n + j], a[piv * n + j]);
-                std::swap(inv->at(k, j), inv->at(piv, j));
-            }
-        double d = a[k * n + k];
-        for (std::size_t j = 0; j < n; ++j) { a[k * n + j] /= d; inv->at(k, j) /= d; }
-        for (std::size_t i = 0; i < n; ++i) {
-            if (i == k) continue;
-            double f = a[i * n + k];
-            for (std::size_t j = 0; j < n; ++j) { a[i * n + j] -= f * a[k * n + j]; inv->at(i, j) -= f * inv->at(k, j); }
-        }
-    }
-    return inv;
+inline std::unique_ptr<MatrixVal> fromTensor(tensor::Tensor<double> tt) {
+    if (tt.ndim() == 2 && tt.shape[1] != 0 && tt.shape[0] > kMaxMatrixElems / tt.shape[1])
+        throw KiritoError("Matrix too large");
+    return std::make_unique<MatrixVal>(std::move(tt));
 }
 
 }  // namespace mat
@@ -158,29 +117,22 @@ inline std::unique_ptr<MatrixVal> inverse(const MatrixVal& m) {
 inline Handle MatrixVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
     const Object& b = vm.arena().deref(rhs);
     const auto* other = dynamic_cast<const MatrixVal*>(&b);
-    if (op == BinOp::Add || op == BinOp::Sub) {
-        if (!other || other->rows != rows || other->cols != cols)
-            throw KiritoError("Matrix +/- requires Matrices of equal shape");
-        auto r = mat::make(rows, cols);
-        for (std::size_t i = 0; i < data.size(); ++i)
-            r->data[i] = op == BinOp::Add ? data[i] + other->data[i] : data[i] - other->data[i];
-        return vm.alloc(std::move(r));
-    }
-    if (op == BinOp::Mul) {
-        if (other) {  // matrix multiply (the dot product of two vectors is `u.dot(v)`, not `u * v`)
-            if (cols != other->rows) throw KiritoError("Matrix multiply: inner dimensions differ");
-            auto r = mat::make(rows, other->cols);
-            for (std::size_t i = 0; i < rows; ++i)
-                for (std::size_t k = 0; k < cols; ++k) {
-                    double v = at(i, k);
-                    for (std::size_t j = 0; j < other->cols; ++j) r->at(i, j) += v * other->at(k, j);
-                }
-            return vm.alloc(std::move(r));
+    try {
+        if (op == BinOp::Add || op == BinOp::Sub) {
+            if (!other || other->t.shape != t.shape)
+                throw KiritoError("Matrix +/- requires Matrices of equal shape");
+            return vm.alloc(mat::fromTensor(op == BinOp::Add ? tensor::add(t, other->t)
+                                                             : tensor::sub(t, other->t)));
         }
-        double s = mat::numOf(vm, rhs);  // scalar
-        auto r = mat::make(rows, cols);
-        for (std::size_t i = 0; i < data.size(); ++i) r->data[i] = data[i] * s;
-        return vm.alloc(std::move(r));
+        if (op == BinOp::Mul) {
+            if (other) {  // matrix multiply (the dot product of two vectors is `u.dot(v)`, not `u * v`)
+                if (cols() != other->rows()) throw KiritoError("Matrix multiply: inner dimensions differ");
+                return vm.alloc(mat::fromTensor(tensor::matmul(t, other->t)));
+            }
+            return vm.alloc(mat::fromTensor(tensor::scalarOp(t, mat::numOf(vm, rhs), '*')));  // scalar
+        }
+    } catch (const tensor::TensorError& e) {
+        throw KiritoError(e.what());
     }
     throw KiritoError("Matrix does not support this operator");
 }
@@ -188,15 +140,15 @@ inline Handle MatrixVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
 inline Handle MatrixVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
     if (keys.size() == 1) {  // a whole row, as a List
         std::size_t r = indexOf(vm, keys[0]);
-        if (r >= rows) throw KiritoError("Matrix row index out of range");
+        if (r >= rows()) throw KiritoError("Matrix row index out of range");
         RootScope rs(vm);
         auto list = std::make_unique<ListVal>();
-        for (std::size_t c = 0; c < cols; ++c) list->elems.push_back(rs.add(vm.makeFloat(at(r, c))));
+        for (std::size_t c = 0; c < cols(); ++c) list->elems.push_back(rs.add(vm.makeFloat(at(r, c))));
         return vm.alloc(std::move(list));
     }
     if (keys.size() == 2) {  // a single element
         std::size_t r = indexOf(vm, keys[0]), c = indexOf(vm, keys[1]);
-        if (r >= rows || c >= cols) throw KiritoError("Matrix index out of range");
+        if (r >= rows() || c >= cols()) throw KiritoError("Matrix index out of range");
         return vm.makeFloat(at(r, c));
     }
     throw KiritoError("Matrix index needs 1 (row) or 2 (element) indices");
@@ -205,7 +157,7 @@ inline Handle MatrixVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
 inline void MatrixVal::setItem(KiritoVM& vm, std::span<const Handle> keys, Handle value) {
     if (keys.size() != 2) throw KiritoError("Matrix element assignment needs two indices: m[i, j] = v");
     std::size_t r = indexOf(vm, keys[0]), c = indexOf(vm, keys[1]);
-    if (r >= rows || c >= cols) throw KiritoError("Matrix index out of range");
+    if (r >= rows() || c >= cols()) throw KiritoError("Matrix index out of range");
     at(r, c) = mat::numOf(vm, value);
 }
 
@@ -216,69 +168,66 @@ inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     auto self_m = [](KiritoVM& vm, Handle self) -> MatrixVal& {
         return static_cast<MatrixVal&>(vm.arena().deref(self));
     };
-    auto idx = [](KiritoVM& vm, Handle h) -> std::size_t {
-        const Object& o = vm.arena().deref(h);
-        if (o.kind() != ValueKind::Integer) throw KiritoError("Matrix index must be Integer");
-        int64_t v = static_cast<const IntVal&>(o).value();
-        if (v < 0) throw KiritoError("Matrix index out of range");
-        return static_cast<std::size_t>(v);
-    };
-    if (name == "rows") return bind("rows", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).rows)); });
-    if (name == "cols") return bind("cols", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).cols)); });
+    auto idx = [](KiritoVM& vm, Handle h) -> std::size_t { return MatrixVal::indexOf(vm, h); };
+    if (name == "rows") return bind("rows", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).rows())); });
+    if (name == "cols") return bind("cols", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).cols())); });
     if (name == "shape") return bind("shape", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
         auto list = std::make_unique<ListVal>();
-        list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.rows)));
-        list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.cols)));
+        list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.rows())));
+        list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.cols())));
         return vm.alloc(std::move(list));
     });
     if (name == "get") return bind("get", {"row", "col"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]), c = idx(vm, a[1]);
-        if (r >= m.rows || c >= m.cols) throw KiritoError("Matrix index out of range");
+        if (r >= m.rows() || c >= m.cols()) throw KiritoError("Matrix index out of range");
         return vm.makeFloat(m.at(r, c));
     });
     if (name == "set") return bind("set", {"row", "col", "value"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]), c = idx(vm, a[1]);
-        if (r >= m.rows || c >= m.cols) throw KiritoError("Matrix index out of range");
+        if (r >= m.rows() || c >= m.cols()) throw KiritoError("Matrix index out of range");
         m.at(r, c) = mat::numOf(vm, a[2]);
         return vm.none();
     });
-    if (name == "transpose") return bind("transpose", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
+    if (name == "transpose") return bind("transpose", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) {
+        return vm.alloc(mat::fromTensor(tensor::transpose(self_m(vm, self).t)));
+    });
+    if (name == "determinant") return bind("determinant", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
-        auto t = mat::make(m.cols, m.rows);
-        for (std::size_t r = 0; r < m.rows; ++r)
-            for (std::size_t c = 0; c < m.cols; ++c) t->at(c, r) = m.at(r, c);
-        return vm.alloc(std::move(t));
+        if (m.rows() != m.cols()) throw KiritoError("determinant requires a square Matrix");
+        return vm.makeFloat(tensor::determinant(m.t));
     });
-    if (name == "determinant") return bind("determinant", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeFloat(mat::determinant(self_m(vm, self))); });
-    if (name == "inverse") return bind("inverse", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.alloc(mat::inverse(self_m(vm, self))); });
-    if (name == "sum") return bind("sum", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
-        double s = 0; for (double v : self_m(vm, self).data) s += v; return vm.makeFloat(s);
+    if (name == "inverse") return bind("inverse", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        auto& m = self_m(vm, self);
+        if (m.rows() != m.cols()) throw KiritoError("inverse requires a square Matrix");
+        try { return vm.alloc(mat::fromTensor(tensor::inverse(m.t))); }
+        catch (const tensor::TensorError& e) { throw KiritoError(e.what()); }
     });
+    if (name == "sum") return bind("sum", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeFloat(tensor::sumAll(self_m(vm, self).t)); });
     if (name == "trace") return bind("trace", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
-        if (m.rows != m.cols) throw KiritoError("trace requires a square Matrix");
-        double s = 0; for (std::size_t i = 0; i < m.rows; ++i) s += m.at(i, i); return vm.makeFloat(s);
+        if (m.rows() != m.cols()) throw KiritoError("trace requires a square Matrix");
+        return vm.makeFloat(tensor::trace(m.t));
     });
     if (name == "apply") return bind("apply", {"fn"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         Handle fn = a[0];
         auto& m = self_m(vm, self);
-        auto out = mat::make(m.rows, m.cols);
-        for (std::size_t i = 0; i < m.data.size(); ++i) {
-            std::array<Handle, 1> args{vm.makeFloat(m.data[i])};
-            out->data[i] = mat::numOf(vm, vm.arena().deref(fn).call(vm, args));
+        auto out = mat::make(m.rows(), m.cols());
+        for (std::size_t i = 0; i < m.data().size(); ++i) {
+            std::array<Handle, 1> args{vm.makeFloat(m.data()[i])};
+            out->data()[i] = mat::numOf(vm, vm.arena().deref(fn).call(vm, args));
         }
         return vm.alloc(std::move(out));
     });
     if (name == "row") return bind("row", {"i"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]);
-        if (r >= m.rows) throw KiritoError("row index out of range");
+        if (r >= m.rows()) throw KiritoError("row index out of range");
         RootScope rs(vm);
         auto list = std::make_unique<ListVal>();
-        for (std::size_t c = 0; c < m.cols; ++c) list->elems.push_back(rs.add(vm.makeFloat(m.at(r, c))));
+        for (std::size_t c = 0; c < m.cols(); ++c) list->elems.push_back(rs.add(vm.makeFloat(m.at(r, c))));
         return vm.alloc(std::move(list));
     });
     // --- vector operations (a Matrix with one dimension == 1 is a vector) ---
@@ -287,26 +236,26 @@ inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         const auto* o = dynamic_cast<const MatrixVal*>(&vm.arena().deref(a[0]));
         if (!o) throw KiritoError("dot expects a Matrix vector");
         if (!m.isVector() || !o->isVector()) throw KiritoError("dot requires vectors (a 1×n or n×1 Matrix)");
-        if (m.data.size() != o->data.size()) throw KiritoError("dot requires vectors of equal length");
+        if (m.data().size() != o->data().size()) throw KiritoError("dot requires vectors of equal length");
         double acc = 0.0;
-        for (std::size_t i = 0; i < m.data.size(); ++i) acc += m.data[i] * o->data[i];
+        for (std::size_t i = 0; i < m.data().size(); ++i) acc += m.data()[i] * o->data()[i];
         return vm.makeFloat(acc);
     });
     if (name == "cross") return bind("cross", {"other"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         const auto* o = dynamic_cast<const MatrixVal*>(&vm.arena().deref(a[0]));
         if (!o) throw KiritoError("cross expects a Matrix vector");
-        if (!m.isVector() || !o->isVector() || m.data.size() != 3 || o->data.size() != 3)
+        if (!m.isVector() || !o->isVector() || m.data().size() != 3 || o->data().size() != 3)
             throw KiritoError("cross is only defined for two 3-element vectors");
-        const auto& u = m.data; const auto& v = o->data;
-        auto r = mat::make(m.rows, m.cols);  // result keeps this vector's orientation
-        r->data = {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
+        const auto& u = m.data(); const auto& v = o->data();
+        auto r = mat::make(m.rows(), m.cols());  // result keeps this vector's orientation
+        r->data() = {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
         return vm.alloc(std::move(r));
     });
     if (name == "norm") return bind("norm", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);  // Euclidean / Frobenius 2-norm (= the vector length for a vector)
         double acc = 0.0;
-        for (double x : m.data) acc += x * x;
+        for (double x : m.data()) acc += x * x;
         return vm.makeFloat(std::sqrt(acc));
     });
     return Object::getAttr(vm, self, name);
@@ -351,16 +300,15 @@ public:
         m.fn("identity", {{"n", "Integer"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::size_t n = static_cast<std::size_t>(Args(vm, a, "identity")[0].asInt("n"));
             auto mtx = mat::make(n, n);
-            for (std::size_t i = 0; i < mtx->rows; ++i) mtx->at(i, i) = 1.0;
+            for (std::size_t i = 0; i < mtx->rows(); ++i) mtx->at(i, i) = 1.0;
             return vm.alloc(std::move(mtx));
         });
         // vector(list) -> a 1×n row-vector Matrix (a flat list of numbers), the natural vector shape.
         m.fn("vector", {{"values", "List"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::vector<double> xs;
             for (Value e : Args(vm, a, "vector")[0].items()) xs.push_back(e.asFloat("vector element"));
-            auto mtx = mat::make(1, xs.size());
-            mtx->data = std::move(xs);
-            return vm.alloc(std::move(mtx));
+            std::size_t n = xs.size();
+            return vm.alloc(mat::fromTensor(tensor::Tensor<double>(tensor::Shape{1, n}, std::move(xs))));
         });
     }
 };

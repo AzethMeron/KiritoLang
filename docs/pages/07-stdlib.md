@@ -160,7 +160,9 @@ Object-based RNG — no global state; create a generator and call methods on it.
 
 ## matrix
 
-Dense real matrices. For complex-valued numbers and matrices, see the `complex` module below.
+Dense real matrices — a 2-D `tensor` of doubles, with the familiar matrix API and the
+`*`-means-matrix-multiply convention. For complex-valued numbers and matrices, see the `complex`
+module below; for arbitrary-rank arrays, see `tensor`.
 
 - `Matrix(rows: List) → Matrix` — build from a nested list of numbers (rows must be equal length).
 - `Matrix(rows: Integer, cols: Integer) → Matrix` — a zero matrix of the given shape.
@@ -294,6 +296,54 @@ square matrix and raise otherwise.
   `Σ conj(uᵢ)·vᵢ`, so `u.dot(u) = Σ |uᵢ|²` is real and non-negative. (`*` is always matrix multiply.)
 - `u.cross(v) → ComplexMatrix` — the cross product of two 3-element vectors.
 - `m.norm() → Float` — the Euclidean 2-norm `sqrt(Σ |zᵢ|²)`.
+
+---
+
+## tensor
+
+Dense **N-dimensional** arrays — the generalization of a matrix to any rank. The element type
+(**dtype**) is chosen at construction: `"Float"` (double, the default) or `"Complex"`. The numeric
+engine is shared C++ (`src/kirito/tensor.hpp`) and is what the `matrix` and `complex` matrix types are
+themselves built on; a 2-D tensor *is* a matrix. It is CPU-only and has no autograd — a plain,
+solid numeric container.
+
+### Constructors and factories
+
+- `Tensor(data: List, dtype = "Float") → Tensor` — build from a (rectangular) nested list; the
+  nesting depth sets the rank. `tensor` is an alias of `Tensor`.
+- `zeros(shape: List, dtype = "Float") → Tensor` — a tensor of zeros with the given shape.
+- `ones(shape: List, dtype = "Float") → Tensor` — a tensor of ones.
+- `full(shape: List, value: Number, dtype = "Float") → Tensor` — filled with `value`.
+- `eye(n: Integer, dtype = "Float") → Tensor` — the n×n identity matrix.
+- `arange(stop)` / `arange(start, stop[, step]) → Tensor` — a 1-D ramp (like Python's `range`, as
+  Floats).
+
+### Tensor object
+
+- `t.shape() → List`, `t.ndim() → Integer`, `t.size() → Integer`, `t.dtype() → String`.
+- `t[i, j, ...] → Number` — a **full** index (one per dimension) returns the scalar element.
+- `t[i] → Tensor` — a **partial** index returns the sub-tensor of the remaining axes.
+- `t[i, j, ...] = v` — assign an element (full index).
+- `a + b`, `a - b`, `a * b`, `a / b` — **element-wise** with NumPy **broadcasting** (axes align from
+  the right; each must be equal or 1). `*` is element-wise (Hadamard), **not** matrix multiply.
+  Mixing a `Float` and a `Complex` tensor promotes the result to `Complex`. A scalar operand applies
+  element-wise (`t * 2`).
+- `-t` — element-wise negation.
+- `a == b → Bool` — equal shape and element-wise equality (within a tolerance).
+- `t.matmul(other) → Tensor` — matrix product (2-D), or **batched** over the leading dimensions for
+  rank ≥ 2.
+- `t.dot(other) → Number` — the dot product of two 1-D tensors.
+- `t.transpose() → Tensor` — reverse all axes (the matrix transpose when 2-D).
+- `t.permute(axes: List) → Tensor` — reorder axes by the given permutation.
+- `t.reshape(shape: List) → Tensor` — same elements, new shape.
+- `t.flatten() → Tensor` — a 1-D copy.
+- `t.apply(fn) → Tensor` — a new tensor with `fn` mapped over every element (the element-wise map).
+- `t.astype(dtype: String) → Tensor` — convert dtype (`Float → Complex`, or `Complex → Float` keeping
+  the real part).
+- `t.sum(axis = None)`, `t.mean(axis = None)`, `t.prod(axis = None)` — reduce the whole tensor to a
+  scalar, or one `axis` to a lower-rank tensor.
+- `t.min() → Float`, `t.max() → Float` — whole-tensor extremes (raise for a `Complex` tensor, which
+  is unordered).
 
 ---
 

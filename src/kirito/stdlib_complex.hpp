@@ -14,6 +14,7 @@
 #include "builtins.hpp"
 #include "collections.hpp"
 #include "native.hpp"
+#include "tensor.hpp"
 
 namespace kirito {
 
@@ -137,28 +138,34 @@ inline Handle ComplexVal::getAttr(KiritoVM& vm, Handle self, std::string_view na
 }
 
 // ------------------------------------------------------------------- the complex Matrix value
+// A dense complex matrix: a rank-2 `tensor::Tensor<cdouble>`. Its operations are the tensor engine's
+// — the same code that backs the real `matrix`, instantiated for std::complex<double>.
 class ComplexMatrixVal : public NativeClass<ComplexMatrixVal> {
 public:
     static constexpr const char* kTypeName = "ComplexMatrix";
-    std::size_t rows = 0, cols = 0;
-    std::vector<cdouble> data;  // row-major
+    tensor::Tensor<cdouble> t;  // t.shape == {rows, cols}
 
     ComplexMatrixVal() = default;
     ComplexMatrixVal(std::size_t r, std::size_t c, cdouble fill = cdouble(0.0, 0.0))
-        : rows(r), cols(c), data(r * c, fill) {}
+        : t(tensor::Shape{r, c}, fill) {}
+    explicit ComplexMatrixVal(tensor::Tensor<cdouble> tt) : t(std::move(tt)) {}
 
-    cdouble& at(std::size_t r, std::size_t c) { return data[r * cols + c]; }
-    cdouble at(std::size_t r, std::size_t c) const { return data[r * cols + c]; }
+    std::size_t rows() const { return t.shape.empty() ? 0 : t.shape[0]; }
+    std::size_t cols() const { return t.shape.size() < 2 ? 0 : t.shape[1]; }
+    std::vector<cdouble>& data() { return t.data; }
+    const std::vector<cdouble>& data() const { return t.data; }
+    cdouble& at(std::size_t r, std::size_t c) { return t.data[r * cols() + c]; }
+    cdouble at(std::size_t r, std::size_t c) const { return t.data[r * cols() + c]; }
 
     // A ComplexMatrix with one dimension == 1 is a vector (row 1×n or column n×1).
-    bool isVector() const { return rows == 1 || cols == 1; }
+    bool isVector() const { return rows() == 1 || cols() == 1; }
 
     std::string str(StringifyCtx&) const override {
         std::string s = "[";
-        for (std::size_t r = 0; r < rows; ++r) {
+        for (std::size_t r = 0; r < rows(); ++r) {
             if (r) s += ", ";
             s += "[";
-            for (std::size_t c = 0; c < cols; ++c) {
+            for (std::size_t c = 0; c < cols(); ++c) {
                 if (c) s += ", ";
                 s += complexToString(at(r, c));
             }
@@ -168,9 +175,9 @@ public:
     }
     bool equals(const ObjectArena&, const Object& other) const override {
         const auto* m = dynamic_cast<const ComplexMatrixVal*>(&other);
-        if (!m || m->rows != rows || m->cols != cols) return false;
-        for (std::size_t i = 0; i < data.size(); ++i)
-            if (!cEq(data[i].real(), m->data[i].real()) || !cEq(data[i].imag(), m->data[i].imag()))
+        if (!m || m->t.shape != t.shape) return false;
+        for (std::size_t i = 0; i < t.data.size(); ++i)
+            if (!cEq(t.data[i].real(), m->t.data[i].real()) || !cEq(t.data[i].imag(), m->t.data[i].imag()))
                 return false;
         return true;
     }
@@ -204,55 +211,22 @@ inline std::unique_ptr<ComplexMatrixVal> makeMatrix(std::size_t r, std::size_t c
     if (c != 0 && r > kMaxElems / c) throw KiritoError("ComplexMatrix too large");
     return std::make_unique<ComplexMatrixVal>(r, c, fill);
 }
-
-// Determinant via Gaussian elimination with partial pivoting (pivot = largest |element|).
-inline cdouble determinant(const ComplexMatrixVal& m) {
-    if (m.rows != m.cols) throw KiritoError("determinant requires a square ComplexMatrix");
-    std::size_t n = m.rows;
-    std::vector<cdouble> a = m.data;
-    cdouble det(1.0, 0.0);
-    for (std::size_t k = 0; k < n; ++k) {
-        std::size_t piv = k;
-        for (std::size_t i = k + 1; i < n; ++i)
-            if (std::abs(a[i * n + k]) > std::abs(a[piv * n + k])) piv = i;
-        if (std::abs(a[piv * n + k]) < 1e-15) return cdouble(0.0, 0.0);
-        if (piv != k) { for (std::size_t j = 0; j < n; ++j) std::swap(a[k * n + j], a[piv * n + j]); det = -det; }
-        det *= a[k * n + k];
-        for (std::size_t i = k + 1; i < n; ++i) {
-            cdouble f = a[i * n + k] / a[k * n + k];
-            for (std::size_t j = k; j < n; ++j) a[i * n + j] -= f * a[k * n + j];
-        }
-    }
-    return det;
+inline std::unique_ptr<ComplexMatrixVal> fromTensor(tensor::Tensor<cdouble> tt) {
+    if (tt.ndim() == 2 && tt.shape[1] != 0 && tt.shape[0] > kMaxElems / tt.shape[1])
+        throw KiritoError("ComplexMatrix too large");
+    return std::make_unique<ComplexMatrixVal>(std::move(tt));
 }
 
-// Inverse via Gauss-Jordan elimination on the augmented matrix [A | I] — O(n^3), the fast method
-// (no cofactor/adjugate expansion). Partial pivoting keeps it numerically stable.
+// Determinant (Gaussian elimination) and inverse (Gauss-Jordan) come from the shared tensor engine;
+// these wrappers add the ComplexMatrix-specific square check and translate engine errors.
+inline cdouble determinant(const ComplexMatrixVal& m) {
+    if (m.rows() != m.cols()) throw KiritoError("determinant requires a square ComplexMatrix");
+    return tensor::determinant(m.t);
+}
 inline std::unique_ptr<ComplexMatrixVal> inverse(const ComplexMatrixVal& m) {
-    if (m.rows != m.cols) throw KiritoError("inverse requires a square ComplexMatrix");
-    std::size_t n = m.rows;
-    std::vector<cdouble> a = m.data;
-    auto inv = makeMatrix(n, n);
-    for (std::size_t i = 0; i < n; ++i) inv->at(i, i) = cdouble(1.0, 0.0);
-    for (std::size_t k = 0; k < n; ++k) {
-        std::size_t piv = k;
-        for (std::size_t i = k + 1; i < n; ++i)
-            if (std::abs(a[i * n + k]) > std::abs(a[piv * n + k])) piv = i;
-        if (std::abs(a[piv * n + k]) < 1e-15) throw KiritoError("ComplexMatrix is singular (no inverse)");
-        if (piv != k)
-            for (std::size_t j = 0; j < n; ++j) {
-                std::swap(a[k * n + j], a[piv * n + j]);
-                std::swap(inv->at(k, j), inv->at(piv, j));
-            }
-        cdouble d = a[k * n + k];
-        for (std::size_t j = 0; j < n; ++j) { a[k * n + j] /= d; inv->at(k, j) /= d; }
-        for (std::size_t i = 0; i < n; ++i) {
-            if (i == k) continue;
-            cdouble f = a[i * n + k];
-            for (std::size_t j = 0; j < n; ++j) { a[i * n + j] -= f * a[k * n + j]; inv->at(i, j) -= f * inv->at(k, j); }
-        }
-    }
-    return inv;
+    if (m.rows() != m.cols()) throw KiritoError("inverse requires a square ComplexMatrix");
+    try { return fromTensor(tensor::inverse(m.t)); }
+    catch (const tensor::TensorError& e) { throw KiritoError(e.what()); }
 }
 
 }  // namespace cpx
@@ -260,29 +234,23 @@ inline std::unique_ptr<ComplexMatrixVal> inverse(const ComplexMatrixVal& m) {
 inline Handle ComplexMatrixVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
     const Object& b = vm.arena().deref(rhs);
     const auto* other = dynamic_cast<const ComplexMatrixVal*>(&b);
-    if (op == BinOp::Add || op == BinOp::Sub) {
-        if (!other || other->rows != rows || other->cols != cols)
-            throw KiritoError("ComplexMatrix +/- requires matrices of equal shape");
-        auto r = cpx::makeMatrix(rows, cols);
-        for (std::size_t i = 0; i < data.size(); ++i)
-            r->data[i] = op == BinOp::Add ? data[i] + other->data[i] : data[i] - other->data[i];
-        return vm.alloc(std::move(r));
-    }
-    if (op == BinOp::Mul) {
-        if (other) {  // matrix product (the inner product of two vectors is `u.dot(v)`, not `u * v`)
-            if (cols != other->rows) throw KiritoError("ComplexMatrix multiply: inner dimensions differ");
-            auto r = cpx::makeMatrix(rows, other->cols);
-            for (std::size_t i = 0; i < rows; ++i)
-                for (std::size_t k = 0; k < cols; ++k) {
-                    cdouble v = at(i, k);
-                    for (std::size_t j = 0; j < other->cols; ++j) r->at(i, j) += v * other->at(k, j);
-                }
-            return vm.alloc(std::move(r));
+    try {
+        if (op == BinOp::Add || op == BinOp::Sub) {
+            if (!other || other->t.shape != t.shape)
+                throw KiritoError("ComplexMatrix +/- requires matrices of equal shape");
+            return vm.alloc(cpx::fromTensor(op == BinOp::Add ? tensor::add(t, other->t)
+                                                            : tensor::sub(t, other->t)));
         }
-        cdouble s = cpx::asComplex(vm, rhs, "ComplexMatrix scalar");  // scalar (Complex/number)
-        auto r = cpx::makeMatrix(rows, cols);
-        for (std::size_t i = 0; i < data.size(); ++i) r->data[i] = data[i] * s;
-        return vm.alloc(std::move(r));
+        if (op == BinOp::Mul) {
+            if (other) {  // matrix product (the inner product of two vectors is `u.dot(v)`, not `u * v`)
+                if (cols() != other->rows()) throw KiritoError("ComplexMatrix multiply: inner dimensions differ");
+                return vm.alloc(cpx::fromTensor(tensor::matmul(t, other->t)));
+            }
+            cdouble s = cpx::asComplex(vm, rhs, "ComplexMatrix scalar");  // scalar (Complex/number)
+            return vm.alloc(cpx::fromTensor(tensor::scalarOp(t, s, '*')));
+        }
+    } catch (const tensor::TensorError& e) {
+        throw KiritoError(e.what());
     }
     throw KiritoError("ComplexMatrix does not support this operator");
 }
@@ -290,15 +258,15 @@ inline Handle ComplexMatrixVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rh
 inline Handle ComplexMatrixVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
     if (keys.size() == 1) {  // a whole row, as a List of Complex
         std::size_t r = indexOf(vm, keys[0]);
-        if (r >= rows) throw KiritoError("ComplexMatrix row index out of range");
+        if (r >= rows()) throw KiritoError("ComplexMatrix row index out of range");
         RootScope rs(vm);
         auto list = std::make_unique<ListVal>();
-        for (std::size_t c = 0; c < cols; ++c) list->elems.push_back(rs.add(cpx::make(vm, at(r, c))));
+        for (std::size_t c = 0; c < cols(); ++c) list->elems.push_back(rs.add(cpx::make(vm, at(r, c))));
         return vm.alloc(std::move(list));
     }
     if (keys.size() == 2) {  // a single element
         std::size_t r = indexOf(vm, keys[0]), c = indexOf(vm, keys[1]);
-        if (r >= rows || c >= cols) throw KiritoError("ComplexMatrix index out of range");
+        if (r >= rows() || c >= cols()) throw KiritoError("ComplexMatrix index out of range");
         return cpx::make(vm, at(r, c));
     }
     throw KiritoError("ComplexMatrix index needs 1 (row) or 2 (element) indices");
@@ -307,7 +275,7 @@ inline Handle ComplexMatrixVal::getItem(KiritoVM& vm, std::span<const Handle> ke
 inline void ComplexMatrixVal::setItem(KiritoVM& vm, std::span<const Handle> keys, Handle value) {
     if (keys.size() != 2) throw KiritoError("ComplexMatrix element assignment needs two indices: m[i, j] = v");
     std::size_t r = indexOf(vm, keys[0]), c = indexOf(vm, keys[1]);
-    if (r >= rows || c >= cols) throw KiritoError("ComplexMatrix index out of range");
+    if (r >= rows() || c >= cols()) throw KiritoError("ComplexMatrix index out of range");
     at(r, c) = cpx::asComplex(vm, value, "ComplexMatrix element");
 }
 
@@ -319,76 +287,76 @@ inline Handle ComplexMatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_v
         return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
     };
     auto idx = [](KiritoVM& vm, Handle h) -> std::size_t { return ComplexMatrixVal::indexOf(vm, h); };
-    if (name == "rows") return bind("rows", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).rows)); });
-    if (name == "cols") return bind("cols", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).cols)); });
+    if (name == "rows") return bind("rows", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).rows())); });
+    if (name == "cols") return bind("cols", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_m(vm, self).cols())); });
     if (name == "shape") return bind("shape", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
         auto list = std::make_unique<ListVal>();
-        list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.rows)));
-        list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.cols)));
+        list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.rows())));
+        list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.cols())));
         return vm.alloc(std::move(list));
     });
     if (name == "get") return bind("get", {"row", "col"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]), c = idx(vm, a[1]);
-        if (r >= m.rows || c >= m.cols) throw KiritoError("ComplexMatrix index out of range");
+        if (r >= m.rows() || c >= m.cols()) throw KiritoError("ComplexMatrix index out of range");
         return cpx::make(vm, m.at(r, c));
     });
     if (name == "set") return bind("set", {"row", "col", "value"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]), c = idx(vm, a[1]);
-        if (r >= m.rows || c >= m.cols) throw KiritoError("ComplexMatrix index out of range");
+        if (r >= m.rows() || c >= m.cols()) throw KiritoError("ComplexMatrix index out of range");
         m.at(r, c) = cpx::asComplex(vm, a[2], "ComplexMatrix element");
         return vm.none();
     });
     if (name == "row") return bind("row", {"i"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]);
-        if (r >= m.rows) throw KiritoError("row index out of range");
+        if (r >= m.rows()) throw KiritoError("row index out of range");
         RootScope rs(vm);
         auto list = std::make_unique<ListVal>();
-        for (std::size_t c = 0; c < m.cols; ++c) list->elems.push_back(rs.add(cpx::make(vm, m.at(r, c))));
+        for (std::size_t c = 0; c < m.cols(); ++c) list->elems.push_back(rs.add(cpx::make(vm, m.at(r, c))));
         return vm.alloc(std::move(list));
     });
     if (name == "transpose") return bind("transpose", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
-        auto t = cpx::makeMatrix(m.cols, m.rows);
-        for (std::size_t r = 0; r < m.rows; ++r)
-            for (std::size_t c = 0; c < m.cols; ++c) t->at(c, r) = m.at(r, c);
+        auto t = cpx::makeMatrix(m.cols(), m.rows());
+        for (std::size_t r = 0; r < m.rows(); ++r)
+            for (std::size_t c = 0; c < m.cols(); ++c) t->at(c, r) = m.at(r, c);
         return vm.alloc(std::move(t));
     });
     if (name == "conjugate") return bind("conjugate", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
-        auto out = cpx::makeMatrix(m.rows, m.cols);
-        for (std::size_t i = 0; i < m.data.size(); ++i) out->data[i] = std::conj(m.data[i]);
+        auto out = cpx::makeMatrix(m.rows(), m.cols());
+        for (std::size_t i = 0; i < m.data().size(); ++i) out->data()[i] = std::conj(m.data()[i]);
         return vm.alloc(std::move(out));
     });
     // hermitian / conjugate transpose: (M*)^T
     if (name == "hermitian" || name == "conjugatetranspose") return bind("hermitian", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
-        auto t = cpx::makeMatrix(m.cols, m.rows);
-        for (std::size_t r = 0; r < m.rows; ++r)
-            for (std::size_t c = 0; c < m.cols; ++c) t->at(c, r) = std::conj(m.at(r, c));
+        auto t = cpx::makeMatrix(m.cols(), m.rows());
+        for (std::size_t r = 0; r < m.rows(); ++r)
+            for (std::size_t c = 0; c < m.cols(); ++c) t->at(c, r) = std::conj(m.at(r, c));
         return vm.alloc(std::move(t));
     });
     if (name == "determinant") return bind("determinant", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return cpx::make(vm, cpx::determinant(self_m(vm, self))); });
     if (name == "inverse") return bind("inverse", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) { return vm.alloc(cpx::inverse(self_m(vm, self))); });
     if (name == "trace") return bind("trace", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);
-        if (m.rows != m.cols) throw KiritoError("trace requires a square ComplexMatrix");
+        if (m.rows() != m.cols()) throw KiritoError("trace requires a square ComplexMatrix");
         cdouble s(0.0, 0.0);
-        for (std::size_t i = 0; i < m.rows; ++i) s += m.at(i, i);
+        for (std::size_t i = 0; i < m.rows(); ++i) s += m.at(i, i);
         return cpx::make(vm, s);
     });
     // apply(fn): map fn over every element, returning a new ComplexMatrix (the element-wise map).
     if (name == "apply") return bind("apply", {"fn"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         Handle fn = a[0];
         auto& m = self_m(vm, self);
-        auto out = cpx::makeMatrix(m.rows, m.cols);
-        for (std::size_t i = 0; i < m.data.size(); ++i) {
+        auto out = cpx::makeMatrix(m.rows(), m.cols());
+        for (std::size_t i = 0; i < m.data().size(); ++i) {
             RootScope rs(vm);
-            std::array<Handle, 1> args{rs.add(cpx::make(vm, m.data[i]))};
-            out->data[i] = cpx::asComplex(vm, vm.arena().deref(fn).call(vm, args), "apply result");
+            std::array<Handle, 1> args{rs.add(cpx::make(vm, m.data()[i]))};
+            out->data()[i] = cpx::asComplex(vm, vm.arena().deref(fn).call(vm, args), "apply result");
         }
         return vm.alloc(std::move(out));
     });
@@ -398,26 +366,26 @@ inline Handle ComplexMatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_v
         const auto* o = dynamic_cast<const ComplexMatrixVal*>(&vm.arena().deref(a[0]));
         if (!o) throw KiritoError("dot expects a ComplexMatrix vector");
         if (!m.isVector() || !o->isVector()) throw KiritoError("dot requires vectors (a 1×n or n×1 ComplexMatrix)");
-        if (m.data.size() != o->data.size()) throw KiritoError("dot requires vectors of equal length");
+        if (m.data().size() != o->data().size()) throw KiritoError("dot requires vectors of equal length");
         cdouble acc(0.0, 0.0);  // Hermitian inner product: sum conj(a_i)·b_i
-        for (std::size_t i = 0; i < m.data.size(); ++i) acc += std::conj(m.data[i]) * o->data[i];
+        for (std::size_t i = 0; i < m.data().size(); ++i) acc += std::conj(m.data()[i]) * o->data()[i];
         return cpx::make(vm, acc);
     });
     if (name == "cross") return bind("cross", {"other"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         const auto* o = dynamic_cast<const ComplexMatrixVal*>(&vm.arena().deref(a[0]));
         if (!o) throw KiritoError("cross expects a ComplexMatrix vector");
-        if (!m.isVector() || !o->isVector() || m.data.size() != 3 || o->data.size() != 3)
+        if (!m.isVector() || !o->isVector() || m.data().size() != 3 || o->data().size() != 3)
             throw KiritoError("cross is only defined for two 3-element vectors");
-        const auto& u = m.data; const auto& v = o->data;
-        auto r = cpx::makeMatrix(m.rows, m.cols);  // keep this vector's orientation
-        r->data = {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
+        const auto& u = m.data(); const auto& v = o->data();
+        auto r = cpx::makeMatrix(m.rows(), m.cols());  // keep this vector's orientation
+        r->data() = {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
         return vm.alloc(std::move(r));
     });
     if (name == "norm") return bind("norm", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& m = self_m(vm, self);  // Euclidean / Frobenius 2-norm: sqrt(sum |z_i|²) -> Float
         double acc = 0.0;
-        for (const cdouble& z : m.data) acc += std::norm(z);
+        for (const cdouble& z : m.data()) acc += std::norm(z);
         return vm.makeFloat(std::sqrt(acc));
     });
     return Object::getAttr(vm, self, name);
@@ -534,9 +502,8 @@ public:
         m.fn("vector", {{"values", "List"}}, "ComplexMatrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::vector<cdouble> xs;
             for (Value e : Args(vm, a, "vector")[0].items()) xs.push_back(cpx::asComplex(vm, e.handle(), "vector element"));
-            auto mtx = cpx::makeMatrix(1, xs.size());
-            mtx->data = std::move(xs);
-            return vm.alloc(std::move(mtx));
+            std::size_t n = xs.size();
+            return vm.alloc(cpx::fromTensor(tensor::Tensor<cdouble>(tensor::Shape{1, n}, std::move(xs))));
         });
     }
 };

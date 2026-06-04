@@ -199,12 +199,20 @@ a stability fuzzer, and a benchmark). Working today:
     trunc, gcd/lcm, factorial, isnan/isinf, prod/comb/perm, ...).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
     randrange/choice/shuffle/sample/gauss/expovariate.
-  - `matrix` — dense real matrices of arbitrary shape (no concurrency): +,-,* (matrix/scalar),
+  - `tensor` — dense **N-dimensional** arrays in C++ (`tensor.hpp`, a generic `Tensor<T>` engine;
+    CPU-only, GPU-ready single-buffer design, no autograd). dtype **Float** (default) or **Complex**
+    (the engine is generic in T). `Tensor(nested[, dtype])`/`zeros`/`ones`/`full`/`eye`/`arange`;
+    `t[i,j,...]` (full index → scalar, partial → sub-tensor) + assignment; +,-,*,/ **element-wise**
+    with NumPy **broadcasting** (mixed Float/Complex promotes) and scalar ops; `matmul` (2-D +
+    batched), `dot`, `transpose`/`permute`/`reshape`/`flatten`, `apply` (element-wise map),
+    `astype`, reductions `sum`/`mean`/`prod` (whole or per-axis) and `min`/`max` (Float-only). The
+    `matrix` and `complex` matrix types are **built on this engine** (a 2-D tensor is a matrix).
+  - `matrix` — dense real matrices (a 2-D `Tensor<double>`) of arbitrary shape (no concurrency): +,-,* (matrix/scalar),
     `m[i, j]` element access/assignment, transpose, determinant, inverse, trace, apply, factories
     (zeros/ones/identity); square-only ops (determinant/inverse/trace) raise on non-square. **Vectors**
     (a Matrix with one dimension = 1): `vector(list)` factory, `dot` (scalar product; `*` stays
     matrix multiply), `cross` (3-vectors), `norm` (Euclidean 2-norm).
-  - `complex` — complex numbers and complex matrices, all in C++ (`std::complex<double>`). `Complex(re
+  - `complex` — complex numbers and complex matrices (a 2-D `Tensor<cdouble>`), all in C++ (`std::complex<double>`). `Complex(re
     [, im])`/`of(re, im)`/`real(re)`/`polar(r, θ)`; constants `i`/`zero`/`one`/`pi`/`e`/`tau`;
     operators `+ - * / **` and unary `-` (Complex-on-the-left; reals coerce to the real axis; complex
     numbers are unordered so `<`/`>` raise); `.re`/`.im`, `conjugate`/`modulus`/`argument`/`norm2`/
@@ -320,7 +328,7 @@ of the whole auto-discovered CTest suite. Run it before calling a change done.
 the dependency-free `docs/build_docs.py` into `docs/site/` (intro, build, embedding, extending,
 language guide, a built-in **types + special-methods/operator-overloading** reference, builtins
 reference, a **comprehensive per-function stdlib reference** with signatures/inputs/outputs, recipes,
-and a 24-lesson course). `build_docs.py` auto-anchors every documented
+and a 25-lesson course). `build_docs.py` auto-anchors every documented
 symbol and turns later `inline code` mentions into clickable cross-links.
 Documentation is authored in those `.md` files, NOT scraped from code comments.
 
