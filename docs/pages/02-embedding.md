@@ -1,6 +1,6 @@
 # Embedding Kirito in C++
 
-Kirito is header-only and Lua-style embeddable: `#include "kirito.hpp"`, construct a `KiritoVM`, and
+Kirito is header-only and embeddable: `#include "kirito.hpp"`, construct a `KiritoVM`, and
 run source. There is no `main()` in the library — the standalone interpreter's `main` lives only in
 `main.cpp`.
 

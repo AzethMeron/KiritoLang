@@ -1,4 +1,4 @@
-# Lesson 25 — Capstone: A Contact Book
+# Lesson 20 — Capstone: A Contact Book
 
 Time to bring it all together. In this final lesson we build a small but complete program — a
 **contact book** that stores people, looks them up, and persists to a JSON file on disk. It uses
@@ -211,4 +211,4 @@ You now know enough to write real programs. To go further:
 - **Embed or extend Kirito in C++:** the **Embedding** and **Extending** pages show how to run Kirito
   inside a C++ program and how to add your own native functions, modules, and types.
 
-Congratulations — you've finished the course. Now go build something.
+Congratulations — you've finished the **core course**. What follows are **bonus lessons**: deeper dives into specialized libraries — regular expressions, command-line programs, tabular data analysis, linear algebra, and tensors with automatic differentiation. Take them in any order, or go build something.

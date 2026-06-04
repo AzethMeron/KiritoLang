@@ -2,8 +2,8 @@
 
 Things go wrong: a file is missing, input is malformed, a divisor is zero. **Exceptions** let you
 signal such problems where they're detected and handle them where you can do something about it —
-without threading error codes through every return value. Kirito uses Python-style indented blocks
-but C++-style keyword names: `throw` to raise, `try`/`catch`/`finally` to handle.
+without threading error codes through every return value. Kirito uses indented blocks
+with the keyword names `throw` (to raise), `try`/`catch`/`finally` (to handle).
 
 ## Raising with `throw`
 

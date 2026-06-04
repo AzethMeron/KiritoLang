@@ -14,7 +14,7 @@ A leading `*args` below denotes a variadic positional list; `[arg]` denotes an o
 
 ## Types and conversion
 
-The type constructors double as converters (Python style) and are keyword-callable by their
+The type constructors double as converters and are keyword-callable by their
 parameter name.
 
 - `type(x) → String` — the type name of `x` (e.g. `"Integer"`, `"List"`, a user class's name).

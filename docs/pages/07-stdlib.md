@@ -48,7 +48,7 @@ The optional `stream=` keyword sends/takes that one call's output/input to/from 
 - `listdir(path: String) → List` — the entry names directly under `path`.
 - `walk(dir: String) → List` — every file path under `dir`, recursively (flattened).
 
-### Path helpers (os.path style)
+### Path helpers
 
 - `dirname(path: String) → String` — the directory part of `path`.
 - `basename(path: String) → String` — the final component of `path`.
@@ -121,7 +121,7 @@ Constants and the usual numeric functions. Argument errors raise; results are `F
 - `trunc(x: Number) → Float` — truncate toward zero.
 - `fabs(x: Number) → Float` — absolute value as a Float.
 - `copysign(x: Number, y: Number) → Float` — `|x|` with the sign of `y`.
-- `fmod(x: Number, y: Number) → Float` — C-style floating remainder.
+- `fmod(x: Number, y: Number) → Float` — floating-point remainder of `x/y` (the result has the sign of `x`).
 - `degrees(x: Number) → Float` — convert radians to degrees.
 - `radians(x: Number) → Float` — convert degrees to radians.
 - `isnan(x: Number) → Bool` — whether `x` is NaN.
@@ -273,7 +273,7 @@ number and return a `Complex`:
 - `identity(n) → ComplexMatrix` — the n×n identity.
 - `vector(values: List) → ComplexMatrix` — a 1×n complex row vector.
 
-Like the real `matrix`, complex matrices are arbitrary-shape; `determinant`/`inverse`/`trace` need a
+Like real matrices, complex matrices are arbitrary-shape; `determinant`/`inverse`/`trace` need a
 square matrix and raise otherwise.
 
 #### ComplexMatrix object
@@ -318,8 +318,8 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
 - `ones(shape: List, dtype = "Float", requiresgrad = False) → Tensor` — a tensor of ones.
 - `full(shape: List, value: Number, dtype = "Float", requiresgrad = False) → Tensor` — filled with `value`.
 - `eye(n: Integer, dtype = "Float", requiresgrad = False) → Tensor` — the n×n identity matrix.
-- `arange(stop)` / `arange(start, stop[, step]) → Tensor` — a 1-D ramp (like Python's `range`, as
-  Floats).
+- `arange(stop)` / `arange(start, stop[, step]) → Tensor` — a 1-D ramp of Floats from `start` up to
+  (but excluding) `stop`, stepping by `step`.
 
 ### Tensor object
 
@@ -327,7 +327,7 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
 - `t[i, j, ...] → Number` — a **full** index (one per dimension) returns the scalar element.
 - `t[i] → Tensor` — a **partial** index returns the sub-tensor of the remaining axes.
 - `t[i, j, ...] = v` — assign an element (full index).
-- `a + b`, `a - b`, `a * b`, `a / b` — **element-wise** with NumPy **broadcasting** (axes align from
+- `a + b`, `a - b`, `a * b`, `a / b` — **element-wise** with **broadcasting** (axes align from
   the right; each must be equal or 1). `*` is element-wise (Hadamard), **not** matrix multiply.
   Mixing a `Float` and a `Complex` tensor promotes the result to `Complex`. A scalar operand applies
   element-wise (`t * 2`).
@@ -351,7 +351,7 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
 ### Indexing & slicing
 
 - `t[i, j, ...]` — integer index (full → element, partial → sub-tensor); `t[i, j] = v` assigns.
-- `t[start:stop:step]` — slice the **first** axis (Python semantics; returns a detached copy).
+- `t[start:stop:step]` — slice the **first** axis (negative bounds count from the end; returns a detached copy).
 - `t[mask]` — boolean selection where `mask` is a same-shape 0/1 tensor (→ 1-D).
 - `t[[i, j, k]]` — fancy index: gather those rows along axis 0.
 - `t.slice(start, stop, step, axis = 0) → Tensor` and `t.take(indices, axis = 0) → Tensor` — the
@@ -502,7 +502,7 @@ JSON parsing and serialization (flat data interchange — for reference/cycle-pr
 ## serialize
 
 `serialize` and `dump` are **two formats of the same thing** — full object-graph serialization that
-preserves shared references and cycles (a `pickle`-style snapshot, unlike `json` which is flat data
+preserves shared references and cycles (a full object snapshot, unlike `json` which is flat data
 interchange with no aliasing). They share one graph walk and reconstruction core and differ only in
 output: **`serialize` is human-readable text**, **`dump` is compact binary**. Supported value types:
 `None`/`Bool`/`Integer`/`Float`/`String`/`List`/`Dict`/`Set`, **plus user `class` instances**.
@@ -528,7 +528,7 @@ Human-readable **text** serialization → a `String`.
 ## dump
 
 Compact **binary** serialization (the binary counterpart of `serialize`), preserving references and
-cycles like a portable `pickle`. Produces a `Dump` blob value rather than text.
+cycles, in a portable binary form. Produces a `Dump` blob value rather than text.
 
 - `dumps(value) → Dump` — serialize to a `Dump` blob value.
 - `loads(data)` — reconstruct from a `Dump` or a byte String.
@@ -607,8 +607,8 @@ Process environment and platform.
 - `gettempdir() → String` — the system temp directory (honors `TMPDIR`/`TMP`/`TEMP`, falls back to
   `/tmp`). Pairs with `io` to build scratch file paths:
   `io.open(sys.joinpath(sys.gettempdir(), "scratch.txt"), "w")`.
-- `joinpath(*parts) → String` — join path components with `/` (`os.path.join` semantics: a later
-  component that is absolute resets the result). Needs at least one part.
+- `joinpath(*parts) → String` — join path components with `/` (a component that is itself absolute
+  resets the result). Needs at least one part.
 - `exit(code: Integer = 0)` — terminate the process with the given exit code.
 
 ---
@@ -625,7 +625,7 @@ Clocks and calendar time.
 - `now() → DateTime` — current UTC time.
 - `datetime([timestamp: Number]) → DateTime` — a `DateTime` from epoch seconds (current time if omitted).
 - `make(year, month, day, hour = 0, minute = 0, second = 0) → DateTime` — build from UTC components.
-- `strptime(text: String, format: String) → DateTime` — parse a time string with a strftime-style format.
+- `strptime(text: String, format: String) → DateTime` — parse a time string against a format of `%`-codes (`%Y-%m-%d %H:%M:%S`, …).
 
 ### DateTime object
 
@@ -644,7 +644,7 @@ The UTC fields and epoch seconds are Integer **attributes** (no parentheses):
 Its methods:
 
 - `dt.iso() → String` — ISO-8601 text; `dt.isoformat()` is an alias.
-- `dt.format(fmt: String) → String` — strftime-style formatting.
+- `dt.format(fmt: String) → String` — format with `%`-codes (`%Y`, `%m`, `%d`, `%H`, `%M`, `%S`, …).
 - `dt.add(seconds) → DateTime` — a new DateTime shifted forward by `seconds`.
 - `dt.sub(seconds) → DateTime` — a new DateTime shifted back by `seconds`.
 - `dt.diff(other) → Integer` — difference (`self - other`) in seconds.
@@ -682,7 +682,7 @@ a long input is instant, not exponential. The cost of that guarantee (the same t
 is that two backtracking-only constructs are deliberately **not supported** and raise a clear error:
 **backreferences** (`\1`) and **lookaround** (`(?=…)`, `(?!…)`, `(?<=…)`, `(?<!…)`).
 
-The API mirrors Python's `re`. All positions and spans are **code-point indices** (consistent with
+All positions and spans are **code-point indices** (consistent with
 Kirito's String indexing). Flags combine with `+`: `re.IGNORECASE` (alias `re.I`), `re.MULTILINE`
 (`re.M`), `re.DOTALL` (`re.S`).
 
@@ -695,7 +695,7 @@ quantifiers `* + ?`, `{n}`, `{n,}`, `{n,m}`, each greedy or **lazy** with a trai
 `\n \t \r \f \v \a \xHH \uHHHH`, octal `\0`/`\NNN` (and `\b` is a backspace *inside* a class), and
 any escaped metacharacter; inline flags `(?i)` / `(?m)` / `(?s)`.
 
-The engine is validated against the full classic Spencer/PCRE/Python-`re` test corpus (run through
+The engine is validated against a large, classic regular-expression test corpus (run through
 Kirito in `tools/tests/scripts/spec_regex_corpus.ki`): zero false positives/negatives, and every
 unsupported-feature or invalid pattern is rejected with a clean error rather than crashing.
 
@@ -724,7 +724,7 @@ count), `r.groupindex` (name → group number).
 - `r.findall(string[, pos[, endpos]]) → List` — with **0** groups: a List of the matched Strings; with **1** group: a List of that group's Strings; with **2+** groups: a List of per-match group Lists.
 - `r.finditer(string) → List` — a List of `Match` objects, one per non-overlapping match.
 - `r.sub(repl, string[, count]) → String` — replace matches. `repl` is either a template String (`\1`, `\g<name>`, `\g<0>`, `\\`) or a **function** taking a `Match` and returning a String. `count = 0` replaces all.
-- `r.split(string[, maxsplit]) → List` — split around matches; any captured groups are interleaved into the result (like Python).
+- `r.split(string[, maxsplit]) → List` — split around matches; any captured groups are interleaved into the result.
 - `r.pattern` — the source pattern String.
 - `r.groups` — the number of capturing groups.
 - `r.groupindex` — a Dict mapping each named group to its number.
@@ -850,11 +850,11 @@ Fuzzy comparison, built on the native `String.levenshtein` edit distance:
 
 - `similarity(a, b) → Float | List` — a `0.0`–`1.0` ratio, `1 - editdistance / longerlength` (two empty strings are `1.0`). `b` may be a single String (returns one `Float`) **or a List of candidate Strings** (returns one score per candidate, computed in a single native call).
 - `closest(query, candidates) → String` — the candidate with the smallest edit distance (ties to the earliest), or `None` for an empty list. One native call computes every distance at once.
-- `fuzzymatch(query, candidates, cutoff = 0.6) → List` — every `[candidate, score]` pair whose similarity is at least `cutoff`, sorted by score descending (à la `difflib.get_close_matches`).
+- `fuzzymatch(query, candidates, cutoff = 0.6) → List` — every `[candidate, score]` pair whose similarity is at least `cutoff`, sorted by score descending.
 
 ```kirito
 var string = import("string")
-string.closest("pyhton", ["python", "ruby", "rust"])   # "python"   (typo correction)
+string.closest("aple", ["apple", "grape", "mango"])   # "apple"   (typo correction)
 string.similarity("kitten", "sitting")                  # ~0.571
 string.similarity("abc", ["abc", "abd", "xyz"])         # [1.0, 0.667, 0.0]  (List form)
 ```
@@ -895,7 +895,7 @@ Low-level CSV parsing/formatting (RFC-4180-style quoting). For tabular data anal
 
 ## tabular
 
-A dataframe-style (pandas-like) data-analysis library: a labelled 1-D **`Series`** and 2-D **`DataFrame`**, with CSV
+A dataframe-style data-analysis library: a labelled 1-D **`Series`** and 2-D **`DataFrame`**, with CSV
 I/O, label/position indexing, boolean masking, element-wise arithmetic, aggregations, group-by,
 joins, and missing-data handling. Public names follow Kirito's lowercase-no-underscore convention
 (`readcsv`, `sortvalues`, `valuecounts`, `resetindex`, ...).
@@ -964,7 +964,7 @@ io.print(df.sortvalues("salary", ascending=False)["name"].tolist())
 
 ## xml
 
-A small, dependency-free XML parser/serializer in the spirit of Python's `ElementTree`. It parses
+A small, dependency-free XML parser/serializer. It parses
 elements, attributes, text, nested children, comments, the `<?xml?>` declaration, `<!DOCTYPE>`,
 `<![CDATA[…]]>` sections, and the standard entities (`&lt; &gt; &amp; &quot; &apos;` and numeric
 `&#65;` / `&#x41;`); it serializes a tree back to XML. The parser is **lenient** — malformed markup
@@ -980,7 +980,7 @@ is tolerated rather than raising.
 ### Element
 
 An element exposes `.tag` (String), `.attrib` (a Dict of attribute → value), `.text` (character data
-before the first child), `.tail` (character data after this element's end tag, ElementTree-style),
+before the first child), `.tail` (character data after this element's end tag),
 and `.children` (a List of child `Element`s). It is iterable (yields its children), supports `len`
 and indexing (`elem[0]`).
 
@@ -1084,7 +1084,7 @@ with io.open("session.log", "w") as f:
 
 ## arg
 
-A small `argparse`-style command-line parser. Build a `Parser`, declare the arguments on it, then
+A small command-line argument parser. Build a `Parser`, declare the arguments on it, then
 run `parse` against a list of strings **yourself** — typically the main file's `arglist` (recall
 `arglist` is empty in imported modules, so argument handling belongs in the program you run).
 

@@ -1,4 +1,4 @@
-# Lesson 21 — Command-Line Programs
+# Bonus Lesson 2 — Command-Line Programs
 
 Most useful programs take **input from the command line**: a filename to process, a `--count`, a
 `--verbose` flag. This lesson shows how a Kirito program sees its arguments (`arglist`/`argmain`) and
@@ -13,7 +13,7 @@ Every file scope is pre-bound with two names, so you never import anything to ge
   `arglist` is `["Ada", "--loud"]` (the interpreter and script name are stripped). It is **empty in
   an imported module** — arguments belong to the program you *run*, not to its libraries.
 - **`argmain`** — a `Bool` that is `True` when this file was run directly and `False` when it was
-  imported. This is Kirito's version of Python's `__name__ == "__main__"`.
+  imported — so a file can guard its "run me" code with `if argmain:`.
 
 The standard idiom is to guard your program's entry point so a file can be **both** a runnable script
 and an importable library:
@@ -297,4 +297,4 @@ Drop `wordcount(arglist)` behind an `if argmain:` and the same file becomes a re
 - Parsing **raises clear, catchable errors** on bad input, so a `try` around `parse` gives friendly
   diagnostics.
 
-Next up: tabular **data analysis** with the pandas-like library, before the final capstone.
+Next bonus lesson: tabular **data analysis** with the `tabular` library.

@@ -149,3 +149,5 @@ print how many times each face came up. Then use `statistics.mean` on the rolls 
   `statistics`.
 - A module is just a `.ki` file whose top-level `var`s are its exports — yours look identical to the
   built-in ones.
+
+Next: the **[Capstone](29-course-20-capstone.html)**, where we assemble everything into one program.

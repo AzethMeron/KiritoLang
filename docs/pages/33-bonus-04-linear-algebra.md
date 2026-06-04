@@ -1,4 +1,4 @@
-# Lesson 23 — Matrices, Vectors & Complex Numbers
+# Bonus Lesson 4 — Matrices, Vectors & Complex Numbers
 
 Kirito ships three native (C++) numeric libraries: `matrix` (real matrices), `complex` (complex
 numbers **and** complex matrices). They share one idea — arbitrary-shape dense matrices — and one
@@ -164,4 +164,4 @@ function, its parameters, and its return type — so you can explore the library
   `hermitian`, Gaussian `determinant`, Gauss-Jordan `inverse`).
 - All of it supports keyword arguments and `inspect`.
 
-Next: **[Lesson 24 — Tensors](33-course-24-tensors.html)**.
+Next bonus lesson: **[Tensors & Autograd](34-bonus-05-tensors.html)** — arrays of any rank, with automatic differentiation.

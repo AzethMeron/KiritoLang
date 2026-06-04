@@ -174,7 +174,7 @@ loop and `return` outside a function are rejected at parse time.
 at loop start, then walks that fixed snapshot. So mutating the collection inside the loop is safe and
 well-defined: appending never causes an infinite loop (the new items aren't visited this pass),
 removing every element still visits all the originals (no skipping), and adding a dict key mid-loop
-does **not** raise (unlike Python's "dict changed size during iteration"). The structural change still
+does **not** raise. The structural change still
 applies to the collection — you just won't see it until the next loop. In-place mutation of a
 nested object you still hold a reference to *is* visible, because it's the same object.
 
@@ -313,7 +313,7 @@ call in that class's methods; there is no good reason to do it.
 
 ## Exceptions
 
-C++-style keywords with indented blocks. `throw` raises; `try`/`catch [Type as e]`/`finally` handles.
+The keywords `throw`/`try`/`catch`/`finally` with indented blocks. `throw` raises; `try`/`catch [Type as e]`/`finally` handles.
 
 ```kirito
 class ValueError:
@@ -357,8 +357,8 @@ Every file runs with two names already bound in its scope:
 - **`arglist`** — a List of the command-line arguments the program was launched with (`arglist[0]`
   is the first; the program name is not included). It's the same list in every file.
 - **`argmain`** — a Bool that is `True` when this file is the one being **run directly**, and `False`
-  when it was loaded by another file via `import`. This is Kirito's equivalent of Python's
-  `__name__ == "__main__"`: guard a file's "run me" code with `if argmain:` so it stays dormant when
+  when it was loaded by another file via `import`. Guard a file's "run me" code with `if argmain:`
+  so it stays dormant when
   the file is imported as a library.
 
 ```kirito

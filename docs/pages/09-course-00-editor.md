@@ -51,16 +51,16 @@ autocmd BufRead,BufNewFile *.ki set filetype=kirito
 
 ## Anything else (the 30-second fallback)
 
-Kirito looks a lot like Python — significant indentation, `#` comments, similar control flow — so as
-a stopgap you can tell any editor to treat `.ki` files as **Python** and get most of the benefit
-instantly. The dedicated definitions above just add the Kirito-specific keywords (`Function`, `var`,
-`switch`/`case`, `catch`/`throw`, `todo`, `discard`) and the fact that `print`/`input` aren't
-builtins — they live in the `io` module.
+If your editor has no Kirito mode, point it at any highlighter built for an **indentation-based
+language with `#` line comments** — most editors let you map an extension to an existing mode — and
+you get reasonable colouring instantly. The dedicated definitions above go further: they add the
+Kirito keywords (`Function`, `var`, `switch`/`case`, `catch`/`throw`, `todo`, `discard`) and reflect
+that `print`/`input` aren't builtins — they live in the `io` module.
 
 ## What you learned
 
 - Where to find Kirito editor support (`docs/editors/`), and how to install it for VS Code, Notepad++, and
   Vim.
-- The quick "treat it as Python" fallback for any other editor.
+- The quick fallback for any other editor: map `.ki` to any indentation-based, `#`-comment mode.
 
 With colours in place, let's write some code.

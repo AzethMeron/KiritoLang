@@ -1,4 +1,4 @@
-# Lesson 20 — Regular Expressions
+# Bonus Lesson 1 — Regular Expressions
 
 A **regular expression** (regex) is a tiny language for describing *patterns* in text: "a run of
 digits", "an email address", "a word at the start of a line". Kirito's `regex` module lets you
@@ -264,9 +264,9 @@ var re = import("regex")
 io.print(re.search("(a+)+b", "a" * 4000 + "c"))   # => None, in milliseconds (never hangs)
 ```
 
-In Python, Perl, JavaScript, or `std::regex`, `(a+)+b` on a long run of `a`'s takes *exponential*
+A *backtracking* regular-expression engine runs `(a+)+b` on a long run of `a`'s in *exponential*
 time — effectively a hang, and a real source of denial-of-service bugs. Kirito can't fall into that
-trap.
+trap: its engine is linear-time by construction.
 
 The price of that guarantee (the same trade-off the RE2 library makes) is that two features which
 *require* backtracking are not supported, and raise a clear error rather than misbehaving:

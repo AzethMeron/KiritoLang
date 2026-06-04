@@ -348,7 +348,9 @@ of the whole auto-discovered CTest suite. Run it before calling a change done.
 the dependency-free `docs/build_docs.py` into `docs/site/` (intro, build, embedding, extending,
 language guide, a built-in **types + special-methods/operator-overloading** reference, builtins
 reference, a **comprehensive per-function stdlib reference** with signatures/inputs/outputs, recipes,
-and a 25-lesson course). `build_docs.py` auto-anchors every documented
+and a course — a 20-lesson **core** path (editor setup → … → capstone) followed by 5 **bonus
+lessons** for specialized libraries: regex, command-line programs, tabular data, linear algebra, and
+tensors+autograd). `build_docs.py` auto-anchors every documented
 symbol and turns later `inline code` mentions into clickable cross-links.
 Documentation is authored in those `.md` files, NOT scraped from code comments.
 

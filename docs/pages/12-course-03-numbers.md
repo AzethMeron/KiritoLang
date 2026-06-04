@@ -1,7 +1,7 @@
 # Lesson 3 — Numbers and Arithmetic
 
-Kirito takes numbers seriously. It keeps **integers** and **floats** as distinct types and follows
-Python-3's arithmetic rules, so results are predictable instead of surprising.
+Kirito takes numbers seriously. It keeps **integers** and **floats** as distinct types with clearly-defined
+arithmetic rules, so results are predictable instead of surprising.
 
 ## Two number types
 

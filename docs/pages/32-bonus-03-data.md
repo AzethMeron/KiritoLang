@@ -1,7 +1,7 @@
-# Lesson 22 — Tabular Data Analysis
+# Bonus Lesson 3 — Tabular Data Analysis
 
-When you have *tabular* data — rows and columns, like a spreadsheet or a CSV — looping over lists of
-dicts gets tedious fast. Kirito ships a **dataframe-style** library (`import("tabular")`, pandas-like) built on the
+When you have *tabular* data — rows and columns, the shape of a CSV file — looping over lists of
+dicts gets tedious fast. Kirito ships a **dataframe-style** library (`import("tabular")`) built on the
 low-level [`csv`](07-stdlib.html#csv) module, with two core types: a 1-D labelled **`Series`** (one
 column) and a 2-D **`DataFrame`** (a whole table). This lesson is a practical tour.
 
@@ -169,4 +169,4 @@ messy survey CSV cleaned with `dropna`/`fillna`/`apply`/`astype`).
 - For the full method list, see the **Standard Library** reference's
   [`tabular`](07-stdlib.html#tabular) section.
 
-One lesson to go — the capstone, where we assemble a complete program from everything you've learned.
+Next bonus lesson: **linear algebra** — matrices, vectors, and complex numbers.
