@@ -71,6 +71,23 @@ int main() {
     CHECK_THROWS(tensor::inverse(Tensor<double>({2, 2}, {1, 2, 2, 4})));  // singular
     CHECK_THROWS(tensor::determinant(Tensor<double>({2, 3})));            // non-square
 
+    // new engine ops: slice / flip / concatenate / take / cumulative / solve / outer / kron
+    CHECK(tensor::sliceAxis(A, 0, 0, 1, 1).shape == Shape({1, 2}));
+    CHECK(tensor::flip(Tensor<double>({3}, {1, 2, 3}), 0).data == std::vector<double>({3, 2, 1}));
+    {
+        Tensor<double> r0({1, 2}, {1, 2}), r1({1, 2}, {3, 4});
+        CHECK(tensor::concatenate<double>({&r0, &r1}, 0).shape == Shape({2, 2}));
+    }
+    CHECK(tensor::takeAxis0(A, {1, 0}).at({0, 0}) == 3.0);
+    CHECK(tensor::cumulative(Tensor<double>({3}, {1, 1, 1}), 0, [](double x, double y) { return x + y; }).data == std::vector<double>({1, 2, 3}));
+    {
+        Tensor<double> S({2, 2}, {2, 0, 0, 4}), rhs({2, 1}, {2, 8});
+        auto x = tensor::solve(S, rhs);                 // [1, 2]
+        CHECK(std::fabs(x.at({0, 0}) - 1.0) < 1e-9 && std::fabs(x.at({1, 0}) - 2.0) < 1e-9);
+    }
+    CHECK(tensor::outer(Tensor<double>({2}, {1, 2}), Tensor<double>({2}, {3, 4})).at({1, 1}) == 8.0);
+    CHECK(tensor::kron(tensor::Tensor<double>({2, 2}, {1, 0, 0, 1}), Tensor<double>({2, 2}, {1, 1, 1, 1})).shape == Shape({4, 4}));
+
     // complex element type: the same engine, instantiated for std::complex<double>
     using cd = std::complex<double>;
     Tensor<cd> z({2, 2}, {cd(1, 1), cd(2, 0), cd(0, 1), cd(1, -1)});
@@ -116,6 +133,39 @@ int main() {
     CHECK(run("T.Tensor([1.0], requiresgrad=True).detach().requiresgrad()") == "False");
     CHECK_THROWS(vm.runSource("import(\"tensor\").zeros([2]).backward()\n"));            // backward without grad
     CHECK_THROWS(vm.runSource("import(\"tensor\").zeros([2], dtype=\"Complex\").requiresgrad(True)\n"));  // complex can't require grad
+
+    // ===== NumPy-style surface (module level) ===========================================
+    CHECK(run("T.Tensor([[1,2,3],[4,5,6]])[0:1]") == "[[1.0, 2.0, 3.0]]");                // axis-0 slice
+    CHECK(run("T.Tensor([[1,2],[3,4]])[[1,0]]") == "[[3.0, 4.0], [1.0, 2.0]]");           // fancy index
+    CHECK(run("var a = T.Tensor([1,2,3,4])\na[a.gt(2)]") == "[3.0, 4.0]");                // boolean mask
+    CHECK(run("T.Tensor([1,2,3]).gt(2)") == "[0.0, 0.0, 1.0]");                           // comparison mask
+    CHECK(run("(T.Tensor([1,2,3]) > 2)") == "[0.0, 0.0, 1.0]");                           // > operator
+    CHECK(run("T.where(T.Tensor([1,0,1]), T.Tensor([1,2,3]), T.zeros([3]))") == "[1.0, 0.0, 3.0]");
+    CHECK(run("T.Tensor([[1,2],[3,4]]).max(0)") == "[3.0, 4.0]");                         // max along axis
+    CHECK(run("T.Tensor([[1,2],[3,4]]).argmax(1)") == "[1.0, 1.0]");
+    CHECK(run("T.Tensor([1,2,3]).cumsum()") == "[1.0, 3.0, 6.0]");
+    CHECK(run("(T.Tensor([5,7]) % 3)") == "[2.0, 1.0]");                                  // modulo op
+    CHECK(run("(T.Tensor([2,3]) ** 2)") == "[4.0, 9.0]");                                 // power op
+    CHECK(run("T.Tensor([1.7,-1.2]).floor()") == "[1.0, -2.0]");
+    CHECK(run("T.concatenate([T.Tensor([1,2]), T.Tensor([3,4])], 0)") == "[1.0, 2.0, 3.0, 4.0]");
+    CHECK(run("T.stack([T.Tensor([1,2]), T.Tensor([3,4])], 0)") == "[[1.0, 2.0], [3.0, 4.0]]");
+    CHECK(run("T.Tensor([1,2,3]).flip()") == "[3.0, 2.0, 1.0]");
+    CHECK(run("T.linspace(0, 1, 5)") == "[0.0, 0.25, 0.5, 0.75, 1.0]");
+    CHECK(run("T.diag(T.Tensor([1,2]))") == "[[1.0, 0.0], [0.0, 2.0]]");
+    CHECK(run("T.det(T.Tensor([[4,3],[6,3]]))") == "-6.0");                               // linalg
+    CHECK(run("T.inv(T.Tensor([[4,3],[6,3]])).matmul(T.Tensor([[4,3],[6,3]]))") == "[[1.0, 0.0], [0.0, 1.0]]");
+    CHECK(run("T.outer(T.Tensor([1,2]), T.Tensor([3,4]))") == "[[3.0, 4.0], [6.0, 8.0]]");
+    CHECK(run("T.cross(T.Tensor([1,0,0]), T.Tensor([0,1,0]))") == "[0.0, 0.0, 1.0]");
+    CHECK(run("T.einsum(\"ij,jk->ik\", T.Tensor([[1,2],[3,4]]), T.eye(2))") == "[[1.0, 2.0], [3.0, 4.0]]");
+    CHECK(run("T.Tensor([3,1,2]).sort()") == "[1.0, 2.0, 3.0]");
+    CHECK(run("T.Tensor([3,1,2]).argsort()") == "[1.0, 2.0, 0.0]");
+    CHECK(run("T.unique(T.Tensor([3,1,3,2,1]))") == "[1.0, 2.0, 3.0]");
+    CHECK(run("T.searchsorted(T.Tensor([1,3,5]), 4)") == "2");                            // insertion index
+    CHECK(run("T.Tensor([[1,2]], dtype=\"Complex\").real()") == "[[1.0, 2.0]]");
+    // autograd through the new ops
+    CHECK(run("var x = T.Tensor([1,2,3,4], requiresgrad=True)\nT.where(T.Tensor([1,0,1,0]), x, T.zeros([4])).sum().backward()\nx.grad") == "[1.0, 0.0, 1.0, 0.0]");
+    CHECK(run("var x = T.Tensor([-1.0,0.5,2.0], requiresgrad=True)\nx.clip(0,1).sum().backward()\nx.grad") == "[0.0, 1.0, 0.0]");
+    CHECK_THROWS(vm.runSource("import(\"tensor\").Tensor([1.0,2.0], dtype=\"Complex\").lt(3.0)\n"));  // complex ordering undefined
 
     return RUN_TESTS();
 }

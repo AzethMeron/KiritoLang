@@ -102,6 +102,51 @@ io.print(a.permute([1, 0]))     # general axis reorder (== transpose for 2-D)
 io.print(T.Tensor([1, 4, 9]).apply(Function(x): return x ** 0.5))   # [1.0, 2.0, 3.0]
 ```
 
+## A NumPy-style toolkit
+
+Beyond the basics, the module mirrors much of NumPy. Indexing supports slices, fancy lists, and
+boolean masks; comparisons give 0/1 masks; and there's a deep bench of reductions, structural ops,
+and linear algebra.
+
+```kirito
+var io = import("io")
+var T = import("tensor")
+var a = T.Tensor([[1, 2, 3], [4, 5, 6]])
+
+# indexing: slice the first axis, fancy-index rows, or select by a boolean mask
+io.print(a[0:1])                 # [[1.0, 2.0, 3.0]]
+io.print(a[[1, 0]])              # rows 1 then 0
+io.print(a[a.gt(3)])             # [4.0, 5.0, 6.0]  — elements where a > 3
+
+# comparisons & selection
+io.print(a.gt(3))                # 0/1 mask  (same as a > 3)
+io.print(T.where(a.gt(3), a, T.zeros([2, 3])))    # keep where a>3, else 0
+io.print(a.clip(2, 5))           # clamp into [2, 5]
+
+# reductions along an axis
+io.print(a.max(0), a.argmax(1), a.std())          # [4,5,6]  [2,2]  ~1.71
+io.print(T.Tensor([1, 2, 3]).cumsum())            # [1.0, 3.0, 6.0]
+
+# structural: join, split, reshape-family
+io.print(T.concatenate([a, a], 0).shape())        # [4, 3]
+io.print(T.stack([T.Tensor([1, 2]), T.Tensor([3, 4])], 0))   # [[1,2],[3,4]]
+io.print(a.flip())               # reversed
+
+# linear algebra
+var M = T.Tensor([[4, 3], [6, 3]])
+io.print(T.det(M), T.trace(M))   # -6.0  7.0
+io.print(T.solve(M, T.Tensor([[1], [1]])))        # solve M x = [1, 1]
+io.print(T.einsum("ij,jk->ik", M, T.eye(2)))      # general contraction == M
+
+# sorting
+io.print(T.Tensor([3, 1, 2]).sort())              # [1.0, 2.0, 3.0]
+io.print(T.unique(T.Tensor([3, 1, 3, 2])))        # [1.0, 2.0, 3.0]
+```
+
+Most of these flow gradients too — `where`, `clip`, `maximum`/`minimum`, `concatenate`/`stack`/`split`,
+the reshape-family, `cumsum`, and the autograd-aware `t.slice(...)` / `t.take(...)` all backpropagate.
+(`==`/`!=` stay whole-tensor `Bool`; the element-wise comparison is `t.eq(...)` etc.)
+
 ## Contraction: `tensordot`
 
 `matmul` contracts one pair of axes; `tensordot` contracts any number of them. Pass an integer `N` to
@@ -207,6 +252,9 @@ methods are Float-only too (for complex analytic functions use the `complex` mod
 - `+ - * /` are element-wise with broadcasting; **`matmul`** is the matrix product (also batched).
 - `transpose`/`permute`/`reshape`/`flatten` reshape; **`apply`** maps a function over every element;
   `sum`/`mean`/`prod`/`min`/`max` reduce (whole-tensor or along an `axis`).
+- A broad **NumPy-style toolkit**: slice/fancy/boolean indexing, comparison masks, `where`/`clip`,
+  axis reductions (`argmax`/`std`/`cumsum`/…), structural ops (`concatenate`/`stack`/`split`/`flip`/…),
+  creation helpers (`linspace`/`diag`/…), linear algebra (`det`/`inv`/`solve`/`einsum`/…), and sorting.
 - **`tensordot`**/`contract` contract over chosen axes; `matmul` is the single-axis special case.
 - **Autograd** is opt-in (`requiresgrad = True`) and Float-only: differentiable ops record a graph,
   `backward()` fills each input's `.grad`; `zerograd()`, `detach()`, and `with tensor.nograd():`

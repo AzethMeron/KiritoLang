@@ -364,6 +364,148 @@ Tensor<T> inverse(const Tensor<T>& t) {
     return inv;
 }
 
+// ---- coordinate helpers ----------------------------------------------------------------------
+// Unravel a flat (row-major) index into per-axis coordinates for `shape`.
+inline Shape unravel(std::size_t lin, const Shape& shape) {
+    Shape st = rowMajorStrides(shape), coord(shape.size());
+    for (std::size_t i = 0; i < shape.size(); ++i) { coord[i] = lin / st[i]; lin %= st[i]; }
+    return coord;
+}
+
+// ---- structural ops --------------------------------------------------------------------------
+
+// A single-axis strided slice. start/stop are already resolved (0 <= start, stop within [0,len],
+// stop exclusive in the walk direction); step != 0 (may be negative).
+template <class T>
+Tensor<T> sliceAxis(const Tensor<T>& t, std::size_t axis, std::ptrdiff_t start, std::ptrdiff_t stop, std::ptrdiff_t step) {
+    if (axis >= t.ndim()) throw TensorError("slice axis out of range");
+    if (step == 0) throw TensorError("slice step cannot be zero");
+    std::vector<std::ptrdiff_t> picks;
+    if (step > 0) for (std::ptrdiff_t i = start; i < stop; i += step) picks.push_back(i);
+    else for (std::ptrdiff_t i = start; i > stop; i += step) picks.push_back(i);
+    Shape outshape = t.shape;
+    outshape[axis] = picks.size();
+    Tensor<T> out(outshape);
+    Shape ist = t.strides(), ost = out.strides();
+    for (std::size_t lin = 0; lin < out.size(); ++lin) {
+        Shape c = unravel(lin, outshape);
+        std::size_t off = 0;
+        for (std::size_t d = 0; d < t.ndim(); ++d)
+            off += (d == axis ? static_cast<std::size_t>(picks[c[d]]) : c[d]) * ist[d];
+        out.data[lin] = t.data[off];
+    }
+    return out;
+}
+
+// Reverse the order of elements along one axis.
+template <class T>
+Tensor<T> flip(const Tensor<T>& t, std::size_t axis) {
+    if (axis >= t.ndim()) throw TensorError("flip axis out of range");
+    return sliceAxis(t, axis, static_cast<std::ptrdiff_t>(t.shape[axis]) - 1, -1, -1);
+}
+
+// Join tensors along an existing axis; all must share shape off that axis.
+template <class T>
+Tensor<T> concatenate(const std::vector<const Tensor<T>*>& parts, std::size_t axis) {
+    if (parts.empty()) throw TensorError("concatenate needs at least one tensor");
+    std::size_t nd = parts[0]->ndim();
+    if (axis >= nd) throw TensorError("concatenate axis out of range");
+    Shape outshape = parts[0]->shape;
+    std::size_t axisTotal = 0;
+    for (const Tensor<T>* p : parts) {
+        if (p->ndim() != nd) throw TensorError("concatenate: tensors must have the same rank");
+        for (std::size_t d = 0; d < nd; ++d)
+            if (d != axis && p->shape[d] != outshape[d]) throw TensorError("concatenate: shapes differ off the join axis");
+        axisTotal += p->shape[axis];
+    }
+    outshape[axis] = axisTotal;
+    Tensor<T> out(outshape);
+    Shape ost = out.strides();
+    std::size_t base = 0;  // running offset along `axis` in the output
+    for (const Tensor<T>* p : parts) {
+        Shape ist = p->strides();
+        for (std::size_t lin = 0; lin < p->size(); ++lin) {
+            Shape c = unravel(lin, p->shape);
+            std::size_t off = 0;
+            for (std::size_t d = 0; d < nd; ++d) off += (d == axis ? c[d] + base : c[d]) * ost[d];
+            out.data[off] = p->data[lin];
+        }
+        base += p->shape[axis];
+    }
+    return out;
+}
+
+// Gather rows along axis 0 by an index list (fancy indexing / np.take with axis 0).
+template <class T>
+Tensor<T> takeAxis0(const Tensor<T>& t, const std::vector<std::ptrdiff_t>& idx) {
+    if (t.ndim() == 0) throw TensorError("cannot index a 0-D tensor");
+    Shape outshape = t.shape;
+    outshape[0] = idx.size();
+    Tensor<T> out(outshape);
+    std::size_t block = t.size() / (t.shape[0] == 0 ? 1 : t.shape[0]);
+    for (std::size_t i = 0; i < idx.size(); ++i) {
+        std::ptrdiff_t r = idx[i];
+        if (r < 0 || static_cast<std::size_t>(r) >= t.shape[0]) throw TensorError("index out of range");
+        std::copy(t.data.begin() + static_cast<std::ptrdiff_t>(r) * static_cast<std::ptrdiff_t>(block),
+                  t.data.begin() + (static_cast<std::ptrdiff_t>(r) + 1) * static_cast<std::ptrdiff_t>(block),
+                  out.data.begin() + static_cast<std::ptrdiff_t>(i) * static_cast<std::ptrdiff_t>(block));
+    }
+    return out;
+}
+
+// Cumulative scan along an axis with a binary op (cumsum/cumprod).
+template <class T, class Op>
+Tensor<T> cumulative(const Tensor<T>& t, std::size_t axis, Op op) {
+    if (axis >= t.ndim()) throw TensorError("cumulative axis out of range");
+    Tensor<T> out = t;
+    Shape st = t.strides();
+    std::size_t len = t.shape[axis], step = st[axis];
+    for (std::size_t lin = 0; lin < out.size(); ++lin) {
+        Shape c = unravel(lin, t.shape);
+        if (c[axis] == 0) continue;  // first along the axis stays as-is
+        out.data[lin] = op(out.data[lin - step], out.data[lin]);
+    }
+    (void)len;
+    return out;
+}
+
+// ---- linear algebra (extra) ------------------------------------------------------------------
+
+// Solve A x = B for a square A (A: n×n, B: n×m or n) via the inverse.
+template <class T>
+Tensor<T> solve(const Tensor<T>& A, const Tensor<T>& B) {
+    if (A.ndim() != 2 || A.shape[0] != A.shape[1]) throw TensorError("solve requires a square 2-D A");
+    bool vec = B.ndim() == 1;
+    Tensor<T> b2 = vec ? reshape(B, Shape{B.shape[0], 1}) : B;
+    if (b2.ndim() != 2 || b2.shape[0] != A.shape[0]) throw TensorError("solve: A and B shapes are incompatible");
+    Tensor<T> x = matmul(inverse(A), b2);
+    return vec ? reshape(x, Shape{x.shape[0]}) : x;
+}
+
+// Outer product of two 1-D tensors -> a 2-D tensor.
+template <class T>
+Tensor<T> outer(const Tensor<T>& a, const Tensor<T>& b) {
+    if (a.ndim() != 1 || b.ndim() != 1) throw TensorError("outer requires two 1-D tensors");
+    Tensor<T> out(Shape{a.size(), b.size()});
+    for (std::size_t i = 0; i < a.size(); ++i)
+        for (std::size_t j = 0; j < b.size(); ++j) out.data[i * b.size() + j] = a.data[i] * b.data[j];
+    return out;
+}
+
+// Kronecker product of two 2-D tensors.
+template <class T>
+Tensor<T> kron(const Tensor<T>& a, const Tensor<T>& b) {
+    if (a.ndim() != 2 || b.ndim() != 2) throw TensorError("kron requires two 2-D tensors");
+    std::size_t ar = a.shape[0], ac = a.shape[1], br = b.shape[0], bc = b.shape[1];
+    Tensor<T> out(Shape{ar * br, ac * bc});
+    for (std::size_t i = 0; i < ar; ++i)
+        for (std::size_t j = 0; j < ac; ++j)
+            for (std::size_t k = 0; k < br; ++k)
+                for (std::size_t l = 0; l < bc; ++l)
+                    out.data[(i * br + k) * (ac * bc) + (j * bc + l)] = a.data[i * ac + j] * b.data[k * bc + l];
+    return out;
+}
+
 }  // namespace kirito::tensor
 
 #endif

@@ -116,6 +116,77 @@ with T.nograd():
 assert (pv * 2).requiresgrad() == True, "tracking resumes after the with block"
 assert pv.detach().requiresgrad() == False, "detach drops grad tracking"
 
+# --- NumPy-style surface: indexing, comparisons, reductions, structural, linalg, sorting ---
+# slicing (axis 0) / fancy / boolean
+assert a[0:1] == T.Tensor([[1, 2, 3]]), "axis-0 slice"
+assert a[[1, 0]] == T.Tensor([[4, 5, 6], [1, 2, 3]]), "fancy index"
+assert a[a.gt(3)] == T.Tensor([4, 5, 6]), "boolean mask select"
+# comparisons + logic (0/1 masks)
+assert a.gt(3) == T.Tensor([[0, 0, 0], [1, 1, 1]]), "gt mask"
+assert (a > 3) == a.gt(3), "the > operator matches .gt"
+assert a.eq(T.Tensor([[1, 0, 3], [0, 5, 0]])) == T.Tensor([[1, 0, 1], [0, 1, 0]]), "eq mask"
+assert a.gt(2).logicaland(a.lt(5)) == T.Tensor([[0, 0, 1], [1, 0, 0]]), "logical and"
+# selection / clip / maximum-minimum
+assert T.where(a.gt(3), a, T.zeros([2, 3])) == T.Tensor([[0, 0, 0], [4, 5, 6]]), "where"
+assert a.clip(2, 5) == T.Tensor([[2, 2, 3], [4, 5, 5]]), "clip"
+assert a.maximum(T.full([2, 3], 3)) == T.Tensor([[3, 3, 3], [4, 5, 6]]), "maximum"
+# axis reductions / statistics
+assert a.min(0) == T.Tensor([1, 2, 3]) and a.max(1) == T.Tensor([3, 6]), "min/max along axis"
+assert a.argmax(1) == T.Tensor([2, 2]), "argmax along axis"
+assert a.argmin() == 0, "argmin (flat) is an Integer"
+assert a.var(0) == T.Tensor([2.25, 2.25, 2.25]), "var along axis"
+assert T.Tensor([1, 2, 3]).cumsum() == T.Tensor([1, 3, 6]), "cumsum"
+assert T.Tensor([3, 1, 2]).median() == 2.0, "median"
+assert a.gt(5).any() == True and a.gt(0).all() == True, "any / all"
+# element-wise rounding / mod / power
+assert T.Tensor([1.7, -1.2]).floor() == T.Tensor([1, -2]), "floor"
+assert (T.Tensor([5, 7]) % 3) == T.Tensor([2, 1]), "modulo operator"
+assert (T.Tensor([2, 3]) ** 2) == T.Tensor([4, 9]), "power operator"
+# structural
+assert T.concatenate([a, a], 0).shape() == [4, 3], "concatenate"
+assert T.stack([T.Tensor([1, 2]), T.Tensor([3, 4])], 0) == T.Tensor([[1, 2], [3, 4]]), "stack"
+assert len(T.split(a, 3, 1)) == 3, "split"
+assert T.zeros([1, 3, 1]).squeeze().shape() == [3], "squeeze"
+assert T.Tensor([1, 2]).expanddims(0).shape() == [1, 2], "expanddims"
+assert a.swapaxes(0, 1) == a.transpose(), "swapaxes"
+assert T.Tensor([1, 2, 3]).flip() == T.Tensor([3, 2, 1]), "flip"
+assert T.Tensor([1, 2]).repeat(2) == T.Tensor([1, 1, 2, 2]), "repeat"
+assert T.Tensor([1, 2]).tile([2]) == T.Tensor([1, 2, 1, 2]), "tile"
+assert T.Tensor([[1], [2]]).broadcastto([2, 3]) == T.Tensor([[1, 1, 1], [2, 2, 2]]), "broadcastto"
+# creation helpers
+assert T.linspace(0, 1, 5) == T.Tensor([0, 0.25, 0.5, 0.75, 1]), "linspace"
+assert T.zeroslike(a) == T.zeros([2, 3]), "zeroslike"
+assert T.diag(T.Tensor([1, 2])) == T.Tensor([[1, 0], [0, 2]]), "diag (vector -> matrix)"
+assert T.diag(T.Tensor([[1, 2], [3, 4]])) == T.Tensor([1, 4]), "diag (matrix -> vector)"
+assert T.tril(T.ones([2, 2])) == T.Tensor([[1, 0], [1, 1]]), "tril"
+# linear algebra
+var M = T.Tensor([[4, 3], [6, 3]])
+assert T.det(M) == -6.0 and T.trace(M) == 7.0, "det / trace"
+assert T.inv(M).matmul(M) == T.eye(2), "inverse"
+assert T.solve(M, T.Tensor([[1], [1]])) == T.Tensor([[0], [1.0 / 3]]), "solve"
+assert T.norm(T.Tensor([3, 4])) == 5.0, "norm"
+assert T.outer(T.Tensor([1, 2]), T.Tensor([3, 4])) == T.Tensor([[3, 4], [6, 8]]), "outer"
+assert T.cross(T.Tensor([1, 0, 0]), T.Tensor([0, 1, 0])) == T.Tensor([0, 0, 1]), "cross"
+assert T.inner(T.Tensor([1, 2, 3]), T.Tensor([4, 5, 6])) == T.full([], 32), "inner"
+assert T.einsum("ij,jk->ik", T.Tensor([[1, 2], [3, 4]]), T.eye(2)) == T.Tensor([[1, 2], [3, 4]]), "einsum matmul"
+assert T.einsum("ii->", M) == T.full([], 7), "einsum trace"
+# sorting / searching
+assert T.Tensor([3, 1, 2]).sort() == T.Tensor([1, 2, 3]), "sort"
+assert T.Tensor([3, 1, 2]).argsort() == T.Tensor([1, 2, 0]), "argsort"
+assert T.unique(T.Tensor([3, 1, 3, 2, 1])) == T.Tensor([1, 2, 3]), "unique"
+assert T.searchsorted(T.Tensor([1, 3, 5]), 4) == 2, "searchsorted"
+# complex helpers
+var zc = T.Tensor([[1, 2], [3, 4]], dtype = "Complex")
+assert zc.real() == T.Tensor([[1, 2], [3, 4]]), "real part"
+assert zc.imag() == T.zeros([2, 2]), "imag part of a real-valued complex tensor"
+# autograd flows through the new differentiable ops
+var ga = T.Tensor([1, 2, 3, 4], requiresgrad = True)
+T.where(T.Tensor([1, 0, 1, 0]), ga, T.zeros([4])).sum().backward()
+assert ga.grad == T.Tensor([1, 0, 1, 0]), "where is differentiable"
+var gc = T.Tensor([1, 1, 1], requiresgrad = True)
+gc.cumsum().sum().backward()
+assert gc.grad == T.Tensor([3, 2, 1]), "cumsum is differentiable (reverse cumsum)"
+
 # --- errors ---
 var raised = 0
 for thunk in [Function(): return T.Tensor([[1, 2], [3]]), Function(): return T.zeros([2]).matmul(T.zeros([3])), Function(): return T.Tensor([1, 2], dtype = "Complex").min(), Function(): return T.Tensor([1]).reshape([2, 2]), Function(): return T.zeros([2]).backward(), Function(): return T.zeros([2], dtype = "Complex").requiresgrad(True)]:

@@ -345,8 +345,67 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
   the real part).
 - `t.sum(axis = None)`, `t.mean(axis = None)`, `t.prod(axis = None)` — reduce the whole tensor to a
   scalar, or one `axis` to a lower-rank tensor.
-- `t.min() → Float`, `t.max() → Float` — whole-tensor extremes (raise for a `Complex` tensor, which
-  is unordered).
+- `t.min(axis = None)`, `t.max(axis = None)` — extremes (whole-tensor or along an axis; raise for a
+  `Complex` tensor, which is unordered).
+
+### Indexing & slicing
+
+- `t[i, j, ...]` — integer index (full → element, partial → sub-tensor); `t[i, j] = v` assigns.
+- `t[start:stop:step]` — slice the **first** axis (Python semantics; returns a detached copy).
+- `t[mask]` — boolean selection where `mask` is a same-shape 0/1 tensor (→ 1-D).
+- `t[[i, j, k]]` — fancy index: gather those rows along axis 0.
+- `t.slice(start, stop, step, axis = 0) → Tensor` and `t.take(indices, axis = 0) → Tensor` — the
+  **autograd-aware** forms of slicing / row-gather (the gradient scatters back).
+
+### Comparisons, logic, selection
+
+- `t.eq/ne/lt/le/gt/ge(other) → Tensor` — element-wise comparisons returning a 0/1 mask (the
+  `< <= > >=` operators do the same; `==`/`!=` stay whole-tensor `Bool`). Float only.
+- `t.logicaland/logicalor/logicalxor(other)`, `t.logicalnot()` — element-wise logic on 0/1 masks.
+- `where(cond, a, b) → Tensor` — element-wise select (`cond` non-zero → `a` else `b`); differentiable.
+- `t.clip(lo, hi)`, `t.maximum(other)`, `t.minimum(other)` — clamp / element-wise max / min;
+  differentiable.
+
+### More reductions
+
+- `t.argmin(axis = None)`, `t.argmax(axis = None)` — index of the extreme.
+- `t.std(axis = None, ddof = 0)`, `t.var(axis = None, ddof = 0)` — standard deviation / variance.
+- `t.all(axis = None)`, `t.any(axis = None)` — truth reductions.
+- `t.ptp(axis = None)` — max − min; `t.median(axis = None)`.
+- `t.cumsum(axis = None)` (differentiable) / `t.cumprod(axis = None)` — cumulative scans
+  (`axis = None` flattens first).
+
+### Structural ops
+
+- `t.squeeze(axis = None)`, `t.expanddims(axis)`, `t.swapaxes(a1, a2)`, `t.flip(axis = None)`,
+  `t.broadcastto(shape)`, `t.repeat(count, axis = None)`, `t.tile(reps)` — all differentiable except
+  `repeat`/`tile`.
+- `concatenate(tensors, axis = 0)` (alias `concat`), `stack(tensors, axis = 0)`,
+  `split(t, sections, axis = 0)` — join / split a List of tensors (differentiable). `sections` is an
+  Integer (equal parts) or a List of sizes.
+
+### Creation helpers
+
+- `linspace(start, stop, num = 50)`, `zeroslike(t)`, `oneslike(t)`, `fulllike(t, value)`,
+  `identity(n)` (alias of `eye`), `diag(t, k = 0)` (1-D → diagonal matrix, 2-D → its diagonal),
+  `tril(t, k = 0)` / `triu(t, k = 0)` (lower / upper triangle).
+
+### Linear algebra (module functions, 2-D)
+
+- `det(t)`, `inv(t)`, `solve(a, b)`, `trace(t)`, `norm(t, ord = 2)`, `outer(a, b)`, `inner(a, b)`,
+  `kron(a, b)`, `cross(a, b)` (3-vectors), and `einsum(spec, *tensors)` — a general Einstein-summation
+  (transpose / diagonal / trace / contraction / outer, any subscript string). Work on both dtypes
+  where it makes sense (forward only; the differentiable linear algebra is `matmul`/`tensordot`).
+
+### Sorting & search
+
+- `t.sort(axis = None)`, `t.argsort(axis = None)` (default last axis), `unique(t)` (sorted unique 1-D),
+  `nonzero(t)` (a List of per-axis index tensors), `searchsorted(a, v)` (insertion indices into a
+  sorted 1-D `a`).
+
+### Complex helpers
+
+- `t.real()`, `t.imag()`, `t.angle()` → Float tensors; `t.conj()` → the conjugate (Complex).
 
 ### Differentiable element-wise math
 
@@ -355,7 +414,7 @@ Every one of these returns a new tensor with the function applied element-wise, 
 
 - exponential / log: `exp`, `log`, `log10`, `log2`, `softplus`, `erf`
 - powers / roots: `sqrt`, `cbrt`, `square`, `reciprocal`, `pow(p)`
-- sign / magnitude: `abs`, `sign` (sign's gradient is zero)
+- sign / magnitude / rounding: `abs`, `sign`, `floor`, `ceil`, `round`, `trunc` (gradient zero)
 - trigonometric: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`
 - hyperbolic: `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`
 - neural-net: `relu`, `sigmoid`
