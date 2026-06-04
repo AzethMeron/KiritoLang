@@ -1840,7 +1840,11 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
             const auto& mod = static_cast<const ModuleValue&>(o);
             std::string out = "module " + mod.name() + ":\n";
             std::string body;
-            for (const std::string& k : sortedKeys(mod.members)) body += describe(k, mod.members.at(k), "  ");
+            for (const std::string& k : sortedKeys(mod.members))
+                // hide private members (single leading underscore, no trailing one — e.g. tensor's
+                // grad-mode flag); public dunders like io.__stdout__ stay visible
+                if (!(k.size() >= 1 && k.front() == '_' && k.back() != '_'))
+                    body += describe(k, mod.members.at(k), "  ");
             if (body.empty()) return out + "  (empty)";
             return out + body.substr(0, body.size() - 1);
         }

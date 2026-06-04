@@ -70,13 +70,59 @@ assert T.Tensor([1, 2]).astype("Complex").dtype() == "Complex", "astype Float ->
 # a Float tensor + a Complex tensor promotes to Complex
 assert (T.Tensor([1, 2]) + T.Tensor([1, 1], dtype = "Complex")).dtype() == "Complex", "mixed-dtype promotes to Complex"
 
+# --- tensordot / contract ---
+assert T.tensordot(p, q, 1) == p.matmul(q), "tensordot axes=1 == matmul"
+assert T.tensordot(p, q, 2) == T.full([], 70), "tensordot axes=2 (Frobenius) -> 0-D scalar 70"
+var xc = T.full([2, 3, 4], 1)
+var yc = T.full([4, 3, 5], 2)
+assert T.contract(xc, yc, [1, 2], [1, 0]).shape() == [2, 5], "contract over two axis pairs"
+assert T.contract(xc, yc, [1, 2], [1, 0])[0, 0] == 24.0, "contract value (sum of 3*4 of 1*2)"
+
+# --- autograd: off by default, opt-in, backward, grad, zerograd, detach, nograd ---
+assert T.zeros([2]).requiresgrad() == False, "tensors do not require grad by default"
+var gw = T.Tensor([[1, 2], [3, 4]], requiresgrad = True)
+var gb = T.Tensor([[1, 1], [1, 1]], requiresgrad = True)
+var loss = (gw * gb + gb).sum()                 # d/dgw = gb ; d/dgb = gw + 1
+loss.backward()
+assert gw.grad == T.Tensor([[1, 1], [1, 1]]), "grad wrt gw == gb"
+assert gb.grad == T.Tensor([[2, 3], [4, 5]]), "grad wrt gb == gw + 1"
+# matmul backward
+var mw = T.Tensor([[1, 2], [3, 4]], requiresgrad = True)
+mw.matmul(T.eye(2)).sum().backward()
+assert mw.grad == T.ones([2, 2]), "matmul grad through an identity is ones"
+# differentiable math: d/dx sum(x^2) = 2x
+var xv = T.Tensor([1, 2, 3], requiresgrad = True)
+xv.square().sum().backward()
+assert xv.grad == T.Tensor([2, 4, 6]), "d/dx sum(x^2) = 2x"
+# relu gradient is the positive mask
+var rv = T.Tensor([-2, -1, 1, 2], requiresgrad = True)
+rv.relu().sum().backward()
+assert rv.grad == T.Tensor([0, 0, 1, 1]), "relu grad is the positive mask"
+# post-creation enable; zerograd clears; grad accumulates across backward calls
+var pv = T.Tensor([1, 2], requiresgrad = True)
+pv.requiresgrad(True)
+pv.sum().backward()
+pv.sum().backward()
+assert pv.grad == T.Tensor([2, 2]), "grad accumulates across backward() calls"
+pv.zerograd()
+assert pv.grad == None, "zerograd clears the gradient"
+# tensordot is differentiable
+var ta = T.Tensor([[1, 2], [3, 4]], requiresgrad = True)
+T.tensordot(ta, T.eye(2), 1).sum().backward()
+assert ta.grad == T.ones([2, 2]), "tensordot is differentiable"
+# nograd disables tracking; detach drops grad
+with T.nograd():
+    assert (pv * 2).requiresgrad() == False, "ops inside nograd() do not track"
+assert (pv * 2).requiresgrad() == True, "tracking resumes after the with block"
+assert pv.detach().requiresgrad() == False, "detach drops grad tracking"
+
 # --- errors ---
 var raised = 0
-for thunk in [Function(): return T.Tensor([[1, 2], [3]]), Function(): return T.zeros([2]).matmul(T.zeros([3])), Function(): return T.Tensor([1, 2], dtype = "Complex").min(), Function(): return T.Tensor([1]).reshape([2, 2])]:
+for thunk in [Function(): return T.Tensor([[1, 2], [3]]), Function(): return T.zeros([2]).matmul(T.zeros([3])), Function(): return T.Tensor([1, 2], dtype = "Complex").min(), Function(): return T.Tensor([1]).reshape([2, 2]), Function(): return T.zeros([2]).backward(), Function(): return T.zeros([2], dtype = "Complex").requiresgrad(True)]:
     try:
         discard thunk()
     catch as e:
         raised = raised + 1
-assert raised == 4, "ragged list, bad matmul, complex min, and bad reshape all raise"
+assert raised == 6, "ragged list, bad matmul, complex min, bad reshape, backward-without-grad, and complex-requiresgrad all raise"
 
 io.print("OK")

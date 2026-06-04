@@ -200,12 +200,22 @@ a stability fuzzer, and a benchmark). Working today:
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
     randrange/choice/shuffle/sample/gauss/expovariate.
   - `tensor` — dense **N-dimensional** arrays in C++ (`tensor.hpp`, a generic `Tensor<T>` engine;
-    CPU-only, GPU-ready single-buffer design, no autograd). dtype **Float** (default) or **Complex**
-    (the engine is generic in T). `Tensor(nested[, dtype])`/`zeros`/`ones`/`full`/`eye`/`arange`;
+    CPU-only, GPU-ready single-buffer design). dtype **Float** (default) or **Complex**
+    (the engine is generic in T). `Tensor(nested[, dtype][, requiresgrad])`/`zeros`/`ones`/`full`/`eye`/`arange`;
     `t[i,j,...]` (full index → scalar, partial → sub-tensor) + assignment; +,-,*,/ **element-wise**
     with NumPy **broadcasting** (mixed Float/Complex promotes) and scalar ops; `matmul` (2-D +
-    batched), `dot`, `transpose`/`permute`/`reshape`/`flatten`, `apply` (element-wise map),
-    `astype`, reductions `sum`/`mean`/`prod` (whole or per-axis) and `min`/`max` (Float-only). The
+    batched), `dot`, `tensordot(a,b,axes)`/`contract` (general axis contraction), `transpose`/`permute`/`reshape`/`flatten`,
+    `apply` (element-wise map), `astype`, reductions `sum`/`mean`/`prod` (whole or per-axis) and
+    `min`/`max` (Float-only), plus a differentiable element-wise math set (exp/log/sqrt/cbrt/square/
+    pow/reciprocal/abs/sign/sin/cos/tan/asin/acos/atan/sinh/cosh/tanh/asinh/acosh/atanh/relu/sigmoid/
+    softplus/erf). **Reverse-mode autograd** (Float-only, opt-in): tensors don't track gradients by
+    default; mark a leaf via the `requiresgrad=True` constructor kwarg or `t.requiresgrad(True)`, and
+    the differentiable ops (+,-,*,/, matmul, tensordot, sum/mean, transpose/reshape/permute/flatten,
+    neg, and the math set) record a computational graph; `t.backward([seed])` accumulates `t.grad`,
+    `t.zerograd()` clears it, `t.detach()` stops gradient flow, and `with tensor.nograd():` (a context
+    manager) disables tracking for a block. The graph records *operations* (not data location), so it
+    carries forward to a future GPU backend. The grad-mode flag is VM-scoped (a hidden `_grad` member
+    of the module, hidden from `inspect`). The
     `matrix` and `complex` matrix types are **built on this engine** (a 2-D tensor is a matrix).
   - `matrix` — dense real matrices (a 2-D `Tensor<double>`) of arbitrary shape (no concurrency): +,-,* (matrix/scalar),
     `m[i, j]` element access/assignment, transpose, determinant, inverse, trace, apply, factories

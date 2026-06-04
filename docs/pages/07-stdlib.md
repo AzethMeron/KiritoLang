@@ -304,17 +304,20 @@ square matrix and raise otherwise.
 Dense **N-dimensional** arrays — the generalization of a matrix to any rank. The element type
 (**dtype**) is chosen at construction: `"Float"` (double, the default) or `"Complex"`. The numeric
 engine is shared C++ (`src/kirito/tensor.hpp`) and is what the `matrix` and `complex` matrix types are
-themselves built on; a 2-D tensor *is* a matrix. It is CPU-only and has no autograd — a plain,
-solid numeric container.
+themselves built on; a 2-D tensor *is* a matrix. It is CPU-only but carries a **reverse-mode autograd**
+(see below) and a GPU-forward-compatible single-buffer design.
 
 ### Constructors and factories
 
-- `Tensor(data: List, dtype = "Float") → Tensor` — build from a (rectangular) nested list; the
-  nesting depth sets the rank. `tensor` is an alias of `Tensor`.
-- `zeros(shape: List, dtype = "Float") → Tensor` — a tensor of zeros with the given shape.
-- `ones(shape: List, dtype = "Float") → Tensor` — a tensor of ones.
-- `full(shape: List, value: Number, dtype = "Float") → Tensor` — filled with `value`.
-- `eye(n: Integer, dtype = "Float") → Tensor` — the n×n identity matrix.
+Each constructor/factory takes an optional **`requiresgrad`** keyword (default `False`) that marks the
+result as a differentiable leaf (Float only — see [Autograd](#autograd)).
+
+- `Tensor(data: List, dtype = "Float", requiresgrad = False) → Tensor` — build from a (rectangular)
+  nested list; the nesting depth sets the rank. `tensor` is an alias of `Tensor`.
+- `zeros(shape: List, dtype = "Float", requiresgrad = False) → Tensor` — a tensor of zeros.
+- `ones(shape: List, dtype = "Float", requiresgrad = False) → Tensor` — a tensor of ones.
+- `full(shape: List, value: Number, dtype = "Float", requiresgrad = False) → Tensor` — filled with `value`.
+- `eye(n: Integer, dtype = "Float", requiresgrad = False) → Tensor` — the n×n identity matrix.
 - `arange(stop)` / `arange(start, stop[, step]) → Tensor` — a 1-D ramp (like Python's `range`, as
   Floats).
 
@@ -344,6 +347,79 @@ solid numeric container.
   scalar, or one `axis` to a lower-rank tensor.
 - `t.min() → Float`, `t.max() → Float` — whole-tensor extremes (raise for a `Complex` tensor, which
   is unordered).
+
+### Differentiable element-wise math
+
+Every one of these returns a new tensor with the function applied element-wise, and each is
+**differentiable** under autograd (Float only):
+
+- exponential / log: `exp`, `log`, `log10`, `log2`, `softplus`, `erf`
+- powers / roots: `sqrt`, `cbrt`, `square`, `reciprocal`, `pow(p)`
+- sign / magnitude: `abs`, `sign` (sign's gradient is zero)
+- trigonometric: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`
+- hyperbolic: `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`
+- neural-net: `relu`, `sigmoid`
+
+### tensordot / contract
+
+General tensor contraction over chosen axes (built from `permute`/`reshape`/`matmul`, so it is
+differentiable):
+
+- `tensordot(a: Tensor, b: Tensor, axes = 2) → Tensor` — `axes` is an **Integer** `N` (contract the
+  last `N` axes of `a` with the first `N` of `b` — `N = 1` is matrix multiply, `N = 2` is the
+  Frobenius double-contraction to a scalar) or a **`[a-axes, b-axes]`** pair (each an Integer or a
+  List of Integers) naming the axes to pair up.
+- `contract(a: Tensor, b: Tensor, aaxes, baxes) → Tensor` — `tensordot` with the two axis lists given
+  explicitly.
+
+### Autograd
+
+Reverse-mode automatic differentiation, opt-in and **Float-only**. Tensors **do not** track gradients
+by default; mark a leaf with `requiresgrad = True` (constructor keyword) or `t.requiresgrad(True)`
+post-creation. Differentiable operations then record a computational graph; `backward()` walks it and
+accumulates each tensor's gradient. The graph records *operations*, not where the data lives, so the
+design carries forward to a future GPU backend.
+
+- `t.requiresgrad() → Bool` — whether `t` tracks gradients; `t.requiresgrad(flag)` sets it (Float
+  only; turning it off detaches `t` from the graph).
+- `t.grad → Tensor` — the accumulated gradient (same shape as `t`), or `None` before `backward()`.
+- `t.backward(seed = None) → None` — propagate gradients back from `t`. With no `seed`, `t` must be a
+  scalar (a 0-D or single-element tensor) and the seed is `1`; otherwise pass a seed tensor of `t`'s
+  shape. Gradients **accumulate** into `.grad` (call `zerograd()` between steps).
+- `t.zerograd() → None` — clear `t.grad`.
+- `t.detach() → Tensor` — a copy that shares the data but tracks no gradient (stops gradient flow).
+- `nograd()` — a context manager: inside `with tensor.nograd():` no operation tracks gradients (for
+  inference or for in-place parameter updates).
+
+**Differentiable ops:** `+ - * /` (with broadcasting), `matmul`, `tensordot`/`contract`, `sum`/`mean`
+(whole-tensor or per-axis), `transpose`/`permute`/`reshape`/`flatten`, unary `-`, and the
+differentiable math set above. Non-differentiable ops — `apply` (an arbitrary function), `min`/`max`,
+`prod`, indexing — detach (stop the gradient). On a grad-tracking tensor, a whole-tensor `sum`/`mean`
+returns a 0-D tensor (so the graph continues) rather than a plain `Float`.
+
+```kirito
+var io = import("io")
+var T = import("tensor")
+
+# fit y = 2x + 1 by gradient descent
+var xs = T.Tensor([[0], [1], [2], [3]])
+var ys = T.Tensor([[1], [3], [5], [7]])
+var w = T.zeros([1, 1], requiresgrad = True)
+var b = T.zeros([1, 1], requiresgrad = True)
+var step = 0
+while step < 500:
+    var loss = (xs.matmul(w) + b - ys).square().mean()
+    w.zerograd()
+    b.zerograd()
+    loss.backward()
+    with T.nograd():
+        w = w - w.grad * 0.05
+        b = b - b.grad * 0.05
+    w.requiresgrad(True)
+    b.requiresgrad(True)
+    step = step + 1
+io.print(w[0, 0], b[0, 0])      # ~ 2.0  ~ 1.0
+```
 
 ---
 

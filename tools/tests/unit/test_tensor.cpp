@@ -93,5 +93,29 @@ int main() {
     CHECK_THROWS(vm.runSource("import(\"tensor\").Tensor([[1, 2], [3]])\n"));            // ragged
     CHECK_THROWS(vm.runSource("import(\"tensor\").Tensor([1, 2, 3], dtype=\"Complex\").min()\n"));  // complex min
 
+    // ===== autograd =====================================================================
+    CHECK(run("T.zeros([2]).requiresgrad()") == "False");                                // off by default
+    CHECK(run("T.zeros([2], requiresgrad=True).requiresgrad()") == "True");              // opt-in kwarg
+    // d/dx sum(x^2) = 2x
+    CHECK(run("var x = T.Tensor([1, 2, 3], requiresgrad=True)\nx.square().sum().backward()\nx.grad") == "[2.0, 4.0, 6.0]");
+    // product rule via backward: d/da sum(a*b) = b, d/db sum(a*b) = a
+    CHECK(run("var a = T.Tensor([2, 3], requiresgrad=True)\nvar b = T.Tensor([5, 7], requiresgrad=True)\n(a*b).sum().backward()\na.grad") == "[5.0, 7.0]");
+    // matmul backward through an identity is ones
+    CHECK(run("var m = T.Tensor([[1,2],[3,4]], requiresgrad=True)\nm.matmul(T.eye(2)).sum().backward()\nm.grad") == "[[1.0, 1.0], [1.0, 1.0]]");
+    // broadcasting backward: column sums
+    CHECK(run("var a = T.Tensor([[1,2,3],[4,5,6]], requiresgrad=True)\nvar w = T.Tensor([1,1,1], requiresgrad=True)\n(a*w).sum().backward()\nw.grad") == "[5.0, 7.0, 9.0]");
+    // relu gradient mask
+    CHECK(run("var z = T.Tensor([-1, 2], requiresgrad=True)\nz.relu().sum().backward()\nz.grad") == "[0.0, 1.0]");
+    // grad accumulates across backward() calls; zerograd clears
+    CHECK(run("var p = T.Tensor([1, 2], requiresgrad=True)\np.sum().backward()\np.sum().backward()\np.grad") == "[2.0, 2.0]");
+    CHECK(run("var p = T.Tensor([1, 2], requiresgrad=True)\np.sum().backward()\np.zerograd()\np.grad") == "None");
+    // tensordot equals matmul, and is differentiable
+    CHECK(run("T.tensordot(T.Tensor([[1,2],[3,4]]), T.Tensor([[5,6],[7,8]]), 1)") == "[[19.0, 22.0], [43.0, 50.0]]");
+    CHECK(run("var t = T.Tensor([[1,2],[3,4]], requiresgrad=True)\nT.tensordot(t, T.eye(2), 1).sum().backward()\nt.grad") == "[[1.0, 1.0], [1.0, 1.0]]");
+    // detach drops grad
+    CHECK(run("T.Tensor([1.0], requiresgrad=True).detach().requiresgrad()") == "False");
+    CHECK_THROWS(vm.runSource("import(\"tensor\").zeros([2]).backward()\n"));            // backward without grad
+    CHECK_THROWS(vm.runSource("import(\"tensor\").zeros([2], dtype=\"Complex\").requiresgrad(True)\n"));  // complex can't require grad
+
     return RUN_TESTS();
 }

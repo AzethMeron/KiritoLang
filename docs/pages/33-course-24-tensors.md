@@ -2,8 +2,9 @@
 
 A **tensor** is a dense array of any number of dimensions — the generalization of a matrix beyond
 2-D. The `tensor` module is the engine the `matrix` and `complex` matrix types are built on: a 2-D
-tensor *is* a matrix. It's CPU-only and has no autograd — a solid numeric container with all the
-usual array operations and NumPy-style broadcasting.
+tensor *is* a matrix. It's CPU-only but ships with all the usual array operations, NumPy-style
+broadcasting, **general contraction** (`tensordot`), and a **reverse-mode autograd** for
+differentiation (covered at the end of this lesson).
 
 ## Creating tensors
 
@@ -101,6 +102,76 @@ io.print(a.permute([1, 0]))     # general axis reorder (== transpose for 2-D)
 io.print(T.Tensor([1, 4, 9]).apply(Function(x): return x ** 0.5))   # [1.0, 2.0, 3.0]
 ```
 
+## Contraction: `tensordot`
+
+`matmul` contracts one pair of axes; `tensordot` contracts any number of them. Pass an integer `N` to
+contract the last `N` axes of the first tensor with the first `N` of the second (`N = 1` is matrix
+multiply; `N = 2` sums every element-product — the Frobenius inner product), or a `[a-axes, b-axes]`
+pair to name exactly which axes to fold together. `contract(a, b, aaxes, baxes)` is the explicit form.
+
+```kirito
+var io = import("io")
+var T = import("tensor")
+var a = T.Tensor([[1, 2], [3, 4]])
+var b = T.Tensor([[5, 6], [7, 8]])
+
+io.print(T.tensordot(a, b, 1))      # [[19.0, 22.0], [43.0, 50.0]]  — same as a.matmul(b)
+io.print(T.tensordot(a, b, 2))      # 70.0  — sum of all a[i,j]*b[i,j]
+
+var x = T.full([2, 3, 4], 1)
+var y = T.full([4, 3, 5], 2)
+io.print(T.contract(x, y, [1, 2], [1, 0]).shape())   # [2, 5]
+```
+
+## Autograd: gradients with `backward`
+
+Tensors can compute their own derivatives. Tracking is **off by default** — mark a tensor with
+`requiresgrad = True` (or `t.requiresgrad(True)` later) to make it a differentiable leaf. Operations on
+grad-tracking tensors record a graph; calling `backward()` on a scalar result fills in each input's
+`.grad`. Gradients are **Float-only**.
+
+```kirito
+var io = import("io")
+var T = import("tensor")
+
+var x = T.Tensor([1, 2, 3], requiresgrad = True)
+var y = x.square().sum()        # y = x0^2 + x1^2 + x2^2
+y.backward()
+io.print(x.grad)                # [2.0, 4.0, 6.0]   — dy/dx = 2x
+```
+
+A great many operations are differentiable: `+ - * /` (with broadcasting), `matmul`, `tensordot`,
+`sum`/`mean`, the shape ops, and a wide element-wise math set — `exp`, `log`, `sqrt`, `pow`, `sin`,
+`cos`, `tanh`, `relu`, `sigmoid`, and more. That's enough to train a model. Here is a line fitted by
+gradient descent:
+
+```kirito
+var io = import("io")
+var T = import("tensor")
+
+var xs = T.Tensor([[0], [1], [2], [3]])
+var ys = T.Tensor([[1], [3], [5], [7]])         # y = 2x + 1
+var w = T.zeros([1, 1], requiresgrad = True)
+var b = T.zeros([1, 1], requiresgrad = True)
+var step = 0
+while step < 500:
+    var loss = (xs.matmul(w) + b - ys).square().mean()
+    w.zerograd()                                # gradients accumulate, so clear them each step
+    b.zerograd()
+    loss.backward()
+    with T.nograd():                            # update the parameters without tracking
+        w = w - w.grad * 0.05
+        b = b - b.grad * 0.05
+    w.requiresgrad(True)
+    b.requiresgrad(True)
+    step = step + 1
+io.print(w[0, 0], b[0, 0])                       # ~ 2.0  ~ 1.0
+```
+
+The pieces: `t.grad` is the accumulated gradient (or `None`); `t.zerograd()` clears it; `t.detach()`
+returns a copy that stops gradient flow; and `with tensor.nograd():` turns tracking off for a block —
+exactly what you want around a parameter update or during inference.
+
 ## Complex tensors
 
 Pass `dtype = "Complex"` to work over `std::complex<double>`. The same operations apply; `astype`
@@ -130,5 +201,9 @@ io.print((T.Tensor([1, 2]) + T.Tensor([1, 1], dtype = "Complex")).dtype())   # C
 - `+ - * /` are element-wise with broadcasting; **`matmul`** is the matrix product (also batched).
 - `transpose`/`permute`/`reshape`/`flatten` reshape; **`apply`** maps a function over every element;
   `sum`/`mean`/`prod`/`min`/`max` reduce (whole-tensor or along an `axis`).
+- **`tensordot`**/`contract` contract over chosen axes; `matmul` is the single-axis special case.
+- **Autograd** is opt-in (`requiresgrad = True`) and Float-only: differentiable ops record a graph,
+  `backward()` fills each input's `.grad`; `zerograd()`, `detach()`, and `with tensor.nograd():`
+  control gradient flow.
 
 Next: **[Lesson 25 — Capstone](34-course-25-capstone.html)**.
