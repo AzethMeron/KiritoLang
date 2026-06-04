@@ -149,6 +149,9 @@ public:
     cdouble& at(std::size_t r, std::size_t c) { return data[r * cols + c]; }
     cdouble at(std::size_t r, std::size_t c) const { return data[r * cols + c]; }
 
+    // A ComplexMatrix with one dimension == 1 is a vector (row 1×n or column n×1).
+    bool isVector() const { return rows == 1 || cols == 1; }
+
     std::string str(StringifyCtx&) const override {
         std::string s = "[";
         for (std::size_t r = 0; r < rows; ++r) {
@@ -175,7 +178,8 @@ public:
                 "get(row, col) -> Complex", "set(row, col, value)", "row(i) -> List",
                 "transpose() -> ComplexMatrix", "conjugate() -> ComplexMatrix",
                 "hermitian() -> ComplexMatrix", "determinant() -> Complex",
-                "inverse() -> ComplexMatrix", "trace() -> Complex"};
+                "inverse() -> ComplexMatrix", "trace() -> Complex",
+                "dot(other) -> Complex", "cross(other) -> ComplexMatrix", "norm() -> Float"};
     }
 
     Handle binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) override;
@@ -264,7 +268,15 @@ inline Handle ComplexMatrixVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rh
         return vm.alloc(std::move(r));
     }
     if (op == BinOp::Mul) {
-        if (other) {  // matrix product
+        if (other) {
+            // Two vectors of the same shape: `*` is the scalar (Hermitian inner) product — a Complex,
+            // sum(conj(a_i)·b_i), so v*v = sum|v_i|² is real and non-negative.
+            if (isVector() && other->isVector() && rows == other->rows && cols == other->cols) {
+                cdouble acc(0.0, 0.0);
+                for (std::size_t i = 0; i < data.size(); ++i) acc += std::conj(data[i]) * other->data[i];
+                return cpx::make(vm, acc);
+            }
+            // matrix product
             if (cols != other->rows) throw KiritoError("ComplexMatrix multiply: inner dimensions differ");
             auto r = cpx::makeMatrix(rows, other->cols);
             for (std::size_t i = 0; i < rows; ++i)
@@ -375,6 +387,34 @@ inline Handle ComplexMatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_v
         for (std::size_t i = 0; i < m.rows; ++i) s += m.at(i, i);
         return cpx::make(vm, s);
     });
+    // --- vector operations (a ComplexMatrix with one dimension == 1 is a vector) ---
+    if (name == "dot") return bind("dot", {"other"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        auto& m = self_m(vm, self);
+        const auto* o = dynamic_cast<const ComplexMatrixVal*>(&vm.arena().deref(a[0]));
+        if (!o) throw KiritoError("dot expects a ComplexMatrix vector");
+        if (!m.isVector() || !o->isVector()) throw KiritoError("dot requires vectors (a 1×n or n×1 ComplexMatrix)");
+        if (m.data.size() != o->data.size()) throw KiritoError("dot requires vectors of equal length");
+        cdouble acc(0.0, 0.0);  // Hermitian inner product: sum conj(a_i)·b_i
+        for (std::size_t i = 0; i < m.data.size(); ++i) acc += std::conj(m.data[i]) * o->data[i];
+        return cpx::make(vm, acc);
+    });
+    if (name == "cross") return bind("cross", {"other"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        auto& m = self_m(vm, self);
+        const auto* o = dynamic_cast<const ComplexMatrixVal*>(&vm.arena().deref(a[0]));
+        if (!o) throw KiritoError("cross expects a ComplexMatrix vector");
+        if (!m.isVector() || !o->isVector() || m.data.size() != 3 || o->data.size() != 3)
+            throw KiritoError("cross is only defined for two 3-element vectors");
+        const auto& u = m.data; const auto& v = o->data;
+        auto r = cpx::makeMatrix(m.rows, m.cols);  // keep this vector's orientation
+        r->data = {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
+        return vm.alloc(std::move(r));
+    });
+    if (name == "norm") return bind("norm", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        auto& m = self_m(vm, self);  // Euclidean / Frobenius 2-norm: sqrt(sum |z_i|²) -> Float
+        double acc = 0.0;
+        for (const cdouble& z : m.data) acc += std::norm(z);
+        return vm.makeFloat(std::sqrt(acc));
+    });
     return Object::getAttr(vm, self, name);
 }
 
@@ -482,6 +522,14 @@ public:
             std::size_t n = static_cast<std::size_t>(Args(vm, a, "identity")[0].asInt("n"));
             auto mtx = cpx::makeMatrix(n, n);
             for (std::size_t i = 0; i < n; ++i) mtx->at(i, i) = cdouble(1.0, 0.0);
+            return vm.alloc(std::move(mtx));
+        });
+        // vector(list) -> a 1×n row-vector ComplexMatrix (cells may be Complex or numbers).
+        m.fn("vector", {{"values", "List"}}, "ComplexMatrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::vector<cdouble> xs;
+            for (Value e : Args(vm, a, "vector")[0].items()) xs.push_back(cpx::asComplex(vm, e.handle(), "vector element"));
+            auto mtx = cpx::makeMatrix(1, xs.size());
+            mtx->data = std::move(xs);
             return vm.alloc(std::move(mtx));
         });
     }

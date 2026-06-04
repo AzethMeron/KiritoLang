@@ -90,7 +90,7 @@ Build the smallest thing that runs end-to-end first (lex+parse+eval an integer
 literal, then arithmetic, then `var`, then functions, then `io`), and grow outward.
 Every step must keep `main.ki`-style programs as the north star.
 
-**Status:** the language is broadly implemented and tested end-to-end (`include/kirito/*.hpp`, the
+**Status:** the language is broadly implemented and tested end-to-end (`src/kirito/*.hpp`, the
 `ki` runner, an extensive CTest suite incl. golden `.ki` scripts, an embedding integration test,
 a stability fuzzer, and a benchmark). Working today:
 - Arithmetic (Python-3 division), `var`/reference-assignment, comparisons, `in`/`not in`.
@@ -198,19 +198,23 @@ a stability fuzzer, and a benchmark). Working today:
     trunc, gcd/lcm, factorial, isnan/isinf, prod/comb/perm, ...).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
     randrange/choice/shuffle/sample/gauss/expovariate.
-  - `matrix` — dense real matrices (no complex, no concurrency): +,-,* (matrix/scalar), `m[i, j]`
-    element access/assignment, transpose, determinant, inverse, trace, apply, factories
-    (zeros/ones/identity).
+  - `matrix` — dense real matrices of arbitrary shape (no concurrency): +,-,* (matrix/scalar),
+    `m[i, j]` element access/assignment, transpose, determinant, inverse, trace, apply, factories
+    (zeros/ones/identity); square-only ops (determinant/inverse/trace) raise on non-square. **Vectors**
+    (a Matrix with one dimension = 1): `vector(list)` factory, `dot` (also overloaded `*` for two
+    same-shape vectors → scalar), `cross` (3-vectors), `norm` (Euclidean 2-norm).
   - `complex` — complex numbers and complex matrices, all in C++ (`std::complex<double>`). `Complex(re
     [, im])`/`of(re, im)`/`real(re)`/`polar(r, θ)`; constants `i`/`zero`/`one`/`pi`/`e`/`tau`;
     operators `+ - * / **` and unary `-` (Complex-on-the-left; reals coerce to the real axis; complex
     numbers are unordered so `<`/`>` raise); `.re`/`.im`, `conjugate`/`modulus`/`argument`/`norm2`/
     `is_zero`; the analytic math set (`exp`/`log`/`log10`/`sqrt`/`cbrt`/`pow` + trig/inverse-trig/
     hyperbolic/inverse-hyperbolic) as module functions over a Complex-or-number; and a complex
-    `Matrix` (nested-list ctor; `m[i, j]`; +,-,* matrix/scalar; `transpose`/`conjugate`/`hermitian`,
-    **`determinant` via Gaussian elimination** and **`inverse` via fast O(n³) Gauss-Jordan**, `trace`,
-    factories zeros/ones/identity). Supersedes the old pure-Kirito `complex.ki`/`cmatrix.ki`
-    prototypes; the `linsolve` solver and the complex examples build on it.
+    `Matrix` (arbitrary shape; nested-list ctor; `m[i, j]`; +,-,* matrix/scalar;
+    `transpose`/`conjugate`/`hermitian`, **`determinant` via Gaussian elimination** and **`inverse`
+    via fast O(n³) Gauss-Jordan**, `trace`, factories zeros/ones/identity/`vector`, and complex
+    **vector** ops `dot`/`*` [Hermitian inner product], `cross`, `norm`). Supersedes the old
+    pure-Kirito `complex.ki`/`cmatrix.ki` prototypes; the `linsolve` solver and the complex examples
+    build on it.
   - `json` — parse/loads (objects → Dict; decodes \u escapes + surrogate pairs) and stringify/dumps
     (optional indent for pretty-printing).
   - `serialize` — text graph dumps/loads/save/load preserving shared references and cycles.
@@ -271,7 +275,7 @@ a stability fuzzer, and a benchmark). Working today:
 - **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, the
   script's directory, the `KIRITO_PATH` env var [PATH-style], and the per-user package dir
   `~/.kirito/packages` + each package sub-dir), lexed+parsed+evaluated once per VM and cached by
-  resolved path. The env/package paths live in the CLI only (`include/kirito/cli_paths.hpp`,
+  resolved path. The env/package paths live in the CLI only (`src/kirito/cli_paths.hpp`,
   unit-tested), not the embeddable VM core. The `ki` CLI
   is Python-like: REPL with no file (multi-line blocks via a `...` continuation prompt until a blank
   line), runs a file otherwise. Every file scope is pre-bound with **`arglist`** (the command-line
@@ -302,10 +306,10 @@ The codebase is `-Wconversion`-clean; the deliberate native-binding idiom where 
 take `vm`/`self` parameters shadowing the enclosing `getAttr`/`setup` (same VM by design) is silenced
 with a scoped `#pragma GCC diagnostic ignored "-Wshadow"` in the stdlib glue + runtime type-methods,
 so `-Wshadow` stays active in the evaluator/parser/lexer/GC core. An 11k-input fuzzer guards
-stability. Tests include an **error-message suite** (`tests/errors/*.ki` + `.experr`: programs that
+stability. Tests include an **error-message suite** (`tools/tests/errors/*.ki` + `.experr`: programs that
 must fail, with the required diagnostic text) and an **adversarial suite**
-(`tests/unit/test_adversarial.cpp`: overflow, recursion, cyclic structures, Unicode, slicing edge
-cases). The **post-work routine** (`scripts/post_work_check.sh`, documented in
+(`tools/tests/unit/test_adversarial.cpp`: overflow, recursion, cyclic structures, Unicode, slicing edge
+cases). The **post-work routine** (`tools/scripts/post_work_check.sh`, documented in
 `.claude/POST_WORK_CHECKLIST.md`) runs the variants **sequentially** — `debug`, then `release`,
 **commit+push once both are green**, then `asan` (fix and re-push any failure) — each a clean build
 of the whole auto-discovered CTest suite. Run it before calling a change done.
@@ -334,7 +338,7 @@ ASCII + Latin-1 + Latin Extended-A), and a bytecode VM behind the AST boundary.
 
 ## Architecture (as built)
 
-- **Header-only core.** The whole interpreter lives in `include/kirito/*.hpp`, surfaced through one
+- **Header-only core.** The whole interpreter lives in `src/kirito/*.hpp`, surfaced through one
   umbrella header: `#include "kirito.hpp"` embeds Kirito in any C++ program (Lua-style), **no `main`**.
   The standalone interpreter's `main()` lives only in `main.cpp`. Use **`#ifndef` include guards**
   (e.g. `KIRITO_OBJECT_HPP`), **never `#pragma once`**; everything `inline`/templated, no mutable
@@ -370,9 +374,9 @@ Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
   STL. CMake links `ws2_32` on Windows automatically.
 - **Static linking** by default (self-contained binaries): full `-static` on GCC/Clang, static CRT
   on MSVC; TLS builds fall back to a static C++ runtime since OpenSSL is usually shared-only.
-- **Install + packages**: `scripts/install.sh` (Linux/macOS) and `scripts/install.ps1` (Windows)
+- **Install + packages**: `tools/scripts/install.sh` (Linux/macOS) and `tools/scripts/install.ps1` (Windows)
   are one-line installers that download the release binary (or build from source), place `ki`/`kpm`
-  launchers on PATH, and create `~/.kirito/packages`. **`tools/kpm.ki`** is the package manager,
+  launchers on PATH, and create `~/.kirito/packages`. **`kpm/kpm.ki`** is the package manager,
   written in Kirito (uses `net`/`json`/`io`): `kpm install <owner/repo>[@ref]` fetches a package's
   `kirito.json` manifest + modules from GitHub (no central index) into `~/.kirito/packages/<name>/`;
   also `remove`/`list`/`update`/`where`. Dependencies are other `owner/repo` packages.

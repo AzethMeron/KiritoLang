@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
 
     // Environment-contributed import paths: KIRITO_PATH plus the per-user package directory that
     // `kpm` installs into (and each package sub-directory), so installed packages are importable
-    // without an explicit --lib. See include/kirito/cli_paths.hpp.
+    // without an explicit --lib. See src/kirito/cli_paths.hpp.
 #ifdef _WIN32
     const char pathSep = ';';
     const char* homeEnv = std::getenv("USERPROFILE");

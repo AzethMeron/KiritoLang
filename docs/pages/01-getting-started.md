@@ -8,12 +8,12 @@ automatically):
 
 ```sh
 # Linux / macOS  (installs to ~/.local/bin, no root)
-curl -fsSL https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/tools/scripts/install.sh | sh
 ```
 
 ```powershell
 # Windows (PowerShell) — installs under %LOCALAPPDATA%\Programs\Kirito and updates your user PATH
-irm https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/tools/scripts/install.ps1 | iex
 ```
 
 Prebuilt 64-bit binaries (`ki-linux-x64`, `ki-windows-x64.exe`) are also attached to each GitHub
@@ -117,7 +117,7 @@ paths) and any dependencies:
 }
 ```
 
-`kpm` itself is written in Kirito (`tools/kpm.ki`), using only the `net`, `json`, and `io` modules.
+`kpm` itself is written in Kirito (`kpm/kpm.ki`), using only the `net`, `json`, and `io` modules.
 
 ## Tests
 
@@ -128,6 +128,6 @@ adversarial/fuzz suite, and an embedding test). Run it with:
 ctest --test-dir build-debug --output-on-failure
 ```
 
-The `scripts/post_work_check.sh` routine clean-builds the variants **sequentially** — `debug`, then
+The `tools/scripts/post_work_check.sh` routine clean-builds the variants **sequentially** — `debug`, then
 `release`, commit+push once both are green, then `asan` — running the whole suite for each: the bar a
 change must clear before it's "done".

@@ -3,17 +3,17 @@
 Before the first line of code, spend two minutes giving your editor **Kirito syntax highlighting**.
 It's optional — Kirito runs fine from a plain text file — but coloured keywords, strings, and
 comments make the rest of this course much easier to read. Kirito is young, so no editor knows it out
-of the box; the repository ships ready-to-install definitions under [`editors/`](https://github.com/AzethMeron/KiritoLang/tree/main/editors).
+of the box; the repository ships ready-to-install definitions under [`docs/editors/`](https://github.com/AzethMeron/KiritoLang/tree/main/editors).
 
 Pick whichever editor you use.
 
 ## VS Code (recommended)
 
-The `editors/vscode/` folder is a complete extension — a grammar plus comment-toggling, bracket
+The `docs/editors/vscode/` folder is a complete extension — a grammar plus comment-toggling, bracket
 matching, and auto-indent after `:`.
 
 ```text
-cp -r editors/vscode ~/.vscode/extensions/kirito-language-0.1.0
+cp -r docs/editors/vscode ~/.vscode/extensions/kirito-language-0.1.0
 ```
 
 (On Windows that's `%USERPROFILE%\.vscode\extensions\kirito-language-0.1.0`.) Reload VS Code and any
@@ -24,7 +24,7 @@ cp -r editors/vscode ~/.vscode/extensions/kirito-language-0.1.0
 
 Notepad++ has a built-in **User Defined Language** system, so no plugin is needed:
 
-Pick the colour file matching your Notepad++ theme — `editors/notepad++/kirito-dark.xml` (dark) or
+Pick the colour file matching your Notepad++ theme — `docs/editors/notepad++/kirito-dark.xml` (dark) or
 `kirito-light.xml` (light):
 
 1. `Language` menu → `User Defined Language` → `Define your language…`
@@ -42,7 +42,7 @@ from the `Language` menu).
 
 ## Vim / Neovim
 
-Copy `editors/vim/kirito.vim` to `~/.vim/syntax/kirito.vim` (Neovim:
+Copy `docs/editors/vim/kirito.vim` to `~/.vim/syntax/kirito.vim` (Neovim:
 `~/.config/nvim/syntax/kirito.vim`) and tell Vim to use it for `.ki`:
 
 ```vim
@@ -59,7 +59,7 @@ builtins — they live in the `io` module.
 
 ## What you learned
 
-- Where to find Kirito editor support (`editors/`), and how to install it for VS Code, Notepad++, and
+- Where to find Kirito editor support (`docs/editors/`), and how to install it for VS Code, Notepad++, and
   Vim.
 - The quick "treat it as Python" fallback for any other editor.
 

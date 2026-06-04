@@ -48,6 +48,14 @@ int main() {
     CHECK(evalStr(vm, std::string(P) + "A.row(1)") == "[3.0, 4.0]");
     CHECK(evalStr(vm, std::string(P) + "A.sum()") == "10.0");
 
+    // vectors (a Matrix with one dimension == 1): dot (also via *), cross, norm
+    CHECK(evalStr(vm, "var m = import(\"matrix\")\nm.vector([1, 2, 3]).dot(m.vector([4, 5, 6]))") == "32.0");
+    CHECK(evalStr(vm, "var m = import(\"matrix\")\nm.vector([1, 2, 3]) * m.vector([4, 5, 6])") == "32.0");
+    CHECK(evalStr(vm, "var m = import(\"matrix\")\nm.vector([1, 0, 0]).cross(m.vector([0, 1, 0]))") == "[[0.0, 0.0, 1.0]]");
+    CHECK(evalStr(vm, "var m = import(\"matrix\")\nm.vector([3, 4]).norm()") == "5.0");
+    CHECK_THROWS(vm.runSource("var m = import(\"matrix\")\nm.vector([1, 2]).dot(m.vector([1, 2, 3]))\n"));   // length mismatch
+    CHECK_THROWS(vm.runSource("var m = import(\"matrix\")\nm.vector([1, 2]).cross(m.vector([3, 4]))\n"));     // not 3-element
+
     // error cases
     CHECK_THROWS(vm.runSource(std::string(P) + "matrix.Matrix([[1, 2], [3, 4], [5, 6]]).inverse()\n"));  // non-square
     CHECK_THROWS(vm.runSource("import(\"matrix\").Matrix([[1, 2]]) + import(\"matrix\").Matrix([[1], [2]])\n"));  // shape

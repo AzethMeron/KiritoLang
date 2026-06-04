@@ -167,6 +167,10 @@ Dense real matrices. For complex-valued numbers and matrices, see the `complex` 
 - `zeros(rows: Integer, cols: Integer) → Matrix` — a matrix filled with `0`.
 - `ones(rows: Integer, cols: Integer) → Matrix` — a matrix filled with `1`.
 - `identity(n: Integer) → Matrix` — the n×n identity.
+- `vector(values: List) → Matrix` — a 1×n row vector from a flat list of numbers.
+
+Matrices are arbitrary-shape (any rows × cols). Shape-specific operations (`determinant`, `inverse`,
+`trace`) require a square matrix and raise otherwise; `*` requires conformable inner dimensions.
 
 ### Matrix object
 
@@ -187,6 +191,14 @@ Dense real matrices. For complex-valued numbers and matrices, see the `complex` 
 - `m.trace() → Float` — sum of the diagonal.
 - `m.sum() → Float` — sum of every element.
 - `m.apply(fn) → Matrix` — a new matrix with `fn` applied to each element.
+
+**Vector operations** (a Matrix with one dimension equal to 1 is a vector):
+
+- `u * v → Float` — the scalar (dot) product when both operands are vectors of the **same shape**
+  (this is the only case `*` differs from matrix multiply).
+- `u.dot(v) → Float` — the dot product of two equal-length vectors (any orientation).
+- `u.cross(v) → Matrix` — the cross product of two 3-element vectors (result keeps `u`'s orientation).
+- `m.norm() → Float` — the Euclidean (Frobenius) 2-norm `sqrt(Σ xᵢ²)` — the length of a vector.
 
 ---
 
@@ -220,18 +232,48 @@ the real axis, so any function or operator below also accepts plain `Integer`/`F
 
 ### Module functions
 
-Scalar reductions: `modulus(z)`, `abs(z)`, `phase(z)`, `argument(z)`, `norm2(z)` → `Float`;
-`conjugate(z)` → `Complex`.
+Scalar reductions (one per line):
+
+- `modulus(z) → Float` — the magnitude `|z|`.
+- `abs(z) → Float` — alias of `modulus`.
+- `phase(z) → Float` — the phase angle, in radians.
+- `argument(z) → Float` — alias of `phase`.
+- `norm2(z) → Float` — the squared magnitude `|z|²`.
+- `conjugate(z) → Complex` — the complex conjugate.
 
 The analytic math set — the complex extensions of the `math` functions — each take a `Complex` or a
-number and return a `Complex`: `exp`, `log`, `log10`, `sqrt`, `cbrt`, `pow(z, w)`, `sin`, `cos`,
-`tan`, `asin`, `acos`, `atan`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`.
+number and return a `Complex`:
+
+- `exp(z)`
+- `log(z)` — natural logarithm (principal branch).
+- `log10(z)`
+- `sqrt(z)` — principal square root.
+- `cbrt(z)` — principal cube root.
+- `pow(z, w)` — `z` raised to the power `w`.
+- `sin(z)`
+- `cos(z)`
+- `tan(z)`
+- `asin(z)`
+- `acos(z)`
+- `atan(z)`
+- `sinh(z)`
+- `cosh(z)`
+- `tanh(z)`
+- `asinh(z)`
+- `acosh(z)`
+- `atanh(z)`
 
 ### Complex matrices
 
 - `Matrix(rows: List) → ComplexMatrix` — build from a nested list whose cells are `Complex` values
   or numbers (rows must be equal length).
-- `zeros(rows, cols)`, `ones(rows, cols)`, `identity(n) → ComplexMatrix` — factories.
+- `zeros(rows, cols) → ComplexMatrix` — a zero matrix.
+- `ones(rows, cols) → ComplexMatrix` — a matrix of `1+0i`.
+- `identity(n) → ComplexMatrix` — the n×n identity.
+- `vector(values: List) → ComplexMatrix` — a 1×n complex row vector.
+
+Like the real `matrix`, complex matrices are arbitrary-shape; `determinant`/`inverse`/`trace` need a
+square matrix and raise otherwise.
 
 #### ComplexMatrix object
 
@@ -246,6 +288,14 @@ number and return a `Complex`: `exp`, `log`, `log10`, `sqrt`, `cbrt`, `pow(z, w)
 - `m.inverse() → ComplexMatrix` — inverse via **fast O(n³) Gauss-Jordan** elimination (raises if
   singular).
 - `m.trace() → Complex` — sum of the diagonal.
+
+**Vector operations** (a ComplexMatrix with one dimension equal to 1 is a vector):
+
+- `u * v → Complex` — the scalar (Hermitian inner) product when both operands are vectors of the
+  **same shape**: `Σ conj(uᵢ)·vᵢ`, so `v * v = Σ |vᵢ|²` is real and non-negative.
+- `u.dot(v) → Complex` — the Hermitian inner product of two equal-length vectors.
+- `u.cross(v) → ComplexMatrix` — the cross product of two 3-element vectors.
+- `m.norm() → Float` — the Euclidean 2-norm `sqrt(Σ |zᵢ|²)`.
 
 ---
 
@@ -458,7 +508,7 @@ quantifiers `* + ?`, `{n}`, `{n,}`, `{n,m}`, each greedy or **lazy** with a trai
 any escaped metacharacter; inline flags `(?i)` / `(?m)` / `(?s)`.
 
 The engine is validated against the full classic Spencer/PCRE/Python-`re` test corpus (run through
-Kirito in `tests/scripts/spec_regex_corpus.ki`): zero false positives/negatives, and every
+Kirito in `tools/tests/scripts/spec_regex_corpus.ki`): zero false positives/negatives, and every
 unsupported-feature or invalid pattern is rejected with a clean error rather than crashing.
 
 ### Module functions

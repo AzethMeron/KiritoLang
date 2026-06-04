@@ -73,7 +73,7 @@ if ($FromSource) {
 
 # Install the kpm package manager (a Kirito script) + a .cmd launcher next to ki.exe.
 Say "installing kpm"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/$Ref/tools/kpm.ki" -OutFile (Join-Path $KiritoHome "kpm.ki")
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/$Ref/kpm/kpm.ki" -OutFile (Join-Path $KiritoHome "kpm.ki")
 $cmd = "@echo off`r`n`"%~dp0ki.exe`" `"%USERPROFILE%\.kirito\kpm.ki`" %*`r`n"
 Set-Content -Path (Join-Path $BinDir "kpm.cmd") -Value $cmd -Encoding ascii
 

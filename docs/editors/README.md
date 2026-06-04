@@ -43,7 +43,7 @@ comment toggling, bracket matching, and indent-after-`:`).
 **Quick, local install:**
 
 ```
-cp -r editors/vscode ~/.vscode/extensions/kirito-language-0.1.0
+cp -r docs/editors/vscode ~/.vscode/extensions/kirito-language-0.1.0
 ```
 
 (Windows: `%USERPROFILE%\.vscode\extensions\kirito-language-0.1.0`.) Reload VS Code — `.ki` files
@@ -53,7 +53,7 @@ light up.
 
 ```
 npm install -g @vscode/vsce
-cd editors/vscode
+cd docs/editors/vscode
 vsce package          # produces kirito-language-0.1.0.vsix
 code --install-extension kirito-language-0.1.0.vsix
 ```
@@ -81,5 +81,5 @@ flow), so as a stopgap you can just tell your editor to treat `.ki` files as **P
 ---
 
 These definitions are generated from the language's actual keyword set
-(`include/kirito/lexer.hpp`) and built-in list (`include/kirito/runtime.hpp`); keep them in sync when
+(`src/kirito/lexer.hpp`) and built-in list (`src/kirito/runtime.hpp`); keep them in sync when
 the language gains keywords.

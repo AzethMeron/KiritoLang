@@ -36,6 +36,10 @@ public:
     double& at(std::size_t r, std::size_t c) { return data[r * cols + c]; }
     double at(std::size_t r, std::size_t c) const { return data[r * cols + c]; }
 
+    // A matrix with one of its dimensions equal to 1 is a vector (a row 1×n or column n×1). Its
+    // elements are then `data` in order, regardless of orientation.
+    bool isVector() const { return rows == 1 || cols == 1; }
+
     std::string str(StringifyCtx&) const override {
         std::string s = "[";
         for (std::size_t r = 0; r < rows; ++r) {
@@ -64,6 +68,7 @@ public:
             "get(row, col) -> Float", "set(row, col, value)", "row(i) -> List",
             "transpose() -> Matrix", "determinant() -> Float", "inverse() -> Matrix",
             "trace() -> Float", "sum() -> Float", "apply(fn) -> Matrix",
+            "dot(other) -> Float", "cross(other) -> Matrix", "norm() -> Float",
         };
     }
 
@@ -162,7 +167,16 @@ inline Handle MatrixVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
         return vm.alloc(std::move(r));
     }
     if (op == BinOp::Mul) {
-        if (other) {  // matrix multiply
+        if (other) {
+            // Two vectors of the same shape: `*` is the scalar (dot) product, a Float. (This is the
+            // only case `*` changes from matrix multiply — same-shape vectors are otherwise an
+            // invalid product, so no valid matrix-multiply behaviour is affected.)
+            if (isVector() && other->isVector() && rows == other->rows && cols == other->cols) {
+                double acc = 0.0;
+                for (std::size_t i = 0; i < data.size(); ++i) acc += data[i] * other->data[i];
+                return vm.makeFloat(acc);
+            }
+            // matrix multiply
             if (cols != other->rows) throw KiritoError("Matrix multiply: inner dimensions differ");
             auto r = mat::make(rows, other->cols);
             for (std::size_t i = 0; i < rows; ++i)
@@ -276,6 +290,34 @@ inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         for (std::size_t c = 0; c < m.cols; ++c) list->elems.push_back(rs.add(vm.makeFloat(m.at(r, c))));
         return vm.alloc(std::move(list));
     });
+    // --- vector operations (a Matrix with one dimension == 1 is a vector) ---
+    if (name == "dot") return bind("dot", {"other"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        auto& m = self_m(vm, self);
+        const auto* o = dynamic_cast<const MatrixVal*>(&vm.arena().deref(a[0]));
+        if (!o) throw KiritoError("dot expects a Matrix vector");
+        if (!m.isVector() || !o->isVector()) throw KiritoError("dot requires vectors (a 1×n or n×1 Matrix)");
+        if (m.data.size() != o->data.size()) throw KiritoError("dot requires vectors of equal length");
+        double acc = 0.0;
+        for (std::size_t i = 0; i < m.data.size(); ++i) acc += m.data[i] * o->data[i];
+        return vm.makeFloat(acc);
+    });
+    if (name == "cross") return bind("cross", {"other"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        auto& m = self_m(vm, self);
+        const auto* o = dynamic_cast<const MatrixVal*>(&vm.arena().deref(a[0]));
+        if (!o) throw KiritoError("cross expects a Matrix vector");
+        if (!m.isVector() || !o->isVector() || m.data.size() != 3 || o->data.size() != 3)
+            throw KiritoError("cross is only defined for two 3-element vectors");
+        const auto& u = m.data; const auto& v = o->data;
+        auto r = mat::make(m.rows, m.cols);  // result keeps this vector's orientation
+        r->data = {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]};
+        return vm.alloc(std::move(r));
+    });
+    if (name == "norm") return bind("norm", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        auto& m = self_m(vm, self);  // Euclidean / Frobenius 2-norm (= the vector length for a vector)
+        double acc = 0.0;
+        for (double x : m.data) acc += x * x;
+        return vm.makeFloat(std::sqrt(acc));
+    });
     return Object::getAttr(vm, self, name);
 }
 
@@ -319,6 +361,14 @@ public:
             std::size_t n = static_cast<std::size_t>(Args(vm, a, "identity")[0].asInt("n"));
             auto mtx = mat::make(n, n);
             for (std::size_t i = 0; i < mtx->rows; ++i) mtx->at(i, i) = 1.0;
+            return vm.alloc(std::move(mtx));
+        });
+        // vector(list) -> a 1×n row-vector Matrix (a flat list of numbers), the natural vector shape.
+        m.fn("vector", {{"values", "List"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            std::vector<double> xs;
+            for (Value e : Args(vm, a, "vector")[0].items()) xs.push_back(e.asFloat("vector element"));
+            auto mtx = mat::make(1, xs.size());
+            mtx->data = std::move(xs);
             return vm.alloc(std::move(mtx));
         });
     }

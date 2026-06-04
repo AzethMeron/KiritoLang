@@ -1,6 +1,6 @@
 # Run the main project's .ki test suite (everything test_release.sh runs) through the self-hosted
 # interpreter and check each program reproduces its recorded output. Auto-discovers every
-# tests/scripts/*.ki that has a matching .expected.
+# tools/tests/scripts/*.ki that has a matching .expected.
 #
 #   ki --lib examples/big_projects/selfhost/lib examples/big_projects/selfhost/run_tests.ki
 #
@@ -10,7 +10,7 @@
 var io = import("io")
 var kirito = import("kirito")
 
-var SCRIPTS = "tests/scripts"
+var SCRIPTS = "tools/tests/scripts"
 var STDMODS = "examples/big_projects/selfhost/lib/stdmods"
 
 var readFile = Function(path):

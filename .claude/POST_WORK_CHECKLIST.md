@@ -1,20 +1,20 @@
 # Post-work checklist
 
 The routine to run **after every change, before declaring it done**. The mechanics live in
-`scripts/post_work_check.sh`; this file is the human-readable contract.
+`tools/scripts/post_work_check.sh`; this file is the human-readable contract.
 
 ## The routine
 
 1. **Write tests for what changed.** Every new feature or fixed bug gets a focused test in the same
    change (CLAUDE.md rule). Prefer many small tests over one big one.
-   - Behaviour at the C++/embedding boundary → a `tests/unit/test_*.cpp` (register it in
-     `tests/CMakeLists.txt`).
-   - End-to-end `.ki` behaviour with known output → `tests/scripts/NAME.ki` + `NAME.expected`.
-   - Code that *should fail* → `tests/errors/NAME.ki` + `NAME.experr` (each `.experr` line is a
+   - Behaviour at the C++/embedding boundary → a `tools/tests/unit/test_*.cpp` (register it in
+     `tools/tests/CMakeLists.txt`).
+   - End-to-end `.ki` behaviour with known output → `tools/tests/scripts/NAME.ki` + `NAME.expected`.
+   - Code that *should fail* → `tools/tests/errors/NAME.ki` + `NAME.experr` (each `.experr` line is a
      required substring of stderr; the script must exit non-zero). Cover the bad path, not just the
      good one.
 
-2. **Build the variants and run the WHOLE suite — SEQUENTIALLY, in order** (`scripts/post_work_check.sh`).
+2. **Build the variants and run the WHOLE suite — SEQUENTIALLY, in order** (`tools/scripts/post_work_check.sh`).
    The order is the workflow gate, not just a list:
 
    1. **`debug`** — g++ `-O2` with the **hardened** warning set (`-Wconversion -Wshadow -Wreorder
@@ -31,7 +31,7 @@ The routine to run **after every change, before declaring it done**. The mechani
       push the fix.** (binaryDir `build-asan`)
 
    Each variant is a clean reconfigure + build + `ctest`. The suite is **auto-discovered**: unit
-   executables register in `tests/CMakeLists.txt`, and the `scripts/` and `errors/` directories are
+   executables register in `tools/tests/CMakeLists.txt`, and the `tools/scripts/` and `errors/` directories are
    globbed, so the routine never enumerates test files and stays correct as tests come and go.
 
    > Why push between release and asan? asan is slow, and this environment has rolled the container
@@ -49,8 +49,8 @@ The routine to run **after every change, before declaring it done**. The mechani
 ## Run it
 
 ```sh
-scripts/post_work_check.sh           # debug -> release -> (commit gate) -> asan
-scripts/post_work_check.sh --no-asan # debug + release only (the commit gate), for a fast inner loop
+tools/scripts/post_work_check.sh           # debug -> release -> (commit gate) -> asan
+tools/scripts/post_work_check.sh --no-asan # debug + release only (the commit gate), for a fast inner loop
 ```
 
 After `debug` and `release` pass, the script prints `READY TO PUSH` — that's the cue to commit and

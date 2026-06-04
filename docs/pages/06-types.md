@@ -67,6 +67,33 @@ IEEE-754 doubles, including scientific-notation literals (`1.5e3`, `2e-3`). Mixi
 Float promotes to Float. `round(x[, ndigits])`, `abs(x)`, and the `math` module operate on Floats.
 Float `nan`/`inf` arise from `math` (`math.inf`, `math.nan`).
 
+### Float equality — the comparison algorithm
+
+`==` / `!=` on Floats (and on an Integer compared with a Float) are **tolerance-based**, not raw bit
+equality, so values that are equal up to rounding compare equal. Given two doubles `l` and `r`, the
+test is applied in this exact order:
+
+1. **NaN is never equal** — if either operand is `NaN`, the result is `False` (even `nan == nan`).
+2. **Exact match wins** — if `l == r` bit-for-bit, the result is `True`. This covers `inf == inf`,
+   `-inf == -inf`, and `0.0 == -0.0`.
+3. **Infinities are exact-only** — if either operand is an infinity (and step 2 didn't match), the
+   result is `False`. So an infinity equals *only* an identical infinity, never a finite value.
+4. **Finite values: absolute-or-relative epsilon** — with `absEps = relEps = 1e-9`, `l` and `r` are
+   equal when
+
+   ```
+   |l - r| <= absEps                       (near zero: an absolute tolerance)
+       or  |l - r| <= relEps * max(|l|, |r|)   (large magnitudes: a relative tolerance)
+   ```
+
+   The absolute term keeps values near `0` from being judged unequal by a relative test (which would
+   collapse to `0`), while the relative term scales the tolerance for large numbers.
+
+Only equality is fuzzy. The **ordering** operators (`<`, `<=`, `>`, `>=`) use exact IEEE-754
+comparison, and a `Float` is **hashable** consistently with this (a float equal to an integer value
+hashes like that integer), so `Float` keys behave sensibly in `Set`/`Dict`. Because equality has a
+tolerance, do not rely on it to distinguish two deliberately-very-close-but-distinct floats.
+
 ## String
 
 Immutable Unicode text, indexed and sliced by **code point** (not byte). `+` concatenates, `*`

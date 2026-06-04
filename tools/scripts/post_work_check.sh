@@ -35,7 +35,7 @@
 # Exit status is non-zero if ANY variant fails to build or has a failing test.
 
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 NO_ASAN=0
 [ "${1:-}" = "--no-asan" ] && NO_ASAN=1

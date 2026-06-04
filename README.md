@@ -63,7 +63,7 @@ And why did i call it after MC of SAO? Dunno, just thought it's funny. Also I do
 
 - **Easy integration, both directions.**
   - *Embed Kirito in C++* — construct a `KiritoVM`, run source, read results back. No build step
-    beyond adding `include/` to your include path and compiling as C++20; there is no library to
+    beyond adding `src/` to your include path and compiling as C++20; there is no library to
     link.
   - *Extend Kirito from C++* — register your own functions, modules, and object types. Anything you
     add flows through the same object protocol as the built-ins, so to a Kirito program your C++ type
@@ -92,7 +92,7 @@ Kirito is young and makes deliberate trade-offs. The notable current limits:
 ## Benchmarks
 
 Kirito vs C++ (`-O2`) vs CPython 3.11 on identical algorithms over identical (LCG-generated) data,
-release build — mean time per repetition, lower is better (`tests/bench/compare.py`):
+release build — mean time per repetition, lower is better (`tools/tests/bench/compare.py`):
 
 | Workload | C++ (-O2) | Python 3.11 | Kirito | Ki / C++ | Ki / Py |
 |---|---|---|---|---|---|
@@ -110,7 +110,7 @@ Python**. The shape is exactly what a tree-walker with a fast C++ standard libra
 pays per-operation dispatch on tight loops, but amortizes that away once work lands in native
 builtins.
 
-Reproduce: `cmake --build build-release --target ki && python3 tests/bench/compare.py --ki build-release/ki`.
+Reproduce: `cmake --build build-release --target ki && python3 tools/tests/bench/compare.py --ki build-release/ki`.
 
 ## Embedding Kirito in C++
 
@@ -158,7 +158,7 @@ and create the package directory `~/.kirito/packages` (which `ki` searches autom
 **Linux / macOS**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/tools/scripts/install.sh | sh
 ```
 
 Installs to `~/.local/bin` (no root). Pass options after `-s --`, e.g.
@@ -169,7 +169,7 @@ platform without a prebuilt binary the script builds from source automatically (
 **Windows (PowerShell)**
 
 ```powershell
-irm https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/tools/scripts/install.ps1 | iex
 ```
 
 Installs `ki.exe` + `kpm.cmd` under `%LOCALAPPDATA%\Programs\Kirito` and adds it to your user `PATH`.
@@ -206,27 +206,19 @@ A package repository carries a `kirito.json` manifest at its root:
 ```
 
 `modules` are repo-relative `.ki` paths; `dependencies` are other `owner/repo` packages installed
-first. `kpm` is itself written in Kirito (`tools/kpm.ki`) — it just uses the `net`, `json`, and `io`
+first. `kpm` is itself written in Kirito (`kpm/kpm.ki`) — it just uses the `net`, `json`, and `io`
 modules — so it doubles as a worked example.
 
 ## Repository structure
 
 ```
-include/kirito/    The interpreter — a header-only C++20 core (~37 headers). One umbrella header,
+src/kirito/        The interpreter — a header-only C++20 core (~38 headers). One umbrella header,
   kirito.hpp         pulls in everything: lexer, parser, AST, the tree-walking evaluator, the
                      value/object model, the arena + mark-sweep GC, and the standard library
-                     (the stdlib_*.hpp modules: io, math, json, net, time, hash, …).
+                     (the stdlib_*.hpp modules: io, math, complex, json, net, time, hash, …).
 main.cpp           The standalone `ki` CLI (REPL + file runner) — the only `main()`.
 CMakeLists.txt     Thin CMake: an INTERFACE target for the header-only core, the `ki` executable,
-CMakePresets.json  and the test executables. Presets: debug / release / strict / asan.
-
-tests/             The CTest suite (every feature gets a test).
-  unit/              C++ unit tests (one executable per area).
-  scripts/           Golden `.ki` programs — each `*.ki` checked against its `*.expected` stdout.
-  errors/            `.ki` programs that must fail, with required diagnostics in `*.experr`.
-  lang/  integration/  End-to-end language and C++-embedding tests.
-  fuzz/              Stability fuzzers (random programs / inputs).
-  bench/             Timing harness + the cross-language C++/Python comparison.
+CMakePresets.json  and the test executables. Presets: debug / release / asan.
 
 examples/          Sample `.ki` programs (RPN calculator, word count, todo, stats, …), plus:
   big_projects/      Large pure-Kirito programs that double as interpreter stress tests:
@@ -234,15 +226,25 @@ examples/          Sample `.ki` programs (RPN calculator, word count, todo, stat
                      webserver (an HTTP/1.1 server + routing framework), and selfhost
                      (a Kirito interpreter written in Kirito).
   http_client/       A `net` HTTP-client app + server + Python test harness.
+  data/              Sample datasets (e.g. iris.csv) used by the examples.
+
+kpm/               kpm.ki — the package manager, written in Kirito (installs packages from GitHub).
+
+tools/             Project tooling:
+  tests/             The CTest suite (every feature gets a test):
+    unit/              C++ unit tests (one executable per area).
+    scripts/           Golden `.ki` programs — each `*.ki` checked against its `*.expected` stdout.
+    errors/            `.ki` programs that must fail, with required diagnostics in `*.experr`.
+    lang/ integration/ End-to-end language and C++-embedding tests.
+    fuzz/  bench/      Stability fuzzers; timing + cross-language C++/Python comparison.
+  scripts/           build_all.sh (release binaries), test_release.sh (run the `.ki` suites against
+                     a built binary), post_work_check.sh (clean-build every variant + full CTest),
+                     install.sh / install.ps1 (the Linux/macOS + Windows installers).
 
 docs/              The documentation site: hand-authored Markdown in `docs/pages/`, rendered by
                    the dependency-free `docs/build_docs.py` into `docs/site/`.
-editors/           Syntax-highlighting definitions for `.ki` files — Notepad++ (UDL), VS Code
-                   (TextMate grammar + extension), and Vim. See `editors/README.md`.
-scripts/           build_all.sh (release binaries), test_release.sh (run the `.ki` suites against
-                   a built binary), post_work_check.sh (clean-build every variant + full CTest),
-                   install.sh / install.ps1 (the Linux/macOS + Windows installers).
-tools/             kpm.ki — the package manager, written in Kirito (installs packages from GitHub).
+  editors/           Syntax-highlighting definitions for `.ki` files — Notepad++ (UDL), VS Code
+                     (TextMate grammar + extension), and Vim. See `docs/editors/README.md`.
 
 CLAUDE.md          The project charter: what Kirito is, how it's built, and the working rules.
 Archive/           Two prior incomplete attempts (V1/V2) — reference only; not built.
@@ -265,14 +267,14 @@ ctest --test-dir build             # run the C++ unit + golden-script test suite
 
 ### Building the release binaries (static, TLS)
 
-`scripts/build_all.sh` builds the shippable 64-bit binaries into `dist/` — `ki-linux-x64` and, when
+`tools/scripts/build_all.sh` builds the shippable 64-bit binaries into `dist/` — `ki-linux-x64` and, when
 the mingw cross compiler is installed, `ki-windows-x64.exe` (it builds a static OpenSSL for the
 Windows target from source, cached under `.deps/`). On Debian/Ubuntu/WSL:
 
 ```sh
 sudo apt-get update
 sudo apt-get install -y build-essential cmake ninja-build git perl libssl-dev mingw-w64
-scripts/build_all.sh
+tools/scripts/build_all.sh
 ```
 
 Each binary is a Release build with TLS on and linked as statically as possible (the Linux binary
@@ -281,14 +283,14 @@ keeps only glibc dynamic; the Windows `.exe` is fully static). The same set is a
 
 ### Testing the built executables
 
-`scripts/test_release.sh` runs the end-to-end `.ki` test suites (golden-output + error-diagnostic
+`tools/scripts/test_release.sh` runs the end-to-end `.ki` test suites (golden-output + error-diagnostic
 scripts) against the binaries in `dist/`, so you can verify each shipped interpreter directly. Linux
 binaries run natively; Windows `.exe` binaries run under Wine:
 
 ```sh
 sudo apt-get install -y wine64        # only needed to test the .exe
-scripts/test_release.sh               # tests every dist/ki-* binary
-scripts/test_release.sh ./build/ki    # or test one specific interpreter
+tools/scripts/test_release.sh               # tests every dist/ki-* binary
+tools/scripts/test_release.sh ./build/ki    # or test one specific interpreter
 ```
 
 ## Documentation

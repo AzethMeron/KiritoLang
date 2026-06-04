@@ -29,10 +29,10 @@ else()
     add_link_options(-static)
 endif()
 
-# The interpreter is header-only: an INTERFACE target that just exposes include/. It also carries
+# The interpreter is header-only: an INTERFACE target that just exposes src/. It also carries
 # the platform's socket library so any consumer (CLI or tests) links it transparently.
 add_library(kirito INTERFACE)
-target_include_directories(kirito INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(kirito INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_features(kirito INTERFACE cxx_std_20)
 if(WIN32)
     target_link_libraries(kirito INTERFACE ws2_32)  # Winsock
@@ -69,4 +69,4 @@ if(KIRITO_ENABLE_TLS)
 endif()
 
 enable_testing()
-add_subdirectory(tests)
+add_subdirectory(tools/tests)

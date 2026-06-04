@@ -16,7 +16,7 @@
 # (The same set is also produced on CI by .github/workflows/release.yml and published to a Release.)
 
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 ROOT="$PWD/.deps"
 OPENSSL_TAG="openssl-3.3.2"
 mkdir -p "$ROOT" dist

@@ -9,7 +9,7 @@ find_package(Threads REQUIRED)
 add_library(kirito_pch STATIC pch_carrier.cpp)
 target_link_libraries(kirito_pch PRIVATE kirito Threads::Threads)
 target_compile_options(kirito_pch PRIVATE -Wall -Wextra -Wpedantic)
-target_precompile_headers(kirito_pch PRIVATE ${CMAKE_SOURCE_DIR}/include/kirito.hpp)
+target_precompile_headers(kirito_pch PRIVATE ${CMAKE_SOURCE_DIR}/src/kirito.hpp)
 
 function(kirito_test name)
     add_executable(${name} ${ARGN})

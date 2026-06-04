@@ -2,9 +2,9 @@
 # Run the end-to-end .ki test suites against the RELEASE executables in dist/ — i.e. exercise the
 # actual `ki` interpreter binary, not the in-tree C++ unit tests. Two suites are run per binary:
 #
-#   tests/scripts/*.ki  -> stdout must exactly match the matching .expected (a .in file, if present,
+#   tools/tests/scripts/*.ki  -> stdout must exactly match the matching .expected (a .in file, if present,
 #                          is fed on stdin).
-#   tests/errors/*.ki   -> the program must exit non-zero and its stderr must contain every line of
+#   tools/tests/errors/*.ki   -> the program must exit non-zero and its stderr must contain every line of
 #                          the matching .experr (each line is a required substring).
 #
 # Linux binaries run natively; Windows .exe binaries run under Wine (sudo apt-get install -y wine64).
@@ -15,7 +15,7 @@
 #   scripts/test_release.sh path/ki.exe wine64   # test one binary through a runner (e.g. wine)
 
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 # run_suite <label> <runner argv...>   (the .ki path is appended to the runner)
 # Carriage returns are stripped from both sides before comparing: a Windows binary's stdout/stderr is
@@ -24,7 +24,7 @@ cd "$(dirname "$0")/.."
 run_suite() {
     local label="$1"; shift
     local pass=0 fail=0 s exp in actual expected err rc ok n
-    for s in tests/scripts/*.ki; do
+    for s in tools/tests/scripts/*.ki; do
         exp="${s%.ki}.expected"; [ -f "$exp" ] || continue
         in="${s%.ki}.in"
         if [ -f "$in" ]; then actual="$("$@" "$s" < "$in" 2>/dev/null | tr -d '\r')"
@@ -33,7 +33,7 @@ run_suite() {
         if [ "$actual" = "$expected" ]; then pass=$((pass + 1))
         else echo "  FAIL       $s"; fail=$((fail + 1)); fi
     done
-    for s in tests/errors/*.ki; do
+    for s in tools/tests/errors/*.ki; do
         exp="${s%.ki}.experr"; [ -f "$exp" ] || continue
         err="$("$@" "$s" < /dev/null 2>&1 >/dev/null)"; rc=$?
         err="$(printf '%s' "$err" | tr -d '\r')"

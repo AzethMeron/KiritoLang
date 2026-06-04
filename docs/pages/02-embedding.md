@@ -17,7 +17,7 @@ int main() {
 }
 ```
 
-Build it by adding `include/` to your include path and compiling as C++20. No library to link — the
+Build it by adding `src/` to your include path and compiling as C++20. No library to link — the
 core is all inline/templated headers.
 
 ## The `KiritoVM` surface

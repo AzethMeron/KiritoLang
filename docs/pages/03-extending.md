@@ -124,7 +124,7 @@ Inside a module's `setup`, the `ModuleBuilder` has the same overload:
 Subclass `NativeModule`, override `name()` and `setup()`, and register the whole thing with one
 `install<T>()`. Inside `setup`, declare members through the `ModuleBuilder` — `fn` for functions,
 `value` for constants. This is a complete `stats` module (it is also the embedding integration test,
-`tests/integration/embed_demo.cpp`, so it is guaranteed to compile and run):
+`tools/tests/integration/embed_demo.cpp`, so it is guaranteed to compile and run):
 
 ```cpp
 struct StatsModule : NativeModule {
@@ -172,7 +172,7 @@ When returning built-in values isn't enough — you need a value with its own id
 operators — subclass `NativeClass<Derived>`. The CRTP base fills in `kind`/`typeName`/`truthy`/
 `equals`; you define `static constexpr const char* kTypeName` and override only the protocol slots
 your type uses. Here is a complete 2-D vector — attributes, methods, an overloaded `+`, and a custom
-`str` (also verified in `tests/integration/embed_demo.cpp`):
+`str` (also verified in `tools/tests/integration/embed_demo.cpp`):
 
 ```cpp
 struct Vec2 : NativeClass<Vec2> {

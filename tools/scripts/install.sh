@@ -82,7 +82,7 @@ fi
 
 # Install the kpm package manager (a Kirito script) + a launcher on PATH.
 say "installing kpm"
-fetch "https://raw.githubusercontent.com/$REPO/$REF/tools/kpm.ki" "$KIRITO_HOME/kpm.ki"
+fetch "https://raw.githubusercontent.com/$REPO/$REF/kpm/kpm.ki" "$KIRITO_HOME/kpm.ki"
 cat > "$BIN_DIR/kpm" <<EOF
 #!/bin/sh
 exec "$BIN_DIR/ki" "$KIRITO_HOME/kpm.ki" "\$@"
