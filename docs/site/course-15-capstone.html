@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Lesson 15 — Capstone: A Contact Book — Kirito</title><style>
+<title>Lesson 15 — Capstone: A Task Manager — Kirito</title><style>
 :root{--bg:#16161a;--fg:#e4e4ea;--muted:#9a9aa6;--accent:#9b87ff;--code-bg:#1e1e25;
 --border:#2c2c35;--side:#1b1b21;--side-hover:#26262f}
 *{box-sizing:border-box}
@@ -37,152 +37,138 @@ a.xref code{color:inherit}
 hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
 </style></head>
-<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values-numbers.html">Lesson 2 — Values, Variables &amp; Numbers</a><a href="course-03-strings.html">Lesson 3 — Strings</a><a href="course-04-control-loops.html">Lesson 4 — Control Flow and Loops</a><a href="course-05-collections.html">Lesson 5 — Collections: Lists, Sets, Dicts &amp; Unpacking</a><a href="course-06-functions-closures.html">Lesson 6 — Functions and Closures</a><a href="course-07-annotations.html">Lesson 7 — Type Annotations and Runtime Checks</a><a href="course-08-classes.html">Lesson 8 — Classes I: Data and Behavior</a><a href="course-09-operators.html">Lesson 9 — Classes II: Operators and Protocols</a><a href="course-10-inheritance.html">Lesson 10 — Classes III: Inheritance and super</a><a href="course-11-errors.html">Lesson 11 — Errors and Exceptions</a><a href="course-12-context-managers.html">Lesson 12 — Context Managers and with</a><a href="course-13-files-io.html">Lesson 13 — Files, I/O, and Streams</a><a href="course-14-stdlib-tour.html">Lesson 14 — A Tour of the Standard Library</a><a href="course-15-capstone.html" class="active">Lesson 15 — Capstone: A Contact Book</a><a href="bonus-01-regex.html">Bonus Lesson 1 — Regular Expressions</a><a href="bonus-02-cli.html">Bonus Lesson 2 — Command-Line Programs</a><a href="bonus-03-data.html">Bonus Lesson 3 — Tabular Data Analysis</a><a href="bonus-04-linear-algebra.html">Bonus Lesson 4 — Matrices, Vectors &amp; Complex Numbers</a><a href="bonus-05-tensors.html">Bonus Lesson 5 — Tensors &amp; Autograd</a></nav><main id="content"><h1 id="lesson-15-capstone-a-contact-book">Lesson 15 — Capstone: A Contact Book</h1>
-<p>Time to bring it all together. In this final lesson we build a small but complete program — a <strong>contact book</strong> that stores people, looks them up, and persists to a JSON file on disk. It uses nearly everything from the course: classes, private state, exceptions, type annotations, files, the <a class="xref" href="stdlib.html#json"><code>json</code></a> module, sorting with a key, and clean function composition.</p>
-<p>Read it top to bottom; each piece builds on the last, and the whole thing runs as one program.</p>
-<h2 id="the-data-a-contact">The data: a <code>Contact</code></h2>
-<p>A <code>Contact</code> is a small value type with a friendly <code>_str_</code> and a method to turn itself into a plain Dict (so the <a class="xref" href="stdlib.html#json"><code>json</code></a> module can serialize it):</p>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values-numbers.html">Lesson 2 — Values, Variables &amp; Numbers</a><a href="course-03-strings.html">Lesson 3 — Strings</a><a href="course-04-control-loops.html">Lesson 4 — Control Flow and Loops</a><a href="course-05-collections.html">Lesson 5 — Collections: Lists, Sets, Dicts &amp; Unpacking</a><a href="course-06-functions-closures.html">Lesson 6 — Functions and Closures</a><a href="course-07-annotations.html">Lesson 7 — Type Annotations and Runtime Checks</a><a href="course-08-classes.html">Lesson 8 — Classes I: Data and Behavior</a><a href="course-09-operators.html">Lesson 9 — Classes II: Operators and Protocols</a><a href="course-10-inheritance.html">Lesson 10 — Classes III: Inheritance and super</a><a href="course-11-errors.html">Lesson 11 — Errors and Exceptions</a><a href="course-12-context-managers.html">Lesson 12 — Context Managers and with</a><a href="course-13-files-io.html">Lesson 13 — Files, I/O, and Streams</a><a href="course-14-stdlib-tour.html">Lesson 14 — A Tour of the Standard Library</a><a href="course-15-capstone.html" class="active">Lesson 15 — Capstone: A Task Manager</a><a href="bonus-01-regex.html">Bonus Lesson 1 — Regular Expressions</a><a href="bonus-02-cli.html">Bonus Lesson 2 — Command-Line Programs</a><a href="bonus-03-data.html">Bonus Lesson 3 — Tabular Data Analysis</a><a href="bonus-04-linear-algebra.html">Bonus Lesson 4 — Matrices, Vectors &amp; Complex Numbers</a><a href="bonus-05-tensors.html">Bonus Lesson 5 — Tensors &amp; Autograd</a></nav><main id="content"><h1 id="lesson-15-capstone-a-task-manager">Lesson 15 — Capstone: A Task Manager</h1>
+<p>Time to bring it all together. In this final lesson we build one small but complete program — a <strong>task manager</strong> that holds a to-do list, keeps it ordered by urgency, and saves it to disk as JSON. It exercises nearly everything from the course: classes with annotations, <strong>operator overloading</strong> (so your own objects sort themselves), private state, exceptions, f-strings, <code>with</code>-blocks, files, and the <a class="xref" href="stdlib.html#json"><code>json</code></a> module.</p>
+<p>The code below is <strong>one program</strong>, shown a section at a time — paste the blocks into a single file, top to bottom, and it runs. Nothing is repeated; each section adds the next piece.</p>
+<h2 id="the-task">The <code>Task</code></h2>
+<p>A <code>Task</code> is a small value type: a title, a priority, and a done flag. Two things make it pleasant to work with. Its <code>_str_</code> prints a tidy one-liner, and its <a class="xref" href="types.html#sym-_lt_"><code>_lt_</code></a> defines an <strong>ordering</strong> — once a class says how two of its instances compare, <a class="xref" href="builtins.html#sym-sorted"><code>sorted()</code></a>, <code>min()</code>, <code>max()</code> and the <code>&lt;</code> operator all work on it for free.</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> json = <span class="kw">import</span>(<span class="str">&quot;json&quot;</span>)
 
-<span class="kw">class</span> Contact:
-    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name : <span class="builtin">String</span>, email : <span class="builtin">String</span>, phone : <span class="builtin">String</span>):
-        self.name = name
-        self.email = email
-        self.phone = phone
+<span class="com"># Priorities, ranked most urgent (0) to least. The rank drives the ordering below.</span>
+<span class="kw">var</span> RANK = {<span class="str">&quot;high&quot;</span>: <span class="num">0</span>, <span class="str">&quot;medium&quot;</span>: <span class="num">1</span>, <span class="str">&quot;low&quot;</span>: <span class="num">2</span>}
 
+<span class="kw">class</span> Task:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, title : <span class="builtin">String</span>, priority : <span class="builtin">String</span> = <span class="str">&quot;medium&quot;</span>):
+        <span class="kw">if</span> <span class="kw">not</span> (priority <span class="kw">in</span> RANK):
+            <span class="kw">throw</span> f<span class="str">&quot;unknown priority: {priority}&quot;</span>
+        self.title = title
+        self.priority = priority
+        self.done = <span class="kw">False</span>
+
+    <span class="com"># A one-line view: a checkbox, the priority in a fixed-width column, then the title.</span>
     <span class="kw">var</span> _str_ = <span class="kw">Function</span>(self) -&gt; <span class="builtin">String</span>:
-        <span class="kw">return</span> f<span class="str">&quot;{self.name} &lt;{self.email}&gt; {self.phone}&quot;</span>
+        <span class="kw">var</span> box = <span class="str">&quot;[x]&quot;</span> <span class="kw">if</span> self.done <span class="kw">else</span> <span class="str">&quot;[ ]&quot;</span>
+        <span class="kw">return</span> f<span class="str">&quot;{box} {self.priority:&lt;6} {self.title}&quot;</span>
 
-    <span class="com"># Convert to a plain Dict for JSON storage.</span>
+    <span class="com"># The sort key: pending tasks before done ones, then by priority rank, then by title.</span>
+    <span class="com"># Returning a List lets one comparison rank on three fields at once — Lists compare</span>
+    # element by element, so `[<span class="num">0</span>, <span class="num">0</span>, <span class="str">&quot;a&quot;</span>] &lt; [<span class="num">0</span>, <span class="num">1</span>, <span class="str">&quot;b&quot;</span>]`.
+    <span class="kw">var</span> _key = <span class="kw">Function</span>(self):
+        <span class="kw">return</span> [<span class="builtin">Integer</span>(self.done), RANK[self.priority], self.title]
+
+    <span class="com"># With _lt_ defined, sorted()/min()/max()/&lt; all order Tasks — no key function needed anywhere.</span>
+    <span class="kw">var</span> _lt_ = <span class="kw">Function</span>(self, other : Task) -&gt; <span class="builtin">Bool</span>:
+        <span class="kw">return</span> self._key() &lt; other._key()
+
+    <span class="com"># Reduce to a plain Dict so the json module can store it.</span>
     <span class="kw">var</span> to_dict = <span class="kw">Function</span>(self) -&gt; <span class="builtin">Dict</span>:
-        <span class="kw">return</span> {<span class="str">&quot;name&quot;</span>: self.name, <span class="str">&quot;email&quot;</span>: self.email, <span class="str">&quot;phone&quot;</span>: self.phone}</code></pre>
-<h2 id="the-errors">The errors</h2>
-<p>Specific exception types let callers react precisely. We define two:</p>
-<pre><code><span class="kw">class</span> DuplicateContact:
-    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name):
-        self.name = name
-
-<span class="kw">class</span> ContactNotFound:
-    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name):
-        self.name = name</code></pre>
-<h2 id="the-collection-a-contactbook">The collection: a <code>ContactBook</code></h2>
-<p>The book keeps contacts in a <strong>private</strong> Dict keyed by name, and exposes a clean interface. Notice how each method has one job, validates its inputs, and throws a specific error when something&#x27;s wrong:</p>
-<pre><code><span class="kw">class</span> ContactBook:
+        <span class="kw">return</span> {<span class="str">&quot;title&quot;</span>: self.title, <span class="str">&quot;priority&quot;</span>: self.priority, <span class="str">&quot;done&quot;</span>: self.done}</code></pre>
+<p><code>_key</code> has a <strong>single leading underscore</strong>, so it&#x27;s private — part of how <code>Task</code> orders itself, not something callers should touch.</p>
+<h2 id="reporting-errors">Reporting errors</h2>
+<p>When a caller asks for a task that isn&#x27;t there, we raise a <strong>specific</strong> exception type so the caller can catch exactly that case:</p>
+<pre><code><span class="kw">class</span> TaskNotFound:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, title):
+        self.title = title</code></pre>
+<h2 id="the-tasklist">The <code>TaskList</code></h2>
+<p>The list keeps its tasks in a <strong>private</strong> <a class="xref" href="types.html#list"><code>List</code></a> and exposes a clean interface. Each method does one job. Note how <code>ordered</code> just calls <a class="xref" href="builtins.html#sym-sorted"><code>sorted(self._tasks)</code></a> — because <code>Task</code> defined <a class="xref" href="types.html#sym-_lt_"><code>_lt_</code></a>, that&#x27;s all it takes — and how <code>save</code>/<code>load</code> use a <code>with</code> block so the file is always closed:</p>
+<pre><code><span class="kw">class</span> TaskList:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self):
-        self._by_name = {}              <span class="com"># private: name -&gt; Contact</span>
+        self._tasks = []                       <span class="com"># private: a List of Task</span>
 
-    <span class="kw">var</span> add = <span class="kw">Function</span>(self, contact : Contact):
-        <span class="kw">if</span> contact.name <span class="kw">in</span> self._by_name:
-            <span class="kw">throw</span> DuplicateContact(contact.name)
-        self._by_name[contact.name] = contact
+    <span class="kw">var</span> add = <span class="kw">Function</span>(self, task : Task):
+        self._tasks.append(task)
 
-    <span class="kw">var</span> find = <span class="kw">Function</span>(self, name : <span class="builtin">String</span>) -&gt; Contact:
-        <span class="kw">if</span> name <span class="kw">in</span> self._by_name:
-            <span class="kw">return</span> self._by_name[name]
-        <span class="kw">throw</span> ContactNotFound(name)
+    <span class="kw">var</span> complete = <span class="kw">Function</span>(self, title : <span class="builtin">String</span>):
+        <span class="kw">for</span> task <span class="kw">in</span> self._tasks:
+            <span class="kw">if</span> task.title == title:
+                task.done = <span class="kw">True</span>
+                <span class="kw">return</span>
+        <span class="kw">throw</span> TaskNotFound(title)
 
-    <span class="kw">var</span> remove = <span class="kw">Function</span>(self, name : <span class="builtin">String</span>):
-        <span class="kw">if</span> name <span class="kw">in</span> self._by_name:
-            self._by_name.remove(name)
-        <span class="kw">else</span>:
-            <span class="kw">throw</span> ContactNotFound(name)
+    <span class="com"># Only the unfinished tasks.</span>
+    <span class="kw">var</span> pending = <span class="kw">Function</span>(self):
+        <span class="kw">var</span> out = []
+        <span class="kw">for</span> task <span class="kw">in</span> self._tasks:
+            <span class="kw">if</span> <span class="kw">not</span> task.done:
+                out.append(task)
+        <span class="kw">return</span> out
 
-    <span class="kw">var</span> count = <span class="kw">Function</span>(self) -&gt; <span class="builtin">Integer</span>:
-        <span class="kw">return</span> <span class="builtin">len</span>(self._by_name)
+    <span class="com"># len(tasklist) works because of _len_.</span>
+    <span class="kw">var</span> _len_ = <span class="kw">Function</span>(self) -&gt; <span class="builtin">Integer</span>:
+        <span class="kw">return</span> <span class="builtin">len</span>(self._tasks)
 
-    <span class="com"># All contacts, sorted alphabetically by name (sorted() with a key function).</span>
-    <span class="kw">var</span> all_sorted = <span class="kw">Function</span>(self):
-        <span class="kw">return</span> <span class="builtin">sorted</span>(self._by_name.values(), key=<span class="kw">Function</span>(c): <span class="kw">return</span> c.name)</code></pre>
-<h2 id="persistence-save-and-load-json">Persistence: save and load JSON</h2>
-<p>Saving walks the contacts into a List of plain Dicts and writes JSON; loading parses it back and rebuilds <code>Contact</code> instances. Both use a <code>with</code> block so the file is always closed:</p>
-<pre><code><span class="kw">class</span> ContactBook:
-    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self):
-        self._by_name = {}
-
-    <span class="kw">var</span> add = <span class="kw">Function</span>(self, contact : Contact):
-        <span class="kw">if</span> contact.name <span class="kw">in</span> self._by_name:
-            <span class="kw">throw</span> DuplicateContact(contact.name)
-        self._by_name[contact.name] = contact
-
-    <span class="kw">var</span> find = <span class="kw">Function</span>(self, name : <span class="builtin">String</span>) -&gt; Contact:
-        <span class="kw">if</span> name <span class="kw">in</span> self._by_name:
-            <span class="kw">return</span> self._by_name[name]
-        <span class="kw">throw</span> ContactNotFound(name)
-
-    <span class="kw">var</span> remove = <span class="kw">Function</span>(self, name : <span class="builtin">String</span>):
-        <span class="kw">if</span> name <span class="kw">in</span> self._by_name:
-            self._by_name.remove(name)
-        <span class="kw">else</span>:
-            <span class="kw">throw</span> ContactNotFound(name)
-
-    <span class="kw">var</span> count = <span class="kw">Function</span>(self) -&gt; <span class="builtin">Integer</span>:
-        <span class="kw">return</span> <span class="builtin">len</span>(self._by_name)
-
-    <span class="kw">var</span> all_sorted = <span class="kw">Function</span>(self):
-        <span class="kw">return</span> <span class="builtin">sorted</span>(self._by_name.values(), key=<span class="kw">Function</span>(c): <span class="kw">return</span> c.name)
+    <span class="com"># Tasks in urgency order — sorted() leans on Task._lt_.</span>
+    <span class="kw">var</span> ordered = <span class="kw">Function</span>(self):
+        <span class="kw">return</span> <span class="builtin">sorted</span>(self._tasks)
 
     <span class="kw">var</span> save = <span class="kw">Function</span>(self, path : <span class="builtin">String</span>):
         <span class="kw">var</span> records = []
-        <span class="kw">for</span> contact <span class="kw">in</span> self.all_sorted():
-            records.append(contact.to_dict())
+        <span class="kw">for</span> task <span class="kw">in</span> self.ordered():
+            records.append(task.to_dict())
         <span class="kw">with</span> io.open(path, <span class="str">&quot;w&quot;</span>) <span class="kw">as</span> f:
-            f.write(json.dumps(records, indent=<span class="num">2</span>))
+            f.write(json.dumps(records, indent = <span class="num">2</span>))
 
     <span class="kw">var</span> load = <span class="kw">Function</span>(self, path : <span class="builtin">String</span>):
         <span class="kw">with</span> io.open(path, <span class="str">&quot;r&quot;</span>) <span class="kw">as</span> f:
             <span class="kw">var</span> records = json.loads(f.read())
         <span class="kw">for</span> record <span class="kw">in</span> records:
-            self.add(Contact(record[<span class="str">&quot;name&quot;</span>], record[<span class="str">&quot;email&quot;</span>], record[<span class="str">&quot;phone&quot;</span>]))</code></pre>
-<blockquote>We repeated the earlier methods here because each documentation block is a standalone program; in your own file you&#x27;d write the class once with all its methods together.</blockquote>
-<h2 id="the-driver-exercising-the-program">The driver: exercising the program</h2>
-<p>Now we use the book — adding people, handling a duplicate, saving, loading into a fresh book, looking someone up, and handling a missing name. Every failure mode is caught and reported, and the program keeps running:</p>
-<pre><code><span class="kw">var</span> book = ContactBook()
-book.add(Contact(<span class="str">&quot;Ada Lovelace&quot;</span>, <span class="str">&quot;ada@analytical.engine&quot;</span>, <span class="str">&quot;555-0100&quot;</span>))
-book.add(Contact(<span class="str">&quot;Alan Turing&quot;</span>, <span class="str">&quot;alan@bombe.uk&quot;</span>, <span class="str">&quot;555-0011&quot;</span>))
-book.add(Contact(<span class="str">&quot;Grace Hopper&quot;</span>, <span class="str">&quot;grace@cobol.navy&quot;</span>, <span class="str">&quot;555-0001&quot;</span>))
+            <span class="kw">var</span> task = Task(record[<span class="str">&quot;title&quot;</span>], record[<span class="str">&quot;priority&quot;</span>])
+            task.done = record[<span class="str">&quot;done&quot;</span>]
+            self.add(task)</code></pre>
+<h2 id="running-it">Running it</h2>
+<p>Now we drive the program: add tasks, complete one, print them in order, persist to disk, reload into a fresh list, and handle a missing task gracefully — every failure is caught and the program keeps running:</p>
+<pre><code><span class="kw">var</span> inbox = TaskList()
+inbox.add(Task(<span class="str">&quot;Write the report&quot;</span>, <span class="str">&quot;high&quot;</span>))
+inbox.add(Task(<span class="str">&quot;Water the plants&quot;</span>, <span class="str">&quot;low&quot;</span>))
+inbox.add(Task(<span class="str">&quot;Reply to Ada&quot;</span>, <span class="str">&quot;medium&quot;</span>))
+inbox.add(Task(<span class="str">&quot;Ship the release&quot;</span>, <span class="str">&quot;high&quot;</span>))
 
-<span class="com"># Adding a duplicate is caught, not fatal.</span>
-<span class="kw">try</span>:
-    book.add(Contact(<span class="str">&quot;Ada Lovelace&quot;</span>, <span class="str">&quot;dup@example.com&quot;</span>, <span class="str">&quot;555-9999&quot;</span>))
-<span class="kw">catch</span> DuplicateContact <span class="kw">as</span> e:
-    io.<span class="builtin">print</span>(f<span class="str">&quot;skipped duplicate: {e.name}&quot;</span>)
+inbox.complete(<span class="str">&quot;Water the plants&quot;</span>)
 
-io.<span class="builtin">print</span>(f<span class="str">&quot;book has {book.count()} contacts:&quot;</span>)
-<span class="kw">for</span> contact <span class="kw">in</span> book.all_sorted():
-    io.<span class="builtin">print</span>(f<span class="str">&quot;  {contact}&quot;</span>)            <span class="com"># uses Contact._str_</span>
+io.<span class="builtin">print</span>(f<span class="str">&quot;{len(inbox)} tasks, {len(inbox.pending())} still pending:&quot;</span>)
+<span class="kw">for</span> task <span class="kw">in</span> inbox.ordered():
+    io.<span class="builtin">print</span>(f<span class="str">&quot;  {task}&quot;</span>)                       <span class="com"># uses Task._str_</span>
 
-<span class="com"># Persist to disk and reload into a brand-new book.</span>
-<span class="kw">var</span> path = io.join(io.getcwd(), <span class="str">&quot;contacts.json&quot;</span>)
-book.save(path)
+<span class="com"># Persist to disk and reload into a brand-new list.</span>
+<span class="kw">var</span> path = io.join(io.getcwd(), <span class="str">&quot;tasks.json&quot;</span>)
+inbox.save(path)
 
-<span class="kw">var</span> reloaded = ContactBook()
+<span class="kw">var</span> reloaded = TaskList()
 reloaded.load(path)
-io.<span class="builtin">print</span>(f<span class="str">&quot;reloaded {reloaded.count()} contacts from disk&quot;</span>)
-<span class="kw">var</span> found = reloaded.find(<span class="str">&quot;Grace Hopper&quot;</span>)
-io.<span class="builtin">print</span>(f<span class="str">&quot;lookup: {found}&quot;</span>)
+io.<span class="builtin">print</span>(f<span class="str">&quot;reloaded {len(reloaded)} tasks from disk&quot;</span>)
 
-<span class="com"># A missing lookup is handled gracefully.</span>
+<span class="com"># Completing a task that doesn&#x27;t exist is handled, not fatal.</span>
 <span class="kw">try</span>:
-    <span class="kw">discard</span> reloaded.find(<span class="str">&quot;Nobody&quot;</span>)
-<span class="kw">catch</span> ContactNotFound <span class="kw">as</span> e:
-    io.<span class="builtin">print</span>(f<span class="str">&quot;no contact named {e.name}&quot;</span>)
+    reloaded.complete(<span class="str">&quot;Take over the world&quot;</span>)
+<span class="kw">catch</span> TaskNotFound <span class="kw">as</span> e:
+    io.<span class="builtin">print</span>(f<span class="str">&quot;no such task: {e.title}&quot;</span>)
 
-<span class="kw">discard</span> io.remove(path)                 <span class="com"># clean up the demo file</span></code></pre>
-<p>Running this prints:</p>
-<pre><code>skipped duplicate: Ada Lovelace
-book has 3 contacts:
-  Ada Lovelace &lt;ada@analytical.engine&gt; 555-0100
-  Alan Turing &lt;alan@bombe.uk&gt; 555-0011
-  Grace Hopper &lt;grace@cobol.navy&gt; 555-0001
-reloaded 3 contacts from disk
-lookup: Grace Hopper &lt;grace@cobol.navy&gt; 555-0001
-no contact named Nobody</code></pre>
-<h2 id="walkthrough-what-each-part-of-the-course-contributed">Walkthrough — what each part of the course contributed</h2>
-<ul><li><strong>Classes (Lessons 13–14):</strong> <code>Contact</code> bundles a person&#x27;s data with a <code>_str_</code> so it prints itself; <code>ContactBook</code> bundles the storage with the operations on it.</li><li><strong>Private state (13):</strong> <code>_by_name</code> is private — callers go through <code>add</code>/<a class="xref" href="stdlib.html#sym-find"><code>find</code></a>/<a class="xref" href="stdlib.html#sym-remove"><code>remove</code></a>, so the book stays consistent and you could change the storage later.</li><li><strong>Exceptions (16):</strong> <code>DuplicateContact</code> and <code>ContactNotFound</code> turn &quot;bad input&quot; into specific, catchable events; the driver recovers from each and carries on.</li><li><strong>Annotations (12):</strong> <code>: Contact</code>, <code>: String</code>, <code>-&gt; Contact</code> document and enforce the contracts at each method boundary.</li><li><strong>Files + JSON (18, 19):</strong> <code>save</code>/<code>load</code> persist the whole book to human-readable JSON inside a <code>with</code> block that closes the file no matter what.</li><li><strong>Functions &amp; sorting (10, 7):</strong> <code>all_sorted</code> returns contacts ordered by name using <a class="xref" href="builtins.html#sym-sorted"><code>sorted</code></a> with an inline key function.</li></ul>
+<span class="kw">discard</span> io.remove(path)                         <span class="com"># clean up the demo file</span></code></pre>
+<p>Running it prints:</p>
+<pre><code>4 tasks, 3 still pending:
+  [ ] high   Ship the release
+  [ ] high   Write the report
+  [ ] medium Reply to Ada
+  [x] low    Water the plants
+reloaded 4 tasks from disk
+no such task: Take over the world</code></pre>
+<p>The two <code>high</code> tasks come first (alphabetical between them), then <code>medium</code>, and the completed task sinks to the bottom — all from that one <a class="xref" href="types.html#sym-_lt_"><code>_lt_</code></a> definition.</p>
+<h2 id="what-each-lesson-contributed">What each lesson contributed</h2>
+<ul><li><strong>Classes (Lessons 8–9):</strong> <code>Task</code> bundles a person-sized value with the behavior that belongs to it; <code>TaskList</code> bundles the storage with the operations on it.</li><li><strong>Operators &amp; protocols (Lesson 9):</strong> <code>_str_</code> makes a <code>Task</code> print itself, <a class="xref" href="types.html#sym-_lt_"><code>_lt_</code></a> makes it <strong>sortable</strong> (so <a class="xref" href="builtins.html#sym-sorted"><code>sorted(self._tasks)</code></a> needs no key), and <a class="xref" href="types.html#sym-_len_"><code>_len_</code></a> makes <code>len(tasklist)</code> work.</li><li><strong>Private state (Lesson 8):</strong> <code>_tasks</code> and <code>_key</code> are private — callers go through the public methods, so the list stays consistent and you could swap the storage later.</li><li><strong>Annotations (Lesson 7):</strong> <code>: Task</code>, <code>: String</code>, <code>-&gt; Bool</code>/<code>-&gt; Integer</code> document <em>and</em> enforce the contract at each boundary.</li><li><strong>Exceptions (Lesson 11):</strong> <code>TaskNotFound</code> turns &quot;bad input&quot; into a specific, catchable event; the driver recovers from it and carries on.</li><li><strong>Context managers &amp; files (Lessons 12–13):</strong> <code>save</code>/<code>load</code> persist the whole list inside a <code>with</code> block that closes the file no matter what.</li><li><strong>The standard library (Lesson 14):</strong> <a class="xref" href="stdlib.html#json"><code>json</code></a> serializes the records; <code>io.join</code>/<a class="xref" href="stdlib.html#sym-getcwd"><code>getcwd</code></a>/<a class="xref" href="stdlib.html#sym-remove"><code>remove</code></a> handle the path.</li><li><strong>Collections, strings &amp; functions (Lessons 5, 3, 6):</strong> a <a class="xref" href="types.html#list"><code>List</code></a> of tasks ordered by a List-valued key; f-strings with a <code>:&lt;6</code> alignment spec; <a class="xref" href="builtins.html#sym-sorted"><code>sorted</code></a> doing the work.</li></ul>
 <h2 id="where-to-go-next">Where to go next</h2>
 <p>You now know enough to write real programs. To go further:</p>
-<ul><li><strong>Extend this project:</strong> add search by partial name, an <code>update</code> method, or load/save on startup and exit so the book persists across runs. Wrap it in an <code>io.input</code> loop for an interactive CLI.</li><li><strong>Read the reference pages:</strong> the <strong>Standard Library</strong>, <strong>Built-in Functions</strong>, and <strong>Types</strong> pages document every function and method with signatures.</li><li><strong>Study real programs:</strong> the <code>examples/</code> directory has complete projects — an RPN calculator, a word-frequency analyzer, a linear-system solver — and <code>examples/big_projects/</code> has larger ones (a networked SQL database, an HTTP server, a deep-learning library) written entirely in Kirito.</li><li><strong>Embed or extend Kirito in C++:</strong> the <strong>Embedding</strong> and <strong>Extending</strong> pages show how to run Kirito inside a C++ program and how to add your own native functions, modules, and types.</li></ul>
+<ul><li><strong>Extend this project:</strong> add due dates with the <a class="xref" href="stdlib.html#time"><code>time</code></a> module, a <code>priority</code> filter, or load on startup and save on exit so the list survives across runs. Wrap it in an <code>io.input</code> loop for an interactive CLI — see the <a href="bonus-02-cli.html">command-line lesson</a> for argument parsing.</li><li><strong>Persist objects directly:</strong> instead of hand-writing <code>to_dict</code>/<code>load</code>, the <a class="xref" href="stdlib.html#serialize"><code>serialize</code></a> and <a class="xref" href="stdlib.html#dump"><code>dump</code></a> modules save a whole object graph (shared references and all) in one call — try replacing <code>save</code> with <code>serialize.save(self._tasks, path)</code>.</li><li><strong>Read the reference pages:</strong> the <a href="stdlib.html">Standard Library</a>, <a href="builtins.html">Built-in Functions</a>, and <a href="types.html">Types</a> pages document every function and method with signatures.</li><li><strong>Study real programs:</strong> the <code>examples/</code> directory has complete projects — an RPN calculator, a word-frequency analyzer, a linear-system solver — and <code>examples/big_projects/</code> has larger ones (a networked SQL database, an HTTP server, a deep-learning library) written entirely in Kirito.</li><li><strong>Embed or extend Kirito in C++:</strong> the <a href="embedding.html">Embedding</a> and <a href="extending.html">Extending</a> pages show how to run Kirito inside a C++ program and add your own native functions, modules, and types.</li></ul>
 <p>Congratulations — you&#x27;ve finished the <strong>core course</strong>. What follows are <strong>bonus lessons</strong>: deeper dives into specialized libraries — regular expressions, command-line programs, tabular data analysis, linear algebra, and tensors with automatic differentiation. Take them in any order, or go build something.</p>
 <p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
 </main></div></body></html>
