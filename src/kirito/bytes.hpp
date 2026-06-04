@@ -11,6 +11,14 @@
 
 namespace kirito {
 
+// The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
+// intentionally shadow the enclosing getAttr `vm`/`self` (same VM, by design). Silence -Wshadow for
+// these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // An immutable sequence of raw bytes (0–255), like Python's `bytes`. Distinct from String, which is
 // Unicode (code-point) text: a String holds UTF-8 and indexes by code point, so it cannot losslessly
 // hold or address arbitrary binary. Bytes indexes by byte (b[i] -> Integer 0–255), so it is the right
@@ -308,6 +316,10 @@ inline Handle makeBytes(KiritoVM& vm, Handle x, const std::string& enc = "utf-8"
     }
     return vm.alloc(std::make_unique<BytesVal>(std::move(out)));
 }
+
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 
 }  // namespace kirito
 
