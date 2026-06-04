@@ -380,6 +380,11 @@ post-creation. Differentiable operations then record a computational graph; `bac
 accumulates each tensor's gradient. The graph records *operations*, not where the data lives, so the
 design carries forward to a future GPU backend.
 
+Autograd applies to the **Float** dtype only: a **Complex tensor has no gradients** — marking one with
+`requiresgrad = True` (constructor keyword or method) raises, and the differentiable element-wise math
+methods are Float-only as well. Complex tensors remain a full numeric container (arithmetic, `matmul`,
+`tensordot`, reshaping, reductions); use the `complex` module for complex analytic functions.
+
 - `t.requiresgrad() → Bool` — whether `t` tracks gradients; `t.requiresgrad(flag)` sets it (Float
   only; turning it off detaches `t` from the graph).
 - `t.grad → Tensor` — the accumulated gradient (same shape as `t`), or `None` before `backward()`.

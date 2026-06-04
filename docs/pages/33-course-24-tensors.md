@@ -128,7 +128,8 @@ io.print(T.contract(x, y, [1, 2], [1, 0]).shape())   # [2, 5]
 Tensors can compute their own derivatives. Tracking is **off by default** — mark a tensor with
 `requiresgrad = True` (or `t.requiresgrad(True)` later) to make it a differentiable leaf. Operations on
 grad-tracking tensors record a graph; calling `backward()` on a scalar result fills in each input's
-`.grad`. Gradients are **Float-only**.
+`.grad`. Gradients are **Float-only** — a Complex tensor cannot require gradients (autograd is for the
+real-valued Float dtype).
 
 ```kirito
 var io = import("io")
@@ -191,6 +192,11 @@ io.print((T.Tensor([1, 2]) + T.Tensor([1, 1], dtype = "Complex")).dtype())   # C
 ```
 
 (`min`/`max` raise for a Complex tensor — complex numbers are unordered.)
+
+Complex tensors are a numeric container only: **autograd is Float-only**, so a Complex tensor cannot
+require gradients (`requiresgrad(True)` on one raises), and the differentiable element-wise math
+methods are Float-only too (for complex analytic functions use the `complex` module). Everything else
+— arithmetic, `matmul`, `tensordot`, reshaping, reductions — works on both dtypes.
 
 ## Recap
 
