@@ -150,7 +150,7 @@ def collect_symbols(pages):
         in_fence = False
         section = None
         for line in text.split("\n"):
-            if line.startswith("```"):
+            if line.lstrip().startswith("```"):  # fences may be indented (nested under a list item)
                 in_fence = not in_fence
                 continue
             h = re.match(r"^#{1,4}\s+(.*)$", line)
@@ -225,6 +225,14 @@ def render_inline(text):
     return text
 
 
+def _is_block_start(s):
+    # True if the line begins a NEW block, so it can't be a wrapped continuation of a list item.
+    # Code fences count even when indented (a fence nested under a list item ends the item's text).
+    return bool(re.match(r"^\s*[-*]\s+", s) or re.match(r"^\s*\d+\.\s+", s)
+                or s.startswith("#") or s.startswith(">")
+                or s.lstrip().startswith("```") or s.strip() == "")
+
+
 def render_markdown(md):
     lines = md.split("\n")
     out = []
@@ -232,13 +240,21 @@ def render_markdown(md):
     n = len(lines)
     while i < n:
         line = lines[i]
-        # fenced code block
-        if line.startswith("```"):
-            lang = line[3:].strip()
+        # fenced code block — recognized even when indented (e.g. a fence nested under a list item).
+        # The fence's own indentation is stripped from each content line so nested code isn't shown
+        # over-indented; relative indentation inside the block is preserved.
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            indent = len(line) - len(stripped)
+            lang = stripped[3:].strip()
             i += 1
             buf = []
-            while i < n and not lines[i].startswith("```"):
-                buf.append(lines[i])
+            while i < n and not lines[i].lstrip().startswith("```"):
+                row = lines[i]
+                k = 0
+                while k < indent and k < len(row) and row[k] == " ":
+                    k += 1
+                buf.append(row[k:])
                 i += 1
             i += 1  # skip closing fence
             code = "\n".join(buf)
@@ -291,10 +307,6 @@ def render_markdown(md):
         # into the current item, so a bullet's text may span several source lines)
         if re.match(r"^\s*[-*]\s+", line):
             buf = []
-            def _is_block_start(s):
-                return (re.match(r"^\s*[-*]\s+", s) or re.match(r"^\s*\d+\.\s+", s)
-                        or s.startswith("#") or s.startswith(">") or s.startswith("```")
-                        or s.strip() == "")
             while i < n and (re.match(r"^\s*[-*]\s+", lines[i])
                              or (buf and not _is_block_start(lines[i]))):
                 if re.match(r"^\s*[-*]\s+", lines[i]):
@@ -310,8 +322,12 @@ def render_markdown(md):
             continue
         if re.match(r"^\s*\d+\.\s+", line):
             buf = []
-            while i < n and re.match(r"^\s*\d+\.\s+", lines[i]):
-                buf.append(re.sub(r"^\s*\d+\.\s+", "", lines[i]))
+            while i < n and (re.match(r"^\s*\d+\.\s+", lines[i])
+                             or (buf and not _is_block_start(lines[i]))):
+                if re.match(r"^\s*\d+\.\s+", lines[i]):
+                    buf.append(re.sub(r"^\s*\d+\.\s+", "", lines[i]))
+                else:
+                    buf[-1] = buf[-1] + " " + lines[i].strip()  # continuation of the item above
                 i += 1
             out.append("<ol>" + "".join(f"<li>{render_inline(x)}</li>" for x in buf) + "</ol>")
             continue
