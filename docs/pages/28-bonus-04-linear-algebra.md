@@ -1,8 +1,10 @@
 # Bonus Lesson 4 — Matrices, Vectors & Complex Numbers
 
-Kirito ships three native (C++) numeric libraries: `matrix` (real matrices), `complex` (complex
-numbers **and** complex matrices). They share one idea — arbitrary-shape dense matrices — and one
-ergonomic trick: `apply`, which maps a function over every element at native speed.
+Kirito ships three native (C++) numeric libraries: `matrix` (real matrices) and `complex` (complex
+numbers **and** complex matrices) — both covered in this lesson — plus
+[`tensor`](bonus-05-tensors.html) (N-dimensional arrays), the subject of the next lesson. They share
+one idea — arbitrary-shape dense data — and one ergonomic trick: `apply`, which maps a function over
+every element at native speed.
 
 ## Real matrices
 
