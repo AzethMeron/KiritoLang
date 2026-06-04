@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <optional>
@@ -166,6 +167,7 @@ class TensorGradFlag : public NativeClass<TensorGradFlag> {
 public:
     static constexpr const char* kTypeName = "TensorGradFlag";
     bool enabled = true;
+    std::unordered_set<std::string> warned;  // op names that have already warned (warn-once per VM)
     std::string str(StringifyCtx&) const override { return "<tensor grad-mode>"; }
 };
 
@@ -241,6 +243,18 @@ inline TensorGradFlag& gradMode(KiritoVM& vm) {
     return static_cast<TensorGradFlag&>(vm.arena().deref(it->second));
 }
 inline bool gradEnabled(KiritoVM& vm) { return gradMode(vm).enabled; }
+
+// Warn (once per op, per VM) when a NON-differentiable op silently detaches a grad-requiring tensor
+// from the graph. Stays quiet when grad tracking is already off (inside nograd()) — that is explicit.
+inline void warnDetach(KiritoVM& vm, const char* op, const TensorVal& in) {
+    if (in.isComplex() || !in.requiresGrad) return;  // no gradient to break
+    TensorGradFlag& gm = gradMode(vm);
+    if (!gm.enabled) return;                          // tracking already off -> the user opted out
+    if (gm.warned.insert(op).second)
+        std::cerr << "warning: tensor " << op << " is not differentiable; its result is detached from "
+                     "the gradient graph (call detach() or use nograd() to do this intentionally; "
+                     "this warning fires once per operation)\n";
+}
 
 // Tracking is on, and at least one Float input requires grad.
 inline bool wantsGrad(KiritoVM& vm, std::initializer_list<const TensorVal*> ins) {
@@ -1011,6 +1025,7 @@ tensor::Tensor<T> tileAlong(const tensor::Tensor<T>& t, tensor::Shape reps) {
 
 // --- axis reductions (extra) ---
 inline Handle reduceMinMax(KiritoVM& vm, Handle ah, int64_t axis, bool isMax) {
+    warnDetach(vm, isMax ? "max()" : "min()", asT(vm, ah));
     const FT& a = reqFloat(asT(vm, ah), "min/max");
     if (axis < 0) return vm.makeFloat(isMax ? tensor::maxAll(a) : tensor::minAll(a));
     std::size_t ax = static_cast<std::size_t>(axis);
@@ -1051,6 +1066,7 @@ inline Handle argMinMax(KiritoVM& vm, Handle ah, int64_t axis, bool isMax) {
     return make(vm, std::move(out));
 }
 inline Handle stdVar(KiritoVM& vm, Handle ah, int64_t axis, bool wantStd, int64_t ddof) {
+    warnDetach(vm, wantStd ? "std()" : "var()", asT(vm, ah));
     const FT& a = reqFloat(asT(vm, ah), "std/var");
     if (axis < 0) {
         double n = static_cast<double>(a.data.size());
@@ -1087,6 +1103,7 @@ inline Handle allAny(KiritoVM& vm, Handle ah, int64_t axis, bool isAll) {
     return make(vm, std::move(out));
 }
 inline Handle ptpT(KiritoVM& vm, Handle ah, int64_t axis) {
+    warnDetach(vm, "ptp()", asT(vm, ah));
     const FT& a = reqFloat(asT(vm, ah), "ptp");
     if (axis < 0) return vm.makeFloat(tensor::maxAll(a) - tensor::minAll(a));
     std::size_t ax = static_cast<std::size_t>(axis);
@@ -1095,6 +1112,7 @@ inline Handle ptpT(KiritoVM& vm, Handle ah, int64_t axis) {
     return make(vm, tensor::sub(mx, mn));
 }
 inline Handle medianT(KiritoVM& vm, Handle ah, int64_t axis) {
+    warnDetach(vm, "median()", asT(vm, ah));
     const FT& a = reqFloat(asT(vm, ah), "median");
     auto med = [](std::vector<double> v) { std::sort(v.begin(), v.end()); std::size_t n = v.size(); return n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]); };
     if (axis < 0) { if (a.data.empty()) throw KiritoError("median of an empty tensor"); return vm.makeFloat(med(a.data)); }
@@ -1111,6 +1129,7 @@ inline Handle medianT(KiritoVM& vm, Handle ah, int64_t axis) {
 // cumsum (differentiable) / cumprod (forward only); axis<0 flattens first.
 inline Handle cumOp(KiritoVM& vm, Handle ah, int64_t axis, bool isSum) {
     TensorVal& A = asT(vm, ah);
+    if (!isSum) warnDetach(vm, "cumprod()", A);
     bool flat = axis < 0;
     std::size_t ax = flat ? 0 : static_cast<std::size_t>(axis);
     if (A.isComplex()) {
@@ -1132,6 +1151,7 @@ inline Handle cumOp(KiritoVM& vm, Handle ah, int64_t axis, bool isSum) {
 
 // --- sorting / searching (forward only) ---
 inline Handle sortT(KiritoVM& vm, Handle ah, int64_t axis) {
+    warnDetach(vm, "sort()", asT(vm, ah));
     const FT& a = reqFloat(asT(vm, ah), "sort");
     if (a.ndim() == 0) return make(vm, a);
     std::size_t ax = axis < 0 ? a.ndim() - 1 : static_cast<std::size_t>(axis);
@@ -1193,21 +1213,25 @@ inline Handle searchsortedT(KiritoVM& vm, Handle aH, Handle vH) {
 // --- linear algebra (forward only; matmul/tensordot already cover the differentiable cases) ---
 inline Handle detT(KiritoVM& vm, Handle ah) {
     TensorVal& A = asT(vm, ah);
+    warnDetach(vm, "det()", A);
     if (A.isComplex()) return cpx::make(vm, tensor::determinant(std::get<CT>(A.store)));
     return vm.makeFloat(tensor::determinant(std::get<FT>(A.store)));
 }
 inline Handle traceT(KiritoVM& vm, Handle ah) {
     TensorVal& A = asT(vm, ah);
+    warnDetach(vm, "trace()", A);
     if (A.isComplex()) return cpx::make(vm, tensor::trace(std::get<CT>(A.store)));
     return vm.makeFloat(tensor::trace(std::get<FT>(A.store)));
 }
 inline Handle invT(KiritoVM& vm, Handle ah) {
     TensorVal& A = asT(vm, ah);
+    warnDetach(vm, "inv()", A);
     if (A.isComplex()) return make(vm, tensor::inverse(std::get<CT>(A.store)));
     return make(vm, tensor::inverse(std::get<FT>(A.store)));
 }
 inline Handle solveT(KiritoVM& vm, Handle aH, Handle bH) {
     TensorVal& A = asT(vm, aH); TensorVal& B = asT(vm, bH);
+    warnDetach(vm, "solve()", A); warnDetach(vm, "solve()", B);
     if (A.isComplex() || B.isComplex()) {
         CT a = A.isComplex() ? std::get<CT>(A.store) : toComplex(std::get<FT>(A.store));
         CT b = B.isComplex() ? std::get<CT>(B.store) : toComplex(std::get<FT>(B.store));
@@ -1216,6 +1240,7 @@ inline Handle solveT(KiritoVM& vm, Handle aH, Handle bH) {
     return make(vm, tensor::solve(std::get<FT>(A.store), std::get<FT>(B.store)));
 }
 inline Handle normT(KiritoVM& vm, Handle ah, double ord) {
+    warnDetach(vm, "norm()", asT(vm, ah));
     const FT& a = reqFloat(asT(vm, ah), "norm");
     if (ord == 2.0 || ord == 0.0) { double s = 0; for (double x : a.data) s += x * x; return vm.makeFloat(std::sqrt(s)); }
     if (std::isinf(ord)) { double m = 0; for (double x : a.data) m = std::max(m, std::fabs(x)); return vm.makeFloat(m); }
@@ -1224,15 +1249,18 @@ inline Handle normT(KiritoVM& vm, Handle ah, double ord) {
     return vm.makeFloat(std::pow(s, 1.0 / ord));
 }
 inline Handle outerT(KiritoVM& vm, Handle aH, Handle bH) {
+    warnDetach(vm, "outer()", asT(vm, aH)); warnDetach(vm, "outer()", asT(vm, bH));
     const FT& a = reqFloat(asT(vm, aH), "outer"); const FT& b = reqFloat(asT(vm, bH), "outer");
     FT af = tensor::flatten(a), bf = tensor::flatten(b);
     return make(vm, tensor::outer(af, bf));
 }
 inline Handle kronT(KiritoVM& vm, Handle aH, Handle bH) {
+    warnDetach(vm, "kron()", asT(vm, aH)); warnDetach(vm, "kron()", asT(vm, bH));
     const FT& a = reqFloat(asT(vm, aH), "kron"); const FT& b = reqFloat(asT(vm, bH), "kron");
     return make(vm, tensor::kron(a, b));
 }
 inline Handle crossT(KiritoVM& vm, Handle aH, Handle bH) {
+    warnDetach(vm, "cross()", asT(vm, aH)); warnDetach(vm, "cross()", asT(vm, bH));
     const FT& a = reqFloat(asT(vm, aH), "cross"); const FT& b = reqFloat(asT(vm, bH), "cross");
     FT af = tensor::flatten(a), bf = tensor::flatten(b);
     if (af.size() != 3 || bf.size() != 3) throw KiritoError("cross requires two 3-element vectors");
@@ -1253,6 +1281,7 @@ inline Handle einsumT(KiritoVM& vm, const std::string& spec, const std::vector<H
     std::vector<const FT*> arrs; std::vector<tensor::Shape> shps;
     std::unordered_map<char, std::size_t> sz;
     for (std::size_t o = 0; o < ops.size(); ++o) {
+        warnDetach(vm, "einsum()", asT(vm, ops[o]));
         const FT& a = reqFloat(asT(vm, ops[o]), "einsum");
         if (insub[o].size() != a.ndim()) throw KiritoError("einsum: a subscript length does not match its operand rank");
         arrs.push_back(&a); shps.push_back(a.shape);
@@ -1343,6 +1372,7 @@ inline Handle TensorVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs)
             if (isComplex() || (ot && ot->isComplex()) || scalarComplex)
                 throw KiritoError("% and // are Float-only on tensors");
             char kind = op == BinOp::Mod ? '%' : '/';
+            tns::warnDetach(vm, op == BinOp::Mod ? "%" : "//", *this);
             const FT& x = std::get<FT>(store);
             if (ot) return tns::ewFloat(vm, x, std::get<FT>(ot->store), kind);
             return tns::ewFloatScalar(vm, x, Value(vm, rhs).asFloat("scalar"), kind);
@@ -1373,6 +1403,7 @@ inline Handle TensorVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs)
 // the autograd-aware form.
 inline Handle TensorVal::slice(KiritoVM& vm, Handle start, Handle stop, Handle step) {
     if (ndim() == 0) throw KiritoError("cannot slice a 0-D tensor");
+    tns::warnDetach(vm, "[] slicing (use .slice() to keep gradients)", *this);
     return tns::wrap([&]() -> Handle {
         tns::SliceRange r = tns::resolveSlice(vm, start, stop, step, shape()[0]);
         if (isComplex()) return tns::make(vm, tensor::sliceAxis(std::get<CT>(store), 0, r.start, r.stop, r.step));
@@ -1394,6 +1425,7 @@ inline Handle TensorVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
         const Object& k0 = vm.arena().deref(keys[0]);
         if (const auto* mask = dynamic_cast<const TensorVal*>(&k0)) {  // boolean mask -> 1-D selection
             if (mask->shape() != shape()) throw KiritoError("boolean mask must match the tensor shape");
+            tns::warnDetach(vm, "[] boolean indexing", *this);
             if (isComplex()) {
                 const auto& d = std::get<CT>(store).data; std::vector<cdouble> out;
                 for (std::size_t i = 0; i < d.size(); ++i) if (mask->elemAsComplex(i) != cdouble(0, 0)) out.push_back(d[i]);
@@ -1406,6 +1438,7 @@ inline Handle TensorVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
             return tns::make(vm, TensorVal::FT(tensor::Shape{n}, std::move(out)));
         }
         if (k0.kind() == ValueKind::List || k0.kind() == ValueKind::Array) {  // fancy index along axis 0
+            tns::warnDetach(vm, "[] fancy indexing (use .take() to keep gradients)", *this);
             std::vector<std::ptrdiff_t> idxs;
             for (Value e : Value(vm, keys[0]).items()) idxs.push_back(static_cast<std::ptrdiff_t>(e.asInt("index")));
             return tns::wrap([&]() -> Handle {
@@ -1493,6 +1526,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     if (name == "apply") return bind("apply", {"fn"}, [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         Handle fn = a[0];
         auto& t = self_t(vm, self);
+        tns::warnDetach(vm, "apply()", t);
         if (t.isComplex()) {
             CT out = std::get<CT>(t.store);
             for (std::size_t i = 0; i < out.data.size(); ++i) {
@@ -1511,6 +1545,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     });
     if (name == "astype") return bind("astype", {"dtype"}, [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& t = self_t(vm, self);
+        tns::warnDetach(vm, "astype()", t);
         bool toComplex = tns::wantsComplex(vm, a[0]);
         if (toComplex) {
             if (t.isComplex()) return tns::make(vm, std::get<CT>(t.store));
@@ -1548,6 +1583,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     });
     if (name == "prod") return bind("prod", {"axis"}, [self, self_t, axisOf](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& t = self_t(vm, self);
+        tns::warnDetach(vm, "prod()", t);
         int64_t axis = axisOf(vm, a);
         return tns::wrap([&]() -> Handle {
             if (axis < 0) {
@@ -1677,6 +1713,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     if (name == "repeat") return bind("repeat", {"count", "axis"}, [self, self_t, axisOf](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         int64_t count = Value(vm, a[0]).asInt("count");
         if (count < 0) throw KiritoError("repeat count must be non-negative");
+        tns::warnDetach(vm, "repeat()", self_t(vm, self));
         int64_t axis = (a.size() > 1) ? axisOf(vm, std::span<const Handle>(a.data() + 1, a.size() - 1)) : -1;
         auto& t = self_t(vm, self);
         return tns::wrap([&]() -> Handle {
@@ -1687,6 +1724,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     if (name == "tile") return bind("tile", {"reps"}, [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         tensor::Shape reps = tns::readShape(Value(vm, a[0]));
         auto& t = self_t(vm, self);
+        tns::warnDetach(vm, "tile()", t);
         return tns::wrap([&]() -> Handle {
             if (t.isComplex()) return tns::make(vm, tns::tileAlong(std::get<CT>(t.store), reps));
             return tns::make(vm, tns::tileAlong(std::get<FT>(t.store), reps));
@@ -1758,6 +1796,46 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         if (t.isComplex()) return tns::make(vm, std::get<CT>(t.store));
         return tns::make(vm, std::get<FT>(t.store));
     });
+    // --- serialization (serialize / dump): only gradient-free tensors may be serialized ---
+    if (name == "_getstate_") return bind("_getstate_", {}, [self, self_t](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        auto& t = self_t(vm, self);
+        if (t.requiresGrad)
+            throw KiritoError("cannot serialize a Tensor that requires grad; call detach() first "
+                              "(only gradient-free tensors are serializable)");
+        List st(vm);
+        st.add(val(vm, std::string(t.dtypeName())));                 // [0] dtype
+        List shapeL(vm);
+        for (std::size_t d : t.shape()) shapeL.add(static_cast<int64_t>(d));
+        st.add(shapeL.build());                                      // [1] shape
+        List dataL(vm);
+        if (t.isComplex()) {
+            for (cdouble z : std::get<CT>(t.store).data) { List p(vm); p.add(z.real()); p.add(z.imag()); dataL.add(p.build()); }
+        } else {
+            for (double x : std::get<FT>(t.store).data) dataL.add(x);
+        }
+        st.add(dataL.build());                                       // [2] data (Floats, or [re, im] pairs)
+        return st.build().handle();
+    });
+    if (name == "_setstate_") return bind("_setstate_", {"state"}, [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        auto& t = self_t(vm, self);
+        auto items = Value(vm, a[0]).items();
+        if (items.size() < 3) throw KiritoError("Tensor _setstate_: malformed state");
+        std::string dtype = items[0].asString("dtype");
+        tensor::Shape shape;
+        for (Value e : items[1].items()) shape.push_back(static_cast<std::size_t>(e.asInt("dim")));
+        tns::checkSize(shape);
+        if (dtype == "Complex") {
+            std::vector<cdouble> data;
+            for (Value e : items[2].items()) { auto p = e.items(); data.push_back(cdouble(p[0].asFloat("re"), p[1].asFloat("im"))); }
+            t.store = TensorVal::CT(shape, std::move(data));
+        } else {
+            std::vector<double> data;
+            for (Value e : items[2].items()) data.push_back(e.asFloat("x"));
+            t.store = TensorVal::FT(shape, std::move(data));
+        }
+        t.requiresGrad = false; t.grad.reset(); t.node.reset();      // a loaded tensor is gradient-free
+        return vm.none();
+    });
     if (name == "pow") return bind("pow", {"p"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         double p = Value(vm, a[0]).asFloat("p");
         return tns::wrap([&]() { return tns::g_pow(vm, self, p); });
@@ -1814,6 +1892,10 @@ public:
     void setup(ModuleBuilder& m) override {
         // The VM-scoped grad-tracking flag (hidden module member consulted by the autograd ops).
         m.value("_grad", m.vm().alloc(std::make_unique<TensorGradFlag>()));
+        // Let serialize/dump reconstruct a Tensor: build an empty one; _setstate_ fills it in.
+        m.vm().registerDeserializer("Tensor", [](KiritoVM& vm, Handle) -> Handle {
+            return vm.alloc(std::make_unique<TensorVal>());
+        });
 
         // Tensor(nested[, dtype][, requiresgrad]) — build from a (rectangular) nested list.
         m.fn("Tensor", {{"data"}, {"dtype", "", m.vm().none()}, {"requiresgrad", "", m.vm().makeBool(false)}}, "Tensor",

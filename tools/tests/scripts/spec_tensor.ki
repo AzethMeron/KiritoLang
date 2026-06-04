@@ -187,13 +187,23 @@ var gc = T.Tensor([1, 1, 1], requiresgrad = True)
 gc.cumsum().sum().backward()
 assert gc.grad == T.Tensor([3, 2, 1]), "cumsum is differentiable (reverse cumsum)"
 
+# --- serialization: gradient-free tensors round-trip; grad-requiring ones refuse ---
+var ser = import("serialize")
+var dmp = import("dump")
+var st = T.Tensor([[1.5, 2.5], [3.5, 4.5]])
+assert ser.loads(ser.dumps(st)) == st, "text serialization round-trips a tensor"
+assert dmp.loads(dmp.dumps(st)) == st, "binary serialization round-trips a tensor"
+assert ser.loads(ser.dumps(T.Tensor([[1, 2]], dtype = "Complex"))) == T.Tensor([[1, 2]], dtype = "Complex"), "complex tensor round-trips"
+var gtensor = T.Tensor([1.0, 2.0], requiresgrad = True)
+assert ser.loads(ser.dumps(gtensor.detach())) == T.Tensor([1.0, 2.0]), "a detached grad tensor serializes"
+
 # --- errors ---
 var raised = 0
-for thunk in [Function(): return T.Tensor([[1, 2], [3]]), Function(): return T.zeros([2]).matmul(T.zeros([3])), Function(): return T.Tensor([1, 2], dtype = "Complex").min(), Function(): return T.Tensor([1]).reshape([2, 2]), Function(): return T.zeros([2]).backward(), Function(): return T.zeros([2], dtype = "Complex").requiresgrad(True)]:
+for thunk in [Function(): return T.Tensor([[1, 2], [3]]), Function(): return T.zeros([2]).matmul(T.zeros([3])), Function(): return T.Tensor([1, 2], dtype = "Complex").min(), Function(): return T.Tensor([1]).reshape([2, 2]), Function(): return T.zeros([2]).backward(), Function(): return T.zeros([2], dtype = "Complex").requiresgrad(True), Function(): return import("serialize").dumps(T.Tensor([1.0], requiresgrad = True))]:
     try:
         discard thunk()
     catch as e:
         raised = raised + 1
-assert raised == 6, "ragged list, bad matmul, complex min, bad reshape, backward-without-grad, and complex-requiresgrad all raise"
+assert raised == 7, "ragged list, bad matmul, complex min, bad reshape, backward-without-grad, complex-requiresgrad, and serializing-a-grad-tensor all raise"
 
 io.print("OK")

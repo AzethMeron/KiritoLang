@@ -1,4 +1,6 @@
 #include <complex>
+#include <iostream>
+#include <sstream>
 #include <string>
 
 #include "../check.hpp"
@@ -166,6 +168,25 @@ int main() {
     CHECK(run("var x = T.Tensor([1,2,3,4], requiresgrad=True)\nT.where(T.Tensor([1,0,1,0]), x, T.zeros([4])).sum().backward()\nx.grad") == "[1.0, 0.0, 1.0, 0.0]");
     CHECK(run("var x = T.Tensor([-1.0,0.5,2.0], requiresgrad=True)\nx.clip(0,1).sum().backward()\nx.grad") == "[0.0, 1.0, 0.0]");
     CHECK_THROWS(vm.runSource("import(\"tensor\").Tensor([1.0,2.0], dtype=\"Complex\").lt(3.0)\n"));  // complex ordering undefined
+
+    // serialization: gradient-free tensors round-trip; grad-requiring ones refuse
+    CHECK(run("var s = import(\"serialize\")\nvar t = T.Tensor([[1.5,2.5],[3.5,4.5]])\ns.loads(s.dumps(t)) == t") == "True");
+    CHECK(run("var d = import(\"dump\")\nvar t = T.Tensor([1,2,3])\nd.loads(d.dumps(t)) == t") == "True");
+    CHECK_THROWS(vm.runSource("var s = import(\"serialize\")\nvar T = import(\"tensor\")\ndiscard s.dumps(T.Tensor([1.0], requiresgrad=True))\n"));  // grad tensor refuses
+
+    // a non-differentiable op on a grad tensor warns once (to stderr)
+    {
+        std::ostringstream cap;
+        std::streambuf* old = std::cerr.rdbuf(cap.rdbuf());
+        KiritoVM wvm;
+        wvm.runSource("var T = import(\"tensor\")\nvar a = T.Tensor([1.0,2.0], requiresgrad=True)\ndiscard a.min()\ndiscard a.min()\n");
+        std::cerr.rdbuf(old);
+        std::string w = cap.str();
+        CHECK(w.find("not differentiable") != std::string::npos);             // warned
+        CHECK(w.find("min") != std::string::npos);
+        std::size_t first = w.find("min"), second = w.find("min", first + 1);
+        CHECK(second == std::string::npos);                                    // warned exactly once
+    }
 
     return RUN_TESTS();
 }
