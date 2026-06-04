@@ -201,6 +201,16 @@ a stability fuzzer, and a benchmark). Working today:
   - `matrix` — dense real matrices (no complex, no concurrency): +,-,* (matrix/scalar), `m[i, j]`
     element access/assignment, transpose, determinant, inverse, trace, apply, factories
     (zeros/ones/identity).
+  - `complex` — complex numbers and complex matrices, all in C++ (`std::complex<double>`). `Complex(re
+    [, im])`/`of(re, im)`/`real(re)`/`polar(r, θ)`; constants `i`/`zero`/`one`/`pi`/`e`/`tau`;
+    operators `+ - * / **` and unary `-` (Complex-on-the-left; reals coerce to the real axis; complex
+    numbers are unordered so `<`/`>` raise); `.re`/`.im`, `conjugate`/`modulus`/`argument`/`norm2`/
+    `is_zero`; the analytic math set (`exp`/`log`/`log10`/`sqrt`/`cbrt`/`pow` + trig/inverse-trig/
+    hyperbolic/inverse-hyperbolic) as module functions over a Complex-or-number; and a complex
+    `Matrix` (nested-list ctor; `m[i, j]`; +,-,* matrix/scalar; `transpose`/`conjugate`/`hermitian`,
+    **`determinant` via Gaussian elimination** and **`inverse` via fast O(n³) Gauss-Jordan**, `trace`,
+    factories zeros/ones/identity). Supersedes the old pure-Kirito `complex.ki`/`cmatrix.ki`
+    prototypes; the `linsolve` solver and the complex examples build on it.
   - `json` — parse/loads (objects → Dict; decodes \u escapes + surrogate pairs) and stringify/dumps
     (optional indent for pretty-printing).
   - `serialize` — text graph dumps/loads/save/load preserving shared references and cycles.

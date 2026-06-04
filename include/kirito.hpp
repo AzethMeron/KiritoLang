@@ -27,6 +27,7 @@
 #include "kirito/stdlib_math.hpp"
 #include "kirito/stdlib_random.hpp"
 #include "kirito/stdlib_matrix.hpp"
+#include "kirito/stdlib_complex.hpp"
 #include "kirito/stdlib_json.hpp"
 #include "kirito/stdlib_net.hpp"
 #include "kirito/stdlib_serialize.hpp"

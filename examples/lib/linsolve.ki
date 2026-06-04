@@ -9,13 +9,12 @@
 #             result["kind"] is one of "unique"/"none"/"infinite"; result["x"] is a solution.
 
 var C = import("complex")
-var cm = import("cmatrix")
 
 # Reduce the augmented matrix to reduced row-echelon form in place, returning the pivot column for
 # each row (or -1 if the row is all zero in the coefficient part).
 var solve = Function(A, b):
-    var n = A.nrows
-    var m = A.ncols
+    var n = A.rows()
+    var m = A.cols()
     # Build the augmented matrix [A | b] as a fresh grid of Complex.
     var aug = []
     for i in range(n):
@@ -87,9 +86,9 @@ var solve = Function(A, b):
 
 # Verify a candidate solution x against A x = b, returning True if A x == b within tolerance.
 var verify = Function(A, x, b):
-    for i in range(A.nrows):
+    for i in range(A.rows()):
         var acc = C.zero
-        for j in range(A.ncols):
+        for j in range(A.cols()):
             acc = acc + A[i, j] * x[j]
         if not (acc - b[i]).is_zero():
             return False

@@ -7,7 +7,6 @@
 
 var io = import("io")
 var C = import("complex")
-var cm = import("cmatrix")
 var solver = import("linsolve")
 
 # Parse a "real imag real imag ..." line into a List of Complex numbers.
@@ -40,7 +39,7 @@ var readSystem = Function(path):
             coeffs.append(values[j])
         rows.append(coeffs)
         b.append(values[n])
-    return {"A": cm.ComplexMatrix(rows), "b": b}
+    return {"A": C.Matrix(rows), "b": b}
 
 # Solve and report one system.
 var process = Function(path):
@@ -48,7 +47,7 @@ var process = Function(path):
     var sys = readSystem(path)
     var A = sys["A"]
     var b = sys["b"]
-    io.print(f"system: {A.nrows} equations, {A.ncols} unknowns")
+    io.print(f"system: {A.rows()} equations, {A.cols()} unknowns")
     var result = solver.solve(A, b)
     var kind = result["kind"]
     io.print("result: " + kind + " (rank " + String(result["rank"]) + ")")
