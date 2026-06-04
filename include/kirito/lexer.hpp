@@ -38,7 +38,26 @@ struct Token {
 // error) can point at an exact location. Indentation handling arrives in a later milestone.
 class Lexer {
 public:
-    explicit Lexer(std::string_view source) : src_(source) {}
+    explicit Lexer(std::string_view source) : src_(normalizeNewlines(source)) {}
+
+    // Universal newlines: collapse CRLF and lone CR to a single LF up front, so a file authored on
+    // Windows (or copied through a CRLF filesystem, e.g. Windows -> WSL) lexes identically to Unix
+    // LF. Indentation, blank-line detection and multiline strings are then all measured against '\n'
+    // alone — without this, a '\r' left on a blank line defeats the blank-line check and corrupts the
+    // indent/dedent stream. Matches Python's universal-newline source handling.
+    static std::string normalizeNewlines(std::string_view s) {
+        std::string out;
+        out.reserve(s.size());
+        for (std::size_t i = 0; i < s.size(); ++i) {
+            if (s[i] == '\r') {
+                out.push_back('\n');
+                if (i + 1 < s.size() && s[i + 1] == '\n') ++i;  // CRLF -> one LF
+            } else {
+                out.push_back(s[i]);
+            }
+        }
+        return out;
+    }
 
     std::vector<Token> tokenize() {
         std::vector<Token> out;
@@ -398,7 +417,7 @@ private:
         }
     }
 
-    std::string_view src_;
+    std::string src_;  // owned, newline-normalized (see normalizeNewlines)
     size_t pos_ = 0;
     uint32_t line_ = 1;
     uint32_t col_ = 1;

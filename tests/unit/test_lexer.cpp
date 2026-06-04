@@ -42,5 +42,35 @@ int main() {
         Lexer lex("1 $ 2");
         CHECK_THROWS(lex.tokenize());
     }
+    {
+        // Universal newlines: CRLF (Windows / Windows->WSL copies) lexes identically to LF. A blank
+        // CRLF line inside an indented block must still be recognized as blank, so the indent/dedent
+        // stream is not corrupted (regression: this used to break class bodies with blank-line gaps).
+        std::string crlf = "class C:\r\n    var a = 1\r\n\r\n    var b = 2\r\n";
+        std::string lf   = "class C:\n    var a = 1\n\n    var b = 2\n";
+        auto tc = Lexer(crlf).tokenize();
+        auto tl = Lexer(lf).tokenize();
+        CHECK(tc.size() == tl.size());
+        bool sameTypes = true;
+        for (std::size_t i = 0; i < tc.size() && i < tl.size(); ++i)
+            if (tc[i].type != tl[i].type) sameTypes = false;
+        CHECK(sameTypes);
+        // and the blank line did not leak a stray Indent/Dedent: exactly one Indent opens the body
+        std::size_t indents = 0, dedents = 0;
+        for (const auto& t : tc) {
+            if (t.type == TokenType::Indent) ++indents;
+            if (t.type == TokenType::Dedent) ++dedents;
+        }
+        CHECK(indents == 1);
+        CHECK(dedents == 1);
+    }
+    {
+        // lone CR (classic-Mac line ending) is also treated as a newline
+        Lexer lex("1\r2\r");
+        auto toks = lex.tokenize();
+        CHECK(toks[0].type == TokenType::Integer);
+        CHECK(toks[1].type == TokenType::Newline);
+        CHECK(toks[2].type == TokenType::Integer);
+    }
     return RUN_TESTS();
 }

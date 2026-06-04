@@ -96,7 +96,9 @@ a stability fuzzer, and a benchmark). Working today:
 - Arithmetic (Python-3 division), `var`/reference-assignment, comparisons, `in`/`not in`.
 - Indentation blocks with `if/elif/else`/`while`/`for`/`break`/`continue`/`pass`/`todo`, `and`/`or`/`not`.
   Tabs and spaces both work but ambiguous mixing is rejected (Python-3 rule: measured with tab=8
-  and tab=1, both must agree).
+  and tab=1, both must agree). Line endings are universal: the lexer normalizes CRLF and lone CR to
+  LF up front, so Windows/WSL-copied (`\r\n`) sources lex identically to Unix `\n` (a stray `\r` on a
+  blank line no longer corrupts the indent/dedent stream).
 - `switch SUBJECT:` with `case V[, V2...]:` arms and an optional `default:` — **no fallthrough**
   (exactly one arm runs). Case labels are constant scalars (`Integer`/`Float`/`String`/`Bool`/`None`),
   matched exactly by type+value (so `case 1` ≠ `case 1.0`); compiled once into a hash jump-table for
