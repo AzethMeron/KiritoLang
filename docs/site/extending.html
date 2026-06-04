@@ -118,6 +118,7 @@ NativeFn demo = [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Ha
 };
 
 vm.install&lt;StatsModule&gt;();   // register once; then import(&quot;stats&quot;) works from Kirito</code></pre>
+<p>&lt;!--norun (uses the stats module defined in C++ above)--&gt;</p>
 <pre><code><span class="kw">var</span> stats = <span class="kw">import</span>(<span class="str">&quot;stats&quot;</span>)
 stats.mean([<span class="num">2</span>, <span class="num">4</span>, <span class="num">6</span>, <span class="num">8</span>])      <span class="com"># 5.0</span>
 stats.clamp(<span class="num">12</span>, lo=<span class="num">0</span>, hi=<span class="num">9</span>)   <span class="com"># 9   — keyword args come straight from the signature</span>
@@ -176,6 +177,7 @@ vm.registerGlobal(&quot;Vec2&quot;, vm.alloc(std::make_unique&lt;NativeFunction&
         Args args(vm, a, &quot;Vec2&quot;);
         return vm.alloc(std::make_unique&lt;Vec2&gt;(args.at(0).asFloat(&quot;x&quot;), args.at(1).asFloat(&quot;y&quot;)));
     })));</code></pre>
+<p>&lt;!--norun (uses the Vec2 native type defined in C++ above)--&gt;</p>
 <pre><code><span class="kw">var</span> a = Vec2(<span class="num">3</span>, <span class="num">4</span>)
 a.x                       <span class="com"># 3.0</span>
 a.length()                <span class="com"># 5.0</span>

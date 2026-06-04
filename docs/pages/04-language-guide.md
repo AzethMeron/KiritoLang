@@ -8,6 +8,7 @@ A reference for Kirito's syntax and semantics.
 then an indented suite. Tabs and spaces both work, but mixing them ambiguously is an error.
 
 ```kirito
+var x = 5
 if x > 0:
     io.print("positive")    # indented block
 ```
@@ -149,6 +150,7 @@ Slicing supports negative indices and steps: `xs[3:-1]`, `xs[::-1]`, `xs[::2]`.
 
 ## Control flow
 
+<!--norun (syntax skeleton with ... placeholders)-->
 ```kirito
 if cond:
     ...
@@ -183,6 +185,7 @@ nested object you still hold a reference to *is* visible, because it's the same 
 `then if cond else orelse` is an expression that yields `then` when `cond` is truthy and `orelse`
 otherwise. Like `and`/`or`, it short-circuits — only the selected branch is evaluated:
 
+<!--norun (syntax fragment, placeholder names)-->
 ```kirito
 var label = "even" if n % 2 == 0 else "odd"
 var clamped = lo if x < lo else hi if x > hi else x   # right-associative chaining
@@ -198,6 +201,7 @@ d`), and it is an expression — usable anywhere a value is, including inside li
 `switch` dispatches on a value against constant `case` labels — **no fallthrough**, so exactly one
 arm runs:
 
+<!--norun (syntax fragment, placeholder names)-->
 ```kirito
 switch command:
     case "start":
@@ -258,6 +262,7 @@ anything. Inline form: `Function(x): return x * x`.
 A bare comma sequence packs into a List; the left side of `=`, `var`, and `for` unpacks any iterable,
 with one optional starred target absorbing the surplus.
 
+<!--norun (syntax skeleton with ... placeholders)-->
 ```kirito
 var t = 1, 2, 3            # t == [1, 2, 3]
 var a, b = 1, 2            # a == 1, b == 2
@@ -292,6 +297,7 @@ Special methods use names wrapped in a **single** leading and trailing underscor
 begins at the *base of the class whose method is currently running*. Use it to extend (rather than
 replace) an inherited method, including the constructor:
 
+<!--norun (continues the Animal class above)-->
 ```kirito
 class Dog(Animal):
     var _init_ = Function(self, name, breed):
@@ -333,6 +339,7 @@ everything.
 
 ## Context managers
 
+<!--norun (reads a file that need not exist)-->
 ```kirito
 with io.open("file.txt", "r") as f:
     for line in f:
@@ -376,6 +383,7 @@ library reference).
 A bare expression whose non-`None` value is dropped triggers a warning (it's probably a mistake).
 Use `discard EXPR` to say "I'm intentionally ignoring this result":
 
+<!--norun (syntax fragment, placeholder names)-->
 ```kirito
 discard validate(x)    # called for its side effect / exception; result ignored on purpose
 ```
@@ -387,6 +395,7 @@ stderr and never stop execution; `-w` disables them.
 
 `pass` is the do-nothing statement — use it where the grammar needs a body but you have nothing to do:
 
+<!--norun (syntax fragment, placeholder name)-->
 ```kirito
 if condition:
     pass        # intentionally empty

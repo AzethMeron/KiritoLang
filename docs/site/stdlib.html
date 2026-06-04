@@ -344,7 +344,7 @@ p.positional(<span class="str">&quot;name&quot;</span>)
 p.option(<span class="str">&quot;count&quot;</span>, <span class="num">1</span>)        <span class="com"># --count N  (parsed as an Integer, because the default is one)</span>
 p.flag(<span class="str">&quot;loud&quot;</span>)              <span class="com"># --loud</span>
 
-<span class="kw">var</span> opts = p.parse(arglist)   <span class="com"># you choose when/what to parse</span>
+<span class="kw">var</span> opts = p.parse([<span class="str">&quot;Ada&quot;</span>, <span class="str">&quot;--loud&quot;</span>])   <span class="com"># normally you pass `arglist` (the real CLI args)</span>
 <span class="kw">if</span> opts != <span class="kw">None</span>:              <span class="com"># None means --help was shown</span>
     <span class="kw">var</span> greeting = f<span class="str">&quot;Hello, {opts[&#x27;name&#x27;]}!&quot;</span>
     <span class="kw">if</span> opts[<span class="str">&quot;loud&quot;</span>]:

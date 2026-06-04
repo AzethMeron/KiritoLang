@@ -4,6 +4,7 @@ Task-oriented snippets. All assume `var io = import("io")`.
 
 ## Read a file line by line
 
+<!--norun (reads a file that need not exist)-->
 ```kirito
 with io.open("data.txt", "r") as f:
     for line in f:

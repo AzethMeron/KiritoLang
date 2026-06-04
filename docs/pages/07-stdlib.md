@@ -1116,7 +1116,7 @@ p.positional("name")
 p.option("count", 1)        # --count N  (parsed as an Integer, because the default is one)
 p.flag("loud")              # --loud
 
-var opts = p.parse(arglist)   # you choose when/what to parse
+var opts = p.parse(["Ada", "--loud"])   # normally you pass `arglist` (the real CLI args)
 if opts != None:              # None means --help was shown
     var greeting = f"Hello, {opts['name']}!"
     if opts["loud"]:

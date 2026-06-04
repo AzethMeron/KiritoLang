@@ -155,6 +155,7 @@ struct StatsModule : NativeModule {
 vm.install<StatsModule>();   // register once; then import("stats") works from Kirito
 ```
 
+<!--norun (uses the stats module defined in C++ above)-->
 ```kirito
 var stats = import("stats")
 stats.mean([2, 4, 6, 8])      # 5.0
@@ -227,6 +228,7 @@ vm.registerGlobal("Vec2", vm.alloc(std::make_unique<NativeFunction>(
     })));
 ```
 
+<!--norun (uses the Vec2 native type defined in C++ above)-->
 ```kirito
 var a = Vec2(3, 4)
 a.x                       # 3.0
