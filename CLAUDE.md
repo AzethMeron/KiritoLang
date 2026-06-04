@@ -71,8 +71,9 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
 - **Modules** via `import("io")`; first stdlib module is `io` (`io.input`, `io.print`).
 - Built-in types, dynamically typed: `None`, `Bool`, `Integer`, `Float`, `String`,
   and collections `Array`, `List`, `Set`, `Dict`. Values are hashable where it makes
-  sense. Numeric/math depth (complex `Number`, `Matrix`) is a *later* enrichment, not
-  the starting goal — get the general scripting core right first.
+  sense. Numeric/math depth was a *later* enrichment (the general scripting core came first) and is
+  now delivered: the native `matrix` and `complex` modules (complex numbers + real/complex matrices
+  and vectors).
 - **Classes**: user-defined types in the Python spirit — `class` with methods and instance
   attributes, instantiated by calling the class. A class is just another first-class value, in the
   same value/object model as built-ins, so a C++-defined type and a Kirito `class` look alike to
@@ -201,8 +202,8 @@ a stability fuzzer, and a benchmark). Working today:
   - `matrix` — dense real matrices of arbitrary shape (no concurrency): +,-,* (matrix/scalar),
     `m[i, j]` element access/assignment, transpose, determinant, inverse, trace, apply, factories
     (zeros/ones/identity); square-only ops (determinant/inverse/trace) raise on non-square. **Vectors**
-    (a Matrix with one dimension = 1): `vector(list)` factory, `dot` (also overloaded `*` for two
-    same-shape vectors → scalar), `cross` (3-vectors), `norm` (Euclidean 2-norm).
+    (a Matrix with one dimension = 1): `vector(list)` factory, `dot` (scalar product; `*` stays
+    matrix multiply), `cross` (3-vectors), `norm` (Euclidean 2-norm).
   - `complex` — complex numbers and complex matrices, all in C++ (`std::complex<double>`). `Complex(re
     [, im])`/`of(re, im)`/`real(re)`/`polar(r, θ)`; constants `i`/`zero`/`one`/`pi`/`e`/`tau`;
     operators `+ - * / **` and unary `-` (Complex-on-the-left; reals coerce to the real axis; complex
@@ -212,7 +213,8 @@ a stability fuzzer, and a benchmark). Working today:
     `Matrix` (arbitrary shape; nested-list ctor; `m[i, j]`; +,-,* matrix/scalar;
     `transpose`/`conjugate`/`hermitian`, **`determinant` via Gaussian elimination** and **`inverse`
     via fast O(n³) Gauss-Jordan**, `trace`, factories zeros/ones/identity/`vector`, and complex
-    **vector** ops `dot`/`*` [Hermitian inner product], `cross`, `norm`). Supersedes the old
+    **vector** ops `dot` [Hermitian inner product], `cross`, `norm`; `*` is matrix multiply).
+    Supersedes the old
     pure-Kirito `complex.ki`/`cmatrix.ki` prototypes; the `linsolve` solver and the complex examples
     build on it.
   - `json` — parse/loads (objects → Dict; decodes \u escapes + surrogate pairs) and stringify/dumps
@@ -318,12 +320,12 @@ of the whole auto-discovered CTest suite. Run it before calling a change done.
 the dependency-free `docs/build_docs.py` into `docs/site/` (intro, build, embedding, extending,
 language guide, a built-in **types + special-methods/operator-overloading** reference, builtins
 reference, a **comprehensive per-function stdlib reference** with signatures/inputs/outputs, recipes,
-and a 23-lesson course). `build_docs.py` auto-anchors every documented
+and a 24-lesson course). `build_docs.py` auto-anchors every documented
 symbol and turns later `inline code` mentions into clickable cross-links.
 Documentation is authored in those `.md` files, NOT scraped from code comments.
 
 Not yet done (future enrichment): comprehensions, variadic params,
-generators, complex numbers, full-Unicode case folding (current `upper`/`lower` cover
+generators, arbitrary-precision integers, full-Unicode case folding (current `upper`/`lower` cover
 ASCII + Latin-1 + Latin Extended-A), and a bytecode VM behind the AST boundary.
 
 ## The Archive is reference only

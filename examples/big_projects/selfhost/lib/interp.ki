@@ -2634,7 +2634,7 @@ var run3 = Function(src, inputText, moddir):
     return run4(src, inputText, [moddir])
 
 # run4: import dirs are searched in order for `import("name")` -> name.ki (so a program's own
-# directory can supply library modules like complex/cmatrix/linsolve alongside the stdmods).
+# directory can supply library modules like complex/linsolve alongside the stdmods).
 var run4 = Function(src, inputText, importdirs):
     var inlines = []
     if len(inputText) > 0:

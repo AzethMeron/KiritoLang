@@ -60,17 +60,17 @@ var v1 = matrix.vector([1, 2, 3])
 var v2 = matrix.vector([4, 5, 6])
 assert v1.rows() == 1 and v1.cols() == 3, "vector() builds a 1xn row vector"
 assert v1.dot(v2) == 32.0, "dot product (method): 1*4 + 2*5 + 3*6 = 32"
-assert v1 * v2 == 32.0, "scalar product via overloaded * (same-shape vectors)"
 assert v1.cross(v2) == matrix.Matrix([[-3, 6, -3]]), "cross product of two 3-vectors"
 assert matrix.vector([3, 4]).norm() == 5.0, "vector 2-norm (length)"
 assert matrix.Matrix([[1], [2], [3]]).dot(matrix.Matrix([[4], [5], [6]])) == 32.0, "column-vector dot"
 assert matrix.Matrix([[1, 0], [0, 1]]) * matrix.Matrix([[5], [6]]) == matrix.Matrix([[5], [6]]), "matrix times vector stays matrix multiply"
+# `*` is ONLY matrix multiply — two same-shape (row) vectors have incompatible inner dimensions
 var vraised = 0
-for thunk in [Function(): return matrix.vector([1, 2]).dot(matrix.vector([1, 2, 3])), Function(): return matrix.vector([1, 2]).cross(matrix.vector([1, 2]))]:
+for thunk in [Function(): return matrix.vector([1, 2]).dot(matrix.vector([1, 2, 3])), Function(): return matrix.vector([1, 2]).cross(matrix.vector([1, 2])), Function(): return v1 * v2]:
     try:
         discard thunk()
     catch as e:
         vraised = vraised + 1
-assert vraised == 2, "mismatched-length dot and non-3-element cross both raise"
+assert vraised == 3, "mismatched-length dot, non-3-element cross, and row*row (* is matrix multiply only) all raise"
 
 io.print("OK")

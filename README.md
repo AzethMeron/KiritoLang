@@ -85,7 +85,8 @@ Kirito is young and makes deliberate trade-offs. The notable current limits:
   an infinity equals only an identical infinity).
 - **Unicode case mapping** (`upper`/`lower`) covers ASCII, Latin-1 and Latin Extended-A, not the full
   Unicode case-folding tables.
-- **Not yet implemented:** comprehensions, generators, variadic parameters, and complex numbers.
+- **Not yet implemented:** comprehensions, generators, and variadic parameters. (Complex numbers
+  *are* supported — the native `complex` module.)
 - **A `KiritoVM` is single-threaded** — there are no language-level concurrency primitives, by design
   (one VM is one fully-encapsulated, serializable process).
 
@@ -257,12 +258,12 @@ The everyday build needs a C++20 compiler (GCC 13+ / Clang 18+ / MSVC), CMake 3.
 
 ```sh
 sudo apt-get install -y build-essential cmake ninja-build   # Debian/Ubuntu/WSL
-cmake --preset debug
-cmake --build build
+cmake --preset debug               # configures into build-debug/ (also: release / asan)
+cmake --build build-debug
 
-./build/ki path/to/program.ki      # run a script
-./build/ki                         # start the REPL
-ctest --test-dir build             # run the C++ unit + golden-script test suite
+./build-debug/ki path/to/program.ki   # run a script
+./build-debug/ki                      # start the REPL
+ctest --test-dir build-debug          # run the C++ unit + golden-script test suite
 ```
 
 ### Building the release binaries (static, TLS)

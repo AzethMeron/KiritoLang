@@ -116,7 +116,6 @@ var cv2 = C.vector([C.of(1, 0), C.of(0, 1)])
 assert cv1.rows() == 1 and cv1.cols() == 2, "vector() builds a 1xn complex row vector"
 # Hermitian inner product: conj(1+i)*1 + conj(2)*i = (1-i) + 2i = 1+i
 assert cv1.dot(cv2) == C.of(1, 1), "complex dot is the Hermitian inner product"
-assert cv1 * cv2 == C.of(1, 1), "complex scalar product via overloaded *"
 # v . v = sum |v_i|^2 is real and non-negative: |1+i|^2 + |2|^2 = 2 + 4 = 6
 assert cv1.dot(cv1) == C.of(6, 0), "z.dot(z) = sum |z_i|^2 (real)"
 assert closef(cv1.norm(), C.sqrt(C.of(6, 0)).re), "complex vector 2-norm = sqrt(6)"

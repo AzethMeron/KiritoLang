@@ -2,7 +2,7 @@
 #
 # It installs packages (collections of `.ki` modules) straight from GitHub repositories. There is no
 # central index: you name an `owner/repo`. Run it as `kpm <command>` (the installer drops a launcher
-# on your PATH) or directly with `ki tools/kpm.ki <command>`.
+# on your PATH) or directly with `ki kpm/kpm.ki <command>`.
 #
 #   kpm install <owner/repo>[@<ref>] ...   download + install a package (and its dependencies)
 #   kpm remove  <name> ...                 uninstall a package

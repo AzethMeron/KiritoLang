@@ -167,16 +167,7 @@ inline Handle MatrixVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
         return vm.alloc(std::move(r));
     }
     if (op == BinOp::Mul) {
-        if (other) {
-            // Two vectors of the same shape: `*` is the scalar (dot) product, a Float. (This is the
-            // only case `*` changes from matrix multiply — same-shape vectors are otherwise an
-            // invalid product, so no valid matrix-multiply behaviour is affected.)
-            if (isVector() && other->isVector() && rows == other->rows && cols == other->cols) {
-                double acc = 0.0;
-                for (std::size_t i = 0; i < data.size(); ++i) acc += data[i] * other->data[i];
-                return vm.makeFloat(acc);
-            }
-            // matrix multiply
+        if (other) {  // matrix multiply (the dot product of two vectors is `u.dot(v)`, not `u * v`)
             if (cols != other->rows) throw KiritoError("Matrix multiply: inner dimensions differ");
             auto r = mat::make(rows, other->cols);
             for (std::size_t i = 0; i < rows; ++i)

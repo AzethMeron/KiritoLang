@@ -1,6 +1,7 @@
 #ifndef KIRITO_STDLIB_COMPLEX_HPP
 #define KIRITO_STDLIB_COMPLEX_HPP
 
+#include <array>
 #include <cmath>
 #include <complex>
 #include <cstddef>
@@ -178,7 +179,7 @@ public:
                 "get(row, col) -> Complex", "set(row, col, value)", "row(i) -> List",
                 "transpose() -> ComplexMatrix", "conjugate() -> ComplexMatrix",
                 "hermitian() -> ComplexMatrix", "determinant() -> Complex",
-                "inverse() -> ComplexMatrix", "trace() -> Complex",
+                "inverse() -> ComplexMatrix", "trace() -> Complex", "apply(fn) -> ComplexMatrix",
                 "dot(other) -> Complex", "cross(other) -> ComplexMatrix", "norm() -> Float"};
     }
 
@@ -268,15 +269,7 @@ inline Handle ComplexMatrixVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rh
         return vm.alloc(std::move(r));
     }
     if (op == BinOp::Mul) {
-        if (other) {
-            // Two vectors of the same shape: `*` is the scalar (Hermitian inner) product — a Complex,
-            // sum(conj(a_i)·b_i), so v*v = sum|v_i|² is real and non-negative.
-            if (isVector() && other->isVector() && rows == other->rows && cols == other->cols) {
-                cdouble acc(0.0, 0.0);
-                for (std::size_t i = 0; i < data.size(); ++i) acc += std::conj(data[i]) * other->data[i];
-                return cpx::make(vm, acc);
-            }
-            // matrix product
+        if (other) {  // matrix product (the inner product of two vectors is `u.dot(v)`, not `u * v`)
             if (cols != other->rows) throw KiritoError("ComplexMatrix multiply: inner dimensions differ");
             auto r = cpx::makeMatrix(rows, other->cols);
             for (std::size_t i = 0; i < rows; ++i)
@@ -387,6 +380,18 @@ inline Handle ComplexMatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_v
         for (std::size_t i = 0; i < m.rows; ++i) s += m.at(i, i);
         return cpx::make(vm, s);
     });
+    // apply(fn): map fn over every element, returning a new ComplexMatrix (the element-wise map).
+    if (name == "apply") return bind("apply", {"fn"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        Handle fn = a[0];
+        auto& m = self_m(vm, self);
+        auto out = cpx::makeMatrix(m.rows, m.cols);
+        for (std::size_t i = 0; i < m.data.size(); ++i) {
+            RootScope rs(vm);
+            std::array<Handle, 1> args{rs.add(cpx::make(vm, m.data[i]))};
+            out->data[i] = cpx::asComplex(vm, vm.arena().deref(fn).call(vm, args), "apply result");
+        }
+        return vm.alloc(std::move(out));
+    });
     // --- vector operations (a ComplexMatrix with one dimension == 1 is a vector) ---
     if (name == "dot") return bind("dot", {"other"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
@@ -492,8 +497,9 @@ public:
         });
 
         // -------- complex matrices --------
-        // Matrix(nested-list) — elements may be Complex, Integer or Float (reals go on the real axis).
-        m.fn("Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        // Matrix(rows) — a nested list whose cells may be Complex, Integer or Float (reals go on the
+        // real axis). Signatured, so it accepts the `rows=` keyword and shows up under inspect.
+        m.fn("Matrix", {{"rows", "List"}}, "ComplexMatrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Args args(vm, a, "Matrix");
             if (args.size() != 1) throw KiritoError("Matrix expects a nested list of rows");
             std::vector<std::vector<cdouble>> grid;

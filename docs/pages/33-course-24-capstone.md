@@ -1,4 +1,4 @@
-# Lesson 23 — Capstone: A Contact Book
+# Lesson 24 — Capstone: A Contact Book
 
 Time to bring it all together. In this final lesson we build a small but complete program — a
 **contact book** that stores people, looks them up, and persists to a JSON file on disk. It uses

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Kirito installer for Linux / macOS.
 #
-#   curl -fsSL https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/tools/scripts/install.sh | sh
 #
 # Installs the `ki` interpreter and the `kpm` package manager into ~/.local/bin (no root needed),
 # and creates the package directory ~/.kirito/packages (which `ki` puts on its import path, so

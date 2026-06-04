@@ -63,9 +63,8 @@ int main() {
     CHECK(run("C.identity(3)") ==
           "[[1.0+0.0i, 0.0+0.0i, 0.0+0.0i], [0.0+0.0i, 1.0+0.0i, 0.0+0.0i], [0.0+0.0i, 0.0+0.0i, 1.0+0.0i]]");
 
-    // --- complex vectors: Hermitian dot (also via *), v·v real, norm, cross ---
+    // --- complex vectors: Hermitian dot, v·v real, norm (`*` stays matrix multiply, not a dot) ---
     CHECK(run("C.vector([C.of(1,1), C.of(2,0)]).dot(C.vector([C.of(1,0), C.of(0,1)]))") == "1.0+1.0i");
-    CHECK(run("C.vector([C.of(1,1), C.of(2,0)]) * C.vector([C.of(1,0), C.of(0,1)])") == "1.0+1.0i");
     CHECK(run("C.vector([C.of(1,1), C.of(2,0)]).dot(C.vector([C.of(1,1), C.of(2,0)]))") == "6.0+0.0i");  // sum|z|^2
     CHECK(run("C.abs(C.of(C.vector([C.of(1,1), C.of(2,0)]).norm(), 0) - C.sqrt(C.of(6,0))) < 0.000000001") == "True");
 

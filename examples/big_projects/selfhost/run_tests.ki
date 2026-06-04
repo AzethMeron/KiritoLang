@@ -58,7 +58,7 @@ for name in cases:
     var ok = False
     var detail = ""
     try:
-        # import dirs: the std modules first, then the script dir (for complex/cmatrix/linsolve)
+        # import dirs: the std modules first, then the script dir (for complex/linsolve)
         var got = kirito.run4(src, inputText, [STDMODS, SCRIPTS])
         if got == expected:
             ok = True

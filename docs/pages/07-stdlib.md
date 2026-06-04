@@ -194,9 +194,8 @@ Matrices are arbitrary-shape (any rows × cols). Shape-specific operations (`det
 
 **Vector operations** (a Matrix with one dimension equal to 1 is a vector):
 
-- `u * v → Float` — the scalar (dot) product when both operands are vectors of the **same shape**
-  (this is the only case `*` differs from matrix multiply).
-- `u.dot(v) → Float` — the dot product of two equal-length vectors (any orientation).
+- `u.dot(v) → Float` — the scalar (dot) product of two equal-length vectors (any orientation).
+  (`*` is always matrix multiply, never a dot product.)
 - `u.cross(v) → Matrix` — the cross product of two 3-element vectors (result keeps `u`'s orientation).
 - `m.norm() → Float` — the Euclidean (Frobenius) 2-norm `sqrt(Σ xᵢ²)` — the length of a vector.
 
@@ -291,9 +290,8 @@ square matrix and raise otherwise.
 
 **Vector operations** (a ComplexMatrix with one dimension equal to 1 is a vector):
 
-- `u * v → Complex` — the scalar (Hermitian inner) product when both operands are vectors of the
-  **same shape**: `Σ conj(uᵢ)·vᵢ`, so `v * v = Σ |vᵢ|²` is real and non-negative.
-- `u.dot(v) → Complex` — the Hermitian inner product of two equal-length vectors.
+- `u.dot(v) → Complex` — the scalar (Hermitian inner) product of two equal-length vectors:
+  `Σ conj(uᵢ)·vᵢ`, so `u.dot(u) = Σ |uᵢ|²` is real and non-negative. (`*` is always matrix multiply.)
 - `u.cross(v) → ComplexMatrix` — the cross product of two 3-element vectors.
 - `m.norm() → Float` — the Euclidean 2-norm `sqrt(Σ |zᵢ|²)`.
 

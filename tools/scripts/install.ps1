@@ -8,7 +8,7 @@
   `kpm` are importable directly). The install directory is added to your user PATH.
 
   Run:
-    irm https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.ps1 | iex
+    irm https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/tools/scripts/install.ps1 | iex
 
   Or with options:
     & ([scriptblock]::Create((irm <url>))) -BinDir "C:\Tools\Kirito" -Ref main
