@@ -1663,6 +1663,31 @@ inline void KiritoVM::registerSourceModule(std::string name, std::string_view so
 inline Handle KiritoVM::importModule(const std::string& name) {
     auto cached = moduleCache_.find(name);
     if (cached != moduleCache_.end()) return cached->second;  // modules are per-VM singletons
+
+    // Circular-import detection. A module's members are published to moduleCache_ only AFTER its body
+    // has fully evaluated, so if loading `name` (directly or transitively) asks to import `name`
+    // again, the import chain has looped. Raise a clear diagnostic naming the cycle instead of
+    // recursing until the native stack or the call-depth guard blows.
+    auto cycleError = [&](const std::string& dup) {
+        std::string chain;
+        for (const auto& m : importStack_) chain += m + " -> ";
+        return KiritoError("circular import detected: " + chain + dup);
+    };
+    if (importing_.count(name)) throw cycleError(name);
+
+    // RAII: mark `name` (and, for a .ki file, its resolved path) in-progress for the duration of the
+    // load; always unwound on return/throw so a failed import never poisons a later one. References
+    // are passed in so the local type needs no access to KiritoVM's private members.
+    struct LoadGuard {
+        std::unordered_set<std::string>& importing;
+        std::vector<std::string>& stack;
+        std::vector<std::string> marked;
+        LoadGuard(std::unordered_set<std::string>& imp, std::vector<std::string>& st, const std::string& n)
+            : importing(imp), stack(st) { stack.push_back(n); mark(n); }
+        void mark(const std::string& k) { if (importing.insert(k).second) marked.push_back(k); }
+        ~LoadGuard() { for (const auto& k : marked) importing.erase(k); stack.pop_back(); }
+    } loadGuard(importing_, importStack_, name);
+
     auto factory = moduleFactories_.find(name);
     if (factory != moduleFactories_.end()) {
         Handle h = factory->second(*this);
@@ -1688,6 +1713,9 @@ inline Handle KiritoVM::importModule(const std::string& name) {
             moduleCache_[name] = it->second;  // same file already loaded under another name
             return it->second;
         }
+        // The same file reached mid-load under a different module name is still a cycle.
+        if (importing_.count(key)) throw cycleError(key);
+        loadGuard.mark(key);
         std::ifstream in(path);
         std::stringstream buf;
         buf << in.rdbuf();

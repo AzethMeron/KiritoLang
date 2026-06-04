@@ -258,6 +258,31 @@ inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         for (double x : m.data()) acc += x * x;
         return vm.makeFloat(std::sqrt(acc));
     });
+    // --- serialization (serialize / dump): a Matrix is a pure value, so it round-trips as
+    // [rows, cols, [elements...]]. The matrix module registers the matching deserializer. ---
+    if (name == "_getstate_") return bind("_getstate_", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        auto& m = self_m(vm, self);
+        List st(vm);
+        st.add(static_cast<int64_t>(m.rows()));
+        st.add(static_cast<int64_t>(m.cols()));
+        List data(vm);
+        for (double x : m.data()) data.add(x);
+        st.add(data.build());
+        return st.build().handle();
+    });
+    if (name == "_setstate_") return bind("_setstate_", {"state"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        auto& m = self_m(vm, self);
+        auto items = Value(vm, a[0]).items();
+        if (items.size() < 3) throw KiritoError("Matrix _setstate_: malformed state");
+        std::size_t r = static_cast<std::size_t>(items[0].asInt("rows"));
+        std::size_t c = static_cast<std::size_t>(items[1].asInt("cols"));
+        if (c != 0 && r > mat::kMaxMatrixElems / c) throw KiritoError("Matrix too large");
+        std::vector<double> data;
+        for (Value e : items[2].items()) data.push_back(e.asFloat("element"));
+        if (data.size() != r * c) throw KiritoError("Matrix _setstate_: data size does not match shape");
+        m.t = tensor::Tensor<double>(tensor::Shape{r, c}, std::move(data));
+        return vm.none();
+    });
     return Object::getAttr(vm, self, name);
 }
 
@@ -265,6 +290,10 @@ class MatrixModule : public NativeModule {
 public:
     std::string name() const override { return "matrix"; }
     void setup(ModuleBuilder& m) override {
+        // Let serialize/dump reconstruct a Matrix: build an empty one; _setstate_ fills it in.
+        m.vm().registerDeserializer("Matrix", [](KiritoVM& vm, Handle) -> Handle {
+            return vm.alloc(std::make_unique<MatrixVal>());
+        });
         // Matrix(nested-list) or Matrix(rows, cols)
         m.fn("Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Args args(vm, a, "Matrix");

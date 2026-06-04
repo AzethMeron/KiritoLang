@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "arena.hpp"
@@ -198,6 +199,11 @@ private:
     std::unordered_map<std::string, ModuleFactory> moduleFactories_;
     std::unordered_map<std::string, Handle> moduleCache_;   // keyed by module name
     std::unordered_map<std::string, Handle> pathCache_;     // keyed by resolved absolute path
+    // Circular-import guard: names/paths currently mid-load, and the active chain (for diagnostics).
+    // A module is published to moduleCache_ only after its body finishes, so a re-entrant import of
+    // an in-progress module is a cycle — detected here instead of recursing until the stack blows.
+    std::unordered_set<std::string> importing_;
+    std::vector<std::string> importStack_;
     std::vector<std::string> libPaths_;
     Handle replScope_{};
     bool replScopeReady_ = false;

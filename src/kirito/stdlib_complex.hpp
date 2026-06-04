@@ -134,6 +134,21 @@ inline Handle ComplexVal::getAttr(KiritoVM& vm, Handle self, std::string_view na
         return bind("norm2", [self, self_z](KiritoVM& vm, std::span<const Handle>) { return vm.makeFloat(std::norm(self_z(vm, self))); });
     if (name == "is_zero")
         return bind("is_zero", [self, self_z](KiritoVM& vm, std::span<const Handle>) { return vm.makeBool(std::norm(self_z(vm, self)) < 1e-20); });
+    // --- serialization (serialize / dump): a Complex round-trips as [re, im]. ---
+    if (name == "_getstate_")
+        return bind("_getstate_", [self, self_z](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            cdouble v = self_z(vm, self);
+            List st(vm); st.add(v.real()); st.add(v.imag());
+            return st.build().handle();
+        });
+    if (name == "_setstate_")
+        return makeMethod(vm, "_setstate_", {"state"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            auto items = Value(vm, a[0]).items();
+            if (items.size() < 2) throw KiritoError("Complex _setstate_: malformed state");
+            static_cast<ComplexVal&>(vm.arena().deref(self)).z =
+                cdouble(items[0].asFloat("re"), items[1].asFloat("im"));
+            return vm.none();
+        }, std::vector<Handle>{self});
     return Object::getAttr(vm, self, name);
 }
 
@@ -388,6 +403,30 @@ inline Handle ComplexMatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_v
         for (const cdouble& z : m.data()) acc += std::norm(z);
         return vm.makeFloat(std::sqrt(acc));
     });
+    // --- serialization (serialize / dump): round-trips as [rows, cols, [[re, im], ...]]. ---
+    if (name == "_getstate_") return bind("_getstate_", {}, [self, self_m](KiritoVM& vm, std::span<const Handle>) -> Handle {
+        auto& m = self_m(vm, self);
+        List st(vm);
+        st.add(static_cast<int64_t>(m.rows()));
+        st.add(static_cast<int64_t>(m.cols()));
+        List data(vm);
+        for (const cdouble& z : m.data()) { List p(vm); p.add(z.real()); p.add(z.imag()); data.add(p.build()); }
+        st.add(data.build());
+        return st.build().handle();
+    });
+    if (name == "_setstate_") return bind("_setstate_", {"state"}, [self, self_m](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        auto& m = self_m(vm, self);
+        auto items = Value(vm, a[0]).items();
+        if (items.size() < 3) throw KiritoError("ComplexMatrix _setstate_: malformed state");
+        std::size_t r = static_cast<std::size_t>(items[0].asInt("rows"));
+        std::size_t c = static_cast<std::size_t>(items[1].asInt("cols"));
+        if (c != 0 && r > cpx::kMaxElems / c) throw KiritoError("ComplexMatrix too large");
+        std::vector<cdouble> data;
+        for (Value e : items[2].items()) { auto p = e.items(); data.push_back(cdouble(p[0].asFloat("re"), p[1].asFloat("im"))); }
+        if (data.size() != r * c) throw KiritoError("ComplexMatrix _setstate_: data size does not match shape");
+        m.t = tensor::Tensor<cdouble>(tensor::Shape{r, c}, std::move(data));
+        return vm.none();
+    });
     return Object::getAttr(vm, self, name);
 }
 
@@ -398,6 +437,14 @@ public:
 
     void setup(ModuleBuilder& m) override {
         KiritoVM& vm = m.vm();
+
+        // Let serialize/dump reconstruct Complex / ComplexMatrix: build an empty one; _setstate_ fills it.
+        vm.registerDeserializer("Complex", [](KiritoVM& v, Handle) -> Handle {
+            return v.alloc(std::make_unique<ComplexVal>());
+        });
+        vm.registerDeserializer("ComplexMatrix", [](KiritoVM& v, Handle) -> Handle {
+            return v.alloc(std::make_unique<ComplexMatrixVal>());
+        });
 
         // Constructors. Complex(re[, im]); of(re, im); real(re); the unit imaginary i.
         m.fn("Complex", {{"re", "Number"}, {"im", "", vm.makeInt(0)}}, "Complex", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {

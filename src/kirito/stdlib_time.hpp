@@ -82,7 +82,12 @@ public:
     int64_t epoch = 0;  // whole seconds since 1970-01-01 UTC
     std::tm tm{};       // broken-down UTC fields
 
-    explicit DateTime(int64_t secs) : epoch(secs) {
+    DateTime() { setEpoch(0); }                       // empty value for serialize/dump reconstruction
+    explicit DateTime(int64_t secs) { setEpoch(secs); }
+
+    // Set the epoch and recompute the broken-down UTC fields, keeping `epoch` and `tm` consistent.
+    void setEpoch(int64_t secs) {
+        epoch = secs;
         std::time_t t = static_cast<std::time_t>(secs);
 #if defined(_WIN32)
         ::gmtime_s(&tm, &t);
@@ -99,6 +104,16 @@ public:
         return buf;
     }
     std::string str(StringifyCtx&) const override { return "DateTime(" + iso() + ")"; }
+
+    // Value semantics: two DateTimes are equal when they denote the same instant (epoch). The epoch
+    // is an exact int64, so equality and hash agree — a DateTime is hashable (usable as a Dict/Set
+    // key), like Python's.
+    bool equals(const ObjectArena&, const Object& other) const override {
+        const auto* d = dynamic_cast<const DateTime*>(&other);
+        return d && d->epoch == epoch;
+    }
+    bool hashable() const override { return true; }
+    std::size_t hash() const override { return std::hash<int64_t>{}(epoch); }
 
     std::vector<std::string> inspectMembers() const override {
         return {"year: Integer", "month: Integer", "day: Integer", "hour: Integer",
@@ -167,6 +182,21 @@ public:
 #endif
                     return vm.makeString(std::string(buf, n));
                 }, std::vector<Handle>{self});
+        // --- serialization (serialize / dump): a DateTime is fully determined by its epoch. ---
+        if (name == "_getstate_")
+            return makeMethod(vm, "_getstate_", {},
+                [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                    return vm.makeInt(static_cast<DateTime&>(vm.arena().deref(self)).epoch);
+                }, std::vector<Handle>{self});
+        if (name == "_setstate_")
+            return makeMethod(vm, "_setstate_", {"state"},
+                [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                    const Object& o = vm.arena().deref(a[0]);
+                    if (o.kind() != ValueKind::Integer)
+                        throw KiritoError("DateTime _setstate_: expected an Integer epoch");
+                    static_cast<DateTime&>(vm.arena().deref(self)).setEpoch(static_cast<const IntVal&>(o).value());
+                    return vm.none();
+                }, std::vector<Handle>{self});
         return Object::getAttr(vm, self, name);
     }
 };
@@ -179,6 +209,11 @@ public:
     void setup(ModuleBuilder& m) override {
         KiritoVM& vm = m.vm();
         using namespace std::chrono;
+
+        // Let serialize/dump reconstruct a DateTime: build an empty one; _setstate_ fills it in.
+        vm.registerDeserializer("DateTime", [](KiritoVM& v, Handle) -> Handle {
+            return v.alloc(std::make_unique<DateTime>());
+        });
 
         // time() -> Float seconds since the Unix epoch (wall clock).
         m.fn("time", {}, "Float", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
