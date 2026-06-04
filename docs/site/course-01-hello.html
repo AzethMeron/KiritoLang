@@ -61,7 +61,7 @@ io.<span class="builtin">print</span>(<span class="str">&quot;Hello, Kirito!&quo
 <p><a class="xref" href="course-13-files-io.html#sym-io.print"><code>io.print</code></a> writes its arguments separated by spaces and adds a newline. It accepts any number of values of any type:</p>
 <pre><code>io.<span class="builtin">print</span>(<span class="str">&quot;the answer is&quot;</span>, <span class="num">42</span>, <span class="str">&quot;and pi is about&quot;</span>, <span class="num">3.14159</span>)
 <span class="com"># =&gt; the answer is 42 and pi is about 3.14159</span></code></pre>
-<p>Throughout this course we assume <a class="xref" href="course-02-values-numbers.html#sym-var"><code>var io = import(&quot;io&quot;)</code></a> has run at the top of the file; later lessons won&#x27;t repeat it in every snippet.</p>
+<p>Throughout this course we assume <code>var io = import(&quot;io&quot;)</code> has run at the top of the file; later lessons won&#x27;t repeat it in every snippet.</p>
 <h2 id="comments">Comments</h2>
 <p>A <code>#</code> begins a comment that runs to the end of the line. Use comments to explain <em>why</em>, not to restate <em>what</em> the code obviously does:</p>
 <pre><code><span class="kw">var</span> seconds_per_day = <span class="num">24</span> * <span class="num">60</span> * <span class="num">60</span>   <span class="com"># 86400 — handy for date math later</span>
@@ -82,7 +82,7 @@ io.<span class="builtin">print</span>(seconds_per_day)</code></pre>
 
 <span class="kw">if</span> argmain:                            <span class="com"># only runs when this file is the program</span>
     io.<span class="builtin">print</span>(greet(<span class="str">&quot;world&quot;</span>))</code></pre>
-<p>For richer command lines (named options, flags, defaults), the <a class="xref" href="stdlib.html#arg"><code>arg</code></a> module gives you a parser — you&#x27;ll meet it in the standard-library tour.</p>
+<p>For richer command lines (named options, flags, defaults), the <code>arg</code> module gives you a parser — you&#x27;ll meet it in the standard-library tour.</p>
 <h2 id="try-it">Try it</h2>
 <p>Write a program that prints three lines: a greeting, the current year as an Integer, and a short sentence about yourself. Run it as a file <em>and</em> paste it into the REPL to feel the difference.</p>
 <h2 id="what-you-learned">What you learned</h2>

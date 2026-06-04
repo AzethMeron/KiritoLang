@@ -365,7 +365,11 @@ and a course — a **core** path of 16 lessons (Lesson 0 editor setup → Lesson
 types/control/collections/functions material is consolidated into dense lessons) followed by 5
 **bonus lessons** for specialized libraries: regex, command-line programs, tabular data, linear
 algebra, and tensors+autograd). `build_docs.py` auto-anchors every documented
-symbol and turns later `inline code` mentions into clickable cross-links.
+symbol and turns later `inline code` mentions into clickable cross-links — but only for
+*unambiguous* names: a name defined in more than one place, or an instance-method name reused across
+modules (`sum`/`split`/`mean`/…, detected from `receiver.name` forms in the reference pages), keeps
+its anchor but is never auto-linked, so a prose mention never points at the wrong module. It also
+renders Markdown indented code fences, multi-line list items, and strips `<!--comment-->` directives.
 Documentation is authored in those `.md` files, NOT scraped from code comments.
 
 Not yet done (future enrichment): comprehensions, variadic params,

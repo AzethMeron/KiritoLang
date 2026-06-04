@@ -92,7 +92,7 @@ kpm remove name                   # uninstall</code></pre>
   &quot;modules&quot;: [&quot;mypkg.ki&quot;, &quot;extra/util.ki&quot;],
   &quot;dependencies&quot;: [&quot;someone/dep&quot;]
 }</code></pre>
-<p><code>kpm</code> itself is written in Kirito (<code>kpm/kpm.ki</code>), using only the <a class="xref" href="stdlib.html#net"><code>net</code></a>, <a class="xref" href="stdlib.html#json"><code>json</code></a>, and <a class="xref" href="stdlib.html#io"><code>io</code></a> modules.</p>
+<p><code>kpm</code> itself is written in Kirito (<code>kpm/kpm.ki</code>), using only the <a class="xref" href="stdlib.html#net"><code>net</code></a>, <code>json</code>, and <a class="xref" href="stdlib.html#io"><code>io</code></a> modules.</p>
 <h2 id="tests">Tests</h2>
 <p>Kirito has an extensive CTest suite (unit tests, golden <code>.ki</code> scripts, error-message tests, an adversarial/fuzz suite, and an embedding test). Run it with:</p>
 <pre><code>ctest --test-dir build-debug --output-on-failure</code></pre>

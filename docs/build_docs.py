@@ -113,6 +113,9 @@ def highlight_kirito(code):
 # types) are still anchored but not auto-linked, so links never point at the wrong entry.
 SYMBOLS = {}          # name -> (html_file, anchor)
 _AMBIGUOUS = set()    # names defined in >1 place: anchored but not auto-linked
+_METHOD_NAMES = set() # names used as an instance method (receiver.name) somewhere in the reference
+                      # docs, so a bare mention is ambiguous (e.g. `sum`/`split`/`mean` mean the
+                      # builtin/String/statistics symbol OR a tensor/collection method): not auto-linked
 _EMITTED = set()      # (file, anchor) already given an id this build, to avoid duplicates
 _CUR_FILE = ""        # html filename currently being rendered (for relative xref hrefs)
 
@@ -139,6 +142,25 @@ def collect_symbols(pages):
                 if re.fullmatch(r"[A-Za-z_][\w]*", title):
                     SYMBOLS[title] = (fn, _slug(title))
                     heading_syms.add(title)
+    # Instance-method names — scan the reference pages' prose for `receiver.member` forms where the
+    # receiver is NOT a module/type heading (so `t.sum`, `s.split`, `d.keys`, not `math.gcd`/`io.print`).
+    # Those `member`s are methods, so a *bare* `sum`/`split`/`mean` mention is ambiguous between the
+    # documented free symbol of that name and the method — we keep its anchor but never auto-link it,
+    # so a prose mention never points at the wrong module (e.g. a tensor `sum` linking to builtin sum).
+    reference_slugs = {"builtins", "types", "stdlib"}
+    for slug, _, _, text in pages:
+        if slug not in reference_slugs:
+            continue
+        in_fence = False
+        for line in text.split("\n"):
+            if line.lstrip().startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            for recv, member in re.findall(r"\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)", line):
+                if recv not in heading_syms:
+                    _METHOD_NAMES.add(member)
     # Phase 2 — the first `code` token of a table row or list item defines that symbol, unless a
     # heading already owns the name. A name defined this way in two different places is ambiguous —
     # including the same `sym-` name under two different *sections* of one page (e.g. `dumps`/`loads`
@@ -196,7 +218,7 @@ def linkify(body):
     # blocks (<pre>…</pre>) and ambiguous names.
     def repl(m):
         name = _lead_ident(m.group(1))
-        if name and name in SYMBOLS and name not in _AMBIGUOUS:
+        if name and name in SYMBOLS and name not in _AMBIGUOUS and name not in _METHOD_NAMES:
             file, anchor = SYMBOLS[name]
             return f'<a class="xref" href="{file}#{anchor}"><code>{m.group(1)}</code></a>'
         return m.group(0)

@@ -58,7 +58,7 @@ io.<span class="builtin">print</span>(safe_divide(<span class="num">10</span>, <
     io.<span class="builtin">print</span>(result)                        <span class="com"># skipped — the throw jumps past it</span>
 <span class="kw">catch</span> <span class="kw">as</span> e:
     io.<span class="builtin">print</span>(f<span class="str">&quot;handled: {e}&quot;</span>)               <span class="com"># =&gt; handled: cannot divide by zero</span></code></pre>
-<p><code>catch as e</code> binds the thrown value to <a class="xref" href="stdlib.html#sym-e"><code>e</code></a> so you can inspect or report it.</p>
+<p><code>catch as e</code> binds the thrown value to <code>e</code> so you can inspect or report it.</p>
 <h2 id="custom-exception-types">Custom exception types</h2>
 <p>Throwing a String works, but a <strong>class</strong> carries structured data and lets callers catch <em>specific</em> kinds of error. Define a class, throw an instance, and catch by type:</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)

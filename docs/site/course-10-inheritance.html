@@ -80,7 +80,7 @@ io.<span class="builtin">print</span>(c.describe())                       <span 
 io.<span class="builtin">print</span>(total_area(Circle(<span class="num">1</span>)))      <span class="com"># =&gt; 3.14159</span>
 io.<span class="builtin">print</span>(total_area(Square(<span class="num">3</span>)))      <span class="com"># =&gt; 9.0</span>
 io.<span class="builtin">print</span>(<span class="builtin">isinstance</span>(Square(<span class="num">3</span>), <span class="str">&quot;Shape&quot;</span>))   <span class="com"># =&gt; True</span></code></pre>
-<h2 id="extending-a-parent-method-with-super">Extending a parent method with <a class="xref" href="types.html#sym-_super_"><code>_super_</code></a></h2>
+<h2 id="extending-a-parent-method-with-super">Extending a parent method with <code>_super_</code></h2>
 <p>Often a subclass wants to <em>extend</em> a base method rather than replace it wholesale — for instance, run the base constructor and then add more. <a class="xref" href="course-10-inheritance.html#sym-self._super_"><code>self._super_()</code></a> returns a <strong>parent view</strong> of the instance: calling a method on it starts lookup at the base class, so you invoke the inherited version.</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
 
@@ -100,7 +100,7 @@ io.<span class="builtin">print</span>(<span class="builtin">isinstance</span>(Sq
 
 <span class="kw">var</span> m = Manager(<span class="str">&quot;Grace&quot;</span>, <span class="num">5</span>)
 io.<span class="builtin">print</span>(m.describe())               <span class="com"># =&gt; Grace, employee, managing 5</span></code></pre>
-<p><a class="xref" href="types.html#sym-_super_"><code>_super_()</code></a> only works when the class actually inherits (it throws otherwise), and it climbs exactly one level per call — so in a three-level hierarchy each class&#x27;s <a class="xref" href="types.html#sym-_super_"><code>_super_()</code></a> reaches the next one up, and the chain composes correctly.</p>
+<p><code>_super_()</code> only works when the class actually inherits (it throws otherwise), and it climbs exactly one level per call — so in a three-level hierarchy each class&#x27;s <code>_super_()</code> reaches the next one up, and the chain composes correctly.</p>
 <h2 id="private-members-and-inheritance">Private members and inheritance</h2>
 <p>A private member (single leading underscore) is private to the class that <em>defines</em> it. A subclass has its own private namespace; it doesn&#x27;t see the base&#x27;s privates and vice versa. Keep the shared contract in non-private methods.</p>
 <h2 id="a-worked-example-a-shape-hierarchy">A worked example: a shape hierarchy</h2>
@@ -134,7 +134,7 @@ io.<span class="builtin">print</span>(m.describe())               <span class="c
     total = total + shape.area()
 io.<span class="builtin">print</span>(f<span class="str">&quot;total area: {total}&quot;</span>)
 <span class="com"># =&gt; rectangle: 12.0 / circle: 3.14159 / rectangle: 4.0 / total area: 19.14159</span></code></pre>
-<p><strong>Walkthrough:</strong> every shape shares the <a class="xref" href="stdlib.html#sym-name"><code>name</code></a> attribute (set once, via <a class="xref" href="types.html#sym-_super_"><code>_super_()._init_</code></a>) and exposes an <code>area()</code> method, but each computes area differently. The loop treats them uniformly — it just calls <code>.area()</code> — and the right implementation runs for each. Add a <code>Triangle(Shape2)</code> tomorrow and this loop needs no changes. That open-ended extensibility is what inheritance and polymorphism buy you.</p>
+<p><strong>Walkthrough:</strong> every shape shares the <a class="xref" href="stdlib.html#sym-name"><code>name</code></a> attribute (set once, via <code>_super_()._init_</code>) and exposes an <code>area()</code> method, but each computes area differently. The loop treats them uniformly — it just calls <code>.area()</code> — and the right implementation runs for each. Add a <code>Triangle(Shape2)</code> tomorrow and this loop needs no changes. That open-ended extensibility is what inheritance and polymorphism buy you.</p>
 <h2 id="try-it">Try it</h2>
 <p>Add a <code>Triangle(Shape2)</code> (<code>0.5 * base * height</code>) to the hierarchy and drop one into the <code>shapes</code> list. Confirm the loop and total update with no other edits.</p>
 <h2 id="what-you-learned">What you learned</h2>

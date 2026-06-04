@@ -84,7 +84,7 @@ io.<span class="builtin">print</span>(df[df[<span class="str">&quot;salary&quot;
 io.<span class="builtin">print</span>(df[[<span class="str">&quot;name&quot;</span>, <span class="str">&quot;salary&quot;</span>]].columns)            <span class="com"># [name, salary]        (column subset)</span>
 io.<span class="builtin">print</span>(df.iloc[<span class="num">0</span>][<span class="str">&quot;name&quot;</span>])                        <span class="com"># Ada                    (first row)</span></code></pre>
 <h2 id="group-by-and-aggregation-the-workhorse">Group-by and aggregation — the workhorse</h2>
-<p><code>groupby(col)</code> splits the table by a key column; then <a class="xref" href="builtins.html#sym-sum"><code>sum</code></a>/<a class="xref" href="stdlib.html#sym-mean"><code>mean</code></a>/<code>min</code>/<code>max</code>/<code>std</code>/<a class="xref" href="stdlib.html#sym-count"><code>count</code></a> reduce each numeric column per group, or <code>agg({col: &quot;reduction&quot;})</code> picks per-column reductions.</p>
+<p><code>groupby(col)</code> splits the table by a key column; then <code>sum</code>/<code>mean</code>/<code>min</code>/<code>max</code>/<code>std</code>/<code>count</code> reduce each numeric column per group, or <code>agg({col: &quot;reduction&quot;})</code> picks per-column reductions.</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
 <span class="kw">var</span> df = tb.readcsv(<span class="str">&quot;name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130&quot;</span>)
@@ -108,7 +108,7 @@ df[<span class="str">&quot;bonus&quot;</span>] = df[<span class="str">&quot;sala
 io.<span class="builtin">print</span>(df.sortvalues(<span class="str">&quot;salary&quot;</span>, ascending=<span class="kw">False</span>)[<span class="str">&quot;name&quot;</span>].tolist())  <span class="com"># [Edsger, Ada, Alan, Grace]</span>
 io.<span class="builtin">print</span>(df.describe())                             <span class="com"># numeric summary</span></code></pre>
 <h2 id="missing-data">Missing data</h2>
-<p>Real data has gaps. An empty CSV cell is <a class="xref" href="types.html#none"><code>None</code></a>; numeric aggregations skip it, <a class="xref" href="stdlib.html#sym-count"><code>count()</code></a> tallies the non-null values (of any type), and <code>dropna</code>/<a class="xref" href="stdlib.html#sym-fillna"><code>fillna</code></a> clean it up.</p>
+<p>Real data has gaps. An empty CSV cell is <a class="xref" href="types.html#none"><code>None</code></a>; numeric aggregations skip it, <code>count()</code> tallies the non-null values (of any type), and <code>dropna</code>/<a class="xref" href="stdlib.html#sym-fillna"><code>fillna</code></a> clean it up.</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
 
