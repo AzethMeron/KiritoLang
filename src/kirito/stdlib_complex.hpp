@@ -422,7 +422,11 @@ inline Handle ComplexMatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_v
         std::size_t c = static_cast<std::size_t>(items[1].asInt("cols"));
         if (c != 0 && r > cpx::kMaxElems / c) throw KiritoError("ComplexMatrix too large");
         std::vector<cdouble> data;
-        for (Value e : items[2].items()) { auto p = e.items(); data.push_back(cdouble(p[0].asFloat("re"), p[1].asFloat("im"))); }
+        for (Value e : items[2].items()) {
+            auto p = e.items();   // guard: a corrupt/hand-crafted state could give a short pair
+            if (p.size() < 2) throw KiritoError("ComplexMatrix _setstate_: element must be [re, im]");
+            data.push_back(cdouble(p[0].asFloat("re"), p[1].asFloat("im")));
+        }
         if (data.size() != r * c) throw KiritoError("ComplexMatrix _setstate_: data size does not match shape");
         m.t = tensor::Tensor<cdouble>(tensor::Shape{r, c}, std::move(data));
         return vm.none();
