@@ -1,0 +1,104 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 12 — Context Managers and with — Kirito</title><style>
+:root{--bg:#16161a;--fg:#e4e4ea;--muted:#9a9aa6;--accent:#9b87ff;--code-bg:#1e1e25;
+--border:#2c2c35;--side:#1b1b21;--side-hover:#26262f}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:var(--side-hover);text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#16161a}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:var(--fg)}
+.kw{color:#c678dd}.str{color:#98c379}.com{color:#7f848e;font-style:italic}.num{color:#d19a66}
+.builtin{color:#61afef}
+a.xref{text-decoration:none}
+a.xref:hover{text-decoration:underline}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values-numbers.html">Lesson 2 — Values, Variables &amp; Numbers</a><a href="course-03-strings.html">Lesson 3 — Strings</a><a href="course-04-control-loops.html">Lesson 4 — Control Flow and Loops</a><a href="course-05-collections.html">Lesson 5 — Collections: Lists, Sets, Dicts &amp; Unpacking</a><a href="course-06-functions-closures.html">Lesson 6 — Functions and Closures</a><a href="course-07-annotations.html">Lesson 7 — Type Annotations and Runtime Checks</a><a href="course-08-classes.html">Lesson 8 — Classes I: Data and Behavior</a><a href="course-09-operators.html">Lesson 9 — Classes II: Operators and Protocols</a><a href="course-10-inheritance.html">Lesson 10 — Classes III: Inheritance and super</a><a href="course-11-errors.html">Lesson 11 — Errors and Exceptions</a><a href="course-12-context-managers.html" class="active">Lesson 12 — Context Managers and with</a><a href="course-13-files-io.html">Lesson 13 — Files, I/O, and Streams</a><a href="course-14-stdlib-tour.html">Lesson 14 — A Tour of the Standard Library</a><a href="course-15-capstone.html">Lesson 15 — Capstone: A Contact Book</a><a href="bonus-01-regex.html">Bonus Lesson 1 — Regular Expressions</a><a href="bonus-02-cli.html">Bonus Lesson 2 — Command-Line Programs</a><a href="bonus-03-data.html">Bonus Lesson 3 — Tabular Data Analysis</a><a href="bonus-04-linear-algebra.html">Bonus Lesson 4 — Matrices, Vectors &amp; Complex Numbers</a><a href="bonus-05-tensors.html">Bonus Lesson 5 — Tensors &amp; Autograd</a></nav><main id="content"><h1 id="lesson-12-context-managers-and-with">Lesson 12 — Context Managers and with</h1>
+<p>Some resources must be cleaned up: a file must be closed, a lock released, a timer stopped — even if an error interrupts the work. You <em>could</em> do this with <a class="xref" href="course-11-errors.html#sym-try"><code>try</code></a>/<a class="xref" href="course-11-errors.html#sym-finally"><code>finally</code></a> every time, but Kirito offers a cleaner tool: the <code>with</code> statement and the <strong>context-manager protocol</strong>.</p>
+<h2 id="the-with-statement">The <code>with</code> statement</h2>
+<p><code>with EXPR as NAME:</code> enters a context, binds its resource to <code>NAME</code>, runs the block, and guarantees cleanup on the way out — normal exit <em>or</em> exception. The classic case is files:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> path = io.join(io.getcwd(), <span class="str">&quot;lesson17_demo.txt&quot;</span>)
+
+<span class="kw">with</span> io.open(path, <span class="str">&quot;w&quot;</span>) <span class="kw">as</span> file:
+    file.write(<span class="str">&quot;line one\n&quot;</span>)
+    file.write(<span class="str">&quot;line two\n&quot;</span>)
+<span class="com"># the file is closed automatically here, even if write() had thrown</span>
+
+<span class="kw">with</span> io.open(path, <span class="str">&quot;r&quot;</span>) <span class="kw">as</span> file:
+    io.<span class="builtin">print</span>(file.read())
+<span class="com"># =&gt; line one / line two</span>
+<span class="kw">discard</span> io.remove(path)            <span class="com"># tidy up the demo file</span></code></pre>
+<p>No explicit <code>close()</code> — leaving the <code>with</code> block closes the file for you. That&#x27;s the whole appeal: the cleanup is impossible to forget.</p>
+<h2 id="the-protocol-enter-and-exit">The protocol: <code>_enter_</code> and <code>_exit_</code></h2>
+<p><code>with</code> works on any object that implements two special methods:</p>
+<ul><li><code>_enter_(self)</code> — runs on entry; its return value is what <code>as NAME</code> binds.</li><li><code>_exit_(self)</code> — runs on exit (always), to release the resource.</li></ul>
+<p>Knowing this, you can write your own context managers. Here&#x27;s a timer that reports how long its block took:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> time = <span class="kw">import</span>(<span class="str">&quot;time&quot;</span>)
+
+<span class="kw">class</span> Timer:
+    <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, label):
+        self.label = label
+    <span class="kw">var</span> _enter_ = <span class="kw">Function</span>(self):
+        self._start = time.perfcounterns()      <span class="com"># record the start time on entry</span>
+        <span class="kw">return</span> self                              <span class="com"># bound to `as t`</span>
+    <span class="kw">var</span> _exit_ = <span class="kw">Function</span>(self):
+        <span class="kw">var</span> elapsed_ns = time.perfcounterns() - self._start
+        io.<span class="builtin">print</span>(f<span class="str">&quot;{self.label} took {elapsed_ns} ns&quot;</span>)
+
+<span class="kw">with</span> Timer(<span class="str">&quot;work&quot;</span>) <span class="kw">as</span> t:
+    <span class="kw">var</span> total = <span class="num">0</span>
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="builtin">range</span>(<span class="num">1000</span>):
+        total = total + i
+<span class="com"># =&gt; work took &lt;some number&gt; ns   (printed automatically on exit)</span></code></pre>
+<p><strong>Walkthrough:</strong> <code>_enter_</code> stamps the start time and hands back <code>self</code>; the block does its work; <code>_exit_</code> runs the moment the block ends (or throws) and reports the elapsed time. The caller can&#x27;t forget to stop the timer — the protocol does it. Any &quot;do X before, undo it after&quot; pattern fits this shape: open/close, lock/unlock, set-up/tear-down.</p>
+<h2 id="in-memory-buffers-as-contexts">In-memory buffers as contexts</h2>
+<p><code>BytesIO</code> is an in-memory stream usable anywhere a file is — and it&#x27;s a context manager too. It&#x27;s ideal for tests and for capturing output without touching disk:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> buffer = io.BytesIO()
+buffer.write(<span class="str">&quot;captured text&quot;</span>)
+io.<span class="builtin">print</span>(buffer.getvalue())        <span class="com"># =&gt; captured text</span></code></pre>
+<h2 id="redirecting-output-with-tee">Redirecting output with <a class="xref" href="stdlib.html#tee"><code>tee</code></a></h2>
+<p>The <a class="xref" href="stdlib.html#tee"><code>tee</code></a> standard-library module builds on the stream protocol to <em>fan out</em> writes — sending output to several places at once, or capturing it. <a class="xref" href="stdlib.html#sym-tee_stdout"><code>tee_stdout</code></a> is a context manager that mirrors everything printed to <a class="xref" href="stdlib.html#sym-stdout"><code>stdout</code></a> into extra streams while the block runs:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tee = <span class="kw">import</span>(<span class="str">&quot;tee&quot;</span>)
+
+<span class="kw">var</span> log = io.BytesIO()
+<span class="kw">with</span> tee.tee_stdout(log):
+    io.<span class="builtin">print</span>(<span class="str">&quot;this goes to the screen AND the log&quot;</span>)
+io.<span class="builtin">print</span>(<span class="str">&quot;captured copy:&quot;</span>, log.getvalue())
+<span class="com"># =&gt; this goes to the screen AND the log</span>
+<span class="com"># =&gt; captured copy: this goes to the screen AND the log</span></code></pre>
+<p>When the <code>with</code> block ends, <a class="xref" href="stdlib.html#sym-stdout"><code>stdout</code></a> is restored automatically — again, cleanup you can&#x27;t forget.</p>
+<h2 id="try-it">Try it</h2>
+<p>Write a <code>Transaction</code> context manager whose <code>_enter_</code> prints <code>&quot;BEGIN&quot;</code> and returns <code>self</code>, and whose <code>_exit_</code> prints <code>&quot;COMMIT&quot;</code>. Run a <code>with Transaction():</code> block that prints some work in between, and watch BEGIN/work/COMMIT bracket it. (Bonus, once you&#x27;ve read more: have it print <code>&quot;ROLLBACK&quot;</code> instead when the block raised — combine <code>with</code> and exceptions.)</p>
+<h2 id="what-you-learned">What you learned</h2>
+<ul><li id="sym-with"><code>with EXPR as NAME:</code> runs setup, your block, then guaranteed cleanup.</li><li>The protocol is <code>_enter_</code> (returns the bound resource) and <code>_exit_</code> (always runs).</li><li id="sym-io.open"><a class="xref" href="course-12-context-managers.html#sym-io.open"><code>io.open</code></a> files and <code>BytesIO</code> buffers are context managers; so is anything you write.</li><li>The <a class="xref" href="stdlib.html#tee"><code>tee</code></a> module redirects/captures stream output via the same protocol.</li></ul>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>
