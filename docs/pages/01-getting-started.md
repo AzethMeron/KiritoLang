@@ -1,5 +1,24 @@
 # Getting Started
 
+## Installing (prebuilt)
+
+If you just want to *use* Kirito, the one-line installers fetch the `ki` interpreter and the `kpm`
+package manager, put launchers on your `PATH`, and create `~/.kirito/packages` (which `ki` searches
+automatically):
+
+```sh
+# Linux / macOS  (installs to ~/.local/bin, no root)
+curl -fsSL https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell) — installs under %LOCALAPPDATA%\Programs\Kirito and updates your user PATH
+irm https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.ps1 | iex
+```
+
+Prebuilt 64-bit binaries (`ki-linux-x64`, `ki-windows-x64.exe`) are also attached to each GitHub
+Release for manual download. To build from source instead, read on.
+
 ## Requirements
 
 - A C++20 compiler (GCC 13+ or Clang 18+).
@@ -67,6 +86,38 @@ Run it:
 ```
 ki hello.ki
 ```
+
+## Packages (`kpm`)
+
+`kpm` is Kirito's package manager. It installs packages — bundles of `.ki` modules — **straight from
+GitHub repositories**; there's no central index, you name an `owner/repo`:
+
+```sh
+kpm install owner/repo            # install a package (and its dependencies) from GitHub
+kpm install owner/repo@v1.2.0     # pin a tag / branch / commit
+kpm list                          # list installed packages
+kpm update owner --all            # reinstall the latest
+kpm remove name                   # uninstall
+```
+
+Packages install under `~/.kirito/packages/<name>/` and are importable directly — `import("name")` —
+because `ki` automatically searches that directory, every package sub-directory, and any directory in
+the `KIRITO_PATH` environment variable (PATH-style, `:`-separated on Unix, `;` on Windows), in
+addition to the current directory, `--lib` directories, and the running script's own folder.
+
+A package repo carries a `kirito.json` manifest at its root listing its modules (repo-relative `.ki`
+paths) and any dependencies:
+
+```json
+{
+  "name": "mypkg",
+  "version": "1.0.0",
+  "modules": ["mypkg.ki", "extra/util.ki"],
+  "dependencies": ["someone/dep"]
+}
+```
+
+`kpm` itself is written in Kirito (`tools/kpm.ki`), using only the `net`, `json`, and `io` modules.
 
 ## Tests
 

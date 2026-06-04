@@ -21,6 +21,7 @@ endfunction()
 
 kirito_test(test_arena unit/test_arena.cpp)
 kirito_test(test_lexer unit/test_lexer.cpp)
+kirito_test(test_cli_paths unit/test_cli_paths.cpp)
 kirito_test(test_eval_arith unit/test_eval_arith.cpp)
 kirito_test(test_eval_vars unit/test_eval_vars.cpp)
 kirito_test(test_indent unit/test_indent.cpp)

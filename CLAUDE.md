@@ -268,8 +268,11 @@ a stability fuzzer, and a benchmark). Working today:
     `tee_stdout`/`tee_stderr` context managers that hook the std streams), `arg` (an argparse-style
     `Parser`: positional/option/flag declarations, then `parse(arglist)` -> Dict; type-converts
     options to their default's type, `-h`/`--help` prints usage and returns None).
-- **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, and the
-  script's directory), lexed+parsed+evaluated once per VM and cached by resolved path. The `ki` CLI
+- **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, the
+  script's directory, the `KIRITO_PATH` env var [PATH-style], and the per-user package dir
+  `~/.kirito/packages` + each package sub-dir), lexed+parsed+evaluated once per VM and cached by
+  resolved path. The env/package paths live in the CLI only (`include/kirito/cli_paths.hpp`,
+  unit-tested), not the embeddable VM core. The `ki` CLI
   is Python-like: REPL with no file (multi-line blocks via a `...` continuation prompt until a blank
   line), runs a file otherwise. Every file scope is pre-bound with **`arglist`** (the command-line
   arguments as a List — populated only in a directly-run file; **empty** in an imported module) and
@@ -367,6 +370,12 @@ Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
   STL. CMake links `ws2_32` on Windows automatically.
 - **Static linking** by default (self-contained binaries): full `-static` on GCC/Clang, static CRT
   on MSVC; TLS builds fall back to a static C++ runtime since OpenSSL is usually shared-only.
+- **Install + packages**: `scripts/install.sh` (Linux/macOS) and `scripts/install.ps1` (Windows)
+  are one-line installers that download the release binary (or build from source), place `ki`/`kpm`
+  launchers on PATH, and create `~/.kirito/packages`. **`tools/kpm.ki`** is the package manager,
+  written in Kirito (uses `net`/`json`/`io`): `kpm install <owner/repo>[@ref]` fetches a package's
+  `kirito.json` manifest + modules from GitHub (no central index) into `~/.kirito/packages/<name>/`;
+  also `remove`/`list`/`update`/`where`. Dependencies are other `owner/repo` packages.
 - Tests run under **CTest**. **Every language feature gets a test.** Prefer many
   small, focused tests (one behavior each) over large ones. A feature isn't done
   until it has a test and the suite is green.

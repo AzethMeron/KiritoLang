@@ -38,6 +38,13 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
 </style></head>
 <body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html" class="active">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values.html">Lesson 2 — Values and Variables</a><a href="course-03-numbers.html">Lesson 3 — Numbers and Arithmetic</a><a href="course-04-strings.html">Lesson 4 — Strings</a><a href="course-05-control-flow.html">Lesson 5 — Booleans and Control Flow</a><a href="course-06-loops.html">Lesson 6 — Loops and Iteration</a><a href="course-07-lists.html">Lesson 7 — Lists</a><a href="course-08-sets-dicts.html">Lesson 8 — Sets and Dictionaries</a><a href="course-09-unpacking.html">Lesson 9 — Packing and Unpacking</a><a href="course-10-functions.html">Lesson 10 — Functions</a><a href="course-11-closures.html">Lesson 11 — Closures and First-Class Functions</a><a href="course-12-annotations.html">Lesson 12 — Type Annotations and Runtime Checks</a><a href="course-13-classes.html">Lesson 13 — Classes I: Data and Behavior</a><a href="course-14-operators.html">Lesson 14 — Classes II: Operators and Protocols</a><a href="course-15-inheritance.html">Lesson 15 — Classes III: Inheritance and super</a><a href="course-16-errors.html">Lesson 16 — Errors and Exceptions</a><a href="course-17-context-managers.html">Lesson 17 — Context Managers and with</a><a href="course-18-files-io.html">Lesson 18 — Files, I/O, and Streams</a><a href="course-19-stdlib-tour.html">Lesson 19 — A Tour of the Standard Library</a><a href="course-20-regex.html">Lesson 20 — Regular Expressions</a><a href="course-21-cli.html">Lesson 21 — Command-Line Programs</a><a href="course-22-data.html">Lesson 22 — Tabular Data Analysis</a><a href="course-23-capstone.html">Lesson 23 — Capstone: A Contact Book</a></nav><main id="content"><h1 id="getting-started">Getting Started</h1>
+<h2 id="installing-prebuilt">Installing (prebuilt)</h2>
+<p>If you just want to <em>use</em> Kirito, the one-line installers fetch the <code>ki</code> interpreter and the <code>kpm</code> package manager, put launchers on your <code>PATH</code>, and create <code>~/.kirito/packages</code> (which <code>ki</code> searches automatically):</p>
+<pre><code># Linux / macOS  (installs to ~/.local/bin, no root)
+curl -fsSL https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.sh | sh</code></pre>
+<pre><code># Windows (PowerShell) — installs under %LOCALAPPDATA%\Programs\Kirito and updates your user PATH
+irm https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.ps1 | iex</code></pre>
+<p>Prebuilt 64-bit binaries (<code>ki-linux-x64</code>, <code>ki-windows-x64.exe</code>) are also attached to each GitHub Release for manual download. To build from source instead, read on.</p>
 <h2 id="requirements">Requirements</h2>
 <ul><li>A C++20 compiler (GCC 13+ or Clang 18+).</li><li>CMake 3.28+ and a generator (Ninja recommended).</li></ul>
 <p>The interpreter core is <strong>header-only</strong>; CMake builds only the <code>ki</code> executable and the tests.</p>
@@ -70,6 +77,22 @@ hi</code></pre>
 io.<span class="builtin">print</span>(f<span class="str">&quot;Hello, {name}!&quot;</span>)</code></pre>
 <p>Run it:</p>
 <pre><code>ki hello.ki</code></pre>
+<h2 id="packages-kpm">Packages (<code>kpm</code>)</h2>
+<p><code>kpm</code> is Kirito&#x27;s package manager. It installs packages — bundles of <code>.ki</code> modules — <strong>straight from GitHub repositories</strong>; there&#x27;s no central index, you name an <code>owner/repo</code>:</p>
+<pre><code>kpm install owner/repo            # install a package (and its dependencies) from GitHub
+kpm install owner/repo@v1.2.0     # pin a tag / branch / commit
+kpm list                          # list installed packages
+kpm update owner --all            # reinstall the latest
+kpm remove name                   # uninstall</code></pre>
+<p>Packages install under <code>~/.kirito/packages/&lt;name&gt;/</code> and are importable directly — <code>import(&quot;name&quot;)</code> — because <code>ki</code> automatically searches that directory, every package sub-directory, and any directory in the <code>KIRITO_PATH</code> environment variable (PATH-style, <code>:</code>-separated on Unix, <code>;</code> on Windows), in addition to the current directory, <code>--lib</code> directories, and the running script&#x27;s own folder.</p>
+<p>A package repo carries a <code>kirito.json</code> manifest at its root listing its modules (repo-relative <code>.ki</code> paths) and any dependencies:</p>
+<pre><code>{
+  &quot;name&quot;: &quot;mypkg&quot;,
+  &quot;version&quot;: &quot;1.0.0&quot;,
+  &quot;modules&quot;: [&quot;mypkg.ki&quot;, &quot;extra/util.ki&quot;],
+  &quot;dependencies&quot;: [&quot;someone/dep&quot;]
+}</code></pre>
+<p><code>kpm</code> itself is written in Kirito (<code>tools/kpm.ki</code>), using only the <a class="xref" href="stdlib.html#net"><code>net</code></a>, <a class="xref" href="stdlib.html#json"><code>json</code></a>, and <a class="xref" href="stdlib.html#io"><code>io</code></a> modules.</p>
 <h2 id="tests">Tests</h2>
 <p>Kirito has an extensive CTest suite (unit tests, golden <code>.ki</code> scripts, error-message tests, an adversarial/fuzz suite, and an embedding test). Run it with:</p>
 <pre><code>ctest --test-dir build-debug --output-on-failure</code></pre>

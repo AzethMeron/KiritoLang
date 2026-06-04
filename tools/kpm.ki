@@ -1,0 +1,244 @@
+# kpm — the Kirito package manager, written in Kirito itself.
+#
+# It installs packages (collections of `.ki` modules) straight from GitHub repositories. There is no
+# central index: you name an `owner/repo`. Run it as `kpm <command>` (the installer drops a launcher
+# on your PATH) or directly with `ki tools/kpm.ki <command>`.
+#
+#   kpm install <owner/repo>[@<ref>] ...   download + install a package (and its dependencies)
+#   kpm remove  <name> ...                 uninstall a package
+#   kpm list                               list installed packages
+#   kpm update  <name>... | --all          reinstall the latest version
+#   kpm where                              print the packages directory
+#   kpm help
+#
+# A package repository carries a `kirito.json` manifest at its root:
+#
+#   {
+#     "name": "mypkg",
+#     "version": "1.0.0",
+#     "modules": ["mypkg.ki", "extra/util.ki"],
+#     "dependencies": ["someone/dep"]
+#   }
+#
+# `modules` are repo-relative `.ki` paths. They install under `<packages>/<name>/` and become
+# importable as `import("mypkg")` — `ki` puts the packages directory and every package sub-directory
+# on the module import path automatically (see KIRITO_PATH / ~/.kirito/packages).
+
+var io = import("io")
+var net = import("net")
+var json = import("json")
+var sys = import("sys")
+
+var RAW = "https://raw.githubusercontent.com"
+var API = "https://api.github.com"
+
+# ---------------------------------------------------------------- locations
+var homeDir = Function() -> String:
+    var h = sys.getenv("HOME")
+    if h == None or h == "":
+        h = sys.getenv("USERPROFILE")
+    if h == None or h == "":
+        throw "cannot locate your home directory (set HOME)"
+    return h
+
+var packagesDir = Function() -> String:
+    return io.join(io.join(homeDir(), ".kirito"), "packages")
+
+# ---------------------------------------------------------------- helpers
+var fail = Function(msg):
+    io.eprint("kpm: " + msg)
+    sys.exit(1)
+
+# GET a URL and return its body text; raises a clear message on a network error or non-2xx status.
+var fetch = Function(url) -> String:
+    var r = None
+    try:
+        r = net.get(url)
+    catch as e:
+        throw "network error fetching " + url + ": " + String(e)
+    if not r.ok:
+        throw "GET " + url + " -> HTTP " + String(r.statuscode)
+    return r.text
+
+# Parse "owner/repo[@ref]" into [owner, repo, ref-or-None].
+var parseSpec = Function(spec):
+    var ref = None
+    var body = spec
+    var at = spec.find("@")
+    if at >= 0:
+        ref = spec[at + 1:]
+        body = spec[0:at]
+    var slash = body.find("/")
+    if slash < 0:
+        throw "expected <owner>/<repo>, got '" + spec + "'"
+    return [body[0:slash], body[slash + 1:], ref]
+
+# The repo's default branch (one GitHub API call), used when no @ref is supplied.
+var defaultBranch = Function(owner, repo) -> String:
+    var data = json.loads(fetch(API + "/repos/" + owner + "/" + repo))
+    return data["default_branch"]
+
+# Write `text` to <dir>/<relpath>, creating any parent directories first.
+var writeFile = Function(dir, relpath, text):
+    var full = io.join(dir, relpath)
+    var parent = io.dirname(full)
+    if len(parent) > 0:
+        discard io.mkdir(parent)
+    var f = io.open(full, "w")
+    f.write(text)
+    f.close()
+
+# Recursively delete a directory tree.
+var removeTree = Function(dir):
+    if io.exists(dir):
+        for entry in io.listdir(dir):
+            var full = io.join(dir, entry)
+            if io.isdir(full):
+                removeTree(full)
+            else:
+                discard io.remove(full)
+        discard io.remove(dir)
+
+# Install one package, recursing into its dependencies. `seen` is a Set of names already installed
+# this run (cycle/duplication guard). Returns the installed package name.
+var installOne = Function(spec, seen) -> String:
+    var parts = parseSpec(spec)
+    var owner = parts[0]
+    var repo = parts[1]
+    var ref = parts[2]
+    if ref == None:
+        ref = defaultBranch(owner, repo)
+    var base = RAW + "/" + owner + "/" + repo + "/" + ref
+
+    var manifestText = None
+    try:
+        manifestText = fetch(base + "/kirito.json")
+    catch as e:
+        throw "no kirito.json manifest in " + owner + "/" + repo + "@" + ref
+    var manifest = json.loads(manifestText)
+    var name = manifest["name"]
+    if name in seen:
+        return name
+    seen.add(name)
+    io.print("installing " + name + " (" + owner + "/" + repo + "@" + ref + ")")
+
+    var deps = []
+    if "dependencies" in manifest:
+        deps = manifest["dependencies"]
+    for d in deps:
+        discard installOne(d, seen)
+
+    var dest = io.join(packagesDir(), name)
+    var installed = []
+    for mod in manifest["modules"]:
+        writeFile(dest, mod, fetch(base + "/" + mod))
+        installed.append(mod)
+        io.print("  + " + mod)
+
+    var version = "0.0.0"
+    if "version" in manifest:
+        version = manifest["version"]
+    var record = {"name": name, "version": version, "source": owner + "/" + repo, "ref": ref, "modules": installed}
+    writeFile(dest, ".kpm.json", json.dumps(record, indent = 2))
+    return name
+
+# Read the install records of every installed package.
+var listInstalled = Function():
+    var root = packagesDir()
+    var out = []
+    if not io.exists(root):
+        return out
+    for entry in io.listdir(root):
+        var rec = io.join(io.join(root, entry), ".kpm.json")
+        if io.exists(rec):
+            var f = io.open(rec, "r")
+            var data = json.loads(f.read())
+            f.close()
+            out.append(data)
+    return out
+
+# ---------------------------------------------------------------- commands
+var cmdInstall = Function(specs):
+    if len(specs) == 0:
+        fail("install needs at least one <owner/repo>")
+    var seen = Set()
+    for spec in specs:
+        try:
+            discard installOne(spec, seen)
+        catch as e:
+            fail(String(e))
+    io.print("done — " + String(len(seen)) + " package(s) in " + packagesDir())
+
+var cmdRemove = Function(names):
+    if len(names) == 0:
+        fail("remove needs a package name")
+    for name in names:
+        var dir = io.join(packagesDir(), name)
+        if not io.exists(dir):
+            io.eprint("kpm: not installed: " + name)
+        else:
+            removeTree(dir)
+            io.print("removed " + name)
+
+var cmdList = Function():
+    var pkgs = listInstalled()
+    if len(pkgs) == 0:
+        io.print("no packages installed")
+        return None
+    for p in pkgs:
+        io.print(p["name"] + " " + p["version"] + "  (" + p["source"] + "@" + p["ref"] + ")")
+
+var cmdUpdate = Function(args):
+    var targets = []
+    if len(args) == 1 and args[0] == "--all":
+        targets = listInstalled()
+    else:
+        for name in args:
+            var rec = io.join(io.join(packagesDir(), name), ".kpm.json")
+            if not io.exists(rec):
+                fail("not installed: " + name)
+            var f = io.open(rec, "r")
+            targets.append(json.loads(f.read()))
+            f.close()
+    if len(targets) == 0:
+        fail("update needs a package name or --all")
+    var seen = Set()
+    for p in targets:
+        try:
+            discard installOne(p["source"], seen)
+            io.print("updated " + p["name"])
+        catch as e:
+            io.eprint("kpm: " + String(e))
+
+var usage = Function():
+    io.print("kpm — the Kirito package manager (installs from GitHub; no central index)")
+    io.print("usage:")
+    io.print("  kpm install <owner/repo>[@<ref>] ...   install package(s) + dependencies")
+    io.print("  kpm remove  <name> ...                 uninstall")
+    io.print("  kpm list                               list installed packages")
+    io.print("  kpm update  <name>... | --all          reinstall the latest")
+    io.print("  kpm where                              print the packages directory")
+    io.print("  kpm help")
+
+# ---------------------------------------------------------------- dispatch
+if len(arglist) == 0:
+    usage()
+else:
+    var cmd = arglist[0]
+    var rest = arglist[1:]
+    if cmd == "install" or cmd == "i" or cmd == "add":
+        cmdInstall(rest)
+    elif cmd == "remove" or cmd == "rm" or cmd == "uninstall":
+        cmdRemove(rest)
+    elif cmd == "list" or cmd == "ls":
+        cmdList()
+    elif cmd == "update" or cmd == "upgrade":
+        cmdUpdate(rest)
+    elif cmd == "where":
+        io.print(packagesDir())
+    elif cmd == "help" or cmd == "-h" or cmd == "--help":
+        usage()
+    else:
+        io.eprint("kpm: unknown command '" + cmd + "'")
+        usage()
+        sys.exit(2)

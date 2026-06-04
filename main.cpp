@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -6,7 +7,14 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#  define ENV_SEP ";"
+#else
+#  define ENV_SEP ":"
+#endif
+
 #include "kirito.hpp"
+#include "kirito/cli_paths.hpp"
 
 #ifdef _WIN32
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -42,7 +50,11 @@ void usage() {
                  "  with no file, starts an interactive REPL\n"
                  "options:\n"
                  "  --lib <dir>   add a directory to the module import path (repeatable)\n"
-                 "  -h, --help    show this help\n";
+                 "  -w, --no-warn disable static-analysis warnings\n"
+                 "  -h, --help    show this help\n"
+                 "environment:\n"
+                 "  KIRITO_PATH   extra import directories (PATH-style, " ENV_SEP "-separated)\n"
+                 "  packages installed by kpm under ~/.kirito/packages are importable directly\n";
 }
 
 
@@ -129,6 +141,21 @@ int main(int argc, char** argv) {
     kirito::KiritoVM vm;
     vm.addLibPath(".");  // current directory is always on the import path
     for (const auto& l : libs) vm.addLibPath(l);
+
+    // Environment-contributed import paths: KIRITO_PATH plus the per-user package directory that
+    // `kpm` installs into (and each package sub-directory), so installed packages are importable
+    // without an explicit --lib. See include/kirito/cli_paths.hpp.
+#ifdef _WIN32
+    const char pathSep = ';';
+    const char* homeEnv = std::getenv("USERPROFILE");
+#else
+    const char pathSep = ':';
+    const char* homeEnv = std::getenv("HOME");
+#endif
+    const char* kiritoPathEnv = std::getenv("KIRITO_PATH");
+    for (const auto& d : kirito::environmentLibPaths(kiritoPathEnv ? kiritoPathEnv : "",
+                                                     homeEnv ? homeEnv : "", pathSep))
+        vm.addLibPath(d);
 
     if (file.empty()) return repl(vm);
 

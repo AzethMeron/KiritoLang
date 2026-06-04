@@ -130,12 +130,68 @@ vm.registerGlobal("repeat", vm.alloc(std::make_unique<NativeFunction>(
 Whole modules and brand-new object types (with their own methods and operators) are added the same
 way — see the documentation for complete, worked examples.
 
-## Downloads
+## Installing
 
 Prebuilt 64-bit `ki` binaries for **Windows and Linux** are attached to each
-[GitHub Release](../../releases). Every release binary is an optimized build with HTTPS (TLS)
-support, linked as statically as possible (OpenSSL and the C/C++ runtime are bundled in), so it runs
-without installing anything else.
+[GitHub Release](../../releases): optimized builds with HTTPS (TLS) support, linked as statically as
+possible (OpenSSL and the C/C++ runtime are bundled in), so they run with no other dependencies.
+
+The one-line installers download `ki` and the `kpm` package manager, drop launchers on your `PATH`,
+and create the package directory `~/.kirito/packages` (which `ki` searches automatically):
+
+**Linux / macOS**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.sh | sh
+```
+
+Installs to `~/.local/bin` (no root). Pass options after `-s --`, e.g.
+`| sh -s -- --bin-dir ~/bin`, or `--from-source` to build locally instead of downloading. On a
+platform without a prebuilt binary the script builds from source automatically (needs `git` +
+`cmake`; install `libssl-dev` so `kpm`'s HTTPS works).
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/AzethMeron/KiritoLang/main/scripts/install.ps1 | iex
+```
+
+Installs `ki.exe` + `kpm.cmd` under `%LOCALAPPDATA%\Programs\Kirito` and adds it to your user `PATH`.
+
+**Manual** — download `ki-linux-x64` / `ki-windows-x64.exe` from the latest release, put it on your
+`PATH` (rename to `ki`/`ki.exe`), and `chmod +x` it on Unix.
+
+### Packages (`kpm`)
+
+Kirito's package manager installs packages — collections of `.ki` modules — **straight from GitHub
+repositories**. There is no central index: you name an `owner/repo`.
+
+```sh
+kpm install owner/repo            # install the package (and its dependencies) from GitHub
+kpm install owner/repo@v1.2.0     # pin a tag, branch, or commit
+kpm list                          # what's installed
+kpm update owner --all            # reinstall the latest
+kpm remove name                   # uninstall
+```
+
+Installed packages land in `~/.kirito/packages/<name>/` and are importable directly —
+`import("name")` — because `ki` puts that directory (and each package sub-directory, plus anything in
+the `KIRITO_PATH` environment variable) on its module import path.
+
+A package repository carries a `kirito.json` manifest at its root:
+
+```json
+{
+  "name": "mypkg",
+  "version": "1.0.0",
+  "modules": ["mypkg.ki", "extra/util.ki"],
+  "dependencies": ["someone/dep"]
+}
+```
+
+`modules` are repo-relative `.ki` paths; `dependencies` are other `owner/repo` packages installed
+first. `kpm` is itself written in Kirito (`tools/kpm.ki`) — it just uses the `net`, `json`, and `io`
+modules — so it doubles as a worked example.
 
 ## Repository structure
 
@@ -168,7 +224,9 @@ docs/              The documentation site: hand-authored Markdown in `docs/pages
 editors/           Syntax-highlighting definitions for `.ki` files — Notepad++ (UDL), VS Code
                    (TextMate grammar + extension), and Vim. See `editors/README.md`.
 scripts/           build_all.sh (release binaries), test_release.sh (run the `.ki` suites against
-                   a built binary), post_work_check.sh (clean-build every variant + full CTest).
+                   a built binary), post_work_check.sh (clean-build every variant + full CTest),
+                   install.sh / install.ps1 (the Linux/macOS + Windows installers).
+tools/             kpm.ki — the package manager, written in Kirito (installs packages from GitHub).
 
 CLAUDE.md          The project charter: what Kirito is, how it's built, and the working rules.
 Archive/           Two prior incomplete attempts (V1/V2) — reference only; not built.
