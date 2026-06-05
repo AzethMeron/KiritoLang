@@ -293,7 +293,9 @@ a stability fuzzer, and a benchmark). Working today:
     verification, on by default), `cookies`. Follows redirects, decodes chunked transfer-encoding,
     decompresses gzip/deflate, and parses/sends cookies. A `Session()` keeps a cookie jar + default
     headers across calls. HTTPS via `-DKIRITO_ENABLE_TLS=ON` (links OpenSSL; verifies the peer cert
-    by default). URL helpers: quote/unquote/urlencode/parseqs/urlsplit.
+    by default — trust roots come from the OS: OpenSSL's default paths/`SSL_CERT_FILE` on Unix and the
+    **Windows system "ROOT" store** via CryptoAPI, since OpenSSL ships no default CA bundle there; a
+    verify failure reports the actual reason). URL helpers: quote/unquote/urlencode/parseqs/urlsplit.
   - `sys` — environment (getenv/setenv/unsetenv/environ), `platform`, `exit`.
   - `time` — high-precision clocks (time/timens/monotonic/perfcounterns), sleep, and Python-like
     calendar time (`now`/`datetime`/`make`/`strptime`; `DateTime` with fields, iso/format,

@@ -27,6 +27,19 @@
 #include "net_compat.hpp"
 #include "stdlib_json.hpp"
 
+// On Windows OpenSSL has no default CA store, so we read the system trust ("ROOT") store via the
+// CryptoAPI. wincrypt.h must come AFTER net_compat's winsock2.h/windows.h, and it #defines some names
+// that clash with OpenSSL's struct typedefs — undo those so the rest of the file sees OpenSSL's types.
+#if defined(KIRITO_ENABLE_TLS) && defined(_WIN32)
+#include <wincrypt.h>
+#undef X509_NAME
+#undef X509_EXTENSIONS
+#undef PKCS7_ISSUER_AND_SERIAL
+#undef PKCS7_SIGNER_INFO
+#undef OCSP_REQUEST
+#undef OCSP_RESPONSE
+#endif
+
 namespace kirito {
 
 // The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
@@ -369,6 +382,23 @@ inline netcompat::socket_t dialTcp(const Url& u) {
 std::string httpExchange(const Url& u, const std::string& request, double timeout, bool verify);
 
 #ifdef KIRITO_ENABLE_TLS
+#ifdef _WIN32
+// Populate an SSL_CTX's trust store from the Windows system "ROOT" certificate store (the same trust
+// curl/browsers use). OpenSSL on Windows ships no default CA bundle, so without this every HTTPS
+// verify would fail the handshake with "unable to get local issuer certificate".
+inline void addWindowsRootCerts(SSL_CTX* ctx) {
+    HCERTSTORE sys = CertOpenSystemStoreA(0, "ROOT");
+    if (!sys) return;
+    X509_STORE* store = SSL_CTX_get_cert_store(ctx);
+    PCCERT_CONTEXT cert = nullptr;
+    while ((cert = CertEnumCertificatesInStore(sys, cert)) != nullptr) {
+        const unsigned char* der = cert->pbCertEncoded;
+        X509* x = d2i_X509(nullptr, &der, static_cast<long>(cert->cbCertEncoded));
+        if (x) { X509_STORE_add_cert(store, x); X509_free(x); }
+    }
+    CertCloseStore(sys, 0);
+}
+#endif
 inline std::string httpExchange(const Url& u, const std::string& request, double timeout, bool verify) {
     netcompat::socket_t fd = dialTcp(u);
     setTimeout(fd, timeout);
@@ -385,7 +415,10 @@ inline std::string httpExchange(const Url& u, const std::string& request, double
     if (!ctx) { netcompat::closeSocket(fd); throw KiritoError("SSL_CTX_new failed"); }
     if (verify) {
         SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, nullptr);
-        SSL_CTX_set_default_verify_paths(ctx);
+        SSL_CTX_set_default_verify_paths(ctx);   // Unix CA dirs + the SSL_CERT_FILE / SSL_CERT_DIR env vars
+#ifdef _WIN32
+        addWindowsRootCerts(ctx);                // and the Windows system trust store
+#endif
     }
     SSL* ssl = SSL_new(ctx);
     SSL_set_fd(ssl, static_cast<int>(fd));
@@ -395,8 +428,18 @@ inline std::string httpExchange(const Url& u, const std::string& request, double
         SSL_set1_host(ssl, u.host.c_str());
     }
     if (SSL_connect(ssl) != 1) {
+        // Surface the real reason: a peer-verify failure (the common case — missing/empty CA store)
+        // aborts the handshake here, so report the verify error and the OpenSSL reason rather than a
+        // bare "handshake failed".
+        long vr = SSL_get_verify_result(ssl);
+        unsigned long e = ERR_peek_last_error();
+        std::string why;
+        if (vr != X509_V_OK)
+            why = std::string(": ") + X509_verify_cert_error_string(vr) +
+                  " (no trusted CA found; set the SSL_CERT_FILE env var to a CA bundle, or pass verify=False)";
+        else if (e) { char b[256]; ERR_error_string_n(e, b, sizeof(b)); why = std::string(": ") + b; }
         SSL_free(ssl); SSL_CTX_free(ctx); netcompat::closeSocket(fd);
-        throw KiritoError("TLS handshake with " + u.host + " failed");
+        throw KiritoError("TLS handshake with " + u.host + " failed" + why);
     }
     if (verify && SSL_get_verify_result(ssl) != X509_V_OK) {
         SSL_shutdown(ssl); SSL_free(ssl); SSL_CTX_free(ctx); netcompat::closeSocket(fd);
