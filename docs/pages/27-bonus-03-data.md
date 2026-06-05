@@ -93,12 +93,12 @@ io.print(df.groupby("dept").agg({"salary": "max"})) # top salary per dept
 prints (eng then ops, in first-seen order):
 
 ```text
-     salary
-eng   115.0
-ops   112.5
-     salary
-eng     120
-ops     130
+       salary
+eng     115.0
+ops     112.5
+       salary
+eng       120
+ops       130
 ```
 
 ## Sorting, new columns, and `describe`

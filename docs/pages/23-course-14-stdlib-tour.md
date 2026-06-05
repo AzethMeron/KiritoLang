@@ -148,7 +148,10 @@ What you've seen is a slice. The full set, all imported the same way, includes:
   `copy`.
 - **System, time & I/O:** `sys` (environment, `exit`, platform), `time` (clocks and a `DateTime`
   type), `io` (files, in-memory buffers, the filesystem).
-- **Bytes & hashing:** `zlib` (compression), `hash` (md5/sha digests).
+- **Binary data:** the [`Bytes`](types.html#bytes) type (a raw byte sequence — the binary counterpart
+  to `String`, with `s.encode()`/`b.decode()` between them), `zlib` and `gzip` (compression), and
+  `hash` (md5/sha digests plus the crc/adler checksums). These all speak `Bytes`, so binary downloads
+  and files round-trip byte-exactly.
 - **Text matching:** `regex` — a linear-time regular-expression engine (Bonus Lesson 1).
 - **Networking:** `net` — TCP sockets and a full HTTP client.
 - **Command-line & data analysis:** `arg` (Bonus Lesson 2) and `tabular` (Bonus Lesson 3).

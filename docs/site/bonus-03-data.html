@@ -92,12 +92,12 @@ io.<span class="builtin">print</span>(df.iloc[<span class="num">0</span>][<span 
 io.<span class="builtin">print</span>(df.groupby(<span class="str">&quot;dept&quot;</span>).mean())                 <span class="com"># mean salary per dept</span>
 io.<span class="builtin">print</span>(df.groupby(<span class="str">&quot;dept&quot;</span>).agg({<span class="str">&quot;salary&quot;</span>: <span class="str">&quot;max&quot;</span>})) <span class="com"># top salary per dept</span></code></pre>
 <p>prints (eng then ops, in first-seen order):</p>
-<pre><code>     salary
-eng   115.0
-ops   112.5
-     salary
-eng     120
-ops     130</code></pre>
+<pre><code>       salary
+eng     115.0
+ops     112.5
+       salary
+eng       120
+ops       130</code></pre>
 <h2 id="sorting-new-columns-and-describe">Sorting, new columns, and <code>describe</code></h2>
 <p>Assigning a Series (or a list, or a scalar) adds/replaces a column. <a class="xref" href="stdlib.html#sym-sortvalues"><code>sortvalues</code></a> orders rows; <code>describe</code> gives count/mean/std/min/median/max for every numeric column.</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)

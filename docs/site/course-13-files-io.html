@@ -45,7 +45,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <span class="kw">var</span> name = io.<span class="builtin">input</span>(<span class="str">&quot;What&#x27;s your name? &quot;</span>)    <span class="com"># prints the prompt, reads a line</span>
 io.<span class="builtin">print</span>(f<span class="str">&quot;Hello, {name}!&quot;</span>)</code></pre>
 <h2 id="writing-and-reading-files">Writing and reading files</h2>
-<p><a class="xref" href="course-12-context-managers.html#sym-io.open"><code>io.open(path, mode)</code></a> returns a file object. The modes are <code>&quot;r&quot;</code> (read), <code>&quot;w&quot;</code> (truncate then write), <code>&quot;a&quot;</code> (append), and <code>&quot;r+&quot;</code> (read/write). Always use a <code>with</code> block so the file closes itself:</p>
+<p><a class="xref" href="course-12-context-managers.html#sym-io.open"><code>io.open(path, mode)</code></a> returns a file object. The modes are <code>&quot;r&quot;</code> (read), <code>&quot;w&quot;</code> (truncate then write), <code>&quot;a&quot;</code> (append), and <code>&quot;r+&quot;</code> (read/write) — and, with a trailing <code>&quot;b&quot;</code> (<code>&quot;rb&quot;</code>/<code>&quot;wb&quot;</code>/…), a <strong>binary</strong> mode where <code>read</code> returns raw <a class="xref" href="types.html#bytes"><code>Bytes</code></a> and <code>write</code> accepts them (use it for non-text files like images or <code>.gz</code> data). Always use a <code>with</code> block so the file closes itself:</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> path = io.join(io.getcwd(), <span class="str">&quot;notes.txt&quot;</span>)
 

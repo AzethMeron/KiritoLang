@@ -41,7 +41,7 @@ A successful call returns a **Match** object; a failed one returns `None`. Alway
 before using the result:
 
 ```kirito
-var found = re.search("z+", "no zeds here... zzz!")
+var found = re.search("z+", "all quiet... zzz!")
 if found != None:
     io.print("found:", found.group())                 # => found: zzz
 ```

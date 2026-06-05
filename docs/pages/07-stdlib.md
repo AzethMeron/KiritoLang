@@ -32,7 +32,7 @@ The optional `stream=` keyword sends/takes that one call's output/input to/from 
 
 ### Files and buffers
 
-- `open(path: String, mode: String = "r") → File` — open a file. Modes: `"r"` read, `"w"` truncate-write, `"a"` append, `"r+"` read/write. Raises if it can't be opened. Usable as a `with` context manager.
+- `open(path: String, mode: String = "r") → File` — open a file. Modes: `"r"` read, `"w"` truncate-write, `"a"` append, `"r+"` read/write. Append a `"b"` (`"rb"`/`"wb"`/`"ab"`/`"r+b"`) for **binary** mode: `read`/`readline`/iteration then yield [`Bytes`](types.html#bytes) and `write`/`writelines` accept Bytes (the right mode for non-text files — images, gzip, `dump` blobs). Raises if it can't be opened. Usable as a `with` context manager.
 - `BytesIO([initial: String]) → BytesIO` — an in-memory read/write byte buffer, usable anywhere a file or stream is expected.
 
 ### Filesystem
@@ -59,8 +59,8 @@ The optional `stream=` keyword sends/takes that one call's output/input to/from 
 
 Returned by `io.open`. Iterating a file yields its remaining lines.
 
-- `f.read([n]) → String` — read `n` characters, or the whole rest of the file if omitted.
-- `f.readline() → String` — read one line (without the trailing newline).
+- `f.read([n]) → String` — read `n` characters, or the whole rest of the file if omitted. (In binary mode, returns [`Bytes`](types.html#bytes); `n` counts bytes.)
+- `f.readline() → String` — read one line (without the trailing newline). (Bytes in binary mode.)
 - `f.readlines() → List` — read all remaining lines into a List.
 - `f.write(s: String) → None` — write `s` at the current position.
 - `f.writelines(lines) → None` — write each String in an iterable.
@@ -512,7 +512,8 @@ JSON parsing and serialization (flat data interchange — for reference/cycle-pr
 preserves shared references and cycles (a full object snapshot, unlike `json` which is flat data
 interchange with no aliasing). They share one graph walk and reconstruction core and differ only in
 output: **`serialize` is human-readable text**, **`dump` is compact binary**. Supported value types:
-`None`/`Bool`/`Integer`/`Float`/`String`/`List`/`Dict`/`Set`, **plus user `class` instances**.
+`None`/`Bool`/`Integer`/`Float`/`String`/[`Bytes`](types.html#bytes)/`List`/`Dict`/`Set`, **plus user
+`class` instances**.
 
 A class instance is serialized **by its attributes** by default and reconstructed by looking the
 class up by name in the loading VM (so the class must be defined there; `_init_` is *not* re-run). A
@@ -584,7 +585,8 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 
 - `r.status` (`Integer`, alias `r.statuscode`), `r.reason` (`String`), `r.ok` (`Bool`, true for a 1xx–3xx status, i.e. `100 ≤ status < 400`).
 - `r.url` — the final URL (after any redirects).
-- `r.text` — the response body (`String`); `r.body` and `r.content` are aliases of it.
+- `r.text` — the decoded response body (`String`); `r.body` is an alias.
+- `r.content` — the **raw** response body as [`Bytes`](types.html#bytes) — for binary downloads (images, `.gz`, …). E.g. `gzip.decompress(net.get(url).content)`.
 - `r.headers` — a Dict of response headers; `r.header(name)` looks one up **case-insensitively**.
 - `r.cookies` — a Dict of cookies set by the server.
 - `r.json()` — parse the body as JSON.

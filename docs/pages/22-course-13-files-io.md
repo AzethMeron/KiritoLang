@@ -17,7 +17,9 @@ io.print(f"Hello, {name}!")
 ## Writing and reading files
 
 `io.open(path, mode)` returns a file object. The modes are `"r"` (read), `"w"` (truncate then
-write), `"a"` (append), and `"r+"` (read/write). Always use a `with` block so the file closes itself:
+write), `"a"` (append), and `"r+"` (read/write) — and, with a trailing `"b"` (`"rb"`/`"wb"`/…), a
+**binary** mode where `read` returns raw `Bytes` and `write` accepts them (use it for non-text files
+like images or `.gz` data). Always use a `with` block so the file closes itself:
 
 ```kirito
 var io = import("io")

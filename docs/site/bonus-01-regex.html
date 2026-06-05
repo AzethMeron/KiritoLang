@@ -54,7 +54,7 @@ io.<span class="builtin">print</span>(re.match(<span class="str">&quot;id&quot;<
 io.<span class="builtin">print</span>(re.fullmatch(r<span class="str">&quot;\d+&quot;</span>, <span class="str">&quot;4821&quot;</span>).group())        <span class="com"># =&gt; 4821   (must cover the WHOLE string)</span>
 io.<span class="builtin">print</span>(re.fullmatch(r<span class="str">&quot;\d+&quot;</span>, <span class="str">&quot;4821x&quot;</span>))               <span class="com"># =&gt; None</span></code></pre>
 <p>A successful call returns a <strong>Match</strong> object; a failed one returns <a class="xref" href="types.html#none"><code>None</code></a>. Always check for <a class="xref" href="types.html#none"><code>None</code></a> before using the result:</p>
-<pre><code><span class="kw">var</span> found = re.search(<span class="str">&quot;z+&quot;</span>, <span class="str">&quot;no zeds here... zzz!&quot;</span>)
+<pre><code><span class="kw">var</span> found = re.search(<span class="str">&quot;z+&quot;</span>, <span class="str">&quot;all quiet... zzz!&quot;</span>)
 <span class="kw">if</span> found != <span class="kw">None</span>:
     io.<span class="builtin">print</span>(<span class="str">&quot;found:&quot;</span>, found.group())                 <span class="com"># =&gt; found: zzz</span></code></pre>
 <h2 id="the-building-blocks-of-a-pattern">The building blocks of a pattern</h2>
