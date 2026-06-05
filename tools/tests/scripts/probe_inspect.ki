@@ -9,7 +9,7 @@ var checks = [
     [inspect(import("time").now()), "DateTime object:", "year: Integer"],
     [inspect(import("regex").compile("(.)")), "Regex object:", "sub(repl, string, count) -> String"],
     [inspect(import("regex").compile("(.)").search("ab")), "Match object:", "group(index) -> String"],
-    [inspect(import("dump").dumps([1])), "Dump object:", "bytes() -> String"],
+    [inspect(import("dump").dumps([1])), "Bytes object:", "decode(encoding) -> String"],
     [inspect(import("net").Socket()), "Socket object:", "connect(host, port)"]
 ]
 for c in checks:

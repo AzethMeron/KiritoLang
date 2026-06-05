@@ -130,8 +130,7 @@ var resourceNatives = [
     ["Session", Function(): return import("net").Session()],
     ["Regex", Function(): return import("regex").compile("a")],
     ["Match", Function(): return import("regex").compile("(a)").search("a")],
-    ["BytesIO", Function(): return import("io").BytesIO()],
-    ["Dump", Function(): return import("dump").dumps([1])]
+    ["BytesIO", Function(): return import("io").BytesIO()]
 ]
 for nv in resourceNatives:
     assert throws(Function(): return serialize.dumps(nv[1]())), "serialize rejects resource native " + nv[0]

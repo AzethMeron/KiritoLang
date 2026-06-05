@@ -1,6 +1,6 @@
 # `inspect` describes the public surface of EVERY object — built-in module, native object, user
 # class, instance, and function. This spec focuses on native objects (Random/Matrix/BytesIO/DateTime/
-# regex/Dump/Socket), which declare their members for introspection, plus the other value kinds.
+# regex/Bytes/Socket), which declare their members for introspection, plus the other value kinds.
 var io = import("io")
 var random = import("random")
 var matrix = import("matrix")
@@ -30,8 +30,8 @@ assert "Regex object:" in p and "sub(repl, string, count) -> String" in p, "rege
 var mt = inspect(regex.compile("(.)").search("ab"))
 assert "Match object:" in mt and "group(index) -> String" in mt and "span(group) -> List" in mt, "regex Match members"
 
-var du = inspect(dump.dumps([1, 2, 3]))
-assert "Dump object:" in du and "bytes() -> String" in du and "save(path)" in du, "Dump members"
+var du = inspect(dump.dumps([1, 2, 3]))      # the binary blob is now Bytes
+assert "Bytes object:" in du and "decode(encoding) -> String" in du and "hex() -> String" in du, "Bytes blob members"
 
 var sk = inspect(net.Socket())
 assert "Socket object:" in sk and "connect(host, port)" in sk and "recv(size) -> String" in sk, "Socket members"
