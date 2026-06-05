@@ -307,6 +307,13 @@ engine is shared C++ (`src/kirito/tensor.hpp`) and is what the `matrix` and `com
 themselves built on; a 2-D tensor *is* a matrix. It is CPU-only but carries a **reverse-mode autograd**
 (see below) and a GPU-forward-compatible single-buffer design.
 
+Tensor **arithmetic is pure**: every operation returns a *new* tensor and never mutates its operands,
+which is what makes the autograd graph well-defined. The only in-place operation is element assignment
+(`t[i, j] = v`). A consequence is that a gradient-descent step **rebinds** the parameter
+(`w = w - w.grad*lr`, re-marked `requiresgrad(True)`) — a functional update, like JAX/Optax — rather
+than mutating it in place as PyTorch does; the [tensors lesson](bonus-05-tensors.html#why-the-update-rebinds-tensors-are-immutable)
+walks through this.
+
 ### Constructors and factories
 
 Each constructor/factory takes an optional **`requiresgrad`** keyword (default `False`) that marks the

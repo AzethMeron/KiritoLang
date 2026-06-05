@@ -412,8 +412,8 @@ io.print(x.grad)               # None
 Two tools stop gradient flow on purpose:
 
 - `t.detach()` returns a copy of `t` that tracks nothing.
-- `with T.nograd():` runs a whole block with tracking disabled — for inference, or for updating
-  parameters in place (you don't want the update itself recorded).
+- `with T.nograd():` runs a whole block with tracking disabled — for inference, or for computing a
+  parameter update (you don't want the update itself recorded; see [the next section](#why-the-update-rebinds-tensors-are-immutable)).
 
 ```kirito
 var io = import("io")
@@ -482,6 +482,45 @@ io.print(w[0, 0], b[0, 0])                       # ~ 2.0  ~ 1.0
 Read the loop as five steps repeated: **predict**, measure the **loss**, **clear** old gradients,
 **backpropagate**, then **update** the parameters a small step against their gradient. After a few
 hundred iterations `w` and `b` converge to `2` and `1`.
+
+### Why the update rebinds: tensors are immutable
+
+Notice that the update **reassigns** `w` (`w = w - w.grad * 0.05`) rather than modifying it. That is
+deliberate, and worth understanding:
+
+- **Tensor arithmetic is pure.** Every operation — `+`, `*`, `matmul`, the reductions, `reshape`, the
+  math set, everything that builds the autograd graph — returns a **brand-new tensor** and never
+  changes its operands (`a + b` leaves `a` untouched). This is exactly what makes the graph
+  well-defined: each node is the immutable result of a pure function of its inputs.
+- **There is no `+=`.** Kirito has no augmented-assignment operators, so you always write
+  `w = w - ...`, which *binds the name `w` to a new tensor* — the old one still exists (it is part of
+  this step's graph) until nothing references it.
+- **An update under `nograd` is detached.** The new `w` produced inside `with T.nograd():` tracks
+  nothing, so you re-mark it a trainable leaf with `w.requiresgrad(True)` before the next step.
+
+Put together, a gradient-descent step is **functional**: compute a fresh parameter tensor and rebind
+the name to it. (The one in-place exception is element assignment — `t[i, j] = v` does mutate the
+tensor, and aliases of it see the change — but there is no vectorized in-place update like a PyTorch
+`w.add_(...)`.) If a model and an optimizer must *share* a parameter, wrap the tensor in a small
+holder object and rebind its field — this is precisely what a `Parameter` does in a neural-net library
+(see `examples/deep_learning/lib/nn.ki`):
+
+```kirito
+class Parameter:
+    var _init_ = Function(self, t):
+        t.requiresgrad(True)
+        self.t = t
+
+# the optimizer rebinds p.t; the model reads p.t fresh each forward pass
+with T.nograd():
+    var stepped = (p.t - p.t.grad * lr).detach()
+p.t = stepped
+p.t.requiresgrad(True)
+```
+
+This is the **functional** update style of frameworks like JAX/Optax (their optimizers return new
+parameters each step), rather than PyTorch's in-place mutation of a persistent buffer. Both are valid;
+Kirito's immutable, pure-op tensors make the functional form the natural one.
 
 ## 11. Saving tensors
 
@@ -554,5 +593,8 @@ reductions, `real`/`imag`/`conj`/`angle` — works on both dtypes.
   `backward()` fills each leaf's `.grad`, `zerograd()` clears it, `detach()` and `with T.nograd():`
   stop gradient flow. A non-differentiable op on a grad tensor warns and detaches.
 - A gradient-free tensor **serializes** (save/load weights); complex tensors are numeric-only.
+- Tensor **arithmetic is pure** — every op returns a new tensor and never mutates its operands — so a
+  gradient-descent step **rebinds** the parameter (`w = w - w.grad*lr`, re-marked with
+  `requiresgrad(True)`) rather than mutating it in place. (`t[i, j] = v` is the one in-place exception.)
 
 This is the final bonus lesson. Back to the **[course index](index.html)**, or go build a model.

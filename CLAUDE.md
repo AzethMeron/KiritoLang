@@ -240,7 +240,10 @@ a stability fuzzer, and a benchmark). Working today:
     `t.zerograd()` clears it, `t.detach()` stops gradient flow, and `with tensor.nograd():` (a context
     manager) disables tracking for a block. The graph records *operations* (not data location), so it
     carries forward to a future GPU backend. The grad-mode flag is VM-scoped (a hidden `_grad` member
-    of the module, hidden from `inspect`). The
+    of the module, hidden from `inspect`). Tensor **arithmetic is pure** — every op returns a new
+    tensor and never mutates its operands (the only in-place op is element assignment `t[i,j]=v`), so a
+    gradient-descent step **rebinds** the parameter (`w = w - w.grad*lr`, re-marked `requiresgrad(True)`)
+    rather than mutating in place — the functional update style of JAX/Optax, not PyTorch. The
     `matrix` and `complex` matrix types are **built on this engine** (a 2-D tensor is a matrix).
   - `matrix` — dense real matrices (a 2-D `Tensor<double>`) of arbitrary shape (no concurrency): +,-,* (matrix/scalar),
     `m[i, j]` element access/assignment, transpose, determinant, inverse, trace, apply, factories
