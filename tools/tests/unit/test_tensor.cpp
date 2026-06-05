@@ -188,5 +188,29 @@ int main() {
         CHECK(second == std::string::npos);                                    // warned exactly once
     }
 
+    // --- item(): a one-element tensor -> a scalar Float/Complex ---------------------------------
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\nT.Tensor([42.0]).item()") == "42.0");
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\ntype(T.Tensor([[7.0]]).item())") == "Float");
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\nT.zeros([1,1,1]).item()") == "0.0");
+    // works on a grad-tracked scalar result (sum/mean return a scalar tensor under grad)
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\nvar g = T.Tensor([3.0,4.0], requiresgrad=True)\n(g*g).sum().item()") == "25.0");
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\ntype(T.Tensor([5.0], dtype=\"Complex\").item())") == "Complex");
+    CHECK_THROWS(vm.runSource("var T = import(\"tensor\")\nT.Tensor([1.0,2.0]).item()"));   // multi-element
+    CHECK_THROWS(vm.runSource("var T = import(\"tensor\")\nT.zeros([0]).item()"));          // empty
+
+    // --- tolist(): tensor -> nested Kirito List ------------------------------------------------
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\nT.Tensor([1.0,2.0,3.0]).tolist()") == "[1.0, 2.0, 3.0]");
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\ntype(T.Tensor([1.0]).tolist())") == "List");
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\nT.Tensor([[1.0,2.0],[3.0,4.0]]).tolist()") == "[[1.0, 2.0], [3.0, 4.0]]");
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\nT.zeros([2,1,2]).tolist()") == "[[[0.0, 0.0]], [[0.0, 0.0]]]");
+    // round-trips: Tensor(t.tolist()) == t
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\nvar t = T.arange(24.0).reshape([2,3,4])\nT.Tensor(t.tolist()) == t") == "True");
+    // tolist of a complex tensor nests Complex values
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\ntype(T.Tensor([[1.0]], dtype=\"Complex\").tolist()[0][0])") == "Complex");
+
+    // item()/tolist() are described under inspect
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\ninspect(T.zeros([1])).find(\"item()\") >= 0") == "True");
+    CHECK(evalStr(vm, "var T = import(\"tensor\")\ninspect(T.zeros([1])).find(\"tolist()\") >= 0") == "True");
+
     return RUN_TESTS();
 }
