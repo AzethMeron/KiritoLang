@@ -263,8 +263,9 @@ a stability fuzzer, and a benchmark). Working today:
   - `json` — parse/loads (objects → Dict; decodes \u escapes + surrogate pairs) and stringify/dumps
     (optional indent for pretty-printing).
   - `serialize` — text graph dumps/loads/save/load preserving shared references and cycles.
-  - `dump` — compact BINARY serialization (a `Dump` blob value) preserving references and cycles;
-    dumps/loads, Dump(bytes), save/load. `serialize` (text) and `dump` (binary) are two formats of
+  - `dump` — compact BINARY serialization preserving references and cycles; `dumps(value)` returns
+    the blob as **`Bytes`** and `loads(bytes)` reconstructs it (save/load persist to a file).
+    `serialize` (text) and `dump` (binary) are two formats of
     the same feature: they share one graph walk + reconstruction core (`serde::flatten`/`rebuild` in
     `stdlib_serde.hpp`) and supply only their byte codec — unlike `json`, which is flat data
     interchange with no reference/cycle preservation. Both handle the built-in value types
@@ -276,8 +277,8 @@ a stability fuzzer, and a benchmark). Working today:
     (`matrix`), **Complex/ComplexMatrix** (`complex`), **DateTime** (`time`), **Random** (`random` —
     restores the generator's exact stream, a reproducible checkpoint), and gradient-free **Tensor**
     (`tensor`). Resource-like natives that wrap live state (`Socket`/`Session`, open files/`BytesIO`/
-    streams, compiled regex `Pattern`/`Match`, the opaque `Dump` blob) are intentionally **not**
-    serializable and raise a clear, catchable error.
+    streams, compiled regex `Pattern`/`Match`) are intentionally **not** serializable and raise a
+    clear, catchable error.
   - `net` — TCP sockets (connect/bind/listen/accept/send/recv/recvall/settimeout) **and** a
     full-fledged HTTP/1.1 client (requests-style): `request(method, url[, opts])` plus
     `get/post/put/delete/patch/head/options` returning a rich

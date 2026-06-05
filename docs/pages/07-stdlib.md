@@ -522,8 +522,8 @@ and **`Vector`** (`matrix`), **`Complex`** and **`ComplexMatrix`** (`complex`), 
 checkpoint), and gradient-free **`Tensor`** (`tensor`; a Tensor that requires grad must be
 `detach()`-ed first). They can be stored standalone or nested inside Lists/Dicts/Sets/instances, with
 shared references preserved. Resource-like natives that wrap live state — `Socket`/`Session` (`net`),
-open files/`BytesIO`/streams (`io`), compiled `Pattern`/`Match` (`regex`), and the opaque `Dump`
-blob — are **not** serializable and raise a clear, catchable error instead.
+open files/`BytesIO`/streams (`io`), compiled `Pattern`/`Match` (`regex`) — are **not** serializable
+and raise a clear, catchable error instead.
 
 Human-readable **text** serialization → a `String`.
 
@@ -537,13 +537,15 @@ Human-readable **text** serialization → a `String`.
 ## dump
 
 Compact **binary** serialization (the binary counterpart of `serialize`), preserving references and
-cycles, in a portable binary form. Produces a `Dump` blob value rather than text.
+cycles. `dumps` returns the blob as [`Bytes`](types.html#bytes); `loads` reconstructs from it.
 
-- `dumps(value) → Dump` — serialize to a `Dump` blob value.
-- `loads(data)` — reconstruct from a `Dump` or a byte String.
-- `Dump(bytes: String) → Dump` — wrap raw bytes as a `Dump`.
-- `save(value, path) → None` — serialize `value` to a file.
+- `dumps(value) → Bytes` — serialize to a compact binary blob.
+- `loads(data)` — reconstruct the value graph; `data` is the `Bytes` from `dumps` (a `String` of the
+  same bytes is accepted too).
+- `save(value, path) → None` — serialize `value` straight to a file.
 - `load(path)` — reconstruct a value from a file written by `save`.
+
+Persist a blob yourself with binary file I/O, e.g. `io.open(path, "wb").write(dump.dumps(x))`.
 
 ---
 
@@ -671,8 +673,6 @@ data (downloads, files) stays byte-correct as Bytes while text round-trips as a 
 - `decompress(data) → data` — zlib-format decompress (raises on bad data).
 - `deflate(data) → data` — raw DEFLATE compression (no zlib header).
 - `inflate(data) → data` — raw DEFLATE decompression (no zlib header).
-
-(The Adler-32 / CRC-32 / CRC-64 checksums live in the [`hash`](#hash) module.)
 
 ---
 

@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "bytes.hpp"
 #include "native.hpp"
 #include "stdlib_serde.hpp"
 
@@ -25,9 +26,9 @@ namespace kirito {
 #endif
 
 // The `dump` module: compact BINARY serialization that preserves shared references and cycles (like
-// a portable `pickle`). The graph walk and reconstruction are shared with the text `serialize` module
-// via serde::flatten / serde::rebuild (stdlib_serde.hpp); this file is only the binary codec plus the
-// `Dump` blob value.
+// a portable `pickle`). `dumps(value)` returns the blob as `Bytes`; `loads(bytes)` reconstructs the
+// graph. The graph walk and reconstruction are shared with the text `serialize` module via
+// serde::flatten / serde::rebuild (stdlib_serde.hpp); this file is only the binary codec.
 //
 // Wire format (little-endian): magic "KDMP" (4 bytes), version u8 = 1, u32 objectCount, then
 // objectCount records each `u8 tag + payload` (tags match serde::Tag: 0 None, 1 Bool u8, 2 Integer
@@ -168,72 +169,22 @@ inline Handle read(KiritoVM& vm, const std::string& data) {
 
 }  // namespace dumpfmt
 
-// The Dump value: a binary blob wrapping serialized bytes. Holds the raw bytes (as a std::string so
-// arbitrary binary is safe), exposes size(), bytes() (-> String), save(path), and is stringifiable
-// for debugging.
-class DumpVal : public NativeClass<DumpVal> {
-public:
-    static constexpr const char* kTypeName = "Dump";
-    std::vector<std::string> inspectMembers() const override {
-        return {"size() -> Integer", "bytes() -> String", "save(path)"};
-    }
-    std::string data;
-
-    explicit DumpVal(std::string d) : data(std::move(d)) {}
-
-    std::string str(StringifyCtx&) const override {
-        return "Dump(" + std::to_string(data.size()) + " bytes)";
-    }
-    bool hashable() const override { return true; }
-    std::size_t hash() const override { return std::hash<std::string>{}(data); }
-    bool equals(const ObjectArena&, const Object& other) const override {
-        const auto* d = dynamic_cast<const DumpVal*>(&other);
-        return d && d->data == data;
-    }
-
-    Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
-        if (name == "size")
-            return makeMethod(vm,
-                "size", {}, [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
-                    return vm.makeInt(static_cast<int64_t>(static_cast<DumpVal&>(vm.arena().deref(self)).data.size()));
-                }, std::vector<Handle>{self});
-        if (name == "bytes")
-            return makeMethod(vm,
-                "bytes", {}, [self](KiritoVM& vm, std::span<const Handle>) -> Handle {
-                    return vm.makeString(static_cast<DumpVal&>(vm.arena().deref(self)).data);
-                }, std::vector<Handle>{self});
-        if (name == "save")
-            return makeMethod(vm,
-                "save", {"path"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                    const Object& o = vm.arena().deref(a[0]);
-                    if (o.kind() != ValueKind::String) throw KiritoError("save expects a path String");
-                    std::ofstream f(static_cast<const StrVal&>(o).value(), std::ios::binary);
-                    if (!f) throw KiritoError("could not open file for saving");
-                    f << static_cast<DumpVal&>(vm.arena().deref(self)).data;
-                    return vm.none();
-                }, std::vector<Handle>{self});
-        return Object::getAttr(vm, self, name);
-    }
-};
-
 class DumpModule : public NativeModule {
 public:
     std::string name() const override { return "dump"; }
     void setup(ModuleBuilder& m) override {
-        m.fn("dumps", {{"value"}}, "Dump", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return vm.alloc(std::make_unique<DumpVal>(dumpfmt::write(vm, Args(vm, a, "dumps")[0])));
+        // dumps(value) -> Bytes: the compact binary blob (use io.open(path, "wb").write(...) or the
+        // dump.save helper to persist it).
+        m.fn("dumps", {{"value"}}, "Bytes", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            return vm.alloc(std::make_unique<BytesVal>(dumpfmt::write(vm, Args(vm, a, "dumps")[0])));
         });
+        // loads(data) -> value: data is the Bytes from dumps (a String of the same bytes is accepted too).
         m.fn("loads", {{"data"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Value v = Args(vm, a, "loads")[0];
             const Object& o = vm.arena().deref(v.handle());
-            const auto* d = dynamic_cast<const DumpVal*>(&o);
-            if (d) return dumpfmt::read(vm, d->data);
+            if (const auto* b = dynamic_cast<const BytesVal*>(&o)) return dumpfmt::read(vm, b->data);
             if (v.isString()) return dumpfmt::read(vm, v.asString());
-            throw KiritoError("loads expects a Dump or a String of bytes");
-        });
-        m.fn("Dump", {{"bytes", "String"}}, "Dump", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            // Dump(bytes) wraps an existing byte String as a Dump value.
-            return vm.alloc(std::make_unique<DumpVal>(Args(vm, a, "Dump")[0].asString("Dump bytes")));
+            throw KiritoError("loads expects a Bytes (or String) of dump data");
         });
         m.fn("save", {{"value"}, {"path", "String"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             // save(value, path): serialize `value` straight to a file (dumps + write in one step).

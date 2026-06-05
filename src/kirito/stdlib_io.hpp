@@ -227,7 +227,7 @@ public:
         };
         if (name == "write")
             return bind("write", {"data"}, [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                const std::string& data = argString(vm, a[0], "BytesIO.write");
+                const std::string& data = ioRawBytes(vm, a[0], "BytesIO.write");   // String or Bytes
                 io(vm, self).streamWrite(data);
                 return vm.makeInt(static_cast<int64_t>(data.size()));
             });

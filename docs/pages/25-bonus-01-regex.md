@@ -9,31 +9,32 @@ that hangs a program — more on that at the end.
 ```kirito
 var io = import("io")
 var re = import("regex")
-io.print(re.search("\\d+", "order #4821").group())   # => 4821
+io.print(re.search(r"\d+", "order #4821").group())   # => 4821
 ```
 
 ## A note on backslashes
 
-Regex uses backslashes a lot (`\d`, `\w`, `\b`). Kirito has **no raw-string syntax**, and `\d` is not
-a valid string escape — so inside a Kirito string literal you must write a backslash as `\\`. The
-pattern "one or more digits" is therefore written `"\\d+"`:
+Regex uses backslashes a lot (`\d`, `\w`, `\b`). In an ordinary string `\d` is not a valid escape, so
+you'd have to double every backslash (`"\\d+"`). Kirito has **raw strings** (`r"..."`), where
+backslashes are literal — so `r"\d+"` is exactly the three characters `\d+`. **Prefer raw strings for
+regex patterns:**
 
 ```kirito
-io.print(re.search("\\d+", "abc123").group())   # => 123    ("\\d+" is the 3-char pattern \d+)
+io.print(re.search(r"\d+", "abc123").group())   # => 123    (r"\d+" is the 3-char pattern \d+)
 ```
 
-Throughout this lesson, every `\\` in a string is a single backslash in the actual pattern.
+(The doubled form `"\\d+"` works too, but `r"\d+"` reads far closer to the pattern you mean.)
 
 ## search, match, fullmatch
 
 The three entry points differ only in *where* the pattern must line up:
 
 ```kirito
-io.print(re.search("\\d+", "id 4821 x").group())     # => 4821   (anywhere)
-io.print(re.match("\\d+", "id 4821 x"))               # => None   (must start at index 0)
+io.print(re.search(r"\d+", "id 4821 x").group())     # => 4821   (anywhere)
+io.print(re.match(r"\d+", "id 4821 x"))               # => None   (must start at index 0)
 io.print(re.match("id", "id 4821 x").group())         # => id     (matches at the start)
-io.print(re.fullmatch("\\d+", "4821").group())        # => 4821   (must cover the WHOLE string)
-io.print(re.fullmatch("\\d+", "4821x"))               # => None
+io.print(re.fullmatch(r"\d+", "4821").group())        # => 4821   (must cover the WHOLE string)
+io.print(re.fullmatch(r"\d+", "4821x"))               # => None
 ```
 
 A successful call returns a **Match** object; a failed one returns `None`. Always check for `None`
@@ -65,8 +66,8 @@ io.print(re.search("[^0-9]+", "123abc").group())             # => abc      (^ ne
 (letters/digits/`_`), `\s` whitespace — and their uppercase forms `\D \W \S` are the negations:
 
 ```kirito
-io.print(re.search("\\w+", "  hi_there!").group())    # => hi_there
-io.print(re.search("\\s+", "a   b").group())          # => "   " (three spaces)
+io.print(re.search(r"\w+", "  hi_there!").group())    # => hi_there
+io.print(re.search(r"\s+", "a   b").group())          # => "   " (three spaces)
 ```
 
 ## Quantifiers: how many
@@ -84,7 +85,7 @@ io.print(re.search("\\s+", "a   b").group())          # => "   " (three spaces)
 io.print(re.search("ab*c", "ac").group())             # => ac     (* allows zero b's)
 io.print(re.search("ab+c", "abbbc").group())          # => abbbc
 io.print(re.search("colou?r", "color").group())       # => color  (? makes the u optional)
-io.print(re.search("\\d{3}-\\d{4}", "call 555-0199 now").group())   # => 555-0199
+io.print(re.search(r"\d{3}-\d{4}", "call 555-0199 now").group())   # => 555-0199
 ```
 
 ### Greedy vs lazy
@@ -104,7 +105,7 @@ These match a *position*, not a character: `^` start, `$` end, `\b` a word bound
 ```kirito
 io.print(re.search("^id", "id 99").group())           # => id   (only because it's at the start)
 io.print(re.search("99$", "id 99").group())           # => 99   (only at the end)
-io.print(re.findall("\\bcat\\b", "cat scatter cat"))  # => [cat, cat]  (whole word only, not "scatter")
+io.print(re.findall(r"\bcat\b", "cat scatter cat"))  # => [cat, cat]  (whole word only, not "scatter")
 ```
 
 ## Capturing groups
@@ -114,7 +115,7 @@ Parentheses `( )` create a **group** — a sub-part of the match you can pull ou
 match's `[start, end]` in code-point indices:
 
 ```kirito
-var m = re.search("(\\d{4})-(\\d{2})-(\\d{2})", "log 2024-06-07 ok")
+var m = re.search(r"(\d{4})-(\d{2})-(\d{2})", "log 2024-06-07 ok")
 io.print(m.group())     # => 2024-06-07   (group 0: the whole match)
 io.print(m.group(1))    # => 2024         (first parenthesized group)
 io.print(m.group(2))    # => 06
@@ -125,7 +126,7 @@ io.print(m.span())      # => [4, 14]
 A group made optional with `?` may not participate; then its `group(n)` is `None`:
 
 ```kirito
-var partial = re.search("(\\d+)?-(\\d+)", "-5")
+var partial = re.search(r"(\d+)?-(\d+)", "-5")
 io.print(partial.group(1))     # => None   (the first group matched nothing)
 io.print(partial.group(2))     # => 5
 ```
@@ -136,7 +137,7 @@ Naming a group with `(?P<name>...)` (or `(?<name>...)`) lets you fetch it by nam
 as a Dict with `.groupdict()` — far clearer than counting parentheses:
 
 ```kirito
-var who = re.search("(?P<user>\\w+)@(?P<host>[\\w.]+)", "write ada@kirito.dev today")
+var who = re.search(r"(?P<user>\w+)@(?P<host>[\w.]+)", "write ada@kirito.dev today")
 io.print(who.group("user"))    # => ada
 io.print(who.group("host"))    # => kirito.dev
 io.print(who.groupdict())      # => {host: kirito.dev, user: ada}  (key order may vary)
@@ -157,9 +158,9 @@ io.print(re.findall("(jan|feb|mar)", "feb and mar"))           # => [feb, mar]
 positions or groups of each):
 
 ```kirito
-io.print(re.findall("\\d+", "3 cats, 12 dogs, 1 fox"))     # => [3, 12, 1]   (0 groups -> whole matches)
-io.print(re.findall("(\\w+)=(\\d+)", "x=1 y=22"))           # => [[x, 1], [y, 22]]  (>1 group -> tuples)
-for hit in re.finditer("\\d+", "a1 b22"):
+io.print(re.findall(r"\d+", "3 cats, 12 dogs, 1 fox"))     # => [3, 12, 1]   (0 groups -> whole matches)
+io.print(re.findall(r"(\w+)=(\d+)", "x=1 y=22"))           # => [[x, 1], [y, 22]]  (>1 group -> tuples)
+for hit in re.finditer(r"\d+", "a1 b22"):
     io.print(hit.group(), "at", hit.start())                # => 1 at 1 / 22 at 4
 ```
 
@@ -170,12 +171,12 @@ for hit in re.finditer("\\d+", "a1 b22"):
 returns its replacement:
 
 ```kirito
-io.print(re.sub("\\s+", " ", "too   many    spaces"))       # => too many spaces
-io.print(re.sub("(\\w+)@(\\w+)", "\\2.\\1", "user@host"))   # => host.user   (template with backrefs)
+io.print(re.sub(r"\s+", " ", "too   many    spaces"))       # => too many spaces
+io.print(re.sub(r"(\w+)@(\w+)", r"\2.\1", "user@host"))   # => host.user   (template with backrefs)
 
 var redact = Function(m):
     return "*" * len(m.group())
-io.print(re.sub("\\d+", redact, "card 1234 5678"))          # => card **** ****   (callable replacement)
+io.print(re.sub(r"\d+", redact, "card 1234 5678"))          # => card **** ****   (callable replacement)
 ```
 
 Pass a count to limit how many are replaced: `re.sub("a", "X", "aaaa", 2)` → `XXaa`.
@@ -185,8 +186,8 @@ Pass a count to limit how many are replaced: `re.sub("a", "X", "aaaa", 2)` → `
 `split` breaks text at each match. If the pattern has groups, the captured separators are kept:
 
 ```kirito
-io.print(re.split(",\\s*", "a, b,c ,  d"))     # => [a, b, c , d]
-io.print(re.split("(\\s+)", "one two"))         # => [one,  , two]   (separator retained)
+io.print(re.split(r",\s*", "a, b,c ,  d"))     # => [a, b, c , d]
+io.print(re.split(r"(\s+)", "one two"))         # => [one,  , two]   (separator retained)
 ```
 
 ## Flags
@@ -199,7 +200,7 @@ Flags change how a pattern matches. Combine them with `+`:
 
 ```kirito
 io.print(re.findall("cat", "Cat CAT cat", re.IGNORECASE))   # => [Cat, CAT, cat]
-io.print(re.findall("^\\w+", "one\ntwo\nthree", re.MULTILINE))  # => [one, two, three]
+io.print(re.findall(r"^\w+", "one\ntwo\nthree", re.MULTILINE))  # => [one, two, three]
 ```
 
 You can also set a flag inside the pattern with `(?i)` / `(?m)` / `(?s)`:
@@ -234,7 +235,7 @@ var io = import("io")
 var re = import("regex")
 
 # A log line looks like:  2024-06-07 12:30:45 ERROR  disk full
-var line_pattern = re.compile("(?P<date>\\d{4}-\\d{2}-\\d{2}) (?P<time>\\d{2}:\\d{2}:\\d{2}) (?P<level>\\w+)\\s+(?P<msg>.*)")
+var line_pattern = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{2}:\d{2}:\d{2}) (?P<level>\w+)\s+(?P<msg>.*)")
 
 var parse_log = Function(line):
     var m = line_pattern.fullmatch(line)
@@ -276,7 +277,7 @@ The price of that guarantee (the same trade-off the RE2 library makes) is that t
 
 ```kirito
 try:
-    discard re.compile("(a)\\1")
+    discard re.compile(r"(a)\1")
 catch as e:
     io.print("rejected:", e)     # => rejected: invalid regex: backreferences are not supported ...
 ```

@@ -46,15 +46,19 @@ var x = [1, [2, 3], {"k": 4}]
 d.loads(d.dumps(x)) == x
 )") == "True");
 
-    // Dump value: type, size, bytes, and reconstruction from bytes
-    CHECK(evalStr(vm, "type(import(\"dump\").dumps([1, 2, 3]))") == "Dump");
-    CHECK(evalStr(vm, "import(\"dump\").dumps([1, 2, 3]).size() > 0") == "True");
+    // dumps returns Bytes (the binary blob); loads accepts the Bytes (or a String of the same bytes)
+    CHECK(evalStr(vm, "type(import(\"dump\").dumps([1, 2, 3]))") == "Bytes");
+    CHECK(evalStr(vm, "len(import(\"dump\").dumps([1, 2, 3])) > 0") == "True");
     CHECK(evalStr(vm, R"(
 var d = import("dump")
 var blob = d.dumps([10, 20, 30])
-var b = blob.bytes()
-var blob2 = d.Dump(b)
-d.loads(blob2)
+d.loads(blob)
+)") == "[10, 20, 30]");
+    // the Bytes blob round-trips through latin-1 String and back (loads accepts either)
+    CHECK(evalStr(vm, R"(
+var d = import("dump")
+var blob = d.dumps([10, 20, 30])
+d.loads(blob.decode("latin-1").encode("latin-1"))
 )") == "[10, 20, 30]");
 
     // SHARED references preserved: A appears twice -> one object after load
@@ -86,7 +90,7 @@ r[0] == r
 var d = import("dump")
 var f = import("sys").gettempdir() + "/kirito_dump_test.bin"
 var data = {"name": "Kirito", "scores": [10, 20, 30], "nested": {"x": [1, 2]}}
-d.dumps(data).save(f)
+d.save(data, f)
 var loaded = d.load(f)
 String(loaded["name"]) + ":" + String(loaded["scores"][2]) + ":" + String(loaded["nested"]["x"][0])
 )") == "Kirito:30:1");
@@ -119,8 +123,13 @@ len(r) == 1000 and r[999][1] == 998001
     CHECK_THROWS(vm.runSource("import(\"dump\").dumps(Function(x): return x)"));  // unsupported type
     CHECK_THROWS(vm.runSource("import(\"dump\").load(\"/nonexistent/path/xyz.bin\")"));
 
-    // a Dump round-trips through dumps itself? No — Dump is not a dumpable value; ensure clean error
-    CHECK_THROWS(vm.runSource("var d = import(\"dump\")\nd.dumps(d.dumps([1]))"));
+    // the binary blob is now Bytes — itself a serializable value, so it round-trips through dump
+    // (unlike the old opaque Dump type, which couldn't be re-dumped)
+    CHECK(evalStr(vm, R"(
+var d = import("dump")
+var blob = d.dumps([1, 2, 3])
+d.loads(d.dumps(blob)) == blob
+)") == "True");
 
     return RUN_TESTS();
 }

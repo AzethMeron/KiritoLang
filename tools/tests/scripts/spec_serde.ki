@@ -44,8 +44,8 @@ var payloads = ["", "a", "the quick brown fox " * 50, "binary-ish: " + String(ra
 for p in payloads:
     assert z.decompress(z.compress(p)) == p, "zlib compress/decompress round-trip"
     assert z.inflate(z.deflate(p)) == p, "zlib deflate/inflate round-trip"
-assert z.adler32("") == 1, "adler32 empty == 1"
-assert z.adler32("abc") == z.adler32("abc"), "adler32 deterministic"
+assert h.adler32("") == 1, "adler32 empty == 1"
+assert h.adler32("abc") == h.adler32("abc"), "adler32 deterministic"
 # compression actually shrinks a repetitive payload
 var big = "x" * 10000
 assert len(z.compress(big)) < len(big), "zlib compresses repetitive data"
