@@ -609,9 +609,11 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 - `s.bind(host: String, port: Integer) → None` — bind a server socket (sets `SO_REUSEADDR`).
 - `s.listen([backlog: Integer]) → None` — start listening.
 - `s.accept() → Socket` — accept the next connection (a new Socket).
-- `s.send(data: String) → Integer` — send all of `data`; returns the byte count.
-- `s.recv([n: Integer]) → String` — receive up to `n` bytes (default 4096).
-- `s.recvall() → String` — receive until the peer closes.
+- `s.send(data: String | Bytes) → Integer` — send all of `data` (text or binary); returns the byte count.
+- `s.recv([n: Integer]) → Bytes` — receive up to `n` bytes (default 4096). A socket carries raw bytes,
+  so this returns [`Bytes`](types.html#bytes); for a text protocol call `.decode()` on the result
+  (e.g. `s.recv(4096).decode("utf-8")`).
+- `s.recvall() → Bytes` — receive until the peer closes (raw `Bytes`; `.decode()` for text).
 - `s.settimeout(seconds) → None` — bound subsequent send/recv with a timeout.
 - `s.close() → None` — close the socket.
 

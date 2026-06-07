@@ -282,7 +282,9 @@ a stability fuzzer, and a benchmark). Working today:
     (`tensor`). Resource-like natives that wrap live state (`Socket`/`Session`, open files/`BytesIO`/
     streams, compiled regex `Pattern`/`Match`) are intentionally **not** serializable and raise a
     clear, catchable error.
-  - `net` — TCP sockets (connect/bind/listen/accept/send/recv/recvall/settimeout) **and** a
+  - `net` — TCP sockets (connect/bind/listen/accept/send/recv/recvall/settimeout; `recv`/`recvall`
+    return **`Bytes`** so binary streams stay byte-exact — `.decode()` for text — and `send` accepts a
+    String or Bytes) **and** a
     full-fledged HTTP/1.1 client (requests-style): `request(method, url[, opts])` plus
     `get/post/put/delete/patch/head/options` returning a rich
     `Response` (`status`/`statuscode`/`reason`/`ok`/`url`/`text` [decoded String]/`content` [raw
@@ -373,8 +375,15 @@ a stability fuzzer, and a benchmark). Working today:
   `rotate`/`paste`/`point`/`split`/`merge`/`blend`, `imageops` [invert/grayscale/posterize/solarize/
   autocontrast/equalize/expand/colorize/...], `imagefilter` [convolution kernels + Gaussian/Box/rank
   filters, vectorised as edge-pad + shifted-window accumulate], and `imagedraw` [line/rectangle/
-  ellipse/polygon]; distributed as a kpm package with a `kirito.json` manifest, and cross-validated
-  pixel-for-pixel against Pillow by `compare_pillow.py`). Its self-test runs in CTest (`script_imaging`).
+  ellipse/polygon]; **plus video reading** — a baseline-JPEG decoder (`jpeg.ki`: Huffman + a tensor
+  8×8 IDCT + YCbCr→RGB, so `.jpg` opens and MJPEG decodes), a GIF decoder (`gif.ki`: LZW + palette +
+  animation), and an OpenCV-`VideoCapture`-style `video.ki` reading MJPEG / animated-GIF / Y4M /
+  image-sequence files and **network MJPEG-over-HTTP** streams (over the now-`Bytes` socket) as frames
+  [`read`/`grab`/`get`/`set`/`release`/`for frame in cap`]; true H.264/HEVC/RTSP is out of reach in
+  pure Kirito [no codec, no subprocess] and documented as needing an external transcode to MJPEG;
+  distributed as a kpm package with a `kirito.json` manifest, and cross-validated
+  pixel-for-pixel against Pillow by `compare_pillow.py`/`compare_video_pillow.py`). Its self-tests run
+  in CTest (`script_imaging`, `script_video`).
   `sqldb_kwargs`/`webserver_kwargs` are copies of two of those refactored so *every* call site passes
   arguments by keyword — an end-to-end test that keyword arguments work across every callable; they
   pass the same test harnesses.

@@ -25,7 +25,7 @@ class Reader:
         # Pull one more chunk into the buffer; returns False at end of stream.
         if self._eof:
             return False
-        var chunk = self._conn.recv(8192)
+        var chunk = self._conn.recv(8192).decode("latin-1")   # socket gives Bytes; decode for text
         if len(chunk) == 0:
             self._eof = True
             return False

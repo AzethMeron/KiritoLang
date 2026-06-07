@@ -38,9 +38,13 @@ imaging.ki         the Image class + new/open/save/fromtensor/merge/blend + PNG/
 imageops.ki        ImageOps: invert/grayscale/mirror/flip/posterize/solarize/autocontrast/equalize/...
 imagefilter.ki     ImageFilter: convolution kernels (BLUR/SHARPEN/...) + Gaussian/Box/rank filters
 imagedraw.ki       ImageDraw: point/line/rectangle/ellipse/polygon (mutating primitives)
-demo.ki            a tour that produces ~18 real PNGs
-test_imaging.ki    93-check self-test (also wired into CTest as `script_imaging`)
-compare_pillow.py  cross-validates the output against Pillow, pixel for pixel
+jpeg.ki            baseline JPEG decoder (Huffman + tensor IDCT + YCbCr->RGB); `.jpg` via Image.open
+gif.ki             GIF87a/89a decoder (LZW + palette + animation compositing)
+video.ki           VideoCapture: MJPEG / GIF / Y4M / image-sequence / MJPEG-over-HTTP backends
+demo.ki / demo_video.ki   tours that produce real PNGs / extract video frames
+test_imaging.ki    93-check self-test (CTest `script_imaging`); test_video.ki (CTest `script_video`)
+compare_pillow.py / compare_video_pillow.py   pixel-for-pixel cross-validation against Pillow
+testdata/          tiny committed MJPEG + GIF assets the video self-test decodes
 ```
 
 ## Quick start
@@ -136,10 +140,46 @@ operation is element assignment (`t[i, j] = v`), and that is exactly what `putpi
 | PNG | ✓ | ✓ | 8-bit, colour types 0/2/6 (L/RGB/RGBA); decodes all five scanline filters incl. Paeth; zlib via the stdlib |
 | PPM/PGM | ✓ | ✓ | binary Netpbm (P6/P5); handles `#` comments on read |
 | BMP | ✓ | ✓ | 24-bit uncompressed, bottom-up BGR |
+| JPEG | ✓ | — | baseline (sequential-DCT, Huffman); grey + YCbCr 4:4:4/4:2:2/4:2:0, restart markers (`jpeg.ki`) |
+| GIF | ✓ | — | GIF87a/89a, static + animated (LZW, palette, interlace, transparency, disposal) (`gif.ki`) |
 
 PNG is the interesting one: encoding writes signature + IHDR + zlib-compressed filtered scanlines +
 IEND, with CRC-32 per chunk (both from the `zlib` and `hash` stdlib modules); decoding parses the
-chunks, inflates the IDAT stream and reverses the per-row filters into a tensor.
+chunks, inflates the IDAT stream and reverses the per-row filters into a tensor. JPEG decoding adds a
+full baseline pipeline — Huffman entropy decode, dequantise, an 8×8 inverse DCT (as two `tensor`
+matmuls per block) and a vectorised YCbCr→RGB — which is what makes MJPEG video readable.
+
+## Video — an OpenCV-style `VideoCapture`
+
+`video.ki` reads video as a sequence of frames, in the spirit of `cv2.VideoCapture`, for every source
+that is decodable in pure Kirito (no external codec):
+
+```kirito
+var cv = import("video")
+var cap = cv.VideoCapture("clip.mjpeg")        # or "anim.gif", "clip.y4m", "frames/f_%04d.png",
+                                                #    or "http://camera/stream" (MJPEG over HTTP)
+io.print(cap.get(cv.CAP_PROP_FRAME_COUNT), cap.width, cap.height, cap.get(cv.CAP_PROP_FPS))
+while True:
+    var ok_frame = cap.read()                   # [ok, Image]
+    if not ok_frame[0]:
+        break
+    discard ok_frame[1].filter(import("imagefilter").FIND_EDGES)   # frames are imaging Images
+cap.release()
+# or: for frame in cap: ...
+```
+
+Sources: **MJPEG** files (a stream of baseline JPEGs), **animated GIF**, **Y4M** (raw YUV4MPEG2 — the
+uncompressed interchange ffmpeg pipes), **image sequences** (`printf`-style `%0Nd` patterns), and
+**network MJPEG** (`multipart/x-mixed-replace` over HTTP — the common IP-camera case), read over a
+socket. The surface mirrors OpenCV: `read`/`grab`/`retrieve`, `isopened`, `get`/`set` with the
+`CAP_PROP_*` ids (random-access seek on file backends), `release`, and `for frame in cap`.
+
+> **What about MP4 / H.264 / RTSP?** Those are out of reach in pure Kirito: a real video codec
+> (H.264/HEVC) is far beyond a tree-walked script, and Kirito has no subprocess to delegate to ffmpeg
+> the way OpenCV's FFMPEG backend does. Transcode to MJPEG first and open that —
+> `ffmpeg -i in.mp4 -c:v mjpeg out.mjpeg`, or for a camera
+> `ffmpeg -rtsp_transport tcp -i rtsp://host/stream -c:v mjpeg out.mjpeg`. The MJPEG-over-HTTP backend
+> covers the large class of cameras that already expose an MJPEG endpoint, with no transcode at all.
 
 ## Cross-validation against Pillow
 
@@ -147,10 +187,15 @@ chunks, inflates the IDAT stream and reverses the per-row filters into a tensor.
 image and a set of operation results, then re-computes the same operations with Pillow and asserts a
 **pixel-exact** match (a one-count tolerance only for the greyscale luma rounding). It also has
 Pillow author adaptively-filtered PNGs (RGB/RGBA/L) and checks that Kirito decodes them exactly.
+`compare_video_pillow.py` does the same for video — Pillow authors JPEG / animated-GIF / MJPEG / Y4M /
+image-sequence assets (and serves a local MJPEG-over-HTTP stream), and the Kirito `VideoCapture`
+decodes each: GIF and the image sequence match **exactly**, JPEG/MJPEG/Y4M within a ±3 tolerance
+(float-vs-integer IDCT and chroma upsampling).
 
 ```
 pip install pillow
-python3 examples/big_projects/imaging/compare_pillow.py
+python3 examples/big_projects/imaging/compare_pillow.py        # images
+python3 examples/big_projects/imaging/compare_video_pillow.py   # video
 # -> CROSS-VALIDATION PASSED -- Kirito imaging matches Pillow
 ```
 
@@ -164,6 +209,11 @@ lists its full method surface — the same guarantees every Kirito value carries
 
 - 8-bit channels only (no 16-bit / float-HDR images); palette PNGs (colour type 3) aren't decoded.
 - `rotate` covers 90° multiples only; arbitrary-angle resampling isn't implemented.
-- No text rendering (Pillow's `ImageFont`), no JPEG (it would need a DCT codec), no animation.
+- JPEG is **decode-only** and **baseline-only** (progressive/arithmetic JPEGs are rejected); chroma is
+  upsampled nearest-neighbour, so subsampled JPEGs differ from libjpeg's "fancy" upsampling by a few
+  counts at colour edges. No JPEG/GIF *encoder*.
+- Video is limited to codecs decodable in pure Kirito (MJPEG/GIF/Y4M/image-sequence); compressed
+  video (H.264/HEVC, MP4/MKV, RTSP) needs an external transcode to MJPEG (see the Video section).
+- No text rendering (Pillow's `ImageFont`).
 - `GaussianBlur` is a true discrete Gaussian rather than Pillow's box-approximation, so blurred
   output is visually equivalent but not bit-identical.

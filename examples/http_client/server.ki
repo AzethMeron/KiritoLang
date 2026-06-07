@@ -13,7 +13,7 @@ if len(arglist) >= 1:
 var readRequest = Function(conn):
     var buf = ""
     while buf.find("\r\n\r\n") < 0:
-        var chunk = conn.recv(4096)
+        var chunk = conn.recv(4096).decode("latin-1")   # socket gives Bytes; decode for text
         if len(chunk) == 0:
             return [buf, ""]
         buf = buf + chunk
@@ -25,7 +25,7 @@ var readRequest = Function(conn):
         if line.lower().startswith("content-length:"):
             clen = Integer(line[15:].strip())
     while len(body) < clen:
-        var more = conn.recv(4096)
+        var more = conn.recv(4096).decode("latin-1")
         if len(more) == 0:
             break
         body = body + more

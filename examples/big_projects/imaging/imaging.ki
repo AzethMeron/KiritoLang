@@ -458,6 +458,12 @@ var frombytes = Function(data):
     if len(data) >= 2 and data[0] == 80:
         var pair = _pnm_decode(data)
         return Image(pair[0], pair[1])
+    if len(data) >= 2 and data[0] == 255 and data[1] == 216:        # JPEG SOI
+        var pair = import("jpeg").decode(data)                      # baseline JPEG, lazily loaded
+        return Image(pair[0], pair[1])
+    if len(data) >= 6 and data[0] == 71 and data[1] == 73 and data[2] == 70:   # "GIF"
+        var pair = import("gif").firstframe(data)
+        return Image(pair[0], pair[1])
     throw "unrecognized image format"
 
 # ================================================================ resampling

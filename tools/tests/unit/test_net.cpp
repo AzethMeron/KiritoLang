@@ -114,8 +114,31 @@ int main() {
         std::string src =
             "var net = import(\"net\")\nvar s = net.Socket()\n"
             "s.connect(\"127.0.0.1\", " + std::to_string(port) + ")\ns.send(\"ping\")\n"
-            "var reply = s.recvall()\ns.close()\nreply\n";
+            "var reply = s.recvall().decode()\ns.close()\nreply\n";   // recv -> Bytes; decode for text
         CHECK(evalStr(vm, src) == "echo:ping");
+        server.join();
+    }
+
+    // --- raw TCP is binary-safe: recv returns Bytes, send accepts Bytes; a blob with NUL/0xFF/0x80
+    //     bytes round-trips byte-exactly (the property MJPEG-over-socket video streaming relies on). ---
+    {
+        int port = 0, srv = makeListener(port);
+        CHECK(srv >= 0);
+        std::thread server([srv] {
+            int c = ::accept(srv, nullptr, nullptr);
+            char buf[256];
+            ssize_t n = ::recv(c, buf, sizeof(buf), 0);     // echo the raw bytes back verbatim
+            if (n > 0) ::send(c, buf, static_cast<std::size_t>(n), 0);
+            ::close(c);
+            ::close(srv);
+        });
+        std::string src =
+            "var net = import(\"net\")\nvar s = net.Socket()\n"
+            "s.connect(\"127.0.0.1\", " + std::to_string(port) + ")\n"
+            "var sent = Bytes([0, 1, 255, 128, 10, 13, 0, 65])\n"
+            "discard s.send(sent)\nvar r = s.recvall()\ns.close()\n"
+            "type(r) + \"|\" + String(r == sent) + \"|\" + String(len(r))\n";
+        CHECK(evalStr(vm, src) == "Bytes|True|8");
         server.join();
     }
 

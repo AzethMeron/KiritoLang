@@ -38,7 +38,7 @@ class LineReader:
                 var line = self._buf[0:nl]
                 self._buf = self._buf[nl + 1:]
                 return line
-            var chunk = self._conn.recv(8192)
+            var chunk = self._conn.recv(8192).decode("latin-1")   # socket gives Bytes; decode for text
             if len(chunk) == 0:
                 if len(self._buf) == 0:
                     return None

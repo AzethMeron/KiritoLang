@@ -145,3 +145,12 @@ add_test(NAME script_imaging
                  -DSCRIPT=${_imaging_dir}/test_imaging.ki
                  -DEXPECTED=${_imaging_dir}/test_imaging.expected
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_script.cmake)
+
+# The video module (jpeg/gif codecs + an OpenCV-style VideoCapture) over the committed testdata/
+# assets. Run with the package dir as the working directory so the `testdata/...` paths resolve.
+add_test(NAME script_video
+         COMMAND ${CMAKE_COMMAND} -DKI=$<TARGET_FILE:ki>
+                 -DSCRIPT=${_imaging_dir}/test_video.ki
+                 -DEXPECTED=${_imaging_dir}/test_video.expected
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_script.cmake)
+set_tests_properties(script_video PROPERTIES WORKING_DIRECTORY ${_imaging_dir})

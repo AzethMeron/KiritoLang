@@ -56,7 +56,7 @@ class SocketVal : public NativeClass<SocketVal> {
 public:
     static constexpr const char* kTypeName = "Socket";
     std::vector<std::string> inspectMembers() const override {
-        return {"connect(host, port)", "bind(host, port)", "listen(backlog)", "accept() -> Socket", "send(data) -> Integer", "recv(size) -> String", "recvall() -> String", "settimeout(seconds)", "close()"};
+        return {"connect(host, port)", "bind(host, port)", "listen(backlog)", "accept() -> Socket", "send(data) -> Integer", "recv(size) -> Bytes", "recvall() -> Bytes", "settimeout(seconds)", "close()"};
     }
     netcompat::socket_t fd = netcompat::kInvalidSocket;
     bool closed = false;
@@ -806,7 +806,12 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         });
     if (name == "send")
         return bind("send", {"data"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const std::string& data = asStr(vm, a[0]);
+            // Accept a String or Bytes (Python-style): text callers pass a String, binary callers Bytes.
+            Object& o = vm.arena().deref(a[0]);
+            std::string data;
+            if (o.kind() == ValueKind::String) data = static_cast<StrVal&>(o).value();
+            else if (auto* b = dynamic_cast<BytesVal*>(&o)) data = b->data;
+            else throw KiritoError("send expects a String or Bytes");
             net::sendAll(sock(vm, self).fd, data);
             return vm.makeInt(static_cast<int64_t>(data.size()));
         });
@@ -816,11 +821,12 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             std::vector<char> buf(n);
             long long got = netcompat::recvBytes(sock(vm, self).fd, buf.data(), n);
             if (got < 0) throw KiritoError("recv failed: " + netcompat::lastError());
-            return vm.makeString(std::string(buf.data(), static_cast<std::size_t>(got)));
+            // Bytes, not String: a socket carries raw bytes (binary video, gzip, ...). Decode for text.
+            return vm.alloc(std::make_unique<BytesVal>(std::string(buf.data(), static_cast<std::size_t>(got))));
         });
     if (name == "recvall")
         return bind("recvall", {}, [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
-            return vm.makeString(net::recvAll(sock(vm, self).fd));
+            return vm.alloc(std::make_unique<BytesVal>(net::recvAll(sock(vm, self).fd)));
         });
     if (name == "settimeout")
         return bind("settimeout", {"seconds"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
