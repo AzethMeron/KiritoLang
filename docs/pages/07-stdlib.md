@@ -611,7 +611,7 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 - `s.accept() → Socket` — accept the next connection (a new Socket).
 - `s.send(data: String | Bytes) → Integer` — send all of `data` (text or binary); returns the byte count.
 - `s.recv([n: Integer]) → Bytes` — receive up to `n` bytes (default 4096). A socket carries raw bytes,
-  so this returns [`Bytes`](types.html#bytes); for a text protocol call `.decode()` on the result
+  so this returns `Bytes`; for a text protocol call `.decode()` on the result
   (e.g. `s.recv(4096).decode("utf-8")`).
 - `s.recvall() → Bytes` — receive until the peer closes (raw `Bytes`; `.decode()` for text).
 - `s.settimeout(seconds) → None` — bound subsequent send/recv with a timeout.
