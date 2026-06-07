@@ -208,6 +208,18 @@ int main() {
     // tolist of a complex tensor nests Complex values
     CHECK(evalStr(vm, "var T = import(\"tensor\")\ntype(T.Tensor([[1.0]], dtype=\"Complex\").tolist()[0][0])") == "Complex");
 
+    // GC regression: tolist() builds a nested List whose float leaves sit in a parent ListVal that
+    // is not yet in the arena. If those leaves aren't GC-rooted, a collection triggered mid-build by
+    // a sibling allocation reclaims them, yielding a stale handle (hit by Float-tensor image I/O).
+    // Force a collection before every allocation so the partial structure is maximally exposed.
+    {
+        KiritoVM gcvm;
+        gcvm.setGcThreshold(1);
+        CHECK(evalStr(gcvm, "var T = import(\"tensor\")\nvar t = T.arange(60.0).reshape([4,5,3])\nT.Tensor(t.tolist()) == t") == "True");
+        // and the leaf values survive intact (sum 0..59)
+        CHECK(evalStr(gcvm, "var T = import(\"tensor\")\nvar s = 0.0\nfor row in T.arange(60.0).reshape([4,5,3]).tolist():\n  for px in row:\n    for v in px:\n      s = s + v\ns") == "1770.0");
+    }
+
     // item()/tolist() are described under inspect
     CHECK(evalStr(vm, "var T = import(\"tensor\")\ninspect(T.zeros([1])).find(\"item()\") >= 0") == "True");
     CHECK(evalStr(vm, "var T = import(\"tensor\")\ninspect(T.zeros([1])).find(\"tolist()\") >= 0") == "True");

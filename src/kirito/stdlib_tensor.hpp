@@ -1518,7 +1518,9 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         std::function<Handle(std::size_t, std::size_t)> build = [&](std::size_t dim, std::size_t off) -> Handle {
             if (dim == shp.size()) {  // a scalar leaf
                 if (t.isComplex()) return rs.add(cpx::make(vm, std::get<CT>(t.store).data[off]));
-                return vm.makeFloat(std::get<FT>(t.store).data[off]);
+                // Root the leaf: it sits in a parent ListVal that isn't in the arena yet, so a GC
+                // triggered by a sibling's allocation would otherwise reclaim it (stale handle).
+                return rs.add(vm.makeFloat(std::get<FT>(t.store).data[off]));
             }
             tensor::Shape st = t.isComplex() ? std::get<CT>(t.store).strides() : std::get<FT>(t.store).strides();
             auto list = std::make_unique<ListVal>();

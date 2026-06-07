@@ -366,8 +366,16 @@ a stability fuzzer, and a benchmark). Working today:
   `kgrad` (a pure-Kirito tensor/autodiff/deep-learning library: strided views, reverse-mode autograd
   with a computational graph, SGD/Adam, Linear/Conv2d/BatchNorm/activations as PyTorch-style Modules,
   MSE/BCE/CE/NLL losses, Dataset/DataLoader, PCA, weight serialization, and a backend abstraction
-  ready for a future GPU device — trains an MLP that solves XOR; conv backward is gradient-checked).
-  `sqldb_kwargs`/`webserver_kwargs` are copies of those two refactored so *every* call site passes
+  ready for a future GPU device — trains an MLP that solves XOR; conv backward is gradient-checked),
+  and `imaging` (a Pillow/PIL-style image library in pure Kirito built on the `tensor` backend:
+  an `Image` class storing pixels as an `(H,W,C)` Float tensor, PNG [zlib + all five scanline
+  filters incl. Paeth]/PPM/PGM/BMP codecs, `convert`/`crop`/`resize` [nearest+bilinear]/`transpose`/
+  `rotate`/`paste`/`point`/`split`/`merge`/`blend`, `imageops` [invert/grayscale/posterize/solarize/
+  autocontrast/equalize/expand/colorize/...], `imagefilter` [convolution kernels + Gaussian/Box/rank
+  filters, vectorised as edge-pad + shifted-window accumulate], and `imagedraw` [line/rectangle/
+  ellipse/polygon]; distributed as a kpm package with a `kirito.json` manifest, and cross-validated
+  pixel-for-pixel against Pillow by `compare_pillow.py`). Its self-test runs in CTest (`script_imaging`).
+  `sqldb_kwargs`/`webserver_kwargs` are copies of two of those refactored so *every* call site passes
   arguments by keyword — an end-to-end test that keyword arguments work across every callable; they
   pass the same test harnesses.
 
