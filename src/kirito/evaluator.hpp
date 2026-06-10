@@ -408,8 +408,11 @@ public:
     }
 
     void visit(const ast::FunctionExpr& e) override {
-        // Capture the current scope -> closure.
-        result_ = vm_.alloc(std::make_unique<KiFunction>(&e, env_));
+        // Capture the current scope -> closure, stamped with the defining chunk's file so a later
+        // error inside this function is attributed to it (not to the calling script).
+        auto fn = std::make_unique<KiFunction>(&e, env_);
+        fn->sourceFile = vm_.currentChunkFile();
+        result_ = vm_.alloc(std::move(fn));
     }
 
     void visit(const ast::CallExpr& e) override {

@@ -34,7 +34,9 @@ io.print(result)                     # => None
 
 ## Default parameter values and keyword arguments
 
-A parameter can have a default, used when the caller omits it. You can also pass arguments **by
+A parameter can have a default, used when the caller omits it. Defaults are evaluated **at call
+time, once per call** — so a mutable default like `xs = []` is a *fresh* list on every call (no
+Python-style shared-default surprise). You can also pass arguments **by
 name**, in any order — clearer at the call site and order-independent:
 
 ```kirito

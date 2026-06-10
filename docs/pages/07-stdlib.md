@@ -62,14 +62,17 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 - `f.read([n]) → String` — read `n` characters, or the whole rest of the file if omitted. (In binary mode, returns [`Bytes`](types.html#bytes); `n` counts bytes.)
 - `f.readline() → String` — read one line (without the trailing newline). (Bytes in binary mode.)
 - `f.readlines() → List` — read all remaining lines into a List.
-- `f.write(s: String) → None` — write `s` at the current position.
-- `f.writelines(lines) → None` — write each String in an iterable.
+- `f.write(s: String | Bytes) → None` — write `s` at the current position. Raises on a closed file
+  or one opened read-only — a write is never silently dropped.
+- `f.writelines(lines) → None` — write each String/Bytes in an iterable (same raising rules).
 - `f.seek(offset: Integer, whence: Integer = 0) → Integer` — move the read/write cursor and return the
   new position. `whence` is `0` (from the start, the default), `1` (relative to the current position),
   or `2` (from the end).
 - `f.tell() → Integer` — the current byte position.
 - `f.flush() → None` — flush buffered output.
 - `f.close() → None` — close the file (also done automatically on `with` exit / collection).
+  Reading, writing, or seeking a **closed** file raises a catchable error; reading a write-only
+  (`"w"`/`"a"`) file or writing a read-only (`"r"`) one likewise raises.
 
 ### BytesIO object
 
@@ -925,9 +928,10 @@ string.similarity("abc", ["abc", "abd", "xyz"])         # [1.0, 0.667, 0.0]  (Li
 
 ## base64
 
-Operates on **byte values** as a `List` of Integers (0–255), not text strings.
+Operates on **byte values**: a `List` of Integers (0–255), a [`Bytes`](types.html#bytes), or a
+`String` (encoded as its UTF-8 bytes).
 
-- `encode(data: List) → String` — Base64-encode a list of byte values.
+- `encode(data: List | Bytes | String) → String` — Base64-encode the data.
 - `decode(s: String) → List` — decode Base64 text back to a list of byte values.
 - `urlsafeencode(data: List) → String` — encode using the URL-safe alphabet (`-_`).
 - `urlsafedecode(s: String) → List` — decode using the URL-safe alphabet (`-_`).

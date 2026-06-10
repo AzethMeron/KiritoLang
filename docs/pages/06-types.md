@@ -91,9 +91,13 @@ test is applied in this exact order:
    collapse to `0`), while the relative term scales the tolerance for large numbers.
 
 Only equality is fuzzy. The **ordering** operators (`<`, `<=`, `>`, `>=`) use exact IEEE-754
-comparison, and a `Float` is **hashable** consistently with this (a float equal to an integer value
-hashes like that integer), so `Float` keys behave sensibly in `Set`/`Dict`. Because equality has a
-tolerance, do not rely on it to distinguish two deliberately-very-close-but-distinct floats.
+comparison — so for two floats within the tolerance, `a == b` and `a > b` can *both* be true.
+**Hashing is by exact value** (a float equal to an integer value hashes like that integer, so `1.0`
+and `1` are the same `Dict`/`Set` key). A tolerance-based equality is not transitive, so no hash can
+agree with it: two *distinct* floats that compare `==` within the tolerance (say `0.1 + 0.2` and
+`0.3`) generally hash differently and act as **separate** `Set`/`Dict` keys. Use exact-valued keys
+(Integers, Strings, or floats produced by the same computation), and do not rely on the tolerance to
+merge near-equal keys — nor on `==` to distinguish two deliberately-very-close-but-distinct floats.
 
 ## String
 

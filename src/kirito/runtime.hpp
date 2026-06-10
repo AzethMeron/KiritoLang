@@ -159,7 +159,10 @@ inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
                 if (y == 0) throw KiritoError("integer modulo by zero");
                 return vm.makeInt(imod(x, y));
             case BinOp::Pow:
-                if (y < 0) return vm.makeFloat(std::pow(static_cast<double>(x), static_cast<double>(y)));
+                if (y < 0) {
+                    if (x == 0) throw KiritoError("zero cannot be raised to a negative power");
+                    return vm.makeFloat(std::pow(static_cast<double>(x), static_cast<double>(y)));
+                }
                 return vm.makeInt(ipow(x, y));
             default: break;
         }
@@ -186,7 +189,10 @@ inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
             case BinOp::Mod:
                 if (y == 0.0) throw KiritoError("float modulo by zero");
                 return vm.makeFloat(x - std::floor(x / y) * y);
-            case BinOp::Pow: return vm.makeFloat(std::pow(x, y));
+            case BinOp::Pow:
+                // 0**-n is 1/0: raise like division by zero does (otherwise it would yield inf).
+                if (x == 0.0 && y < 0.0) throw KiritoError("zero cannot be raised to a negative power");
+                return vm.makeFloat(std::pow(x, y));
             default: break;
         }
     }
@@ -1051,7 +1057,24 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             int64_t count = -1;
             if (a.size() > 2 && vm.arena().deref(a[2]).kind() != ValueKind::None)
                 count = argInt(vm, a[2], "replace");
-            if (!from.empty() && count != 0) {
+            if (from.empty() && count != 0) {
+                // Python semantics: an empty pattern matches at every code-point boundary, so the
+                // replacement is interleaved between characters (and at both ends).
+                std::string out;
+                int64_t done = 0;
+                auto starts = utf8Starts(s);
+                starts.push_back(s.size());  // boundary after the last character
+                std::size_t prev = 0;
+                for (std::size_t b : starts) {
+                    out.append(s, prev, b - prev);
+                    prev = b;
+                    if (count >= 0 && done >= count) { break; }
+                    out += to;
+                    ++done;
+                }
+                out.append(s, prev, std::string::npos);
+                s = std::move(out);
+            } else if (!from.empty() && count != 0) {
                 std::string out;
                 std::size_t pos = 0, prev = 0;
                 int64_t done = 0;
@@ -1072,10 +1095,18 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             const std::string& sub = asStr(vm, a[0], "count");
             auto [lo, hi] = window(vm, a, 1, s);
             int64_t n = 0;
-            if (!sub.empty())
-                for (std::size_t pos = s.find(sub, lo); pos != std::string::npos && pos + sub.size() <= hi;
-                     pos = s.find(sub, pos + sub.size()))
-                    ++n;
+            if (sub.empty()) {
+                // Python: the empty string occurs at every code-point boundary in the window
+                // (so "abc".count("") == 4 — before each character and after the last).
+                auto starts = utf8Starts(s);
+                starts.push_back(s.size());
+                for (std::size_t b : starts)
+                    if (b >= lo && b <= hi) ++n;
+                return vm.makeInt(n);
+            }
+            for (std::size_t pos = s.find(sub, lo); pos != std::string::npos && pos + sub.size() <= hi;
+                 pos = s.find(sub, pos + sub.size()))
+                ++n;
             return vm.makeInt(n);
         });
     if (name == "find")
@@ -1421,10 +1452,16 @@ inline Handle InstanceValue::getAttr(KiritoVM& vm, Handle self, std::string_view
     const Handle* method = klass.findMethod(vm.arena(), std::string(name));
     if (!method)
         throw KiritoError("'" + className + "' object has no attribute '" + std::string(name) + "'");
+    Handle methodH = *method;
+    // A non-callable class member (`var n = 5` in the class body) is a shared class attribute:
+    // return the value itself. Only functions bind as methods (receiver prepended).
+    {
+        ValueKind mk = vm.arena().deref(methodH).kind();
+        if (mk != ValueKind::Function && mk != ValueKind::NativeFunction) return methodH;
+    }
     // Return a bound method: a callable that prepends the receiver before invoking the function. It
     // is kwarg-aware so `obj.method(x, k = 1)` forwards keyword arguments to the underlying Kirito
     // function — method calls accept keywords exactly like plain function calls.
-    Handle methodH = *method;
     return vm.alloc(std::make_unique<NativeFunction>(
         std::string(name),
         NativeFnKw{[self, methodH](KiritoVM& vm, std::span<const Handle> args,
@@ -1449,6 +1486,11 @@ inline Handle SuperValue::getAttr(KiritoVM& vm, Handle, std::string_view name) {
     if (!method)
         throw KiritoError("'super' object has no attribute '" + std::string(name) + "'");
     Handle methodH = *method;
+    {
+        // Same rule as instance lookup: a non-callable member is a plain value, not a method.
+        ValueKind mk = vm.arena().deref(methodH).kind();
+        if (mk != ValueKind::Function && mk != ValueKind::NativeFunction) return methodH;
+    }
     Handle inst = instance;
     return vm.alloc(std::make_unique<NativeFunction>(
         std::string(name),
@@ -1625,11 +1667,25 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
             if (!p.annotation.empty()) { simple = false; break; }
         def_->fastBindable = simple;  // memoize the per-def annotation check (def_ field is mutable)
     }
+    // Attribute an error escaping the body to this function's defining chunk (file or frozen
+    // module) — the body's spans refer to that source, not to whichever script called it.
+    auto attributed = [this](auto&& run) -> Handle {
+        try {
+            return run();
+        } catch (KiritoError& e) {
+            if (e.file.empty() && !sourceFile.empty()) e.file = sourceFile;
+            throw;
+        } catch (KiritoThrow& t) {
+            if (t.file.empty() && !sourceFile.empty()) t.file = sourceFile;
+            throw;
+        }
+    };
+
     if (named.empty() && positional.size() == params.size() && *def_->fastBindable) {
         for (std::size_t i = 0; i < params.size(); ++i) env.define(params[i].name, positional[i]);
         Evaluator evf(vm, scope);
         if (hasOwner) evf.setCurrentClass(ownerClass);
-        return evf.callBody(def_->body);
+        return attributed([&] { return evf.callBody(def_->body); });
     }
 
     std::vector<bool> bound(params.size(), false);
@@ -1671,7 +1727,7 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
 
     Evaluator ev(vm, scope);
     if (hasOwner) ev.setCurrentClass(ownerClass);  // enables private-member access in the body
-    Handle result = ev.callBody(def_->body);
+    Handle result = attributed([&] { return ev.callBody(def_->body); });
 
     // enforce the return annotation
     if (!def_->returnAnnotation.empty() && !typeMatches(vm, result, def_->returnAnnotation))
@@ -1708,20 +1764,31 @@ inline void KiritoVM::registerSourceModule(std::string name, std::string_view so
     std::string src(source);
     std::string modName = name;
     registerModule(std::move(name), [src, modName](KiritoVM& vm) -> Handle {
-        Handle scope = vm.newModuleScope();
-        RootScope guard(vm);
-        guard.add(scope);
-        auto prog = std::make_unique<ast::Program>(Parser(Lexer(src).tokenize()).parseProgram());
-        const ast::Program& program = *prog;
-        vm.retainChunk(std::move(prog));
-        Evaluator ev(vm, scope);
-        ev.run(program);
-        auto mod = std::make_unique<ModuleValue>(modName);
-        for (const auto& [k, v] : static_cast<EnvValue&>(vm.arena().deref(scope)).locals())
-            // hide private top-level names and the injected per-file env (arglist/argmain)
-            if (!k.empty() && k.front() != '_' && k != "arglist" && k != "argmain")
-                mod->members[k] = v;
-        return vm.alloc(std::move(mod));
+        try {
+            Handle scope = vm.newModuleScope();
+            RootScope guard(vm);
+            guard.add(scope);
+            KiritoVM::ChunkFileScope chunkScope(vm, "<" + modName + ">");  // frozen-chunk attribution
+            auto prog = std::make_unique<ast::Program>(Parser(Lexer(src).tokenize()).parseProgram());
+            const ast::Program& program = *prog;
+            vm.retainChunk(std::move(prog));
+            Evaluator ev(vm, scope);
+            ev.run(program);
+            auto mod = std::make_unique<ModuleValue>(modName);
+            for (const auto& [k, v] : static_cast<EnvValue&>(vm.arena().deref(scope)).locals())
+                // hide private top-level names and the injected per-file env (arglist/argmain)
+                if (!k.empty() && k.front() != '_' && k != "arglist" && k != "argmain")
+                    mod->members[k] = v;
+            return vm.alloc(std::move(mod));
+        } catch (KiritoError& e) {
+            // Attribute diagnostics to the frozen module, not the importing script (whose line
+            // numbers would otherwise be combined with this chunk's positions).
+            if (e.file.empty()) e.file = "<" + modName + ">";
+            throw;
+        } catch (KiritoThrow& t) {
+            if (t.file.empty()) t.file = "<" + modName + ">";
+            throw;
+        }
     });
 }
 
@@ -1788,6 +1855,7 @@ inline Handle KiritoVM::importModule(const std::string& name) {
         try {
             RootScope guard(*this);
             guard.add(scope);
+            ChunkFileScope chunkScope(*this, path.string());  // functions defined here carry this file
             auto prog = std::make_unique<ast::Program>(
                 Parser(Lexer(buf.str()).tokenize()).parseProgram());
             const ast::Program& program = *prog;
@@ -1804,6 +1872,9 @@ inline Handle KiritoVM::importModule(const std::string& name) {
             return h;
         } catch (KiritoError& e) {
             if (e.file.empty()) e.file = path.string();  // attribute the diagnostic to this module
+            throw;
+        } catch (KiritoThrow& t) {
+            if (t.file.empty()) t.file = path.string();  // ditto for an uncaught `throw` at import
             throw;
         }
     }
@@ -2670,6 +2741,7 @@ inline KiritoVM::~KiritoVM() = default;
 
 inline Handle KiritoVM::evalIn(std::string_view source, Handle scope, std::string_view chunkName) {
     try {
+        ChunkFileScope chunkScope(*this, std::string(chunkName));  // functions defined here carry this file
         Lexer lexer(source);
         Parser parser(lexer.tokenize());
         auto prog = std::make_unique<ast::Program>(parser.parseProgram());
@@ -2679,7 +2751,9 @@ inline Handle KiritoVM::evalIn(std::string_view source, Handle scope, std::strin
         try {
             return ev.run(program);
         } catch (const KiritoThrow& t) {
-            throw KiritoError("uncaught exception: " + stringify(t.value), t.span);
+            KiritoError err("uncaught exception: " + stringify(t.value), t.span);
+            err.file = t.file;  // the defining chunk of the function that threw, if it escaped one
+            throw err;
         }
     } catch (KiritoError& e) {
         if (e.file.empty() && !chunkName.empty()) e.file = std::string(chunkName);

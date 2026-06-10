@@ -147,6 +147,23 @@ public:
     void addLibPath(std::string dir) { libPaths_.push_back(std::move(dir)); }
     const std::vector<std::string>& libPaths() const { return libPaths_; }
 
+    // The chunk (file / frozen-module name) currently being evaluated. Functions stamp this at
+    // definition time so an error escaping a later call is attributed to its defining file, not to
+    // whichever script invoked it. RAII scope keeps the stack balanced across nested imports.
+    class ChunkFileScope {
+    public:
+        ChunkFileScope(KiritoVM& vm, std::string f) : vm_(vm) { vm_.chunkFiles_.push_back(std::move(f)); }
+        ~ChunkFileScope() { vm_.chunkFiles_.pop_back(); }
+        ChunkFileScope(const ChunkFileScope&) = delete;
+        ChunkFileScope& operator=(const ChunkFileScope&) = delete;
+    private:
+        KiritoVM& vm_;
+    };
+    const std::string& currentChunkFile() const {
+        static const std::string empty;
+        return chunkFiles_.empty() ? empty : chunkFiles_.back();
+    }
+
     // Class + deserializer registries (used by serialize/dump to reconstruct objects by class name).
     void registerClass(const std::string& name, Handle cls) { classRegistry_[name] = cls; }
     // The class registered under `name`, or nullptr if none.
@@ -205,6 +222,7 @@ private:
     std::unordered_set<std::string> importing_;
     std::vector<std::string> importStack_;
     std::vector<std::string> libPaths_;
+    std::vector<std::string> chunkFiles_;  // see ChunkFileScope
     Handle replScope_{};
     bool replScopeReady_ = false;
     Handle arglist_{};  // the command-line arguments as a List, bound as `arglist` in every module scope

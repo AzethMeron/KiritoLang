@@ -134,6 +134,10 @@ public:
     Handle ownerClass{};
     bool hasOwner = false;
 
+    // The chunk (file / frozen-module name) this function was defined in, so an error escaping a
+    // call is attributed to the right file — not to whichever script happened to invoke it.
+    std::string sourceFile;
+
     ValueKind kind() const override { return ValueKind::Function; }
     std::string typeName() const override { return "Function"; }
     bool truthy() const override { return true; }

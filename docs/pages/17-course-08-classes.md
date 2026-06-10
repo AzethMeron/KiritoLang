@@ -65,8 +65,9 @@ io.print(Rectangle(3, 5).summary())      # => rectangle with area 15
 ## Private members
 
 An attribute or method whose name has a **single leading underscore** (and no trailing one) is
-**private** — reachable only from inside methods of the same class. Use it for internal state that
-callers shouldn't touch:
+**private** — reachable only from inside methods of the same class (or one of its subclasses; the
+boundary is the class chain, not the defining class). Use it for internal state that callers
+shouldn't touch:
 
 ```kirito
 var io = import("io")

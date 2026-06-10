@@ -114,5 +114,69 @@ int main() {
         CHECK(ev(vm, "var s = [0]\nvar d = import(\"copy\").deepcopy([s, s])\nid(d[0]) == id(d[1])") == "True");
     }
 
+    // ---- deep-audit loop 2: 0 ** negative raises like division by zero ----
+    {
+        KiritoVM vm;
+        CHECK_THROWS(vm.runSource("0 ** -1\n"));
+        CHECK_THROWS(vm.runSource("0.0 ** -2.5\n"));
+        CHECK(ev(vm, "2 ** -1") == "0.5");
+        CHECK(ev(vm, "0 ** 0") == "1");
+    }
+    // ---- non-function class members are shared class attributes, not bogus bound methods ----
+    {
+        KiritoVM vm;
+        const std::string cls =
+            "class C:\n    var n = 5\n    var label = \"tag\"\n"
+            "    var bump = Function(self):\n        self.n = self.n + 1\n        return self.n\n";
+        CHECK(ev(vm, cls + "C().n") == "5");
+        CHECK(ev(vm, cls + "type(C().label)") == "String");
+        CHECK(ev(vm, cls + "var a = C()\nvar b = C()\ndiscard a.bump()\ndiscard a.bump()\n[a.n, b.n]") == "[7, 5]");
+    }
+    // ---- String.count("") / replace("") follow Python's boundary semantics (code-point aware) ----
+    {
+        KiritoVM vm;
+        CHECK(ev(vm, "\"abc\".count(\"\")") == "4");
+        CHECK(ev(vm, "\"\".count(\"\")") == "1");
+        CHECK(ev(vm, "\"hé\".count(\"\")") == "3");  // code-point boundaries, not bytes
+        CHECK(ev(vm, "\"aaa\".replace(\"\", \"-\")") == "-a-a-a-");
+        CHECK(ev(vm, "\"aaa\".replace(\"\", \"-\", 2)") == "-a-aa");
+        CHECK(ev(vm, "\"abcabc\".replace(\"b\", \"X\", 1)") == "aXcabc");  // non-empty path unchanged
+    }
+    // ---- errors escaping a module function are attributed to the DEFINING chunk ----
+    {
+        KiritoVM vm;
+        vm.registerSourceModule("auditmod", "var f = Function():\n    return 1 + \"x\"\n");
+        bool threw = false;
+        try {
+            vm.runSource("var m = import(\"auditmod\")\nm.f()\n");
+        } catch (const KiritoError& e) {
+            threw = true;
+            CHECK(e.file == "<auditmod>");
+        }
+        CHECK(threw);
+    }
+    // ---- file I/O state errors: closed/wrong-mode operations raise instead of silently dropping ----
+    {
+        KiritoVM vm;
+        CHECK(ev(vm,
+            "var io = import(\"io\")\nvar sys = import(\"sys\")\n"
+            "var p = io.join(sys.gettempdir(), \"audit_closed.txt\")\n"
+            "var f = io.open(p, \"w\")\nf.write(\"keep\")\nf.close()\n"
+            "var threw = False\ntry:\n    f.write(\"lost\")\ncatch as e:\n    threw = True\n"
+            "var r = io.open(p, \"r\")\nvar threw2 = False\ntry:\n    r.write(\"inject\")\ncatch as e:\n    threw2 = True\n"
+            "var p2 = io.join(sys.gettempdir(), \"audit_closed2.txt\")\n"
+            "var threw3 = False\ntry:\n    discard io.open(p2, \"w\").read()\ncatch as e:\n    threw3 = True\n"
+            "r.close()\nvar threw4 = False\ntry:\n    discard r.read()\ncatch as e:\n    threw4 = True\n"
+            "[threw, threw2, threw3, threw4, io.open(p).read()]") == "[True, True, True, True, keep]");
+    }
+    // ---- base64.encode accepts String (UTF-8), Bytes, and List uniformly ----
+    {
+        KiritoVM vm;
+        CHECK(ev(vm, "import(\"base64\").encode(\"hello\")") == "aGVsbG8=");
+        CHECK(ev(vm, "var b = import(\"base64\")\nb.encode(\"hello\".encode()) == b.encode(\"hello\")") == "True");
+        CHECK(ev(vm, "import(\"base64\").encode([104, 101, 108, 108, 111])") == "aGVsbG8=");
+        CHECK(ev(vm, "import(\"base64\").urlsafeencode(\"?\?>>~~\")") == "Pz8-Pn5-");
+    }
+
     return RUN_TESTS();
 }

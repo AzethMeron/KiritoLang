@@ -11,8 +11,10 @@ namespace kirito {
 // (internal errors are surfaced to Kirito code as an Error value). `span` records the throw/assert
 // site so an uncaught exception can report file:line:col.
 struct KiritoThrow {
+    KiritoThrow(Handle v, SourceSpan s = {}) : value(v), span(s) {}
     Handle value;
     SourceSpan span{};
+    std::string file;  // defining chunk of the function that threw (set on escape; "" = entry chunk)
 };
 
 }  // namespace kirito

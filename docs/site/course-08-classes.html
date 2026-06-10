@@ -83,7 +83,7 @@ io.<span class="builtin">print</span>(account.describe())             <span clas
 io.<span class="builtin">print</span>(Rectangle(<span class="num">4</span>, <span class="num">4</span>).summary())      <span class="com"># =&gt; square with area 16</span>
 io.<span class="builtin">print</span>(Rectangle(<span class="num">3</span>, <span class="num">5</span>).summary())      <span class="com"># =&gt; rectangle with area 15</span></code></pre>
 <h2 id="private-members">Private members</h2>
-<p>An attribute or method whose name has a <strong>single leading underscore</strong> (and no trailing one) is <strong>private</strong> — reachable only from inside methods of the same class. Use it for internal state that callers shouldn&#x27;t touch:</p>
+<p>An attribute or method whose name has a <strong>single leading underscore</strong> (and no trailing one) is <strong>private</strong> — reachable only from inside methods of the same class (or one of its subclasses; the boundary is the class chain, not the defining class). Use it for internal state that callers shouldn&#x27;t touch:</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">class</span> Counter:

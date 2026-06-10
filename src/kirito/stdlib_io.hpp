@@ -59,9 +59,25 @@ public:
     std::fstream stream;
     std::string path;
     bool binary = false;   // opened with a "b" mode: read() yields Bytes, write() accepts Bytes
+    bool writable = false;
+    bool readable = false;
 
-    FileVal(const std::string& p, std::ios::openmode mode, bool bin = false) : path(p), binary(bin) {
+    FileVal(const std::string& p, std::ios::openmode mode, bool bin = false)
+        : path(p), binary(bin), writable((mode & std::ios::out) != 0), readable((mode & std::ios::in) != 0) {
         stream.open(p, mode);
+    }
+
+    // I/O on a closed or wrong-mode file raises (a silent no-op would lose data invisibly).
+    void requireOpen() const {
+        if (!stream.is_open()) throw KiritoError("I/O operation on closed file: " + path);
+    }
+    void requireWritable() const {
+        requireOpen();
+        if (!writable) throw KiritoError("file not open for writing: " + path);
+    }
+    void requireReadable() const {
+        requireOpen();
+        if (!readable) throw KiritoError("file not open for reading: " + path);
     }
 
     // Wrap raw bytes read from the stream as a Bytes (binary mode) or a String (text mode).
@@ -70,19 +86,31 @@ public:
         return vm.makeString(std::move(s));
     }
 
-    void streamWrite(const std::string& s) override { stream << s; }
+    void streamWrite(const std::string& s) override {
+        requireWritable();
+        stream.clear();
+        stream << s;
+        if (stream.fail()) throw KiritoError("write failed: " + path);
+    }
     std::string streamRead(std::optional<std::size_t> n) override {
+        requireReadable();
         if (!n) { std::stringstream ss; ss << stream.rdbuf(); return ss.str(); }
         std::string buf(*n, '\0');
         stream.read(buf.data(), static_cast<std::streamsize>(*n));
         buf.resize(static_cast<std::size_t>(stream.gcount()));
         return buf;
     }
-    std::string streamReadLine() override { std::string line; std::getline(stream, line); return line; }
+    std::string streamReadLine() override {
+        requireReadable();
+        std::string line;
+        std::getline(stream, line);
+        return line;
+    }
     void streamFlush() override { stream.flush(); }
 
     // Iterating a file yields its remaining lines (so `for line in f:` works).
     std::optional<std::vector<Handle>> iterate(KiritoVM& vm) override {
+        requireReadable();
         RootScope rs(vm);
         std::vector<Handle> lines;
         std::string line;
@@ -131,6 +159,7 @@ public:
             return bind("readlines", {}, [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
                 RootScope rs(vm);
                 auto& f = file(vm, self);
+                f.requireReadable();
                 auto list = std::make_unique<ListVal>();
                 std::string line;
                 while (std::getline(f.stream, line)) list->elems.push_back(rs.add(f.wrapRead(vm, line)));
@@ -140,7 +169,7 @@ public:
             return bind("writelines", {"lines"}, [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 auto items = vm.arena().deref(a[0]).iterate(vm);
                 auto& f = file(vm, self);
-                for (Handle h : items.value()) f.stream << ioRawBytes(vm, h, "writelines");  // String or Bytes
+                for (Handle h : items.value()) f.streamWrite(ioRawBytes(vm, h, "writelines"));  // String or Bytes
                 return vm.none();
             });
         if (name == "flush")
@@ -150,10 +179,12 @@ public:
             });
         if (name == "tell")
             return bind("tell", {}, [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
+                file(vm, self).requireOpen();
                 return vm.makeInt(static_cast<int64_t>(file(vm, self).stream.tellg()));
             });
         if (name == "seek")
             return bind("seek", {"offset", "whence"}, [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                file(vm, self).requireOpen();
                 int64_t off = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
                 int64_t whence = (a.size() > 1) ? static_cast<const IntVal&>(vm.arena().deref(a[1])).value() : 0;
                 std::ios_base::seekdir dir = std::ios::beg;            // 0=set, 1=cur, 2=end

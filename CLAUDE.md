@@ -91,7 +91,12 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   `_eq_`/`_ne_`/`_lt_`/`_le_`/`_gt_`/`_ge_`, `_neg_`/`_not_`, `_call_`, `_getitem_`/`_setitem_`
   (variadic keys: `m[i, j] = v`), `_len_`, `_contains_`, `_iter_`, `_enter_`/`_exit_`. Members whose
   name has a **single leading underscore and no trailing underscore** (e.g. `_count`) are **private**
-  — accessible only from within a method of the same class. `self._super_()` returns a *parent view*
+  — accessible only from within a method of the same class **or a subclass** (privacy is per class
+  *chain*, not per defining class — there is no Python-style name mangling). Non-function class-body
+  `var`s are shared class attributes: instances read them through the class and copy-on-write on
+  assignment. Parameter **defaults are evaluated at call time**, once per call in the call scope (so
+  a mutable default like `xs = []` is a fresh list each call — not Python's shared-once footgun).
+  `self._super_()` returns a *parent view*
   of self (method lookup starts at the base of the currently-running method's class) — for extending
   inherited methods/constructors; it climbs one level per call (so multi-level chains compose),
   throws if the class has no base, and is overridable (but shouldn't be).
@@ -206,7 +211,8 @@ a stability fuzzer, and a benchmark). Working today:
     write/writelines/seek/tell/flush, iterable line-by-line, usable as a `with` context manager); a
     **binary mode** (`"rb"`/`"wb"`/`"ab"`/`"r+b"`) makes read/readline/iteration yield `Bytes` and
     write accept `Bytes` (the stream is always byte-exact internally),
-    `BytesIO` (an in-memory binary buffer like Python's), plus filesystem helpers (exists/remove/
+    `BytesIO` (an in-memory byte buffer with a read/write cursor; note its reads return **String** —
+    Kirito Strings are byte-transparent — unlike Python's bytes-returning BytesIO), plus filesystem helpers (exists/remove/
     rename/mkdir/getcwd/listdir/isfile/isdir/getsize/walk) and os.path-style path helpers
     (dirname/basename/splitext/join). Module members are rebindable (`ModuleValue::setAttr`).
   - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf/erfc, floor/ceil/
