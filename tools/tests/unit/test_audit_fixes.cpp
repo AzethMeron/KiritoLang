@@ -177,6 +177,33 @@ int main() {
         CHECK(ev(vm, "import(\"base64\").encode([104, 101, 108, 108, 111])") == "aGVsbG8=");
         CHECK(ev(vm, "import(\"base64\").urlsafeencode(\"?\?>>~~\")") == "Pz8-Pn5-");
     }
+    // ---- a closure created by a frozen-module function is attributed to that module, not the caller.
+    //      functools.partial(f, 2) returns a closure whose `2.copy()` fails inside <functools>. ----
+    {
+        KiritoVM vm;
+        bool threw = false;
+        try {
+            vm.runSource("var d = import(\"functools\").partial(Function(a): return a, 2)\nd([1])\n");
+        } catch (const KiritoError& e) {
+            threw = true;
+            CHECK(e.file == "<functools>");          // the closure's defining chunk, not "<input>"
+        }
+        CHECK(threw);
+    }
+    // ---- Counter.mostcommon([n]) takes the optional Python-style count ----
+    {
+        KiritoVM vm;
+        const std::string c = "var c = import(\"collections\").Counter([\"a\", \"b\", \"a\", \"c\", \"a\", \"b\"])\n";
+        CHECK(ev(vm, c + "c.mostcommon(1)") == "[[a, 3]]");
+        CHECK(ev(vm, c + "c.mostcommon(2)") == "[[a, 3], [b, 2]]");
+        CHECK(ev(vm, c + "len(c.mostcommon())") == "3");
+    }
+    // ---- bisect / insort convenience aliases (= the *right variants) ----
+    {
+        KiritoVM vm;
+        CHECK(ev(vm, "import(\"bisect\").bisect([1, 3, 5, 7], 4)") == "2");
+        CHECK(ev(vm, "var a = [1, 3, 5]\nimport(\"bisect\").insort(a, 4)\na") == "[1, 3, 4, 5]");
+    }
 
     return RUN_TESTS();
 }

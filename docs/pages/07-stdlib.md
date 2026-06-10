@@ -652,6 +652,8 @@ Clocks and calendar time.
 - `now() → DateTime` — current UTC time.
 - `datetime([timestamp: Number]) → DateTime` — a `DateTime` from epoch seconds (current time if omitted).
 - `make(year, month, day, hour = 0, minute = 0, second = 0) → DateTime` — build from UTC components.
+  Out-of-range components **normalize** (C `mktime`-style: month 13 → January of the next year,
+  day 32 → the 1st of the next month), rather than raising.
 - `strptime(text: String, format: String) → DateTime` — parse a time string against a format of `%`-codes (`%Y-%m-%d %H:%M:%S`, …).
 
 ### DateTime object
@@ -870,7 +872,8 @@ rather than a lazy sequence.
 - `c.get(x) → Integer` — the count for `x` (`0` if unseen).
 - `c[x] → Integer` — index syntax for the count of `x`.
 - `c.items() → List` — `[value, count]` pairs.
-- `c.mostcommon() → List` — `[value, count]` pairs, highest count first.
+- `c.mostcommon([n: Integer]) → List` — `[value, count]` pairs, highest count first (ties keep
+  insertion order). With `n`, only the top `n`.
 
 ### defaultdict object
 
@@ -1086,6 +1089,7 @@ Binary search / ordered insertion into a sorted List.
 - `bisectright(a, x) → Integer` — the rightmost insertion index that keeps `a` sorted.
 - `insortleft(a, x) → None` — insert `x` into the sorted List `a` at the leftmost valid position.
 - `insortright(a, x) → None` — insert `x` into the sorted List `a` at the rightmost valid position.
+- `bisect(a, x)` / `insort(a, x)` — Python-style aliases for the `*right` variants.
 
 ---
 

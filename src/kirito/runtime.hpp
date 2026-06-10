@@ -1653,6 +1653,11 @@ inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
 inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positional,
                                    std::span<const NamedArg> named) {
     CallGuard depth(vm);  // bound native-stack recursion -> catchable error, not a crash
+    // While this body runs, the "current chunk" is THIS function's defining file, so any closures it
+    // creates at runtime (e.g. functools.partial's returned function) inherit the right source file
+    // for error attribution — not whatever script happened to call us.
+    std::optional<KiritoVM::ChunkFileScope> chunkScope;
+    if (!sourceFile.empty()) chunkScope.emplace(vm, sourceFile);
     const auto& params = def_->params;
     RootScope rs(vm);
     Handle scope = rs.add(vm.newScope(closure_));

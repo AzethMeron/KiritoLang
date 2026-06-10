@@ -294,9 +294,11 @@ class Counter:
         return self._counts.get(x, 0)
     var items = Function(self):
         return self._counts.items()
-    var mostcommon = Function(self):
-        var pairs = self._counts.items()
-        return sorted(pairs, Function(p): return p[1], True)
+    var mostcommon = Function(self, n = None):
+        var pairs = sorted(self._counts.items(), Function(p): return p[1], True)
+        if n == None:
+            return pairs
+        return pairs[0:n]
     var _getitem_ = Function(self, x):
         return self._counts.get(x, 0)
     var _str_ = Function(self) -> String:
@@ -775,6 +777,10 @@ var insortleft = Function(a, x):
 
 var insortright = Function(a, x):
     a.insert(bisectright(a, x), x)
+
+# Python-style convenience aliases: bare `bisect`/`insort` mean the right-hand variants.
+var bisect = bisectright
+var insort = insortright
 )KI";
 
 // --- copy (shallow / deep) ---------------------------------------------------------------------
