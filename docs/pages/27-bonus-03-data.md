@@ -24,7 +24,8 @@ Comparisons produce a **boolean Series**, which is the key to filtering tables:
 var io = import("io")
 var tb = import("tabular")
 var s = tb.Series([10, 20, 30, 40])
-io.print((s > 20).tolist())   # [False, False, True, True]
+io.print((s > 20).tolist())    # [False, False, True, True]
+io.print((s == 20).tolist())   # [False, True, False, False]  — ==/!= are element-wise too
 ```
 
 ## Building a DataFrame

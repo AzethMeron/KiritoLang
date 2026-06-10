@@ -52,7 +52,8 @@ io.<span class="builtin">print</span>((s * <span class="num">2</span>).tolist())
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> tb = <span class="kw">import</span>(<span class="str">&quot;tabular&quot;</span>)
 <span class="kw">var</span> s = tb.Series([<span class="num">10</span>, <span class="num">20</span>, <span class="num">30</span>, <span class="num">40</span>])
-io.<span class="builtin">print</span>((s &gt; <span class="num">20</span>).tolist())   <span class="com"># [False, False, True, True]</span></code></pre>
+io.<span class="builtin">print</span>((s &gt; <span class="num">20</span>).tolist())    <span class="com"># [False, False, True, True]</span>
+io.<span class="builtin">print</span>((s == <span class="num">20</span>).tolist())   <span class="com"># [False, True, False, False]  — ==/!= are element-wise too</span></code></pre>
 <h2 id="building-a-dataframe">Building a DataFrame</h2>
 <p>You can build a table from a Dict of columns, a list of rows (with <code>columns=</code>), or — most often — by reading CSV. (Because Kirito dicts aren&#x27;t ordered, pass <code>columns=</code> when you care about column order; <a class="xref" href="stdlib.html#sym-readcsv"><code>readcsv</code></a> preserves the header order for you.)</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)

@@ -22,6 +22,11 @@ int main() {
     CHECK(run("pd.Series([3, 1, 2]).sortvalues().tolist()") == "[1, 2, 3]");
     CHECK(run("(pd.Series([1, 2, 3]) * 10).tolist()") == "[10, 20, 30]");
     CHECK(run("(pd.Series([1, 2, 3, 4]) > 2).tolist()") == "[False, False, True, True]");
+    // ==/!= are element-wise (like >/<), so a DataFrame can be filtered by an equality mask.
+    CHECK(run("(pd.Series([1, 2, 1]) == 1).tolist()") == "[True, False, True]");
+    CHECK(run("(pd.Series([\"a\", \"b\", \"a\"]) != \"a\").tolist()") == "[False, True, False]");
+    CHECK(run("var d = pd.DataFrame({\"k\": [\"x\", \"y\", \"x\"], \"v\": [1, 2, 3]}, columns=[\"k\", \"v\"])\n"
+              "d[d[\"k\"] == \"x\"][\"v\"].tolist()") == "[1, 3]");
     CHECK(run("pd.Series([1, None, 3]).sum()") == "4");          // missing skipped
     CHECK(run("pd.Series([1, None, 3]).dropna().tolist()") == "[1, 3]");
 

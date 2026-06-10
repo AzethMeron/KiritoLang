@@ -64,8 +64,9 @@ io.print(2 ** 10, 7 / 2)      # 1024 3.5
 
 ## Float
 
-IEEE-754 doubles, including scientific-notation literals (`1.5e3`, `2e-3`). Mixing an Integer and a
-Float promotes to Float. `round(x[, ndigits])`, `abs(x)`, and the `math` module operate on Floats.
+IEEE-754 doubles, including scientific-notation literals (`1.5e3`, `2e-3`). A decimal literal needs a
+digit on **both** sides of the point (`0.5` and `1.0`, not `.5` or `1.`), and digit separators
+(`1_000`) aren't supported. Mixing an Integer and a Float promotes to Float. `round(x[, ndigits])`, `abs(x)`, and the `math` module operate on Floats.
 Float `nan`/`inf` arise from `math` (`math.inf`, `math.nan`).
 
 ### Float equality — the comparison algorithm

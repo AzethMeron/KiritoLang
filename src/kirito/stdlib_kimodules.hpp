@@ -1285,6 +1285,12 @@ class Series:
         return self._binop(other, Function(a, b): return a == b)
     var ne = Function(self, other):
         return self._binop(other, Function(a, b): return a != b)
+    # `==`/`!=` are element-wise like `<`/`>` (and pandas), so `df[df["c"] == v]` masks rows. (Note
+    # the pandas caveat this inherits: a Series can no longer be used directly in a boolean `if`.)
+    var _eq_ = Function(self, other):
+        return self._binop(other, Function(a, b): return a == b)
+    var _ne_ = Function(self, other):
+        return self._binop(other, Function(a, b): return a != b)
 
     var isin = Function(self, values):
         var out = []
