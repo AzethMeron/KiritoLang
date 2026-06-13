@@ -85,6 +85,10 @@ say "installing kpm"
 fetch "https://raw.githubusercontent.com/$REPO/$REF/kpm/kpm.ki" "$KIRITO_HOME/kpm.ki"
 cat > "$BIN_DIR/kpm" <<EOF
 #!/bin/sh
+# KPM_SELF lets \`kpm self-update\` overwrite this kpm.ki; KPM_KI_PATH lets \`kpm upgrade-ki\` replace
+# the interpreter binary (kpm also falls back to sys.executable for the latter).
+export KPM_SELF="$KIRITO_HOME/kpm.ki"
+export KPM_KI_PATH="$BIN_DIR/ki"
 exec "$BIN_DIR/ki" "$KIRITO_HOME/kpm.ki" "\$@"
 EOF
 chmod +x "$BIN_DIR/kpm"

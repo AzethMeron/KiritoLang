@@ -10,17 +10,49 @@
 #include "builtins.hpp"
 #include "collections.hpp"
 #include "native.hpp"
+#include "version.hpp"
 
 #if defined(_WIN32)
 #  ifndef WIN32_LEAN_AND_MEAN
 #    define WIN32_LEAN_AND_MEAN
 #  endif
 #  include <windows.h>
+#elif defined(__APPLE__)
+#  include <mach-o/dyld.h>
+extern "C" char** environ;
 #else
+#  include <unistd.h>
 extern "C" char** environ;
 #endif
 
 namespace kirito {
+
+// Absolute path of the running interpreter executable, or "" if it can't be determined. Used by
+// `kpm` to locate the `ki` binary it should replace when self-updating Kirito.
+inline std::string currentExecutablePath() {
+#if defined(_WIN32)
+    wchar_t buf[32768];
+    DWORD n = GetModuleFileNameW(nullptr, buf, static_cast<DWORD>(std::size(buf)));
+    if (n == 0 || n >= std::size(buf)) return "";
+    int need = WideCharToMultiByte(CP_UTF8, 0, buf, static_cast<int>(n), nullptr, 0, nullptr, nullptr);
+    std::string out(static_cast<std::size_t>(need), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, buf, static_cast<int>(n), out.data(), need, nullptr, nullptr);
+    return out;
+#elif defined(__APPLE__)
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    std::string buf(size, '\0');
+    if (_NSGetExecutablePath(buf.data(), &size) != 0) return "";
+    buf.resize(std::strlen(buf.c_str()));
+    std::error_code ec;
+    auto canon = std::filesystem::weakly_canonical(buf, ec);
+    return ec ? buf : canon.string();
+#else
+    std::error_code ec;
+    auto p = std::filesystem::read_symlink("/proc/self/exe", ec);
+    return ec ? std::string() : p.string();
+#endif
+}
 
 // The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
 // intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
@@ -47,6 +79,21 @@ public:
 #else
         m.value("platform", vm.makeString("linux"));
 #endif
+
+        // CPU architecture, normalised to the names used in release-asset filenames (ki-<os>-<arch>).
+#if defined(__x86_64__) || defined(_M_X64) || defined(_M_AMD64)
+        m.value("arch", vm.makeString("x64"));
+#elif defined(__aarch64__) || defined(_M_ARM64)
+        m.value("arch", vm.makeString("arm64"));
+#elif defined(__i386__) || defined(_M_IX86)
+        m.value("arch", vm.makeString("x86"));
+#else
+        m.value("arch", vm.makeString("unknown"));
+#endif
+
+        // The Kirito interpreter version (semver string) and the absolute path of this executable.
+        m.value("version", vm.makeString(kVersion));
+        m.value("executable", vm.makeString(currentExecutablePath()));
 
         m.fn("getenv", {{"name", "String"}, {"default", "", vm.none()}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             // getenv(name[, default]) -> String, or default/None if unset.

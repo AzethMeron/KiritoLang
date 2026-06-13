@@ -578,6 +578,17 @@ public:
             std::filesystem::create_directories(pathArg(vm, a[0]), ec);
             return val(vm, !ec);
         });
+        // chmod(path, mode): set file permission bits from a POSIX-style octal Integer (e.g. 0o755).
+        // The low 12 bits map onto std::filesystem::perms (POSIX semantics on Unix; on Windows only
+        // the owner read/write bits are meaningful, the rest are ignored). Returns success as a Bool.
+        m.fn("chmod", {{"path", "String"}, {"mode", "Integer"}}, "Bool",
+             [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            auto mode = static_cast<unsigned>(Value(vm, a[1]).asInt("mode")) & 0xFFFu;
+            std::error_code ec;
+            std::filesystem::permissions(pathArg(vm, a[0]), std::filesystem::perms(mode),
+                                         std::filesystem::perm_options::replace, ec);
+            return val(vm, !ec);
+        });
         m.fn("getcwd", {}, "String", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             std::error_code ec;
             return val(vm, std::filesystem::current_path(ec).string());

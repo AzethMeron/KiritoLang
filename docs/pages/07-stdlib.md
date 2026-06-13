@@ -44,6 +44,8 @@ The optional `stream=` keyword sends/takes that one call's output/input to/from 
 - `remove(path: String) → Bool` — delete a file; returns whether it succeeded.
 - `rename(src: String, dst: String) → None` — rename/move a path (raises on failure).
 - `mkdir(path: String) → Bool` — create a directory (and parents); returns success.
+- `chmod(path: String, mode: Integer) → Bool` — set file permission bits from a POSIX-style octal
+  (e.g. `0o755`); returns success. On Windows only the owner read/write bits are meaningful.
 - `getcwd() → String` — the current working directory.
 - `listdir(path: String) → List` — the entry names directly under `path`.
 - `walk(dir: String) → List` — every file path under `dir`, recursively (flattened).
@@ -627,6 +629,12 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 Process environment and platform.
 
 - `platform` — `"linux"` / `"darwin"` / `"windows"` (a `String`).
+- `arch` — the CPU architecture, normalized to the names used in release-asset filenames:
+  `"x64"` / `"arm64"` / `"x86"` / `"unknown"` (a `String`).
+- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.1.0"`); the same
+  value `ki --version` prints. `kpm` compares it against the latest GitHub release to self-upgrade.
+- `executable` — the absolute path of the running `ki` binary (a `String`, or `""` if it can't be
+  determined). `kpm upgrade-ki` uses it to locate the binary to replace.
 - `getenv(name: String, default = None)` — an environment variable, or `default` if unset.
 - `setenv(name: String, value: String) → None` — set a variable.
 - `unsetenv(name: String) → None` — remove a variable.
@@ -1189,3 +1197,47 @@ if opts != None:              # None means --help was shown
 ```
 
 Run as `ki greet.ki Ada --count 2 --loud` → prints `HELLO, ADA!` twice.
+
+---
+
+## semver
+
+Semantic versioning — parse, compare, and range-match version strings, following [semver.org](https://semver.org)
+precedence and the [node-semver](https://github.com/npm/node-semver) range grammar. This is the
+versioning core `kpm` uses to resolve `owner/repo@<constraint>` against a repository's git tags. A
+version is `MAJOR.MINOR.PATCH` with an optional `-prerelease` and `+build` (a leading `v`/`=` is
+tolerated, e.g. `v1.2.3`).
+
+- `clean(s: String) → String` — strip a leading `v`/`=` and surrounding whitespace.
+- `parse(s: String) → Dict` — `{major, minor, patch, prerelease, build, raw}` (`prerelease`/`build`
+  are Lists of dot-separated identifier Strings). Raises on an invalid version.
+- `valid(s: String) → String` — the cleaned version string if valid, else `None`.
+- `major(s) / minor(s) / patch(s) → Integer` — a single component.
+- `prerelease(s) → List` — the prerelease identifiers, or `None` if there are none.
+- `compare(a, b) → Integer` — `-1` / `0` / `1` by precedence (build metadata is ignored; a
+  prerelease sorts **before** its release; numeric prerelease identifiers sort before alphanumeric).
+- `eq / neq / lt / lte / gt / gte(a, b) → Bool` — comparison shortcuts.
+- `diff(a, b) → String` — the kind of change: `"major"` / `"minor"` / `"patch"` / `"prerelease"`,
+  or `None` if equal.
+- `inc(s, release: String) → String` — bump by `"major"` / `"minor"` / `"patch"` (drops prerelease/build).
+- `satisfies(version, range) → Bool` — does `version` match the `range`? Supports caret (`^1.2.3`),
+  tilde (`~1.2`), comparators (`>=1.0.0 <2.0.0`), x-ranges (`1.2.x`, `1.x`, `*`), hyphen ranges
+  (`1.0.0 - 2.0.0`), AND (space) and OR (`||`). Prereleases are excluded unless a comparator in the
+  matched set pins the same `major.minor.patch` (node-semver's default).
+- `validrange(range: String) → Bool` — is `range` a parseable range? (`kpm` uses this to tell a
+  semver constraint from a literal git ref like `main`.)
+- `sort(versions: List) / rsort(versions) → List` — sort by precedence, ascending / descending
+  (invalid versions are dropped).
+- `maxsatisfying(versions, range) / minsatisfying(versions, range)` — the highest / lowest version
+  in the list that satisfies the range, returned as its **original** string (so a `v`-prefixed tag
+  comes back unchanged, usable directly as a git ref), or `None`.
+
+```kirito
+var s = import("semver")
+
+s.satisfies("1.4.0", "^1.2.0")          # True  (>=1.2.0 <2.0.0)
+s.satisfies("2.0.0", "^1.2.0")          # False
+s.maxsatisfying(["v1.0.0", "v1.4.2", "v2.0.0"], "^1.0.0")   # "v1.4.2"
+s.sort(["1.10.0", "1.2.0", "1.1.0"])    # ["1.1.0", "1.2.0", "1.10.0"]
+s.gt("1.0.10", "1.0.9")                 # True  (numeric, not lexical)
+```

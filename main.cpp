@@ -15,6 +15,7 @@
 
 #include "kirito.hpp"
 #include "kirito/cli_paths.hpp"
+#include "kirito/version.hpp"
 
 #ifdef _WIN32
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -51,6 +52,7 @@ void usage() {
                  "options:\n"
                  "  --lib <dir>   add a directory to the module import path (repeatable)\n"
                  "  -w, --no-warn disable static-analysis warnings\n"
+                 "  -v, --version print the Kirito version and exit\n"
                  "  -h, --help    show this help\n"
                  "environment:\n"
                  "  KIRITO_PATH   extra import directories (PATH-style, " ENV_SEP "-separated)\n"
@@ -129,6 +131,9 @@ int main(int argc, char** argv) {
             warnings = false;
         } else if (arg == "-h" || arg == "--help") {
             usage();
+            return 0;
+        } else if (arg == "-v" || arg == "--version") {
+            std::cout << "ki (Kirito) " << kirito::kVersion << "\n";
             return 0;
         } else if (!arg.empty() && arg[0] == '-') {
             std::cerr << "ki: unknown option '" << arg << "'\n";

@@ -94,11 +94,28 @@ GitHub repositories**; there's no central index, you name an `owner/repo`:
 
 ```sh
 kpm install owner/repo            # install a package (and its dependencies) from GitHub
-kpm install owner/repo@v1.2.0     # pin a tag / branch / commit
+kpm install owner/repo@main       # pin a literal git ref (branch / tag / commit)
+kpm install owner/repo@^1.2.0     # pin a semver constraint -> highest matching tag
 kpm list                          # list installed packages
-kpm update owner --all            # reinstall the latest
+kpm update owner --all            # re-resolve + reinstall (honours each constraint)
+kpm outdated                      # show which installed packages have a newer version
 kpm remove name                   # uninstall
+kpm version                       # print the kpm + ki versions
+kpm self-update                   # update kpm itself from GitHub
+kpm upgrade-ki                    # update the ki interpreter binary itself
 ```
+
+An `@ref` is either a **literal git ref** (`@main`, `@v1.2.0`, a commit sha) or a **semantic-version
+constraint** resolved against the repo's tags via the [`semver`](stdlib.html#semver) module:
+`@1.2.3` (exact), `@^1.2.0`, `@~1.2`, `@1.x`, `@*`, or a quoted range like `@">=1.0.0 <2.0.0"`. When
+a constraint is given, `kpm` installs the **highest tag** that satisfies it and records the
+constraint, so a later `kpm update` / `kpm outdated` re-resolves it against newly-published tags.
+
+`kpm self-update` refreshes `kpm.ki` from GitHub; `kpm upgrade-ki` downloads the latest release
+binary for your platform (`sys.platform`/`sys.arch`) and atomically swaps it in over the running
+`ki` (located via `sys.executable`). Both compare versions first and no-op when already current
+(use `--force` to override). Set `$GITHUB_TOKEN` to lift GitHub's unauthenticated API rate limit
+(and to reach private repos).
 
 Packages install under `~/.kirito/packages/<name>/` and are importable directly — `import("name")` —
 because `ki` automatically searches that directory, every package sub-directory, and any directory in
@@ -106,18 +123,19 @@ the `KIRITO_PATH` environment variable (PATH-style, `:`-separated on Unix, `;` o
 addition to the current directory, `--lib` directories, and the running script's own folder.
 
 A package repo carries a `kirito.json` manifest at its root listing its modules (repo-relative `.ki`
-paths) and any dependencies:
+paths) and any dependencies (each an `owner/repo` optionally with an `@constraint`):
 
 ```json
 {
   "name": "mypkg",
   "version": "1.0.0",
   "modules": ["mypkg.ki", "extra/util.ki"],
-  "dependencies": ["someone/dep"]
+  "dependencies": ["someone/dep@^1.0.0"]
 }
 ```
 
-`kpm` itself is written in Kirito (`kpm/kpm.ki`), using only the `net`, `json`, and `io` modules.
+`kpm` itself is written in Kirito (`kpm/kpm.ki`), using only the `net`, `json`, `io`, `sys`, and
+`semver` modules.
 
 ## Tests
 

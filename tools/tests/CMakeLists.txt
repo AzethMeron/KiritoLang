@@ -78,6 +78,11 @@ kirito_test(test_namedargs unit/test_namedargs.cpp)
 kirito_test(test_adversarial unit/test_adversarial.cpp)
 kirito_test(test_unpacking unit/test_unpacking.cpp)
 kirito_test(test_stdmodules unit/test_stdmodules.cpp)
+kirito_test(test_semver unit/test_semver.cpp)
+kirito_test(test_kpm unit/test_kpm.cpp)
+# kpm.ki lives at the repo root, not under tests/; hand its directory to the test via the environment
+# so `import("kpm")` resolves it (passed by env, not a -D, to keep the shared PCH reusable).
+set_tests_properties(test_kpm PROPERTIES ENVIRONMENT "KPM_DIR=${CMAKE_SOURCE_DIR}/kpm")
 kirito_test(test_introspect unit/test_introspect.cpp)
 kirito_test(test_warnings unit/test_warnings.cpp)
 kirito_test(test_unicode unit/test_unicode.cpp)

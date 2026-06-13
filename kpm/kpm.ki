@@ -4,12 +4,22 @@
 # central index: you name an `owner/repo`. Run it as `kpm <command>` (the installer drops a launcher
 # on your PATH) or directly with `ki kpm/kpm.ki <command>`.
 #
-#   kpm install <owner/repo>[@<ref>] ...   download + install a package (and its dependencies)
-#   kpm remove  <name> ...                 uninstall a package
-#   kpm list                               list installed packages
-#   kpm update  <name>... | --all          reinstall the latest version
-#   kpm where                              print the packages directory
+#   kpm install <owner/repo>[@<ref|constraint>] ...  download + install a package (and dependencies)
+#   kpm remove  <name> ...                           uninstall a package
+#   kpm list                                         list installed packages
+#   kpm update  <name>... | --all                    re-resolve + reinstall (honours the constraint)
+#   kpm outdated                                     show which installed packages have a newer version
+#   kpm where                                        print the packages directory
+#   kpm version                                      print the kpm + ki versions
+#   kpm self-update [--force]                        update kpm.ki itself from GitHub
+#   kpm upgrade-ki  [--force]                        update the `ki` interpreter binary itself
 #   kpm help
+#
+# Versioning: an `@<ref>` is either a literal git ref (branch / tag / commit, e.g. `@main`) OR a
+# semantic-version constraint resolved against the repo's tags (the `semver` module): `@1.2.3`
+# (exact), `@^1.2.0`, `@~1.2`, `@1.x`, `@">=1.0.0 <2.0.0"` (quote ranges with spaces), `@*`. When a
+# constraint is given, kpm picks the highest tag that satisfies it. The chosen constraint is recorded
+# so `update`/`outdated` can re-resolve against newly-published tags.
 #
 # A package repository carries a `kirito.json` manifest at its root:
 #
@@ -17,20 +27,30 @@
 #     "name": "mypkg",
 #     "version": "1.0.0",
 #     "modules": ["mypkg.ki", "extra/util.ki"],
-#     "dependencies": ["someone/dep"]
+#     "dependencies": ["someone/dep@^1.0.0"]
 #   }
 #
 # `modules` are repo-relative `.ki` paths. They install under `<packages>/<name>/` and become
 # importable as `import("mypkg")` — `ki` puts the packages directory and every package sub-directory
 # on the module import path automatically (see KIRITO_PATH / ~/.kirito/packages).
+#
+# Environment: $GITHUB_TOKEN (or $KPM_GITHUB_TOKEN) is sent as a bearer token, lifting GitHub's
+# unauthenticated API rate limit (60/hr -> 5000/hr) and reaching private repos. $KPM_SELF /
+# $KPM_KI_PATH (set by the launcher) point self-update / upgrade-ki at the files to replace.
 
 var io = import("io")
 var net = import("net")
 var json = import("json")
 var sys = import("sys")
+var semver = import("semver")
+
+var KPM_VERSION = "1.1.0"
 
 var RAW = "https://raw.githubusercontent.com"
 var API = "https://api.github.com"
+var GH = "https://github.com"
+# The Kirito project's own repository — the source for `self-update` and `upgrade-ki`.
+var KIRITO_REPO = "AzethMeron/KiritoLang"
 
 # ---------------------------------------------------------------- locations
 var homeDir = Function() -> String:
@@ -49,18 +69,53 @@ var fail = Function(msg):
     io.eprint("kpm: " + msg)
     sys.exit(1)
 
+var hasFlag = Function(args, flag) -> Bool:
+    for a in args:
+        if a == flag:
+            return True
+    return False
+
+# A GitHub token from the environment ($GITHUB_TOKEN or $KPM_GITHUB_TOKEN), or None. Sending it lifts
+# the unauthenticated API rate limit (60/hr -> 5000/hr) and reaches private repos.
+var ghToken = Function():
+    var t = sys.getenv("GITHUB_TOKEN")
+    if t == None or t == "":
+        t = sys.getenv("KPM_GITHUB_TOKEN")
+    return None if t == "" else t
+
+# Request headers for GitHub (all our hosts are GitHub-owned): the JSON API accept header plus a
+# bearer token when one is configured.
+var ghHeaders = Function():
+    var h = {"Accept": "application/vnd.github+json"}
+    var t = ghToken()
+    if t != None:
+        h["Authorization"] = "Bearer " + t
+    return h
+
 # GET a URL and return its body text; raises a clear message on a network error or non-2xx status.
 var fetch = Function(url) -> String:
     var r = None
     try:
-        r = net.get(url)
+        r = net.get(url, {"headers": ghHeaders()})
     catch as e:
         throw "network error fetching " + url + ": " + String(e)
     if not r.ok:
         throw "GET " + url + " -> HTTP " + String(r.statuscode)
     return r.text
 
-# Parse "owner/repo[@ref]" into [owner, repo, ref-or-None].
+# GET a URL and return its raw body as Bytes (for binary downloads, e.g. a release binary).
+var fetchBytes = Function(url):
+    var r = None
+    try:
+        r = net.get(url, {"headers": ghHeaders()})
+    catch as e:
+        throw "network error fetching " + url + ": " + String(e)
+    if not r.ok:
+        throw "GET " + url + " -> HTTP " + String(r.statuscode)
+    return r.content
+
+# Parse "owner/repo[@ref]" into [owner, repo, ref-or-None]. `ref` is the user's raw @-suffix: either a
+# literal git ref or a semver constraint (resolveRef decides which).
 var parseSpec = Function(spec):
     var ref = None
     var body = spec
@@ -77,6 +132,29 @@ var parseSpec = Function(spec):
 var defaultBranch = Function(owner, repo) -> String:
     var data = json.loads(fetch(API + "/repos/" + owner + "/" + repo))
     return data["default_branch"]
+
+# Every tag name in the repo (up to 100), as a List of Strings — the candidate versions a semver
+# constraint resolves against.
+var repoTags = Function(owner, repo):
+    var data = json.loads(fetch(API + "/repos/" + owner + "/" + repo + "/tags?per_page=100"))
+    var names = []
+    for t in data:
+        names.append(t["name"])
+    return names
+
+# Turn a user `@ref` into a concrete git ref. None -> the default branch. A valid semver range ->
+# the highest matching tag (kept as its original tag string, so it works whether tags carry a `v`).
+# Anything else (a branch name, a commit sha) is used literally.
+var resolveRef = Function(owner, repo, ref) -> String:
+    if ref == None:
+        return defaultBranch(owner, repo)
+    if semver.validrange(ref):
+        var tags = repoTags(owner, repo)
+        var best = semver.maxsatisfying(tags, ref)
+        if best == None:
+            throw "no tag in " + owner + "/" + repo + " satisfies '" + ref + "' (tags: " + String(tags) + ")"
+        return best
+    return ref
 
 # Write `text` to <dir>/<relpath>, creating any parent directories first.
 var writeFile = Function(dir, relpath, text):
@@ -105,9 +183,8 @@ var installOne = Function(spec, seen) -> String:
     var parts = parseSpec(spec)
     var owner = parts[0]
     var repo = parts[1]
-    var ref = parts[2]
-    if ref == None:
-        ref = defaultBranch(owner, repo)
+    var constraint = parts[2]
+    var ref = resolveRef(owner, repo, constraint)
     var base = RAW + "/" + owner + "/" + repo + "/" + ref
 
     var manifestText = None
@@ -138,9 +215,20 @@ var installOne = Function(spec, seen) -> String:
     var version = "0.0.0"
     if "version" in manifest:
         version = manifest["version"]
-    var record = {"name": name, "version": version, "source": owner + "/" + repo, "ref": ref, "modules": installed}
+    var record = {"name": name, "version": version, "source": owner + "/" + repo,
+                  "constraint": constraint, "ref": ref, "modules": installed}
     writeFile(dest, ".kpm.json", json.dumps(record, indent = 2))
     return name
+
+# Read the install record of one package, or None if it isn't installed.
+var readRecord = Function(name):
+    var rec = io.join(io.join(packagesDir(), name), ".kpm.json")
+    if not io.exists(rec):
+        return None
+    var f = io.open(rec, "r")
+    var data = json.loads(f.read())
+    f.close()
+    return data
 
 # Read the install records of every installed package.
 var listInstalled = Function():
@@ -149,13 +237,49 @@ var listInstalled = Function():
     if not io.exists(root):
         return out
     for entry in io.listdir(root):
-        var rec = io.join(io.join(root, entry), ".kpm.json")
-        if io.exists(rec):
-            var f = io.open(rec, "r")
-            var data = json.loads(f.read())
-            f.close()
+        var data = readRecord(entry)
+        if data != None:
             out.append(data)
     return out
+
+# The latest published GitHub release of a repo, as the parsed API object (has "tag_name", "assets").
+var latestRelease = Function(repo):
+    return json.loads(fetch(API + "/repos/" + repo + "/releases/latest"))
+
+# The release-asset filename for the running platform (ki-<os>-<arch>[.exe]). Only the platforms we
+# publish binaries for are mapped; anything else raises (build from source instead).
+var kiAssetName = Function() -> String:
+    var os = sys.platform
+    var arch = sys.arch
+    if os == "linux" and arch == "x64":
+        return "ki-linux-x64"
+    if os == "windows" and arch == "x64":
+        return "ki-windows-x64.exe"
+    throw "no prebuilt ki binary for " + os + "/" + arch + " — build from source (install.sh --from-source)"
+
+# Extract `KPM_VERSION = "x.y.z"` from kpm.ki source text, or None. The assignment near the top of the
+# file precedes the marker's own occurrence in this function, so `find` lands on the real value.
+var extractKpmVersion = Function(text):
+    var marker = "KPM_VERSION = \""
+    var at = text.find(marker)
+    if at < 0:
+        return None
+    var start = at + len(marker)
+    var endq = text.find("\"", start)
+    if endq < 0:
+        return None
+    return text[start:endq]
+
+# Atomically replace `target` with the file at `tmp`. POSIX rename swaps the inode under a running
+# process; Windows can't overwrite a running .exe, so the old file is moved aside first.
+var replaceFile = Function(tmp, target):
+    discard io.remove(target + ".old")
+    if sys.platform == "windows":
+        if io.exists(target):
+            io.rename(target, target + ".old")
+        io.rename(tmp, target)
+    else:
+        io.rename(tmp, target)
 
 # ---------------------------------------------------------------- commands
 var cmdInstall = Function(specs):
@@ -186,59 +310,194 @@ var cmdList = Function():
         io.print("no packages installed")
         return None
     for p in pkgs:
-        io.print(p["name"] + " " + p["version"] + "  (" + p["source"] + "@" + p["ref"] + ")")
+        var at = p["ref"]
+        if "constraint" in p and p["constraint"] != None:
+            at = String(p["constraint"]) + " -> " + p["ref"]
+        io.print(p["name"] + " " + p["version"] + "  (" + p["source"] + "@" + at + ")")
 
+# Reinstall the given packages (or all of them), re-resolving the recorded constraint so a semver
+# range picks up newly-published tags.
 var cmdUpdate = Function(args):
     var targets = []
     if len(args) == 1 and args[0] == "--all":
         targets = listInstalled()
     else:
         for name in args:
-            var rec = io.join(io.join(packagesDir(), name), ".kpm.json")
-            if not io.exists(rec):
+            var rec = readRecord(name)
+            if rec == None:
                 fail("not installed: " + name)
-            var f = io.open(rec, "r")
-            targets.append(json.loads(f.read()))
-            f.close()
+            targets.append(rec)
     if len(targets) == 0:
         fail("update needs a package name or --all")
     var seen = Set()
     for p in targets:
+        var spec = p["source"]
+        if "constraint" in p and p["constraint"] != None:
+            spec = spec + "@" + String(p["constraint"])
         try:
-            discard installOne(p["source"], seen)
+            discard installOne(spec, seen)
             io.print("updated " + p["name"])
         catch as e:
             io.eprint("kpm: " + String(e))
 
+# Resolve the newest version available to a package under its recorded constraint (or the manifest
+# version on its ref), or None if it can't be determined.
+var latestFor = Function(p):
+    var src = parseSpec(p["source"])
+    var owner = src[0]
+    var repo = src[1]
+    if "constraint" in p and p["constraint"] != None and semver.validrange(p["constraint"]):
+        var best = semver.maxsatisfying(repoTags(owner, repo), p["constraint"])
+        if best != None:
+            return semver.clean(best)
+    var m = json.loads(fetch(RAW + "/" + owner + "/" + repo + "/" + p["ref"] + "/kirito.json"))
+    if "version" in m:
+        return m["version"]
+    return None
+
+var cmdOutdated = Function():
+    var pkgs = listInstalled()
+    if len(pkgs) == 0:
+        io.print("no packages installed")
+        return None
+    var stale = 0
+    for p in pkgs:
+        var have = p["version"]
+        var latest = None
+        try:
+            latest = latestFor(p)
+        catch as e:
+            latest = None
+        if latest == None:
+            io.print("  " + p["name"] + " " + have + " -> ? (could not determine latest)")
+        elif semver.valid(have) != None and semver.valid(latest) != None and semver.gt(latest, have):
+            io.print("  " + p["name"] + " " + have + " -> " + latest + "  (" + p["source"] + ")")
+            stale = stale + 1
+    if stale == 0:
+        io.print("all packages are up to date")
+    else:
+        io.print(String(stale) + " package(s) can be updated — run `kpm update --all`")
+
+var cmdVersion = Function():
+    io.print("kpm " + KPM_VERSION)
+    io.print("ki  " + sys.version + "  (" + sys.platform + "/" + sys.arch + ")")
+    if sys.executable != None and sys.executable != "":
+        io.print("    " + sys.executable)
+
+# Update kpm.ki itself from GitHub. Replaces the file named by $KPM_SELF (set by the launcher),
+# falling back to ~/.kirito/kpm.ki.
+var cmdSelfUpdate = Function(args):
+    var force = hasFlag(args, "--force") or hasFlag(args, "-f")
+    var target = sys.getenv("KPM_SELF")
+    if target == None or target == "":
+        target = io.join(io.join(homeDir(), ".kirito"), "kpm.ki")
+    var url = RAW + "/" + KIRITO_REPO + "/main/kpm/kpm.ki"
+    var text = None
+    try:
+        text = fetch(url)
+    catch as e:
+        fail("could not fetch kpm.ki: " + String(e))
+    var remote = extractKpmVersion(text)
+    io.print("current kpm: " + KPM_VERSION + "   latest: " + (remote if remote != None else "?"))
+    if not force and remote != None and semver.valid(remote) != None and not semver.gt(remote, KPM_VERSION):
+        io.print("kpm is up to date (" + KPM_VERSION + ")")
+        return None
+    var parent = io.dirname(target)
+    if len(parent) > 0:
+        discard io.mkdir(parent)
+    var f = io.open(target, "w")
+    f.write(text)
+    f.close()
+    io.print("updated kpm -> " + (remote if remote != None else "latest") + "  (" + target + ")")
+
+# Update the `ki` interpreter binary itself: download the latest release asset for this platform and
+# atomically swap it in over the running executable (located via sys.executable, or $KPM_KI_PATH).
+var cmdUpgradeKi = Function(args):
+    var force = hasFlag(args, "--force") or hasFlag(args, "-f")
+    var current = sys.version
+    var rel = None
+    try:
+        rel = latestRelease(KIRITO_REPO)
+    catch as e:
+        fail("could not query the latest release: " + String(e))
+    var tag = rel["tag_name"]
+    var latest = semver.clean(tag)
+    io.print("current ki: " + current + "   latest: " + tag)
+    if not force and semver.valid(latest) != None and not semver.gt(latest, current):
+        io.print("ki is up to date (" + current + ")")
+        return None
+
+    var target = sys.getenv("KPM_KI_PATH")
+    if target == None or target == "":
+        target = sys.executable
+    if target == None or target == "":
+        fail("cannot locate the ki executable to replace (set KPM_KI_PATH)")
+
+    var asset = None
+    try:
+        asset = kiAssetName()
+    catch as e:
+        fail(String(e))
+    var url = GH + "/" + KIRITO_REPO + "/releases/download/" + tag + "/" + asset
+    io.print("downloading " + asset + " ...")
+    var blob = None
+    try:
+        blob = fetchBytes(url)
+    catch as e:
+        fail("download failed: " + String(e))
+
+    var tmp = target + ".new"
+    var f = io.open(tmp, "wb")
+    f.write(blob)
+    f.close()
+    discard io.chmod(tmp, 0o755)
+    replaceFile(tmp, target)
+    io.print("upgraded ki -> " + tag + "  (" + target + ")")
+
 var usage = Function():
     io.print("kpm — the Kirito package manager (installs from GitHub; no central index)")
     io.print("usage:")
-    io.print("  kpm install <owner/repo>[@<ref>] ...   install package(s) + dependencies")
-    io.print("  kpm remove  <name> ...                 uninstall")
-    io.print("  kpm list                               list installed packages")
-    io.print("  kpm update  <name>... | --all          reinstall the latest")
-    io.print("  kpm where                              print the packages directory")
+    io.print("  kpm install <owner/repo>[@<ref|constraint>] ...  install package(s) + dependencies")
+    io.print("  kpm remove  <name> ...                           uninstall")
+    io.print("  kpm list                                         list installed packages")
+    io.print("  kpm update  <name>... | --all                    re-resolve + reinstall")
+    io.print("  kpm outdated                                     show packages with a newer version")
+    io.print("  kpm where                                        print the packages directory")
+    io.print("  kpm version                                      print the kpm + ki versions")
+    io.print("  kpm self-update [--force]                        update kpm itself")
+    io.print("  kpm upgrade-ki  [--force]                        update the ki interpreter")
     io.print("  kpm help")
+    io.print("")
+    io.print("an @constraint is a git ref (@main) or a semver range (@^1.2.0, @1.x, @\">=1 <2\")")
 
 # ---------------------------------------------------------------- dispatch
-if len(arglist) == 0:
-    usage()
-else:
-    var cmd = arglist[0]
-    var rest = arglist[1:]
-    if cmd == "install" or cmd == "i" or cmd == "add":
-        cmdInstall(rest)
-    elif cmd == "remove" or cmd == "rm" or cmd == "uninstall":
-        cmdRemove(rest)
-    elif cmd == "list" or cmd == "ls":
-        cmdList()
-    elif cmd == "update" or cmd == "upgrade":
-        cmdUpdate(rest)
-    elif cmd == "where":
-        io.print(packagesDir())
-    elif cmd == "help" or cmd == "-h" or cmd == "--help":
+if argmain:
+    if len(arglist) == 0:
         usage()
     else:
-        io.eprint("kpm: unknown command '" + cmd + "'")
-        usage()
-        sys.exit(2)
+        var cmd = arglist[0]
+        var rest = arglist[1:]
+        if cmd == "install" or cmd == "i" or cmd == "add":
+            cmdInstall(rest)
+        elif cmd == "remove" or cmd == "rm" or cmd == "uninstall":
+            cmdRemove(rest)
+        elif cmd == "list" or cmd == "ls":
+            cmdList()
+        elif cmd == "update" or cmd == "upgrade":
+            cmdUpdate(rest)
+        elif cmd == "outdated":
+            cmdOutdated()
+        elif cmd == "where":
+            io.print(packagesDir())
+        elif cmd == "version" or cmd == "--version" or cmd == "-v":
+            cmdVersion()
+        elif cmd == "self-update" or cmd == "selfupdate":
+            cmdSelfUpdate(rest)
+        elif cmd == "upgrade-ki" or cmd == "upgrade-kirito" or cmd == "self-upgrade":
+            cmdUpgradeKi(rest)
+        elif cmd == "help" or cmd == "-h" or cmd == "--help":
+            usage()
+        else:
+            io.eprint("kpm: unknown command '" + cmd + "'")
+            usage()
+            sys.exit(2)

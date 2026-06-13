@@ -74,7 +74,9 @@ if ($FromSource) {
 # Install the kpm package manager (a Kirito script) + a .cmd launcher next to ki.exe.
 Say "installing kpm"
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/$Ref/kpm/kpm.ki" -OutFile (Join-Path $KiritoHome "kpm.ki")
-$cmd = "@echo off`r`n`"%~dp0ki.exe`" `"%USERPROFILE%\.kirito\kpm.ki`" %*`r`n"
+# KPM_SELF lets `kpm self-update` overwrite this kpm.ki; KPM_KI_PATH lets `kpm upgrade-ki` replace
+# ki.exe (Windows can't overwrite a running exe in place, so kpm moves the old one aside first).
+$cmd = "@echo off`r`nsetlocal`r`nset `"KPM_SELF=%USERPROFILE%\.kirito\kpm.ki`"`r`nset `"KPM_KI_PATH=%~dp0ki.exe`"`r`n`"%~dp0ki.exe`" `"%USERPROFILE%\.kirito\kpm.ki`" %*`r`n"
 Set-Content -Path (Join-Path $BinDir "kpm.cmd") -Value $cmd -Encoding ascii
 
 # Add the install directory to the user PATH (persisted), if not already present.

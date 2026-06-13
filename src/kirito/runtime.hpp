@@ -2736,6 +2736,7 @@ inline void KiritoVM::installStandardLibrary() {
     registerSourceModule("enum", kimod::enum_mod);
     registerSourceModule("tee", kimod::tee);
     registerSourceModule("arg", kimod::arg);
+    registerSourceModule("semver", kimod::semver);
 }
 
 inline void KiritoVM::retainChunk(std::unique_ptr<ast::Program> chunk) {

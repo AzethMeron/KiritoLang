@@ -69,6 +69,31 @@ io.remove(dir + "/b.txt")
 io.exists(dir + "/b.txt")
 )") == "False");
 
+    // --- chmod: set POSIX permission bits from an octal Integer; verify the exact bits land ---
+    {
+        std::filesystem::create_directories(dir);
+        std::string f = (dir / "perm.txt").string();
+        std::string pbase = base + "var p = \"" + f + "\"\n";
+        namespace fs = std::filesystem;
+        // create the file, then chmod 0o600 -> rw------- ; returns success
+        CHECK(evalStr(vm, pbase + R"(
+with io.open(p, "w") as fh:
+    fh.write("x")
+io.chmod(p, 0o600)
+)") == "True");
+        auto perm = fs::status(f).permissions();
+        CHECK((perm & fs::perms::owner_all) == (fs::perms::owner_read | fs::perms::owner_write));
+        CHECK((perm & (fs::perms::group_all | fs::perms::others_all)) == fs::perms::none);
+        // bump to 0o755 -> rwxr-xr-x ; the keyword-argument form works too (chmod is signatured)
+        CHECK(evalStr(vm, pbase + "io.chmod(path = p, mode = 0o755)") == "True");
+        perm = fs::status(f).permissions();
+        CHECK((perm & fs::perms::owner_all) == fs::perms::owner_all);
+        CHECK((perm & fs::perms::group_exec) == fs::perms::group_exec);
+        CHECK((perm & fs::perms::others_write) == fs::perms::none);
+        // a missing path raises nothing and reports failure as False
+        CHECK(evalStr(vm, base + "io.chmod(dir + \"/nope.txt\", 0o644)") == "False");
+    }
+
     // --- the stream= keyword on print / write / eprint / input / read ---
     CHECK(evalStr(vm, base + R"(
 var buf = io.BytesIO()

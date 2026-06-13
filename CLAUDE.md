@@ -213,8 +213,9 @@ a stability fuzzer, and a benchmark). Working today:
     write accept `Bytes` (the stream is always byte-exact internally),
     `BytesIO` (an in-memory byte buffer with a read/write cursor; note its reads return **String** —
     Kirito Strings are byte-transparent — unlike Python's bytes-returning BytesIO), plus filesystem helpers (exists/remove/
-    rename/mkdir/getcwd/listdir/isfile/isdir/getsize/walk) and os.path-style path helpers
-    (dirname/basename/splitext/join). Module members are rebindable (`ModuleValue::setAttr`).
+    rename/mkdir/chmod/getcwd/listdir/isfile/isdir/getsize/walk) and os.path-style path helpers
+    (dirname/basename/splitext/join). `chmod(path, mode)` sets POSIX permission bits from an octal
+    Integer (e.g. `0o755`). Module members are rebindable (`ModuleValue::setAttr`).
   - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf/erfc, floor/ceil/
     trunc, gcd/lcm, factorial, isnan/isinf, prod/comb/perm, ...).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
@@ -304,7 +305,9 @@ a stability fuzzer, and a benchmark). Working today:
     by default — trust roots come from the OS: OpenSSL's default paths/`SSL_CERT_FILE` on Unix and the
     **Windows system "ROOT" store** via CryptoAPI, since OpenSSL ships no default CA bundle there; a
     verify failure reports the actual reason). URL helpers: quote/unquote/urlencode/parseqs/urlsplit.
-  - `sys` — environment (getenv/setenv/unsetenv/environ), `platform`, `exit`.
+  - `sys` — environment (getenv/setenv/unsetenv/environ), `platform`, `arch` (x64/arm64/x86), `version`
+    (the interpreter's semver string, == `ki --version`), `executable` (absolute path of the running
+    `ki` binary, for self-replacement), `exit`.
   - `time` — high-precision clocks (time/timens/monotonic/perfcounterns), sleep, and Python-like
     calendar time (`now`/`datetime`/`make`/`strptime`; `DateTime` with fields, iso/format,
     add/sub/diff arithmetic). `DateTime` has **value equality + hashing** by instant (epoch), so two
@@ -346,7 +349,11 @@ a stability fuzzer, and a benchmark). Working today:
     fan-out stream that clones writes to extra streams — e.g. stdout to a log file — plus
     `tee_stdout`/`tee_stderr` context managers that hook the std streams), `arg` (an argparse-style
     `Parser`: positional/option/flag declarations, then `parse(arglist)` -> Dict; type-converts
-    options to their default's type, `-h`/`--help` prints usage and returns None).
+    options to their default's type, `-h`/`--help` prints usage and returns None), `semver` (semantic
+    versioning à la semver.org + node-semver: parse/valid/clean, compare/eq/lt/gt/diff/inc, and the
+    range grammar satisfies/validrange/maxsatisfying/minsatisfying/sort/rsort — `^`/`~`/comparators/
+    x-ranges/hyphen ranges/AND/OR, prerelease precedence + gating; this is what `kpm` resolves
+    `repo@<constraint>` with).
 - **Modules** can also be `.ki` files found on the import path (`--lib <dir>`, the cwd, the
   script's directory, the `KIRITO_PATH` env var [PATH-style], and the per-user package dir
   `~/.kirito/packages` + each package sub-dir), lexed+parsed+evaluated once per VM and cached by
@@ -480,9 +487,20 @@ Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
 - **Install + packages**: `tools/scripts/install.sh` (Linux/macOS) and `tools/scripts/install.ps1` (Windows)
   are one-line installers that download the release binary (or build from source), place `ki`/`kpm`
   launchers on PATH, and create `~/.kirito/packages`. **`kpm/kpm.ki`** is the package manager,
-  written in Kirito (uses `net`/`json`/`io`): `kpm install <owner/repo>[@ref]` fetches a package's
-  `kirito.json` manifest + modules from GitHub (no central index) into `~/.kirito/packages/<name>/`;
-  also `remove`/`list`/`update`/`where`. Dependencies are other `owner/repo` packages.
+  written in Kirito (uses `net`/`json`/`io`/`sys`/`semver`): `kpm install <owner/repo>[@ref]` fetches a
+  package's `kirito.json` manifest + modules from GitHub (no central index) into
+  `~/.kirito/packages/<name>/`; also `remove`/`list`/`update`/`outdated`/`where`/`version`.
+  Dependencies are other `owner/repo` packages (each optionally `@<constraint>`). An `@ref` is either
+  a **literal git ref** (`@main`, a sha) or a **semver constraint** (`@^1.2.0`, `@1.x`, `@">=1 <2"`)
+  resolved against the repo's tags by the `semver` module (`validrange` tells them apart;
+  `maxsatisfying` picks the highest matching tag); the chosen constraint is recorded in `.kpm.json`
+  so `update`/`outdated` re-resolve it. **Self-maintenance**: `kpm self-update` refreshes `kpm.ki`
+  from GitHub (path via `$KPM_SELF`, set by the launcher), and `kpm upgrade-ki` downloads the latest
+  release binary for `sys.platform`/`sys.arch`, `io.chmod`s it executable, and atomically swaps it in
+  over the running interpreter (`sys.executable` / `$KPM_KI_PATH`; Windows moves the old exe aside
+  first) — both version-check against `sys.version` and no-op when current (`--force` overrides).
+  `$GITHUB_TOKEN`/`$KPM_GITHUB_TOKEN` is sent as a bearer token to lift the API rate limit + reach
+  private repos. The standalone `ki` also gains `-v`/`--version`.
 - Tests run under **CTest**. **Every language feature gets a test.** Prefer many
   small, focused tests (one behavior each) over large ones. A feature isn't done
   until it has a test and the suite is green.
