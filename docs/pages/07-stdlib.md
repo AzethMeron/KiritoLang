@@ -1204,9 +1204,9 @@ Run as `ki greet.ki Ada --count 2 --loud` → prints `HELLO, ADA!` twice.
 
 Semantic versioning — parse, compare, and range-match version strings, following [semver.org](https://semver.org)
 precedence and the [node-semver](https://github.com/npm/node-semver) range grammar. This is the
-versioning core `kpm` uses to resolve `owner/repo@<constraint>` against a repository's git tags. A
-version is `MAJOR.MINOR.PATCH` with an optional `-prerelease` and `+build` (a leading `v`/`=` is
-tolerated, e.g. `v1.2.3`).
+versioning core `kpm` uses to resolve `owner/repo@<constraint>` against a repository's git tags (see
+[Packages & kpm](packages.html)). A version is `MAJOR.MINOR.PATCH` with an optional `-prerelease`
+and `+build` (a leading `v`/`=` is tolerated, e.g. `v1.2.3`).
 
 - `clean(s: String) → String` — strip a leading `v`/`=` and surrounding whitespace.
 - `parse(s: String) → Dict` — `{major, minor, patch, prerelease, build, raw}` (`prerelease`/`build`
