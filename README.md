@@ -74,8 +74,9 @@ And why did i call it after MC of SAO? Dunno, just thought it's funny. Also I do
 Kirito is young and makes deliberate trade-offs. The notable current limits:
 
 - **It is a tree-walking interpreter, so compute-bound code is slow.** Interpreter-bound tight loops
-  run hundreds of times slower than C++ and ~8× slower than CPython; work that delegates to the C++
-  standard library (sorting, hashing, string ops) closes most of the gap (within ~3–5× of CPython).
+  run hundreds of times slower than C++, ~9× slower than CPython, and ~15× slower than Lua 5.1; work
+  that delegates to the C++ standard library (sorting, hashing, string ops) closes most of the gap —
+  within ~3–5× of CPython, and on par with or faster than Lua 5.1.
   See [Benchmarks](#benchmarks). A bytecode VM behind the stable AST boundary is the planned path to
   closing this — the architecture is designed for it.
 - **Integers are fixed-width `int64`** with well-defined two's-complement wraparound on overflow;
@@ -92,26 +93,31 @@ Kirito is young and makes deliberate trade-offs. The notable current limits:
 
 ## Benchmarks
 
-Kirito vs C++ (`-O2`) vs CPython 3.11 on identical algorithms over identical (LCG-generated) data,
-release build — mean time per repetition, lower is better (`tools/tests/bench/compare.py`):
+Kirito vs C++ (`-O2`) vs CPython 3.11 vs Lua 5.1 on identical algorithms over identical
+(LCG-generated) data, release build — mean time per repetition, lower is better
+(`tools/tests/bench/compare.py`):
 
-| Workload | C++ (-O2) | Python 3.11 | Kirito | Ki / C++ | Ki / Py |
-|---|---|---|---|---|---|
-| *pessimistic — interpreter-bound tight loops* | | | | | |
-| `sum_loop` (arithmetic loop) | 0.50 µs | 61.6 µs | 409 µs | 825× | 6.6× |
-| `fib` (recursive calls) | 4.65 µs | 274 µs | 2.11 ms | 453× | 7.7× |
-| `sieve` (nested loops + indexed writes) | 2.28 µs | 173 µs | 1.84 ms | 806× | 10.6× |
-| *optimistic — work delegated to C++ builtins* | | | | | |
-| `sort` (builtin sort) | 39.0 µs | 156 µs | 360 µs | 9× | 2.3× |
-| `dict_ops` (hash insert/lookup) | 84.5 µs | 149 µs | 742 µs | 9× | 5.0× |
-| `string_ops` (`split`/`join`) | 39.7 µs | 57.1 µs | 207 µs | 5× | 3.6× |
+| Workload | C++ (-O2) | Python 3.11 | Lua 5.1 | Kirito | Ki / C++ | Ki / Py | Ki / Lua |
+|---|---|---|---|---|---|---|---|
+| *pessimistic — interpreter-bound tight loops* | | | | | | | |
+| `sum_loop` (arithmetic loop) | 0.48 µs | 62.0 µs | 16.2 µs | 409 µs | 852× | 6.6× | 25× |
+| `fib` (recursive calls) | 4.40 µs | 269 µs | 227 µs | 2.10 ms | 477× | 7.8× | 9.3× |
+| `sieve` (nested loops + indexed writes) | 2.36 µs | 138 µs | 136 µs | 2.16 ms | 915× | 15.7× | 15.9× |
+| *optimistic — work delegated to C++ builtins* | | | | | | | |
+| `sort` (builtin sort) | 38.2 µs | 151 µs | 383 µs | 350 µs | 9× | 2.3× | **0.9×** |
+| `dict_ops` (hash insert/lookup) | 83.7 µs | 152 µs | 165 µs | 745 µs | 9× | 4.9× | 4.5× |
+| `string_ops` (`split`/`join`) | 39.6 µs | 56.0 µs | 281 µs | 195 µs | 5× | 3.5× | **0.7×** |
 
-Geometric-mean slowdown: **pessimistic ≈ 670× C++ / 8.2× Python**, **optimistic ≈ 7× C++ / 3.5×
-Python**. The shape is exactly what a tree-walker with a fast C++ standard library should show: it
-pays per-operation dispatch on tight loops, but amortizes that away once work lands in native
-builtins.
+Geometric-mean slowdown: **pessimistic ≈ 720× C++ / 9.3× Python / 15.4× Lua 5.1**, **optimistic ≈ 7×
+C++ / 3.4× Python / 1.4× Lua 5.1**. The shape is exactly what a tree-walker with a fast C++ standard
+library should show: it pays per-operation dispatch on tight loops — where Lua 5.1's register VM is
+~15× quicker — but amortizes that away once work lands in native builtins, where Kirito is on par with
+or **faster than** Lua 5.1 (`sort`, `string_ops` delegate to `std::sort` / `std::string`). Lua 5.1
+has no integer type, so its column uses doubles; the benchmark's 31-bit LCG is computed with an exact
+split-multiply so every language runs on byte-identical data.
 
-Reproduce: `cmake --build build-release --target ki && python3 tools/tests/bench/compare.py --ki build-release/ki`.
+Reproduce: `cmake --build build-release --target ki && python3 tools/tests/bench/compare.py --ki build-release/ki`
+(the Lua column appears automatically when `lua5.1` is on your `PATH`).
 
 ## Embedding Kirito in C++
 
