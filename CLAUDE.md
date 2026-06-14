@@ -330,6 +330,21 @@ a stability fuzzer, and a benchmark). Working today:
     `split`/`escape`, `IGNORECASE`/`MULTILINE`/`DOTALL` flags, capturing/non-capturing/named groups,
     greedy+lazy quantifiers, classes/anchors/boundaries, on Unicode code points. Backreferences and
     lookaround are deliberately rejected (they'd break the linear-time guarantee, à la RE2).
+  - `parallel` — **multiprocessing** (`stdlib_parallel.hpp` + `dispatcher.hpp`): true parallelism by
+    running many fully-isolated `KiritoVM`s, one per OS thread, that **share nothing** and communicate
+    only by passing serialized values (the `dump` codec) through thread-safe primitives owned by the
+    `KiritoDispatcher`. `spawn(fn, *args, **kwargs)` runs `fn` in a fresh worker VM (resolved by the
+    function's source span, re-read from its `.ki` file — so `fn` must be file-defined; locals captured
+    from an enclosing function do NOT cross — and args/result must be serializable) and returns a `Task`
+    (`join`/`done`); `Queue` (put/get/putnowait/getnowait/qsize/empty/full/close — the central transfer
+    primitive, cross-VM by identity) plus the coordination primitives `Lock`/`Event`/`Semaphore`/
+    `Barrier` (all cross-VM by identity, all with timeouts, all woken by shutdown) and `cpucount`. Only
+    the `ki` CLI installs it (every VM is built through a dispatcher via `KiritoDispatcher::configureVM`);
+    a bare embedded `KiritoVM` has no `parallel`. **Deadlock-safe by construction:** every blocking op is
+    a `Waitable` with an `aborted_` flag and `shutdown()` aborts them all before joining threads, so a
+    worker blocked anywhere always unwinds (raising a catchable "operation aborted"). The `net` module
+    gains `socket.detach()` / `net.fromfd(fd)` to hand an accepted connection to a worker VM (same OS
+    process). The example servers (`sqldb`, `webserver`) are built on this.
   - **Kirito-authored, frozen-source modules** (registered via `vm.registerSourceModule(name, src)`;
     bodies live in `stdlib_kimodules.hpp`, compiled once per VM on first import): `itertools`
     (chain/repeat/cycle/islice/accumulate/product/permutations/combinations/count/takewhile/
@@ -376,8 +391,12 @@ a stability fuzzer, and a benchmark). Working today:
   `tabular_iris.ki` on the bundled `data/iris.csv`, `tabular_sales.ki`, `tabular_survey.ki`) demonstrate
   non-trivial programs in pure Kirito.
   `examples/big_projects/` holds larger ones with Python test harnesses that double as interpreter
-  stress tests: `sqldb` (a networked SQL database), `webserver` (an HTTP/1.1 server + a small
-  routing framework — method+path routing with `:name` params, middleware, JSON, static files), and
+  stress tests: `sqldb` (a networked SQL database — **concurrent** via the `parallel` actor model: a
+  single DB-owner VM serializes access while a pool of connection workers handles socket I/O; a
+  `test_concurrent.py` asserts consistency under K simultaneous clients), `webserver` (an HTTP/1.1
+  server + a small routing framework — method+path routing with `:name` params, middleware, JSON,
+  static files — **concurrent** via a stateless `parallel` worker pool; `test_concurrent.py` fires
+  parallel requests + an adversarial burst), and
   `kgrad` (a pure-Kirito tensor/autodiff/deep-learning library: strided views, reverse-mode autograd
   with a computational graph, SGD/Adam, Linear/Conv2d/BatchNorm/activations as PyTorch-style Modules,
   MSE/BCE/CE/NLL losses, Dataset/DataLoader, PCA, weight serialization, and a backend abstraction
@@ -401,10 +420,12 @@ a stability fuzzer, and a benchmark). Working today:
   arguments by keyword — an end-to-end test that keyword arguments work across every callable; they
   pass the same test harnesses.
 
-Tested under three CMake presets: **`debug`** (g++ `-O2` with the hardened warning set `-Werror
+Tested under four CMake presets: **`debug`** (g++ `-O2` with the hardened warning set `-Werror
 -Wall -Wextra -Wformat=2 -Wconversion -Wpointer-arith -Wpedantic -fstack-protector-all -Wreorder
 -Wunused -Wshadow` — the strictest compile gate), **`release`** (the same minus `-Wconversion`/
-`-Wshadow`; the build to ship/benchmark), and **`asan`** (AddressSanitizer/UBSan, hardened warnings).
+`-Wshadow`; the build to ship/benchmark), **`asan`** (AddressSanitizer/UBSan, hardened warnings), and
+**`tsan`** (ThreadSanitizer — the data-race + lock-order-inversion gate for the `parallel` dispatcher,
+the only concurrent code).
 The codebase is `-Wconversion`-clean; the deliberate native-binding idiom where bound-method lambdas
 take `vm`/`self` parameters shadowing the enclosing `getAttr`/`setup` (same VM by design) is silenced
 with a scoped `#pragma GCC diagnostic ignored "-Wshadow"` in the stdlib glue + runtime type-methods,
@@ -414,8 +435,8 @@ must fail, with the required diagnostic text) and an **adversarial suite**
 (`tools/tests/unit/test_adversarial.cpp`: overflow, recursion, cyclic structures, Unicode, slicing edge
 cases). The **post-work routine** (`tools/scripts/post_work_check.sh`, documented in
 `.claude/POST_WORK_CHECKLIST.md`) runs the variants **sequentially** — `debug`, then `release`,
-**commit+push once both are green**, then `asan` (fix and re-push any failure) — each a clean build
-of the whole auto-discovered CTest suite. Run it before calling a change done.
+**commit+push once both are green**, then `asan` and `tsan` (fix and re-push any failure) — each a clean
+build of the whole auto-discovered CTest suite. Run it before calling a change done.
 
 **Docs:** an expandable HTML site (`docs/`) — hand-authored Markdown in `docs/pages/` rendered by
 the dependency-free `docs/build_docs.py` into `docs/site/` (intro, build, embedding, extending,
@@ -456,7 +477,11 @@ ASCII + Latin-1 + Latin Extended-A), and a bytecode VM behind the AST boundary.
   globals — all state is VM-scoped.
 - **One `KiritoVM` = one fully-encapsulated process**, composing its owned sub-objects: an
   `ObjectArena`, the global `Environment`, and the `ModuleRegistry`. No global/static mutable state,
-  so multiple VMs coexist and the whole context is serializable later.
+  so multiple VMs coexist and the whole context is serializable later. Because the arena is
+  **unsynchronized**, exactly one OS thread may ever touch a given VM — so concurrency is
+  **multiprocessing**: a `KiritoDispatcher` (`dispatcher.hpp`) owns the main VM plus worker VMs (one per
+  thread) and the cross-VM primitives, and the `parallel` module exposes it. Workers share nothing;
+  they exchange only serialized blobs through thread-safe Queues/primitives owned by the dispatcher.
 - **VM-owned value graph + handles.** Every value is an `Object` owned by an arena slot
   (`unique_ptr`); everything else holds lightweight `Handle`s (slot+generation). Reference-assignment
   = two bindings sharing one handle. No `shared_ptr`, no per-value refcount. Mark-sweep GC is

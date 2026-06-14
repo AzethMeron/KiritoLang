@@ -96,3 +96,24 @@ For functions that should accept keyword arguments and defaults, give them a sig
 
 Each `KiritoVM` is independent — no global mutable state. You can run several VMs in one process
 (e.g. per-request sandboxes) and they never share values or modules.
+
+## Running multiple VMs (`KiritoDispatcher`)
+
+Because a VM's arena is unsynchronized, exactly one thread may touch a given VM. To run Kirito code in
+parallel, build VMs through a **`KiritoDispatcher`**, which owns the main VM plus worker VMs (one per
+thread) and the cross-VM primitives that back the [`parallel`](stdlib.html#parallel) module:
+
+```cpp
+#include "kirito.hpp"
+
+kirito::KiritoDispatcher dispatcher;
+kirito::KiritoVM& vm = dispatcher.mainVM();   // built + configured (the `parallel` module enabled)
+dispatcher.addLibPath(".");                    // forwarded to the main VM and inherited by workers
+vm.runSource(source, "script.ki");             // Kirito `parallel.spawn(...)` now works
+// ~KiritoDispatcher (or dispatcher.shutdown()) wakes any blocked workers and joins every thread.
+```
+
+The `ki` interpreter does exactly this, so `parallel` is always available there. A **bare** `KiritoVM`
+(constructed directly, as above) has **no** `parallel` module — multiprocessing is a
+dispatcher-provided capability. `shutdown()` is idempotent and deadlock-safe: it aborts every blocked
+primitive before joining, so a worker blocked on a queue/lock/event can never stall teardown.

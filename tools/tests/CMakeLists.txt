@@ -99,6 +99,18 @@ kirito_test(test_stress unit/test_stress.cpp)
 kirito_test(test_value unit/test_value.cpp)
 kirito_test(test_modules_fuzz unit/test_modules_fuzz.cpp)
 
+# Multiprocessing (KiritoDispatcher + the `parallel` module). Every blocking scenario runs under an
+# in-test deadlock watchdog; the CTest TIMEOUT is a coarse backstop so a regression that slips past
+# the watchdog still fails the suite rather than stalling CI.
+kirito_test(test_parallel unit/test_parallel.cpp)
+kirito_test(test_parallel_sync unit/test_parallel_sync.cpp)
+kirito_test(test_parallel_deadlock unit/test_parallel_deadlock.cpp)
+kirito_test(test_parallel_random unit/test_parallel_random.cpp)
+kirito_test(test_parallel_edge unit/test_parallel_edge.cpp)
+kirito_test(test_parallel_fuzz unit/test_parallel_fuzz.cpp)
+set_tests_properties(test_parallel test_parallel_sync test_parallel_deadlock test_parallel_random
+                     test_parallel_edge test_parallel_fuzz PROPERTIES TIMEOUT 120)
+
 kirito_test(embed_demo integration/embed_demo.cpp)
 kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)
 kirito_test(bench bench/bench.cpp)
@@ -122,6 +134,14 @@ foreach(script ${ki_scripts})
              COMMAND ${CMAKE_COMMAND} -DKI=$<TARGET_FILE:ki> -DSCRIPT=${script}
                      -DEXPECTED=${expected} ${extra}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_script.cmake)
+endforeach()
+
+# The parallel golden scripts can block on a real bug; cap them so a regression fails rather than
+# stalling CI (the watchdog backstop, mirroring the parallel unit tests' TIMEOUT).
+foreach(nm parallel_basic parallel_sync)
+    if(TEST script_${nm})
+        set_tests_properties(script_${nm} PROPERTIES TIMEOUT 60)
+    endif()
 endforeach()
 
 # --- error-message tests: .ki files that MUST fail, with a .experr of required diagnostic text ---

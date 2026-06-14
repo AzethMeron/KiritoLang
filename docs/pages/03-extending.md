@@ -297,6 +297,34 @@ The source is compiled once per VM on first `import("mymod")`; its top-level `va
 module's members (names starting with `_` stay private). The bundled `itertools`, `collections`,
 `statistics`, etc. are built this way — see `stdlib_kimodules.hpp`.
 
+## Cross-VM objects (the dispatcher)
+
+A native type can be made to cross between worker VMs **by identity** — the way `parallel.Queue` is
+shared, where each VM holds a thin handle to one underlying C++ object. The pattern: keep the real
+state in a `KiritoDispatcher`-owned object addressed by an integer id, then expose `_getstate_` /
+`_setstate_` so serialization carries only that id, and register a deserializer that rebuilds the
+handle and rebinds it via `vm.dispatcher()`:
+
+```cpp
+// _getstate_ emits the shared object's id; _setstate_ rebinds to the same object in another VM.
+if (name == "_getstate_")
+    return makeMethod(vm, "_getstate_", {}, [self](KiritoVM& v, std::span<const Handle>) {
+        return v.makeInt(static_cast<int64_t>(thing(v, self).id()));
+    }, {self});
+if (name == "_setstate_")
+    return makeMethod(vm, "_setstate_", {"state"}, [self](KiritoVM& v, std::span<const Handle> a) {
+        // v.dispatcher() is the coordinator shared by all worker VMs; look the object up by id.
+        static_cast<MyVal&>(v.arena().deref(self)).obj =
+            v.dispatcher()->thingById(static_cast<uint64_t>(argInt(v, a[0], "_setstate_")));
+        return v.none();
+    }, {self});
+```
+
+`vm.dispatcher()` is null for a bare VM, so guard on it (a value that needs cross-VM identity only makes
+sense under a dispatcher). See `stdlib_parallel.hpp` for the full pattern. Live resources that *can't*
+meaningfully cross (open sockets, file handles) should simply omit `_getstate_` — serialization then
+raises a clear error instead of silently breaking.
+
 ## Design rules
 
 - **Naming**: Kirito's public functions and methods are **all lowercase, no underscores**

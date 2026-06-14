@@ -143,9 +143,13 @@ int main(int argc, char** argv) {
         }
     }
 
-    kirito::KiritoVM vm;
-    vm.addLibPath(".");  // current directory is always on the import path
-    for (const auto& l : libs) vm.addLibPath(l);
+    // The CLI runs every VM through a dispatcher, so the `parallel` module (spawn/Queue/...) is
+    // available and worker VMs inherit the same import paths. A bare embedded KiritoVM has no
+    // dispatcher and thus no `parallel` module — multiprocessing is a dispatcher-provided capability.
+    kirito::KiritoDispatcher dispatcher;
+    kirito::KiritoVM& vm = dispatcher.mainVM();
+    dispatcher.addLibPath(".");  // current directory is always on the import path
+    for (const auto& l : libs) dispatcher.addLibPath(l);
 
     // Environment-contributed import paths: KIRITO_PATH plus the per-user package directory that
     // `kpm` installs into (and each package sub-directory), so installed packages are importable
@@ -160,14 +164,14 @@ int main(int argc, char** argv) {
     const char* kiritoPathEnv = std::getenv("KIRITO_PATH");
     for (const auto& d : kirito::environmentLibPaths(kiritoPathEnv ? kiritoPathEnv : "",
                                                      homeEnv ? homeEnv : "", pathSep))
-        vm.addLibPath(d);
+        dispatcher.addLibPath(d);
 
     if (file.empty()) return repl(vm);
 
     // The script's own directory is also searched for sibling modules.
     std::error_code ec;
     std::filesystem::path scriptPath(file);
-    if (scriptPath.has_parent_path()) vm.addLibPath(scriptPath.parent_path().string());
+    if (scriptPath.has_parent_path()) dispatcher.addLibPath(scriptPath.parent_path().string());
 
     std::ifstream in(file);
     if (!in) { std::cerr << "ki: cannot open '" << file << "'\n"; return 1; }

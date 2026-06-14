@@ -38,7 +38,7 @@ var checkModule = Function(name):
 
 # --- every importable module: native + frozen-Kirito ---
 var modules = ["io", "math", "random", "matrix", "json", "serialize", "dump", "net", "sys",
-               "time", "zlib", "hash", "regex",
+               "time", "zlib", "hash", "regex", "parallel",
                "itertools", "functools", "collections", "statistics", "string", "textwrap",
                "base64", "csv", "heapq", "bisect", "copy", "enum", "tee", "arg", "tabular", "xml"]
 var totalMembers = 0

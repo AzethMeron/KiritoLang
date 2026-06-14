@@ -610,6 +610,9 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 ### Socket object
 
 - `Socket() → Socket` — a new TCP socket.
+- `fromfd(fd: Integer) → Socket` — adopt an existing raw socket file descriptor (e.g. one handed over
+  by `s.detach()`). Valid only within the same OS process — the basis for handing an accepted
+  connection to a worker VM under `parallel` (see [`parallel`](#parallel)).
 - `s.connect(host: String, port: Integer) → None` — connect to a server.
 - `s.bind(host: String, port: Integer) → None` — bind a server socket (sets `SO_REUSEADDR`).
 - `s.listen([backlog: Integer]) → None` — start listening.
@@ -621,6 +624,8 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 - `s.recvall() → Bytes` — receive until the peer closes (raw `Bytes`; `.decode()` for text).
 - `s.settimeout(seconds) → None` — bound subsequent send/recv with a timeout.
 - `s.close() → None` — close the socket.
+- `s.detach() → Integer` — surrender the raw fd to the caller and stop owning it (the socket's
+  destructor will no longer close it). Pair with `net.fromfd` to hand a connection to a worker VM.
 
 ---
 
@@ -818,6 +823,87 @@ io.print(re.sub("\\s+", "_", "a   b  c"))                 # => a_b_c
 var rx = re.compile("cat|dog", re.IGNORECASE)
 io.print(rx.findall("Cat dog CAT"))                        # => [Cat, dog, CAT]
 ```
+
+---
+
+## parallel
+
+True parallelism by **multiprocessing**: many fully-isolated `KiritoVM`s, each on its own OS thread,
+that share **nothing** and communicate only by passing serialized values through thread-safe
+primitives. (Kirito values live in a per-VM, unsynchronized arena, so they can't be shared across
+threads directly — instead a value is serialized out of one VM and rebuilt in another, exactly like
+`dump`.) This module is provided by the `ki` interpreter, which runs every VM under a coordinator (a
+`KiritoDispatcher`); a bare embedded `KiritoVM` has no `parallel` module.
+
+- `cpucount() → Integer` — the number of hardware threads available (at least 1).
+- `spawn(fn, *args, **kwargs) → Task` — run `fn(*args, **kwargs)` in a **fresh worker VM** on another
+  thread. `fn` must be a Kirito function defined in a **loadable `.ki` file** (the worker re-reads that
+  file and locates `fn` by source position); `args`/`kwargs` and the eventual return value must be
+  **serializable** (the same value types `dump` supports, including class instances with
+  `_getstate_`/`_setstate_`).
+
+> **Share-nothing rule.** A worker sees its parameters, the defining file's **module-level** names, and
+> its `import`s — but **not** local variables captured from an enclosing function (the closure does not
+> cross). Keep side-effecting startup under `if argmain:` so a worker, which re-evaluates the file with
+> `argmain` False, only defines functions instead of re-running the program.
+
+### Task
+
+- `t.join() → value` — block until the worker finishes and return its result (rebuilt in the caller's
+  VM). If the worker raised, `join` re-raises it here.
+- `t.done() → Bool` — whether the worker has finished (non-blocking).
+
+### Queue
+
+The central transfer primitive: a thread-safe FIFO that carries serialized values between VMs. Passing
+a Queue into `spawn` (or through another Queue) references the **same** underlying queue.
+
+- `Queue(maxsize: Integer = 0) → Queue` — a new queue; `maxsize = 0` is unbounded, otherwise bounded
+  (a full `put` blocks for back-pressure).
+- `q.put(item, block: Bool = True, timeout = None) → None` — enqueue `item` (serialized). On a full
+  bounded queue: blocks, or raises if `block = False` / the `timeout` elapses.
+- `q.get(block: Bool = True, timeout = None) → value` — dequeue the next value. On an empty queue:
+  blocks, or raises if `block = False` / the `timeout` elapses.
+- `q.putnowait(item)` / `q.getnowait()` — non-blocking `put` / `get`.
+- `q.qsize() → Integer`, `q.empty() → Bool`, `q.full() → Bool`.
+- `q.close() → None` — mark the queue closed. Pending and subsequent `put`s raise; `get` drains the
+  remaining items and then raises — the idiom a consumer loop uses to stop:
+
+```kirito
+var running = True
+while running:
+    try:
+        handle(q.get())
+    catch as e:        # raised when the queue is closed and drained
+        running = False
+```
+
+### Lock, Event, Semaphore, Barrier
+
+Coordination primitives, all cross-VM by identity (pass them into `spawn` / through a Queue) and all
+woken by interpreter shutdown.
+
+- `Lock() → Lock` — a non-reentrant mutex. `l.acquire(block = True, timeout = None) → Bool` (True if
+  acquired, False on timeout), `l.release()`, `l.locked() → Bool`. Best used as a context manager,
+  which always releases: `with l: ...`.
+- `Event() → Event` — a resettable flag. `e.set()`, `e.clear()`, `e.isset() → Bool`,
+  `e.wait(timeout = None) → Bool` (True once set, False on timeout).
+- `Semaphore(value: Integer = 1) → Semaphore` — a permit counter for bounded concurrency.
+  `s.acquire(block = True, timeout = None) → Bool`, `s.release()`; also a context manager (`with s:`).
+- `Barrier(parties: Integer) → Barrier` — an N-party rendezvous. `b.wait(timeout = None) → Integer`
+  (returns the arrival index 0..parties-1; the last arrival releases all), `b.parties() → Integer`,
+  `b.nwaiting() → Integer`, `b.reset()`, `b.abort()`.
+
+### Avoiding deadlock
+
+The runtime is deadlock-safe by construction: every blocking call honors a `timeout`, and interpreter
+shutdown aborts every blocked primitive (a blocked op then raises "operation aborted"). For
+application-level safety:
+
+- prefer `with lock:` / `with sem:` so a primitive is always released, even on an exception;
+- pass a `timeout =` to any blocking call that might never be satisfied;
+- if a worker acquires several `Lock`s, acquire them in a consistent order across all workers;
+- `close()` a Queue when production ends so consumers stop instead of blocking forever.
 
 ---
 

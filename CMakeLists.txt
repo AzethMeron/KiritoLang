@@ -30,10 +30,13 @@ else()
 endif()
 
 # The interpreter is header-only: an INTERFACE target that just exposes src/. It also carries
-# the platform's socket library so any consumer (CLI or tests) links it transparently.
+# the platform's socket library and the threads library (the multiprocessing dispatcher uses
+# std::thread/mutex) so any consumer (CLI or tests) links them transparently.
+find_package(Threads REQUIRED)
 add_library(kirito INTERFACE)
 target_include_directories(kirito INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_features(kirito INTERFACE cxx_std_20)
+target_link_libraries(kirito INTERFACE Threads::Threads)
 if(WIN32)
     target_link_libraries(kirito INTERFACE ws2_32)  # Winsock
 endif()

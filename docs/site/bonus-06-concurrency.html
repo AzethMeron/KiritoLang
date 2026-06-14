@@ -1,0 +1,181 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bonus: Concurrency with `parallel` — Kirito</title><style>
+:root{--bg:#16161a;--fg:#e4e4ea;--muted:#9a9aa6;--accent:#9b87ff;--code-bg:#1e1e25;
+--border:#2c2c35;--side:#1b1b21;--side-hover:#26262f}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--fg);background:var(--bg)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+#layout{display:flex;min-height:100vh}
+#sidebar{width:280px;background:var(--side);border-right:1px solid var(--border);padding:24px 18px;
+position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+#sidebar h1{font-size:20px;margin:0 0 4px}
+#sidebar .tag{color:var(--muted);font-size:13px;margin-bottom:20px}
+#sidebar a{display:block;color:var(--fg);padding:5px 10px;border-radius:7px;font-size:14.5px}
+#sidebar a:hover{background:var(--side-hover);text-decoration:none}
+#sidebar a.active{background:var(--accent);color:#16161a}
+#content{flex:1;max-width:860px;margin:0 auto;padding:44px 52px 100px}
+h1,h2,h3{line-height:1.25;font-weight:650}
+h1{font-size:33px;margin:.2em 0 .6em;border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:24px;margin:1.7em 0 .5em}h3{font-size:18.5px;margin:1.3em 0 .4em}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.86em;
+font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+pre{background:var(--code-bg);padding:16px 18px;border-radius:10px;overflow-x:auto;
+border:1px solid var(--border)}
+pre code{background:none;padding:0;font-size:13.5px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--side)}
+blockquote{margin:1em 0;padding:.4em 1.1em;border-left:4px solid var(--accent);
+background:var(--code-bg);border-radius:0 8px 8px 0;color:var(--fg)}
+.kw{color:#c678dd}.str{color:#98c379}.com{color:#7f848e;font-style:italic}.num{color:#d19a66}
+.builtin{color:#61afef}
+a.xref{text-decoration:none}
+a.xref:hover{text-decoration:underline}
+a.xref code{color:inherit}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+.note{font-size:13px;color:var(--muted);margin-top:40px}
+</style></head>
+<body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="packages.html">Packages &amp; kpm</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values-numbers.html">Lesson 2 — Values, Variables &amp; Numbers</a><a href="course-03-strings.html">Lesson 3 — Strings</a><a href="course-04-control-loops.html">Lesson 4 — Control Flow and Loops</a><a href="course-05-collections.html">Lesson 5 — Collections: Lists, Sets, Dicts &amp; Unpacking</a><a href="course-06-functions-closures.html">Lesson 6 — Functions and Closures</a><a href="course-07-annotations.html">Lesson 7 — Type Annotations and Runtime Checks</a><a href="course-08-classes.html">Lesson 8 — Classes I: Data and Behavior</a><a href="course-09-operators.html">Lesson 9 — Classes II: Operators and Protocols</a><a href="course-10-inheritance.html">Lesson 10 — Classes III: Inheritance and super</a><a href="course-11-errors.html">Lesson 11 — Errors and Exceptions</a><a href="course-12-context-managers.html">Lesson 12 — Context Managers and with</a><a href="course-13-files-io.html">Lesson 13 — Files, I/O, and Streams</a><a href="course-14-stdlib-tour.html">Lesson 14 — A Tour of the Standard Library</a><a href="course-15-capstone.html">Lesson 15 — Capstone: A Task Manager</a><a href="bonus-01-regex.html">Bonus Lesson 1 — Regular Expressions</a><a href="bonus-02-cli.html">Bonus Lesson 2 — Command-Line Programs</a><a href="bonus-03-data.html">Bonus Lesson 3 — Tabular Data Analysis</a><a href="bonus-04-linear-algebra.html">Bonus Lesson 4 — Matrices, Vectors &amp; Complex Numbers</a><a href="bonus-05-tensors.html">Bonus Lesson 5 — Tensors &amp; Autograd</a><a href="bonus-06-concurrency.html" class="active">Bonus: Concurrency with `parallel`</a></nav><main id="content"><h1 id="bonus-concurrency-with-parallel">Bonus: Concurrency with <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a></h1>
+<p>Kirito runs code in parallel by <strong>multiprocessing</strong>: instead of many threads sharing one heap, it runs many fully-isolated VMs — one per OS thread — that share <strong>nothing</strong> and talk only by passing serialized values through thread-safe primitives. This avoids data races by construction (no VM&#x27;s values are ever touched by two threads), at the cost of one rule: anything you hand to another VM must be <strong>serializable</strong>, and a worker can&#x27;t reach the local variables of the function that spawned it.</p>
+<p>This lesson builds up from a single <a class="xref" href="stdlib.html#sym-spawn"><code>spawn</code></a> to the two patterns the example servers use.</p>
+<blockquote><a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> is provided by the <code>ki</code> interpreter (which runs every VM under a coordinator). A bare embedded <code>KiritoVM</code> has no <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> module — see the embedding guide for <code>KiritoDispatcher</code>.</blockquote>
+<h2 id="spawning-work">Spawning work</h2>
+<p><code>parallel.spawn(fn, *args, **kwargs)</code> runs <code>fn</code> on a fresh worker VM and returns a <a class="xref" href="stdlib.html#task"><code>Task</code></a>. Call <a class="xref" href="stdlib.html#sym-t.join"><code>t.join()</code></a> to block for its result (rebuilt in your VM). <code>fn</code> must be a function defined in a <code>.ki</code> file — the worker re-reads that file to find it.</p>
+<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> slow_square = <span class="kw">Function</span>(x):
+    <span class="kw">return</span> x * x
+
+<span class="kw">if</span> argmain:
+    <span class="kw">var</span> t = parallel.spawn(slow_square, <span class="num">9</span>)
+    io.<span class="builtin">print</span>(t.join())          <span class="com"># 81</span></code></pre>
+<p>Spawn many at once for a parallel map-reduce — start every task, then join them all:</p>
+<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> work = <span class="kw">Function</span>(lo, hi):    <span class="com"># sum of a sub-range</span>
+    <span class="kw">var</span> s = <span class="num">0</span>
+    <span class="kw">var</span> i = lo
+    <span class="kw">while</span> i &lt; hi:
+        s = s + i
+        i = i + <span class="num">1</span>
+    <span class="kw">return</span> s
+
+<span class="kw">if</span> argmain:
+    <span class="kw">var</span> tasks = []
+    <span class="kw">var</span> i = <span class="num">0</span>
+    <span class="kw">while</span> i &lt; <span class="num">4</span>:
+        tasks.append(parallel.spawn(work, i * <span class="num">250</span>, i * <span class="num">250</span> + <span class="num">250</span>))
+        i = i + <span class="num">1</span>
+    <span class="kw">var</span> total = <span class="num">0</span>
+    <span class="kw">for</span> t <span class="kw">in</span> tasks:
+        total = total + t.join()
+    io.<span class="builtin">print</span>(total)             <span class="com"># 499500</span></code></pre>
+<blockquote><strong>The share-nothing rule.</strong> A worker sees its parameters, the defining file&#x27;s module-level names, and its <code>import</code>s — but <em>not</em> locals captured from an enclosing function (the closure does not cross). Keep functions you spawn at module level, and pass everything they need as arguments. Put your program&#x27;s startup under <a class="xref" href="course-04-control-loops.html#sym-if"><code>if argmain:</code></a> so a worker (which re-evaluates the file with <code>argmain</code> False) only <em>defines</em> functions instead of re-running the whole program.</blockquote>
+<h2 id="queues-passing-values-between-vms">Queues: passing values between VMs</h2>
+<p>A <a class="xref" href="stdlib.html#queue"><code>Queue</code></a> is a thread-safe FIFO that carries values across VMs. It&#x27;s the one object you can share between workers — pass it into <a class="xref" href="stdlib.html#sym-spawn"><code>spawn</code></a> (or send it through another Queue) and every VM references the <strong>same</strong> queue. A producer puts; consumers get; <code>close()</code> signals &quot;no more&quot;:</p>
+<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> producer = <span class="kw">Function</span>(out, n):
+    <span class="kw">var</span> i = <span class="num">0</span>
+    <span class="kw">while</span> i &lt; n:
+        out.put(i * i)
+        i = i + <span class="num">1</span>
+    out.close()                 <span class="com"># tell the consumer we&#x27;re done</span>
+
+<span class="kw">if</span> argmain:
+    <span class="kw">var</span> q = parallel.Queue()
+    <span class="kw">discard</span> parallel.spawn(producer, q, <span class="num">5</span>)
+    <span class="kw">var</span> got = []
+    <span class="kw">var</span> running = <span class="kw">True</span>
+    <span class="kw">while</span> running:
+        <span class="kw">try</span>:
+            got.append(q.get())     <span class="com"># blocks for the next item</span>
+        <span class="kw">catch</span> <span class="kw">as</span> e:                 <span class="com"># raised once the queue is closed and drained</span>
+            running = <span class="kw">False</span>
+    got.sort()
+    io.<span class="builtin">print</span>(got)               <span class="com"># [0, 1, 4, 9, 16]</span></code></pre>
+<p>A bounded <a class="xref" href="stdlib.html#queue"><code>Queue(maxsize)</code></a> gives back-pressure: a full <code>put</code> blocks until a consumer makes room.</p>
+<h2 id="pattern-1-the-actor-one-owner-of-shared-state">Pattern 1 — the actor (one owner of shared state)</h2>
+<p>When state must be shared and mutated (a database, a counter, a cache), keep it on <strong>one</strong> owner VM and funnel every access through a Queue. Workers send a request plus a private reply Queue; the owner does the work and replies. Because only the owner touches the state, there are no races — and it&#x27;s exactly how the <code>sqldb</code> example serves a shared database from a pool of connection workers.</p>
+<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> counter_owner = <span class="kw">Function</span>(reqq):     <span class="com"># the only VM that owns `total`</span>
+    <span class="kw">var</span> total = <span class="num">0</span>
+    <span class="kw">var</span> running = <span class="kw">True</span>
+    <span class="kw">while</span> running:
+        <span class="kw">var</span> msg = <span class="kw">None</span>
+        <span class="kw">try</span>:
+            msg = reqq.get()
+        <span class="kw">catch</span> <span class="kw">as</span> e:
+            running = <span class="kw">False</span>
+        <span class="kw">if</span> msg != <span class="kw">None</span>:                 <span class="com"># msg = [amount, replyq]</span>
+            total = total + msg[<span class="num">0</span>]
+            msg[<span class="num">1</span>].put(total)
+
+<span class="kw">if</span> argmain:
+    <span class="kw">var</span> reqq = parallel.Queue()
+    <span class="kw">discard</span> parallel.spawn(counter_owner, reqq)
+    <span class="kw">var</span> reply = parallel.Queue()
+    reqq.put([<span class="num">10</span>, reply])
+    io.<span class="builtin">print</span>(reply.get())               <span class="com"># 10</span>
+    reqq.put([<span class="num">5</span>, reply])
+    io.<span class="builtin">print</span>(reply.get())               <span class="com"># 15</span>
+    reqq.close()</code></pre>
+<h2 id="pattern-2-the-worker-pool-stateless">Pattern 2 — the worker pool (stateless)</h2>
+<p>When the work is independent (handling HTTP requests against read-only data), skip the owner: spawn a pool of identical workers that pull jobs from a shared Queue. The <code>webserver</code> example uses this — an acceptor hands each connection&#x27;s socket to the pool. Sockets cross by <em>file descriptor</em>: <code>socket.detach()</code> surrenders the fd, and <code>net.fromfd(fd)</code> adopts it in the worker (same OS process).</p>
+<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> net = <span class="kw">import</span>(<span class="str">&quot;net&quot;</span>)
+
+<span class="kw">var</span> worker = <span class="kw">Function</span>(jobs):
+    <span class="kw">var</span> running = <span class="kw">True</span>
+    <span class="kw">while</span> running:
+        <span class="kw">try</span>:
+            <span class="kw">var</span> fd = jobs.get()
+            <span class="kw">var</span> conn = net.fromfd(fd)   <span class="com"># adopt the handed-off connection</span>
+            <span class="com"># ... serve conn ...</span>
+            conn.close()
+        <span class="kw">catch</span> <span class="kw">as</span> e:
+            running = <span class="kw">False</span>             <span class="com"># jobs queue closed -&gt; stop</span>
+
+<span class="kw">if</span> argmain:
+    <span class="kw">var</span> jobs = parallel.Queue()
+    <span class="kw">var</span> n = parallel.cpucount()
+    <span class="kw">var</span> i = <span class="num">0</span>
+    <span class="kw">while</span> i &lt; n:
+        <span class="kw">discard</span> parallel.spawn(worker, jobs)
+        i = i + <span class="num">1</span>
+    <span class="com"># accept loop: jobs.put(srv.accept().detach())</span></code></pre>
+<h2 id="coordination-primitives">Coordination primitives</h2>
+<p>Beyond Queues, <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> offers the classic primitives — all shared across VMs, all woken on shutdown:</p>
+<ul><li><strong><code>Lock</code></strong> — mutual exclusion around an external resource. Prefer <code>with lock:</code> (always releases).</li><li><strong><code>Event</code></strong> — a flag many workers <code>wait()</code> on until one <code>set()</code>s it (e.g. a start/stop signal).</li><li><strong><code>Semaphore(n)</code></strong> — allow at most <code>n</code> workers into a section at once.</li><li><strong><code>Barrier(n)</code></strong> — make <code>n</code> workers rendezvous before any proceeds.</li></ul>
+<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> worker = <span class="kw">Function</span>(bar, out, id):
+    <span class="kw">discard</span> bar.wait()          <span class="com"># all workers line up here first</span>
+    out.put(id)
+
+<span class="kw">if</span> argmain:
+    <span class="kw">var</span> n = <span class="num">3</span>
+    <span class="kw">var</span> bar = parallel.Barrier(n)
+    <span class="kw">var</span> q = parallel.Queue()
+    <span class="kw">var</span> i = <span class="num">0</span>
+    <span class="kw">while</span> i &lt; n:
+        <span class="kw">discard</span> parallel.spawn(worker, bar, q, i)
+        i = i + <span class="num">1</span>
+    <span class="kw">var</span> got = []
+    <span class="kw">while</span> <span class="builtin">len</span>(got) &lt; n:
+        got.append(q.get())
+    got.sort()
+    io.<span class="builtin">print</span>(got)               <span class="com"># [0, 1, 2]</span></code></pre>
+<h2 id="avoiding-deadlock">Avoiding deadlock</h2>
+<p>The runtime is deadlock-safe by construction — interpreter shutdown aborts every blocked primitive — so a program that exits never hangs. For your own logic:</p>
+<ul><li>give a <code>timeout =</code> to any blocking call that might never be satisfied (<a class="xref" href="stdlib.html#sym-q.get"><code>q.get(True, 5)</code></a>, <code>ev.wait(2)</code>, <code>lock.acquire(True, 1)</code>);</li><li>use <code>with lock:</code> / <code>with sem:</code> so a primitive is released even on an exception;</li><li>if a worker takes several locks, take them in a consistent order everywhere;</li><li><code>close()</code> a Queue when production ends, so consumers stop instead of waiting forever.</li></ul>
+<p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
+</main></div></body></html>

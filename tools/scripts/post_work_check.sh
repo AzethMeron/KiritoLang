@@ -16,21 +16,23 @@
 #   release — g++ -O2, the looser warnings-as-errors set (no -Wconversion/-Wshadow); the build to
 #             benchmark and ship. (binaryDir: build-release)
 #   asan    — AddressSanitizer + UBSan (-fno-sanitize-recover=all) with the hardened warning set; the
-#             memory/UB-safety gate, and the slow one. (binaryDir: build-asan)
+#             memory/UB-safety gate, and a slow one. (binaryDir: build-asan)
+#   tsan    — ThreadSanitizer with the hardened warning set; data-race + lock-order-inversion gate for
+#             the multiprocessing dispatcher (the only concurrent code). (binaryDir: build-tsan)
 #
 # THE WORKFLOW GATE (run sequentially, in THIS order):
 #   1. build + test `debug`.
 #   2. build + test `release`.
 #   3. If BOTH debug and release are green -> COMMIT AND PUSH. This is the point at which the work
-#      becomes durable; do it BEFORE the long asan run so a crash/preemption/rollback can't lose it.
-#   4. build + test `asan`; fix any error it surfaces, then re-run (and push the fix).
+#      becomes durable; do it BEFORE the long sanitizer runs so a crash/preemption/rollback can't lose it.
+#   4. build + test `asan`, then `tsan`; fix any error either surfaces, then re-run (and push the fix).
 #
 # This script runs the variants in that order and reports each. It does NOT git-commit for you (the
 # commit message/branch is a decision for the author), but after debug+release pass it prints a clear
 # READY-TO-PUSH marker, then continues into asan.
 #
 # Usage:  scripts/post_work_check.sh [--no-asan]
-#   --no-asan   run debug + release only (the commit gate); skip the slow asan pass.
+#   --no-asan   run debug + release only (the commit gate); skip the slow asan + tsan passes.
 #
 # Exit status is non-zero if ANY variant fails to build or has a failing test.
 
@@ -43,7 +45,7 @@ NO_ASAN=0
 JOBS="$( { nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4; } )"
 [ "$JOBS" -lt 2 ] 2>/dev/null && JOBS=2
 
-declare -A DIR=( [debug]=build-debug [release]=build-release [asan]=build-asan )
+declare -A DIR=( [debug]=build-debug [release]=build-release [asan]=build-asan [tsan]=build-tsan )
 FAILED=0
 GREEN_GATE=1   # cleared if debug or release fails
 
@@ -65,6 +67,9 @@ run_variant() {
     if [ "$name" = asan ]; then
         ulimit -s 262144 2>/dev/null || true
         pre="ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1"
+    elif [ "$name" = tsan ]; then
+        # ThreadSanitizer: data races AND lock-order inversions (potential deadlocks) in the dispatcher.
+        pre="TSAN_OPTIONS=halt_on_error=1:second_deadlock_stack=1"
     fi
     if env $pre ctest --test-dir "$dir" -j"$JOBS" >"/tmp/pw_$name.test.log" 2>&1; then
         echo "[$name] $(grep -E 'tests passed' "/tmp/pw_$name.test.log" | tail -1)"
@@ -85,10 +90,11 @@ else
 fi
 
 [ "$NO_ASAN" -eq 0 ] && run_variant asan
+[ "$NO_ASAN" -eq 0 ] && run_variant tsan
 
 echo "==================== SUMMARY ===================="
-for v in debug release asan; do
-    [ "$v" = "asan" ] && [ "$NO_ASAN" -eq 1 ] && { echo "asan: <skipped>"; continue; }
+for v in debug release asan tsan; do
+    { [ "$v" = "asan" ] || [ "$v" = "tsan" ]; } && [ "$NO_ASAN" -eq 1 ] && { echo "$v: <skipped>"; continue; }
     line=$(grep -hE 'tests passed|TESTS FAILED|BUILD FAILED|CONFIG FAILED' \
                  "/tmp/pw_$v.test.log" "/tmp/pw_$v.build.log" "/tmp/pw_$v.cfg.log" 2>/dev/null | tail -1)
     echo "$v: ${line:-<not run>}"

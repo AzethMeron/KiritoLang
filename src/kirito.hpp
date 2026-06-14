@@ -44,5 +44,9 @@
 #include "kirito/analyzer.hpp"
 #include "kirito/evaluator.hpp"
 #include "kirito/runtime.hpp"
+// Multiprocessing: the dispatcher and the `parallel` module. AFTER runtime.hpp — they call inline
+// KiritoVM members (evalIn / importModule / install) that runtime.hpp defines.
+#include "kirito/dispatcher.hpp"
+#include "kirito/stdlib_parallel.hpp"
 
 #endif

@@ -29,6 +29,7 @@ namespace kirito {
 
 namespace ast { struct Program; }
 class NativeModule;
+class KiritoDispatcher;  // multiprocessing coordinator (dispatcher.hpp); a bare VM has none
 
 // One KiritoVM == one fully-encapsulated Kirito process. It owns the whole process state by
 // composing its sub-objects: the value arena, the global (built-ins) environment, and interned
@@ -185,6 +186,18 @@ public:
         return arena_.deref(h).str(ctx);
     }
 
+    // --- multiprocessing hookup (dispatcher.hpp) ---
+    // The dispatcher coordinating worker VMs. Null for a bare/embedded VM (then the `parallel` module
+    // is absent); the `ki` interpreter builds every VM through a KiritoDispatcher.
+    void setDispatcher(KiritoDispatcher* d) { dispatcher_ = d; }
+    KiritoDispatcher* dispatcher() const { return dispatcher_; }
+    // The retained AST of a chunk by its file/chunk name (set when evaluated). Used by the dispatcher
+    // to reconstruct a spawned function by its source span in a worker VM. Null if not loaded here.
+    const ast::Program* programForFile(const std::string& f) const {
+        auto it = programByFile_.find(f);
+        return it != programByFile_.end() ? it->second : nullptr;
+    }
+
     // Lex, parse, and evaluate a chunk of Kirito source in a fresh module scope; returns the
     // handle of the last expression's value (or None). Defined in runtime.hpp.
     Handle runSource(std::string_view source, std::string_view chunkName = "<main>");
@@ -216,6 +229,10 @@ private:
     std::unordered_map<std::string, ModuleFactory> moduleFactories_;
     std::unordered_map<std::string, Handle> moduleCache_;   // keyed by module name
     std::unordered_map<std::string, Handle> pathCache_;     // keyed by resolved absolute path
+    // chunk file/name -> its retained Program (the AST lives in chunks_; this just indexes it by file
+    // so the dispatcher can find a spawned function's definition by source span in a worker VM).
+    std::unordered_map<std::string, const ast::Program*> programByFile_;
+    KiritoDispatcher* dispatcher_ = nullptr;
     // Circular-import guard: names/paths currently mid-load, and the active chain (for diagnostics).
     // A module is published to moduleCache_ only after its body finishes, so a re-entrant import of
     // an in-progress module is a cycle — detected here instead of recursing until the stack blows.

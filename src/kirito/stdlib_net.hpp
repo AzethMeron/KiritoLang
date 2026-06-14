@@ -842,6 +842,15 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             sock(vm, self).closeFd();
             return vm.none();
         });
+    // detach() -> Integer: surrender the raw fd to the caller and stop owning it (the destructor won't
+    // close it). Lets an acceptor hand a connection to a worker VM via net.fromfd in one OS process.
+    if (name == "detach")
+        return bind("detach", {}, [self, sock](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            auto& s = sock(vm, self);
+            int64_t fd = static_cast<int64_t>(s.fd);
+            s.closed = true;  // relinquish ownership: ~SocketVal must not close this fd
+            return vm.makeInt(fd);
+        });
     if (name == "_enter_")
         return bind("_enter_", {}, [self](KiritoVM&, std::span<const Handle>) { return self; });
     return Object::getAttr(vm, self, name);
@@ -893,6 +902,12 @@ public:
         KiritoVM& vm = m.vm();
         m.fn("Socket", {}, "Socket", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             return vm.alloc(std::make_unique<SocketVal>());
+        });
+        // fromfd(fd) -> Socket: adopt an existing raw fd (e.g. one handed over by socket.detach() to a
+        // worker VM). Valid only within the same OS process.
+        m.fn("fromfd", {{"fd", "Integer"}}, "Socket", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            int64_t fd = Args(vm, a, "fromfd")[0].asInt("fromfd");
+            return vm.alloc(std::make_unique<SocketVal>(static_cast<netcompat::socket_t>(fd)));
         });
         m.fn("Session", {}, "Session", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             auto s = std::make_unique<SessionVal>();

@@ -27,8 +27,11 @@ The routine to run **after every change, before declaring it done**. The mechani
       can never lose the work. (Branches are forbidden — see CLAUDE.md and the `block_new_branches`
       hook.)
    4. **`asan`** — AddressSanitizer + UBSan (`-fno-sanitize-recover=all`) with the hardened warning
-      set; the memory/UB-safety gate and the slow one. **Fix any error it surfaces, then re-run and
+      set; the memory/UB-safety gate and a slow one. **Fix any error it surfaces, then re-run and
       push the fix.** (binaryDir `build-asan`)
+   5. **`tsan`** — ThreadSanitizer with the hardened warning set; the data-race + lock-order-inversion
+      gate for the `parallel` multiprocessing dispatcher (the only concurrent code). **Fix any error
+      it surfaces, then re-run and push the fix.** (binaryDir `build-tsan`)
 
    Each variant is a clean reconfigure + build + `ctest`. The suite is **auto-discovered**: unit
    executables register in `tools/tests/CMakeLists.txt`, and the `tools/scripts/` and `errors/` directories are
@@ -49,18 +52,18 @@ The routine to run **after every change, before declaring it done**. The mechani
 ## Run it
 
 ```sh
-tools/scripts/post_work_check.sh           # debug -> release -> (commit gate) -> asan
+tools/scripts/post_work_check.sh           # debug -> release -> (commit gate) -> asan -> tsan
 tools/scripts/post_work_check.sh --no-asan # debug + release only (the commit gate), for a fast inner loop
 ```
 
 After `debug` and `release` pass, the script prints `READY TO PUSH` — that's the cue to commit and
-push. It then runs `asan`. Exit status is non-zero if any variant fails to build or has a failing
-test; a full run is "done" only when it prints `ALL GREEN`.
+push. It then runs `asan` and `tsan`. Exit status is non-zero if any variant fails to build or has a
+failing test; a full run is "done" only when it prints `ALL GREEN`.
 
 ## Notes
 
-- The project ships three presets: `debug`, `release`, `asan` (the former `strict` preset was folded
-  into the hardened `debug`). The Windows cross build is no longer part of the routine.
+- The project ships four presets: `debug`, `release`, `asan`, `tsan` (the former `strict` preset was
+  folded into the hardened `debug`). The Windows cross build is no longer part of the routine.
 - The codebase is `-Wconversion`-clean; the deliberate native-binding idiom (bound-method lambdas
   whose `vm`/`self` parameters shadow the enclosing `getAttr`/`setup` — same VM by design) is silenced
   with a scoped `#pragma GCC diagnostic ignored "-Wshadow"` in the stdlib glue + runtime type-methods,
