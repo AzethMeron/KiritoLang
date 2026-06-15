@@ -168,18 +168,20 @@ power(exp = <span class="num">3</span>, base = <span class="num">2</span>)   <sp
 <span class="com"># typed([1, 2])  -&gt; error: argument &#x27;d&#x27; must be Dict, got List</span></code></pre>
 <p>Annotations are checked at runtime (inheritance-aware for classes). <a class="xref" href="course-07-annotations.html#sym-Any"><code>Any</code></a> or no annotation accepts anything. Inline form: <a class="xref" href="course-06-functions-closures.html#sym-Function"><code>Function(x): return x * x</code></a>.</p>
 <h2 id="packing-and-unpacking">Packing and unpacking</h2>
-<p>A bare comma sequence packs into a List; the left side of <code>=</code>, <code>var</code>, and <code>for</code> unpacks any iterable, with one optional starred target absorbing the surplus.</p>
+<p>A bare comma sequence packs into a List; the left side of <code>=</code>, <code>var</code>, and <code>for</code> unpacks any iterable, with one optional starred target absorbing the surplus. The starred target can sit <strong>anywhere</strong> — at the start, middle, or end of the target list.</p>
 <pre><code><span class="kw">var</span> t = <span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>            <span class="com"># t == [1, 2, 3]</span>
 <span class="kw">var</span> a, b = <span class="num">1</span>, <span class="num">2</span>            <span class="com"># a == 1, b == 2</span>
 a, b = b, a               <span class="com"># swap</span>
 <span class="kw">var</span> first, *rest = [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>]   <span class="com"># first == 1, rest == [2, 3, 4]</span>
+<span class="kw">var</span> *init, last = [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>]    <span class="com"># init == [1, 2, 3], last == 4</span>
+<span class="kw">var</span> head, *mid, tail = [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>]   <span class="com"># head == 1, mid == [2, 3, 4], tail == 5</span>
 <span class="kw">for</span> k, v <span class="kw">in</span> d.items():
     ...</code></pre>
 <h2 id="classes">Classes</h2>
 <pre><code><span class="kw">class</span> Animal:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name):
         self.name = name
-        self._id = <span class="num">0</span>          <span class="com"># _name =&gt; private (only methods of this class can touch it)</span>
+        self._id = <span class="num">0</span>          <span class="com"># `_id` is private (only methods of this class chain can touch it)</span>
     <span class="kw">var</span> speak = <span class="kw">Function</span>(self) -&gt; <span class="builtin">String</span>:
         <span class="kw">return</span> <span class="str">&quot;...&quot;</span>
 

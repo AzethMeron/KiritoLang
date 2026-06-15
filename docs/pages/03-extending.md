@@ -5,6 +5,11 @@ Kirito-level classes all derive from the same base and dispatch through the same
 you add is indistinguishable from a built-in to the evaluator. You extend Kirito by subclassing two
 convenience bases and registering with one call.
 
+Throughout this page `vm` is your interpreter VM — normally `dispatcher.mainVM()` from a
+[`KiritoDispatcher`](embedding.html) (the recommended embedding entry point), or a bare `KiritoVM` if
+you don't need `parallel`. Everything here (`install<T>()`, `registerGlobal`, native classes) works
+the same on either.
+
 > **Reach for the built-in types first.** Returning Integers, Floats, Strings, Bools, `None`, Lists,
 > Dicts, and Sets covers the vast majority of modules. Defining a *new* `NativeClass` is the fallback
 > — only for genuinely new behaviour (a file handle, a socket, a matrix). The `Value` API below makes

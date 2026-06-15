@@ -229,7 +229,10 @@ def linkify(body):
             file, anchor = SYMBOLS[name]
             return f'<a class="xref" href="{file}#{anchor}"><code>{m.group(1)}</code></a>'
         return m.group(0)
-    parts = re.split(r"(<pre>.*?</pre>)", body, flags=re.S)
+    # Skip fenced code blocks (<pre>…</pre>) AND text already inside an explicit link
+    # (<a …>…</a>) — otherwise a `[`name`](url)` whose name is also a documented symbol would get
+    # its inner <code> re-wrapped in a second <a class="xref">, producing invalid nested anchors.
+    parts = re.split(r"(<pre>.*?</pre>|<a\b[^>]*>.*?</a>)", body, flags=re.S)
     for i in range(0, len(parts), 2):
         parts[i] = re.sub(r"<code>([^<]+)</code>", repl, parts[i])
     return "".join(parts)

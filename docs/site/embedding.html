@@ -38,24 +38,36 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 .note{font-size:13px;color:var(--muted);margin-top:40px}
 </style></head>
 <body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html" class="active">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="packages.html">Packages &amp; kpm</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values-numbers.html">Lesson 2 — Values, Variables &amp; Numbers</a><a href="course-03-strings.html">Lesson 3 — Strings</a><a href="course-04-control-loops.html">Lesson 4 — Control Flow and Loops</a><a href="course-05-collections.html">Lesson 5 — Collections: Lists, Sets, Dicts &amp; Unpacking</a><a href="course-06-functions-closures.html">Lesson 6 — Functions and Closures</a><a href="course-07-annotations.html">Lesson 7 — Type Annotations and Runtime Checks</a><a href="course-08-classes.html">Lesson 8 — Classes I: Data and Behavior</a><a href="course-09-operators.html">Lesson 9 — Classes II: Operators and Protocols</a><a href="course-10-inheritance.html">Lesson 10 — Classes III: Inheritance and super</a><a href="course-11-errors.html">Lesson 11 — Errors and Exceptions</a><a href="course-12-context-managers.html">Lesson 12 — Context Managers and with</a><a href="course-13-files-io.html">Lesson 13 — Files, I/O, and Streams</a><a href="course-14-stdlib-tour.html">Lesson 14 — A Tour of the Standard Library</a><a href="course-15-capstone.html">Lesson 15 — Capstone: A Task Manager</a><a href="bonus-01-regex.html">Bonus Lesson 1 — Regular Expressions</a><a href="bonus-02-cli.html">Bonus Lesson 2 — Command-Line Programs</a><a href="bonus-03-data.html">Bonus Lesson 3 — Tabular Data Analysis</a><a href="bonus-04-linear-algebra.html">Bonus Lesson 4 — Matrices, Vectors &amp; Complex Numbers</a><a href="bonus-05-tensors.html">Bonus Lesson 5 — Tensors &amp; Autograd</a><a href="bonus-06-concurrency.html">Bonus: Concurrency with `parallel`</a></nav><main id="content"><h1 id="embedding-kirito-in-c">Embedding Kirito in C++</h1>
-<p>Kirito is header-only and embeddable: <code>#include &quot;kirito.hpp&quot;</code>, construct a <code>KiritoVM</code>, and run source. There is no <code>main()</code> in the library — the standalone interpreter&#x27;s <code>main</code> lives only in <code>main.cpp</code>.</p>
+<p>Kirito is header-only and embeddable: <code>#include &quot;kirito.hpp&quot;</code>, construct a <strong><code>KiritoDispatcher</code></strong>, and run source on the VM it gives you. There is no <code>main()</code> in the library — the standalone interpreter&#x27;s <code>main</code> lives only in <code>main.cpp</code>.</p>
+<p>The <code>KiritoDispatcher</code> is the recommended entry point. It owns a fully-configured main <code>KiritoVM</code> (with the <a href="stdlib.html#parallel"><code>parallel</code></a> module enabled) plus the machinery for worker VMs and the cross-VM primitives — exactly what the <code>ki</code> interpreter builds. It costs nothing until you use it (no threads are spawned until Kirito calls <code>parallel.spawn</code>), and its destructor cleanly tears everything down, so it is the right default even for a single-threaded embed. (If you genuinely want the bare minimum and no <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a>, you can construct a <code>KiritoVM</code> directly — see <a href="#a-bare-kiritovm">A bare <code>KiritoVM</code></a> at the end.)</p>
 <h2 id="minimal-example">Minimal example</h2>
 <pre><code>#include &quot;kirito.hpp&quot;
 using namespace kirito;
 
 int main() {
-    KiritoVM vm;                       // one fully-encapsulated interpreter
+    KiritoDispatcher dispatcher;          // the embedding entry point
+    KiritoVM&amp; vm = dispatcher.mainVM();   // a fully-configured interpreter (parallel enabled)
     Handle result = vm.runSource(&quot;var x = 6 * 7\nx\n&quot;);
     std::printf(&quot;%s\n&quot;, vm.stringify(result).c_str());   // 42
-}</code></pre>
-<p>Build it by adding <code>src/</code> to your include path and compiling as C++20. No library to link — the core is all inline/templated headers.</p>
+}   // ~KiritoDispatcher wakes any blocked workers and joins every thread</code></pre>
+<p>Build it by adding <code>src/</code> to your include path and compiling as C++20. No library to link — the core is all inline/templated headers. (Link <code>-pthread</code> on POSIX; the dispatcher uses threads for <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> workers.)</p>
+<h2 id="why-go-through-the-dispatcher">Why go through the dispatcher</h2>
+<p>A <code>KiritoVM</code>&#x27;s arena is <strong>unsynchronized</strong>, so exactly one OS thread may ever touch a given VM. Kirito&#x27;s concurrency model is therefore <strong>multiprocessing</strong>: the dispatcher owns the main VM plus a pool of worker VMs (one per thread) that share nothing and communicate only by passing serialized values through thread-safe primitives. The dispatcher is what wires this together:</p>
+<ul><li><strong>It configures the VM.</strong> <a class="xref" href="embedding.html#sym-mainVM"><code>mainVM()</code></a> lazily constructs the main VM and installs the <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> module on it (a bare <code>KiritoVM</code> has none). Worker VMs are configured the same way, so <code>parallel.spawn</code>/<a class="xref" href="stdlib.html#queue"><code>Queue</code></a>/<code>Lock</code>/<code>Event</code>/<code>Semaphore</code>/<code>Barrier</code> work out of the box.</li><li><strong>It forwards import paths.</strong> <code>addLibPath</code> is recorded on the dispatcher and inherited by every worker VM, so a spawned function resolves the same <code>import(&quot;...&quot;)</code> modules as the main VM.</li><li><strong>Its teardown is deadlock-safe.</strong> <code>~KiritoDispatcher</code> (or <a class="xref" href="embedding.html#sym-shutdown"><code>shutdown()</code></a>) aborts every blocked primitive <em>before</em> joining threads, so a worker blocked on a queue/lock/event can never stall teardown. <a class="xref" href="embedding.html#sym-shutdown"><code>shutdown()</code></a> is idempotent.</li></ul>
+<p>The <code>ki</code> CLI does exactly this, which is why <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> is always available when you run a script with <code>ki</code>.</p>
+<h2 id="the-kiritodispatcher-surface">The <code>KiritoDispatcher</code> surface</h2>
+<table><thead><tr><th>Method</th><th>Purpose</th></tr></thead><tbody><tr><td><code id="sym-mainVM">mainVM()</code></td><td>The main <code>KiritoVM</code> (lazily constructed + configured on first call). Run your code on this.</td></tr><tr><td><code id="sym-addLibPath">addLibPath(dir)</code></td><td>Add a module import-path directory; applied to the main VM and inherited by workers.</td></tr><tr><td><code id="sym-setMaxCallDepth">setMaxCallDepth(n)</code></td><td>Set the recursion guard (applied to the main VM and workers).</td></tr><tr><td><code id="sym-shutdown">shutdown()</code></td><td>Abort every blocked cross-VM primitive and join all worker threads. Idempotent; also run by the destructor.</td></tr></tbody></table>
+<p>You drive the interpreter through the <code>KiritoVM&amp;</code> returned by <a class="xref" href="embedding.html#sym-mainVM"><code>mainVM()</code></a> — its surface is below.</p>
 <h2 id="the-kiritovm-surface">The <code>KiritoVM</code> surface</h2>
-<p>A <code>KiritoVM</code> owns its arena, global environment, and module registry. Key methods:</p>
-<table><thead><tr><th>Method</th><th>Purpose</th></tr></thead><tbody><tr><td><code id="sym-runSource">runSource(src [, chunkName])</code></td><td>Lex+parse+eval a chunk in a fresh module scope; returns the last value&#x27;s <code>Handle</code>.</td></tr><tr><td><code id="sym-runRepl">runRepl(src)</code></td><td>Like <a class="xref" href="embedding.html#sym-runSource"><code>runSource</code></a> but reuses one persistent module scope across calls.</td></tr><tr><td><code id="sym-stringify">stringify(Handle)</code></td><td>The <a class="xref" href="extending.html#sym-str"><code>str()</code></a> of a value (what <a class="xref" href="stdlib.html#sym-print"><code>print</code></a> shows).</td></tr><tr><td><code id="sym-makeInt">makeInt / makeFloat / makeString / makeBool / none()</code></td><td>Construct primitive values (or use <code>val(vm, x)</code> from the Value API).</td></tr><tr><td><code id="sym-alloc">alloc(unique_ptr&lt;Object&gt;)</code></td><td>Box any <code>Object</code> (a built-in or a <code>NativeClass</code>) into the arena, returning its <code>Handle</code>.</td></tr><tr><td><code id="sym-registerGlobal">registerGlobal(name, Handle)</code></td><td>Bind a global name (e.g. inject a value or function).</td></tr><tr><td><code id="sym-install">install&lt;Module&gt;()</code></td><td>Register a C++-authored module (see <em>Extending</em>).</td></tr><tr><td><code id="sym-registerSourceModule">registerSourceModule(name, src)</code></td><td>Register a module whose body is Kirito source.</td></tr><tr><td><code id="sym-arena">arena()</code></td><td>The value arena, for <code>deref(Handle)</code> etc.</td></tr></tbody></table>
+<p>A <code>KiritoVM</code> owns its arena, global environment, and module registry. Key methods (call them on <code>dispatcher.mainVM()</code>):</p>
+<table><thead><tr><th>Method</th><th>Purpose</th></tr></thead><tbody><tr><td><code id="sym-runSource">runSource(src [, chunkName])</code></td><td>Lex+parse+eval a chunk in a fresh module scope; returns the last value&#x27;s <code>Handle</code>.</td></tr><tr><td><code id="sym-runRepl">runRepl(src)</code></td><td>Like <a class="xref" href="embedding.html#sym-runSource"><code>runSource</code></a> but reuses one persistent module scope across calls.</td></tr><tr><td><code id="sym-stringify">stringify(Handle)</code></td><td>The <a class="xref" href="extending.html#sym-str"><code>str()</code></a> of a value (what <a class="xref" href="stdlib.html#sym-print"><code>print</code></a> shows).</td></tr><tr><td><code id="sym-makeInt">makeInt / makeFloat / makeString / makeBool / none()</code></td><td>Construct primitive values (or use <code>val(vm, x)</code> from the Value API).</td></tr><tr><td><code id="sym-alloc">alloc(unique_ptr&lt;Object&gt;)</code></td><td>Box any <code>Object</code> (a built-in or a <code>NativeClass</code>) into the arena, returning its <code>Handle</code>.</td></tr><tr><td><code id="sym-registerGlobal">registerGlobal(name, Handle)</code></td><td>Bind a global name (e.g. inject a value or function).</td></tr><tr><td><code id="sym-install">install&lt;Module&gt;()</code></td><td>Register a C++-authored module (see <em>Extending</em>).</td></tr><tr><td><code id="sym-registerSourceModule">registerSourceModule(name, src)</code></td><td>Register a module whose body is Kirito source.</td></tr><tr><td><code>addLibPath(dir)</code></td><td>Add a module import path (prefer <code>dispatcher.addLibPath</code> so workers inherit it).</td></tr><tr><td><code id="sym-arena">arena()</code></td><td>The value arena, for <code>deref(Handle)</code> etc.</td></tr></tbody></table>
 <h2 id="values-and-handles">Values and handles</h2>
 <p>Every Kirito value is an <code>Object</code> owned by the VM&#x27;s arena; your C++ code holds lightweight <code>Handle</code>s (slot + generation). Reference-assignment in Kirito means two names share one handle. You never own raw <code>Object</code> pointers.</p>
 <p>The ergonomic way to read and build values is the <strong><code>Value</code> API</strong> (<code>value.hpp</code>, pulled in by <code>kirito.hpp</code>): a <code>Value{vm, handle}</code> facade with typed accessors, plus <code>val(vm, x)</code> constructors and <a class="xref" href="types.html#list"><code>List</code></a>/<a class="xref" href="types.html#dict"><code>Dict</code></a>/<a class="xref" href="types.html#set"><code>Set</code></a> builders. It converts implicitly to/from <code>Handle</code>, so it drops in anywhere.</p>
-<pre><code>Value list = Value(vm, vm.runSource(&quot;[1, 2, 3]\n&quot;));
+<pre><code>KiritoDispatcher dispatcher;
+KiritoVM&amp; vm = dispatcher.mainVM();
+
+Value list = Value(vm, vm.runSource(&quot;[1, 2, 3]\n&quot;));
 std::printf(&quot;len = %lld\n&quot;, (long long)list.len());   // 3
 std::printf(&quot;first = %lld\n&quot;, (long long)list.at(0).asInt());   // 1
 
@@ -65,13 +77,14 @@ if (d.has(&quot;a&quot;)) std::printf(&quot;a = %lld\n&quot;, (long long)d.get(&
 <h2 id="errors">Errors</h2>
 <p>Runtime and parse problems are thrown as <code>KiritoError</code>, which carries a <code>SourceSpan{line, col}</code> and a message. An uncaught Kirito <a class="xref" href="course-11-errors.html#sym-throw"><code>throw</code></a> surfaces to the embedder as a <code>KiritoError</code> too.</p>
 <pre><code>try {
-    vm.runSource(&quot;1 / 0\n&quot;);
+    dispatcher.mainVM().runSource(&quot;1 / 0\n&quot;);
 } catch (const kirito::KiritoError&amp; e) {
     std::fprintf(stderr, &quot;%d:%d: %s\n&quot;, e.span.line, e.span.col, e.what());
 }</code></pre>
 <h2 id="injecting-a-c-function">Injecting a C++ function</h2>
 <p>Use <a class="xref" href="embedding.html#sym-registerGlobal"><code>registerGlobal</code></a> with a <code>NativeFunction</code>. Read arguments through <a class="xref" href="extending.html#sym-Args"><code>Args</code></a> + <code>Value</code> and build the result with <code>val(...)</code>, so a bad argument becomes a clear <code>KiritoError</code> instead of a cast crash:</p>
-<pre><code>vm.registerGlobal(&quot;repeat&quot;, vm.alloc(std::make_unique&lt;NativeFunction&gt;(
+<pre><code>KiritoVM&amp; vm = dispatcher.mainVM();
+vm.registerGlobal(&quot;repeat&quot;, vm.alloc(std::make_unique&lt;NativeFunction&gt;(
     &quot;repeat&quot;, [](KiritoVM&amp; vm, std::span&lt;const Handle&gt; raw) -&gt; Handle {
         Args a(vm, raw, &quot;repeat&quot;);
         std::string s = a.at(0).asString(&quot;s&quot;);
@@ -82,17 +95,33 @@ if (d.has(&quot;a&quot;)) std::printf(&quot;a = %lld\n&quot;, (long long)d.get(&
     })));
 // Kirito: repeat(&quot;ab&quot;, 3)   -&gt;   &quot;ababab&quot;</code></pre>
 <p>For functions that should accept keyword arguments and defaults, give them a signature — see <a href="extending.html">Extending Kirito</a>.</p>
-<h2 id="isolation">Isolation</h2>
-<p>Each <code>KiritoVM</code> is independent — no global mutable state. You can run several VMs in one process (e.g. per-request sandboxes) and they never share values or modules.</p>
-<h2 id="running-multiple-vms-kiritodispatcher">Running multiple VMs (<code>KiritoDispatcher</code>)</h2>
-<p>Because a VM&#x27;s arena is unsynchronized, exactly one thread may touch a given VM. To run Kirito code in parallel, build VMs through a <strong><code>KiritoDispatcher</code></strong>, which owns the main VM plus worker VMs (one per thread) and the cross-VM primitives that back the <a href="stdlib.html#parallel"><a class="xref" href="stdlib.html#parallel"><code>parallel</code></a></a> module:</p>
-<pre><code>#include &quot;kirito.hpp&quot;
+<h2 id="multiprocessing-with-parallel">Multiprocessing with <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a></h2>
+<p>Building through the dispatcher is what makes the <a href="stdlib.html#parallel"><code>parallel</code></a> module available (a bare VM can&#x27;t <code>import(&quot;parallel&quot;)</code>). One requirement shapes how you embed it: <strong>a function passed to <code>parallel.spawn</code> must be defined in a loadable <code>.ki</code> file</strong> — a worker VM re-reads it from disk by its source span — and its arguments and result must be serializable. So the natural pattern is to run a script <em>from a file</em> (give <a class="xref" href="embedding.html#sym-runSource"><code>runSource</code></a> the real path) rather than from an inline string:</p>
+<pre><code>// worker.ki on disk:
+//   var parallel = import(&quot;parallel&quot;)
+//   var square = Function(x): return x * x
+//   var tasks = []
+//   for i in range(8):
+//       tasks.append(parallel.spawn(square, i))
+//   var total = 0
+//   for t in tasks:
+//       total = total + t.join()
+//   import(&quot;io&quot;).print(total)        # 140
 
-kirito::KiritoDispatcher dispatcher;
-kirito::KiritoVM&amp; vm = dispatcher.mainVM();   // built + configured (the `parallel` module enabled)
-dispatcher.addLibPath(&quot;.&quot;);                    // forwarded to the main VM and inherited by workers
-vm.runSource(source, &quot;script.ki&quot;);             // Kirito `parallel.spawn(...)` now works
-// ~KiritoDispatcher (or dispatcher.shutdown()) wakes any blocked workers and joins every thread.</code></pre>
-<p>The <code>ki</code> interpreter does exactly this, so <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> is always available there. A <strong>bare</strong> <code>KiritoVM</code> (constructed directly, as above) has <strong>no</strong> <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> module — multiprocessing is a dispatcher-provided capability. <code>shutdown()</code> is idempotent and deadlock-safe: it aborts every blocked primitive before joining, so a worker blocked on a queue/lock/event can never stall teardown.</p>
+KiritoDispatcher dispatcher;
+KiritoVM&amp; vm = dispatcher.mainVM();
+dispatcher.addLibPath(&quot;.&quot;);                       // workers inherit the same import path
+std::ifstream in(&quot;worker.ki&quot;);
+std::stringstream ss; ss &lt;&lt; in.rdbuf();
+vm.runSource(ss.str(), &quot;worker.ki&quot;);              // the real path lets a worker re-read `square`</code></pre>
+<p>Workers are spawned on demand and share nothing — they exchange only serialized blobs through the dispatcher-owned <a class="xref" href="stdlib.html#queue"><code>Queue</code></a>/<code>Lock</code>/<code>Event</code>/<code>Semaphore</code>/<code>Barrier</code> primitives. See the <a href="stdlib.html#parallel"><code>parallel</code></a> reference and the <a href="bonus-06-concurrency.html">Concurrency</a> bonus lesson for the full model. (An inline-string program can still use every <em>non-spawn</em> feature; only <a class="xref" href="stdlib.html#sym-spawn"><code>spawn</code></a> needs the function on disk.)</p>
+<h2 id="isolation-and-multiple-dispatchers">Isolation and multiple dispatchers</h2>
+<p>There is no global mutable state. Each dispatcher owns an independent main VM and its own worker pool; you can run several dispatchers in one process (e.g. per-request sandboxes) and they never share values, modules, or primitives. Within one dispatcher, the main VM and its workers are isolated from each other too — they exchange only serialized blobs.</p>
+<h2 id="a-bare-kiritovm">A bare <code>KiritoVM</code></h2>
+<p>If you truly need the absolute minimum — no <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a>, no worker threads — you can construct a <code>KiritoVM</code> directly and use the same surface as above:</p>
+<pre><code>KiritoVM vm;                       // standalone interpreter, no `parallel` module
+vm.install&lt;StatsModule&gt;();         // your C++ modules still work
+Handle r = vm.runSource(&quot;import(\&quot;stats\&quot;).mean([2, 4, 6, 8])\n&quot;);</code></pre>
+<p>This is the lightest possible embed and is exactly what the extending integration test (<code>tools/tests/integration/embed_demo.cpp</code>) uses. The only thing you give up is multiprocessing: <code>import(&quot;parallel&quot;)</code> raises, because the <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> module is a dispatcher-provided capability. Reach for this only when you are certain you&#x27;ll never want worker VMs; otherwise prefer the dispatcher.</p>
 <p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>
 </main></div></body></html>
