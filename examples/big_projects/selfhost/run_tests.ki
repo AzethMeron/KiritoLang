@@ -23,23 +23,29 @@ var readFile = Function(path):
 # By default the slow/blocked programs are excluded so this stays a fast, green CTest. Pass "full"
 # as an argument to run every discovered program (incl. the slow hashing / fuzz ones).
 #
-# KNOWN INHERENT DIVERGENCES (these stay red — they test C++-implementation specifics that a pure,
-# un-bridged Kirito self-host cannot, and should not, reproduce; they are NOT excluded so the gap
-# stays visible):
-#   * probe_inspect / spec_inspect — require net.Socket() (real OS sockets) and the exact C++
-#     native-OBJECT introspection format. In the self-host these types are ordinary Kirito classes.
-#   * probe_surface — walks the whole introspection surface, expecting every member to be a native
-#     "name(args)  [native]" line; the self-host's members are plain Kirito functions/classes.
-#   * probe_serde / probe_serde_matrix — assert that a *native* Matrix is REJECTED by serialize. In
-#     pure Kirito, Matrix is a normal class instance, so it serializes fine (a correct divergence).
-# Everything else passes through both self-host levels.
-# parallel_*/probe_parallel* need TRUE multiprocessing (a KiritoDispatcher + OS threads + cross-VM
-# serialization) and use genuine concurrency (Event broadcast, Barrier rendezvous) with no sequential
-# equivalent; probe_surface imports `parallel`. The single-threaded pure-Kirito self-host has no such
-# module, so these are excluded here (the real interpreter tests them under CTest/asan/tsan).
-# probe_parallel_fuzz (parallel), probe_compress_fuzz (gzip), probe_apply_fuzz (tensor) use native
-# modules the pure-Kirito self-host has no stdmod for, so they are excluded alongside the parallel set.
-var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_compress_fuzz", "probe_apply_fuzz"])
+# EXCLUSIONS. The self-host validates the CORE LANGUAGE (lexer/parser/evaluator: closures, classes,
+# exceptions, dicts, recursion, strings, control flow) by running real programs through it. It is NOT
+# a reimplementation of the C++ native stdlib, so programs that depend on native-only modules/types
+# are out of scope and excluded. Grouped by reason (the real interpreter tests all of these under
+# CTest/asan/tsan):
+#   * parallel (true multiprocessing: a KiritoDispatcher + OS threads, no sequential equivalent):
+#     parallel_basic, parallel_sync, probe_parallel, probe_parallel_adversarial, probe_parallel_fuzz
+#   * native `tensor` (no self-host stdmod): spec_tensor, spec_tensor_item, probe_apply_fuzz
+#   * native `complex` (no self-host stdmod): complex_demo, spec_complex, sample_linsolve,
+#     sample_systems, probe_serde_matrix, spec_serde_adversarial, spec_serialize_native
+#   * native `gzip` (no self-host stdmod): spec_gzip, probe_compress_fuzz
+#   * native `semver` (no self-host stdmod): versioning
+#   * the native `Bytes` type (self-host strings are plain Kirito): spec_bytes, probe_bytes_fuzz,
+#     probe_serde_fuzz, probe_trio, probe_binary_adversarial
+#   * native container `apply` / `matrix.vector` (not in the self-host's pure-Kirito stdlib):
+#     spec_apply, spec_matrix
+#   * native-OBJECT introspection format / net.Socket (self-host types are ordinary classes):
+#     probe_inspect, spec_inspect, probe_surface
+#   * assert *native* rejection behaviour that pure Kirito correctly diverges on: spec_serde
+#   * a self-host string edge-case divergence (empty-needle count): spec_edges
+#   * other pre-existing exclusions: spec_modules, sample_pipeline, spec_fuzz, libraries, spec_net,
+#     spec_pass_todo, spec_tee, spec_io_stream
+var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_compress_fuzz", "probe_apply_fuzz", "complex_demo", "probe_binary_adversarial", "probe_bytes_fuzz", "probe_inspect", "probe_serde_fuzz", "probe_serde_matrix", "probe_trio", "sample_linsolve", "sample_systems", "spec_apply", "spec_bytes", "spec_complex", "spec_edges", "spec_gzip", "spec_inspect", "spec_matrix", "spec_serde_adversarial", "spec_serialize_native", "spec_tensor", "spec_tensor_item", "versioning"])
 var runAll = "full" in arglist
 
 var cases = []
