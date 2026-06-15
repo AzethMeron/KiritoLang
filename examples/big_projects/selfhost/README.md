@@ -95,13 +95,19 @@ type method** of String (`upper`/`split`/`replace`/`find`/`strip`/`center`/…),
 | `sys`  | `joinpath` logic in Kirito; env/cwd facts via the `_os` syscall module |
 | `json` | recursive-descent parser + compact/indented serializer |
 | `random` | object PRNG (LCG): random/uniform/randint/randrange/choice/shuffle/sample/gauss |
-| `matrix` | Matrix class: +,-,*, transpose, determinant, trace, inverse, zeros/ones/identity |
+| `matrix` | Matrix class: +,-,*, transpose, determinant, trace, inverse, zeros/ones/identity; `vector`/dot/cross/norm |
+| `complex` | complex numbers (the analytic math set) + complex matrices/vectors (Gaussian det, Gauss-Jordan inverse, Hermitian dot) |
 | `time` | clocks via `_os`; DateTime with epoch↔civil math, format/iso/diff/strptime |
 | `net` | URL helpers: quote/unquote (UTF-8), urlencode/parseqs, urlsplit |
-| `hash` | **standards-conformant** md5 / sha1 / sha256 (byte-exact) |
-| `zlib` | run-length codec + adler32 (deflate/inflate/compress/decompress) |
-| `serialize` / `dump` | reference- and cycle-preserving graph serialization (uses `id()`) |
-| `itertools` `functools` `collections` `statistics` `string` `textwrap` `base64` `csv` `heapq` `bisect` `copy` `enum` | the Kirito-authored stdlib, evaluated through the self-host |
+| `hash` | **standards-conformant** md5 / sha1 / sha256 (byte-exact) + crc32 / adler32 / crc64-XZ checksums |
+| `zlib` | type-preserving LZ77 codec (sliding-window back-references) + adler32 (deflate/inflate/compress/decompress) |
+| `gzip` | the gzip container (0x1f 0x8b magic) over zlib's deflate; compress/decompress/gzip/gunzip, String- or Bytes-preserving |
+| `serialize` / `dump` | reference- and cycle-preserving graph serialization (uses `id()`); `dump.dumps` returns `Bytes`, both round-trip `Bytes` |
+| `itertools` `functools` `collections` `statistics` `string` `textwrap` `base64` `csv` `heapq` `bisect` `copy` `enum` `semver` `arg` `regex` | the Kirito-authored stdlib, evaluated through the self-host |
+
+The core also models the **`Bytes`** type (an inner `Bytes` is a host `Bytes`, so operators/indexing/
+slicing/iteration are inherited; `Bytes`/`fromhex` builtins, `hex`/`decode`/`apply` methods, and
+`String.encode` are added) and **container `apply(fn)`** across List/Set/Dict/String/Bytes.
 
 The only host facilities used: the value substrate (above), `id()` (object identity, added to the
 host as a small general-purpose builtin — the primitive the serializer needs), and the `_os` thin
@@ -109,19 +115,20 @@ syscall module (clocks + environment) used by `sys`/`time`.
 
 ## Test coverage
 
-The harness auto-discovers all 43 runnable `tools/tests/scripts/*.ki`. Status:
+The harness auto-discovers every `tools/tests/scripts/*.ki` that has a matching `.expected` and runs
+the vast majority of them, reproducing the real interpreter's output byte-for-byte. The authoritative,
+always-current list of what is skipped (and why) lives in `run_tests.ki` as two sets:
 
-- **40 / 43 reproduce the real interpreter's output byte-for-byte.** Two of them (`spec_modules`,
-  `spec_serde`) are slow because they run the pure-Kirito md5/sha1/sha256 — correct, but a hash
-  block costs ~20 s under the doubly-interpreted runtime.
-- `sample_pipeline` and `spec_fuzz` are **correct but impractically slow** here: the first hashes
-  kilobytes of data, the second runs 5000 hostile iterations — both minutes-to-tens-of-minutes
-  through the double interpreter.
-- `libraries` is the one genuine mismatch: it asserts an **exact** `random.randint` value, which
-  would require bit-reproducing the host's `std::mt19937_64` *and* libstdc++'s implementation-defined
-  `uniform_int_distribution`. The rest of that program matches.
+- **`EXCLUDE`** — programs out of scope for a *core-language* self-host: native-only facilities with no
+  pure-Kirito stand-in — `tensor` (an N-D engine with reverse-mode autograd), `parallel` (true
+  multiprocessing), native-object introspection format / `net.Socket`, and a couple of intentional
+  pure-Kirito divergences.
+- **`SLOW`** — programs that **pass** but whose KB-scale crypto/compression (the pure-Kirito
+  md5/sha1/sha256 + LZ77) costs minutes under the doubly-interpreted runtime, so they run only with the
+  `full` argument (`spec_gzip`, `probe_compress_fuzz`).
 
-The performance ceiling is inherent to running a tree-walking interpreter on top of a tree-walking
+Pass `full` (`run_tests.ki full`) to run *every* discovered program including the slow ones. The
+performance ceiling is inherent to running a tree-walking interpreter on top of a tree-walking
 interpreter; it is a speed limit, not a correctness one.
 
 ## Three-level tower (Kirito on Kirito on Kirito)
