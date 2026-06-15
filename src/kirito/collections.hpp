@@ -75,8 +75,10 @@ public:
     Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;  // ordering + concatenation (runtime.hpp)
     bool contains(KiritoVM&, Handle value) override;
     std::vector<std::string> inspectMembers() const override {
-        return {"append(item)", "pop(index) -> item", "insert(index, item)", "remove(item)",
-                "index(item) -> Integer", "count(item) -> Integer", "extend(iterable)",
+        // Parameter names mirror the actual makeMethod bindings (Python-style `value` for the
+        // search/equality methods so `xs.count(value = 2)` etc. work as inspect advertises).
+        return {"append(item)", "pop(index) -> item", "insert(index, item)", "remove(value)",
+                "index(value, start, end) -> Integer", "count(value) -> Integer", "extend(iterable)",
                 "reverse()", "sort(key = None, reverse = False)", "apply(fn) -> List",
                 "copy() -> List", "clear()"};
     }
