@@ -2192,13 +2192,28 @@ inline void KiritoVM::installBuiltins() {
             case ValueKind::String: {
                 const std::string& s = static_cast<const StrVal&>(o).value();
                 try {
+                    // Find the value's start (skip leading whitespace + optional sign)
+                    std::size_t i = 0;
+                    while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
+                    bool neg = false;
+                    if (i < s.size() && (s[i] == '+' || s[i] == '-')) { neg = (s[i] == '-'); ++i; }
+                    // Detect base from a 0x/0X/0o/0O/0b/0B prefix (Python-style); default base 10.
+                    int base = 10;
+                    if (i + 1 < s.size() && s[i] == '0') {
+                        char c = static_cast<char>(std::tolower(static_cast<unsigned char>(s[i + 1])));
+                        if (c == 'x') { base = 16; i += 2; }
+                        else if (c == 'o') { base = 8; i += 2; }
+                        else if (c == 'b') { base = 2; i += 2; }
+                    }
+                    if (i == s.size() || (base != 10 && i == 0))
+                        throw std::invalid_argument("empty value");
                     std::size_t pos = 0;
-                    int64_t v = static_cast<int64_t>(std::stoll(s, &pos));
-                    // Reject trailing garbage (e.g. "42abc", "0x1F", "12.5") — std::stoll would
-                    // silently parse only a prefix. Surrounding whitespace is allowed.
-                    while (pos < s.size() && std::isspace(static_cast<unsigned char>(s[pos]))) ++pos;
-                    if (pos != s.size()) throw std::invalid_argument("trailing");
-                    return vm.makeInt(v);
+                    int64_t v = static_cast<int64_t>(std::stoll(s.substr(i), &pos, base));
+                    // Reject trailing garbage (e.g. "42abc", "12.5") — surrounding whitespace allowed.
+                    std::size_t end = i + pos;
+                    while (end < s.size() && std::isspace(static_cast<unsigned char>(s[end]))) ++end;
+                    if (end != s.size()) throw std::invalid_argument("trailing");
+                    return vm.makeInt(neg ? -v : v);
                 } catch (...) {
                     throw KiritoError("cannot convert String to Integer: '" + s + "'");
                 }
