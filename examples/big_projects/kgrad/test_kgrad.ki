@@ -2,7 +2,7 @@
 # checks they actually learn. Sizes are deliberately tiny (pure-Kirito math is slow).
 
 var io = import("io")
-var nd = import("tensor")
+var nd = import("ndarray")
 var ag = import("autograd")
 var nn = import("nn")
 var optim = import("optim")

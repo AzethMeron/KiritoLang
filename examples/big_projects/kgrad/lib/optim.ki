@@ -2,7 +2,7 @@
 # (Tensors aren't hashable, so state is a parallel List). `step()` updates each `p.data` in place from
 # `p.grad`; `zero_grad()` clears grads between iterations (gradient accumulation is the default).
 
-var nd = import("tensor")
+var nd = import("ndarray")
 
 class SGD:
     var _init_ = Function(self, params, lr, momentum):

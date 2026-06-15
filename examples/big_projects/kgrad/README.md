@@ -15,7 +15,7 @@ it surfaced and fixed several interpreter issues — see the repo history.)
 
 ```
 lib/backend.ki     Device / Allocator / KernelProvider abstraction + CPU backend (the only loops)
-lib/tensor.ki      strided NdArray: views (reshape/transpose/permute/slice/broadcast), matmul, reductions
+lib/ndarray.ki     strided NdArray: views (reshape/transpose/permute/slice/broadcast), matmul, reductions
 lib/autograd.ki    reverse-mode autodiff: Tensor, computational graph, backward, no_grad, detach
 lib/nn.ki          Module, Linear, BatchNorm1d, ReLU/Sigmoid/Tanh, Sequential, a custom layer, losses
 lib/conv.ki        Conv2d (fused autograd op with exact, gradient-checked backward)

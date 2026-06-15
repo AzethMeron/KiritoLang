@@ -6,7 +6,7 @@
 # Losses are plain functions over autograd Tensors returning a scalar Tensor.
 
 var ag = import("autograd")
-var nd = import("tensor")
+var nd = import("ndarray")
 var random = import("random")
 
 # A shared RNG for parameter initialisation (seedable for reproducibility).

@@ -1,6 +1,6 @@
 # Classic ML helpers built on the tensor/nn layers.
 
-var nd = import("tensor")
+var nd = import("ndarray")
 var ag = import("autograd")
 var nn = import("nn")
 var math = import("math")

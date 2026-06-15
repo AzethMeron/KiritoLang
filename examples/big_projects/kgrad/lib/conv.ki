@@ -2,7 +2,7 @@
 # correctness-first and intentionally small (pure-Kirito math is slow), but its backward is exact and
 # gradient-checked. Demonstrates extending the autograd graph with a custom op + manual backward.
 
-var nd = import("tensor")
+var nd = import("ndarray")
 var ag = import("autograd")
 var nn = import("nn")
 

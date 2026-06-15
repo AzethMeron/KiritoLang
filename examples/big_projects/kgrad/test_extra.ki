@@ -1,6 +1,6 @@
 # Extra tests: BatchNorm, custom layer, Conv2d (gradient-checked), and edge/adversarial cases.
 var io = import("io")
-var nd = import("tensor")
+var nd = import("ndarray")
 var ag = import("autograd")
 var nn = import("nn")
 var conv = import("conv")

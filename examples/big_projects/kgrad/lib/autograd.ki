@@ -9,7 +9,7 @@
 # returns a graph-free view. This is the dynamic computational graph the optimizers and nn layers
 # build on; `compile_graph()` provides the "build then run" topological compile step.
 
-var nd = import("tensor")
+var nd = import("ndarray")
 
 # Mutable global box for the no-grad flag (a 1-element list, so functions mutate without rebinding).
 var GRAD_ENABLED = [True]
