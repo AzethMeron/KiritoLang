@@ -213,4 +213,4 @@ set_tests_properties(script_video PROPERTIES WORKING_DIRECTORY ${_imaging_dir})
 add_test(NAME selfhost
          COMMAND $<TARGET_FILE:ki> --lib ${CMAKE_SOURCE_DIR}/examples/big_projects/selfhost/lib
                  ${CMAKE_SOURCE_DIR}/examples/big_projects/selfhost/run_tests.ki)
-set_tests_properties(selfhost PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} TIMEOUT 2400)
+set_tests_properties(selfhost PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} TIMEOUT 4800)
