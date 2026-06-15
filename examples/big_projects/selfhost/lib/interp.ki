@@ -442,6 +442,8 @@ var _sliceBuild = Function(obj, lo, hi, st, n):
             i2 = i2 + st
     if isStr:
         return "".join(parts)
+    if type(obj) == "Bytes":
+        return Bytes(parts)
     return parts
 
 # A name is private if it has a single leading underscore and no trailing underscore (so dunders
@@ -936,16 +938,18 @@ var _STR_PARAMS = {"strip": ["chars"], "lstrip": ["chars"], "rstrip": ["chars"],
     "startswith": ["prefix", "start", "end"], "endswith": ["suffix", "start", "end"],
     "ljust": ["width", "fillchar"], "rjust": ["width", "fillchar"], "center": ["width", "fillchar"],
     "zfill": ["width"], "removeprefix": ["prefix"], "removesuffix": ["suffix"],
-    "partition": ["sep"], "rpartition": ["sep"], "levenshtein": ["other"]}
+    "partition": ["sep"], "rpartition": ["sep"], "levenshtein": ["other"], "encode": ["encoding"],
+    "apply": ["fn"]}
+var _BYTES_PARAMS = {"decode": ["encoding"], "apply": ["fn"]}
 var _LIST_PARAMS = {"append": ["item"], "insert": ["index", "item"], "remove": ["value"],
     "pop": ["index"], "index": ["value", "start", "end"], "count": ["value"], "extend": ["iterable"],
-    "sort": ["key", "reverse"]}
+    "sort": ["key", "reverse"], "apply": ["fn"]}
 var _DICT_PARAMS = {"get": ["key", "default"], "pop": ["key", "default"],
-    "setdefault": ["key", "default"], "update": ["other"], "remove": ["key"]}
+    "setdefault": ["key", "default"], "update": ["other"], "remove": ["key"], "apply": ["fn"]}
 var _SET_PARAMS = {"add": ["value"], "discard": ["value"], "remove": ["value"], "contains": ["value"],
     "union": ["other"], "intersection": ["other"], "difference": ["other"],
     "symmetricdifference": ["other"], "issubset": ["other"], "issuperset": ["other"],
-    "isdisjoint": ["other"]}
+    "isdisjoint": ["other"], "apply": ["fn"]}
 
 var _paramsFor = Function(tn, name):
     var tbl = {}
@@ -957,6 +961,8 @@ var _paramsFor = Function(tn, name):
         tbl = _DICT_PARAMS
     elif tn == "Set":
         tbl = _SET_PARAMS
+    elif tn == "Bytes":
+        tbl = _BYTES_PARAMS
     if name in tbl:
         return tbl[name]
     return []
@@ -1032,6 +1038,8 @@ var callMethod = Function(St, recv, name, args, kwargs):
         return dictMethod(St, recv, name, bound)
     if tn == "Set":
         return setMethod(St, recv, name, bound)
+    if tn == "Bytes":
+        return bytesMethod(St, recv, name, bound)
     rtError("'" + tn + "' object has no method '" + name + "'")
 
 # List methods. The storage primitives are append and pop (and index get/set via []); everything
@@ -1459,6 +1467,10 @@ var strMethod = Function(St, recv, name, args):
         for ch in recv:
             out = out + callValue(St, args[0], [ch], [])
         return out
+    if name == "encode":
+        if len(args) >= 1 and args[0] != None:
+            return recv.encode(args[0])
+        return recv.encode()
     rtError("'String' object has no method '" + name + "'")
 
 var _isAlnumCh = Function(c):
@@ -1617,6 +1629,22 @@ var setMethod = Function(St, recv, name, args):
             out.append(callValue(St, args[0], [x], []))
         return Set(out)
     rtError("'Set' object has no method '" + name + "'")
+
+# Bytes methods. A self-host Bytes IS a host Bytes value, so hex/decode forward to the host; apply
+# maps over the bytes and rebuilds a Bytes (host-validated to the 0..255 range).
+var bytesMethod = Function(St, recv, name, args):
+    if name == "hex":
+        return recv.hex()
+    if name == "decode":
+        if len(args) >= 1 and args[0] != None:
+            return recv.decode(args[0])
+        return recv.decode()
+    if name == "apply":
+        var out = []
+        for x in recv:
+            out.append(callValue(St, args[0], [x], []))
+        return Bytes(out)
+    rtError("'Bytes' object has no method '" + name + "'")
 
 # str.format with {} / {n} positional fields and optional :spec.
 var strFormat = Function(St, fmt, args):
@@ -2115,6 +2143,37 @@ var builtinDictC = Function(St, a0, k):
     return Dict(a[0])
 var builtinImport = Function(St, a, k):
     return importModule(St, a[0])
+# Bytes constructor + the free fromhex builtin forward to the host Bytes value type (the self-host has
+# no value of its own to add; an inner Bytes IS a host Bytes, so operators/index/iteration are
+# inherited). The host validates ranges/encodings and throws, which the self-host try/catch catches.
+var builtinBytes = Function(St, a, k):
+    var src = None
+    var hasSrc = False
+    var enc = None
+    if len(a) >= 1:
+        src = a[0]
+        hasSrc = True
+    if len(a) >= 2:
+        enc = a[1]
+    for kv in k:
+        if kv[0] == "x" or kv[0] == "source":
+            src = kv[1]
+            hasSrc = True
+        elif kv[0] == "encoding" or kv[0] == "enc":
+            enc = kv[1]
+    if not hasSrc:
+        return Bytes()
+    if enc == None:
+        return Bytes(src)
+    return Bytes(src, enc)
+var builtinFromhex = Function(St, a, k):
+    var s = None
+    if len(a) >= 1:
+        s = a[0]
+    for kv in k:
+        if kv[0] == "s":
+            s = kv[1]
+    return fromhex(s)
 var builtinId = Function(St, a, k):
     return id(a[0])
 # Reflection primitives used by the pure-Kirito serialize/dump modules to (de)serialize user-class
@@ -2240,6 +2299,8 @@ var builtinInspect = Function(St, a, k):
         for nm in sorted(mnames):
             ilines.append("  " + _memberLine(nm, classLookup(v["cls"], nm)))
         return "\n".join(ilines)
+    if typeName(v) == "Bytes":
+        return "Bytes object:\n  apply(fn) -> Bytes\n  decode(encoding) -> String\n  hex() -> String"
     return typeName(v) + " value"
 # Bitwise ops over int64, two's-complement. Floor div/mod give the correct bits of negatives, and
 # host integer arithmetic wraps on overflow, so the sign bit (2**63) falls out naturally.
@@ -2336,6 +2397,8 @@ var makeGlobal = Function(St):
     def("Set", builtinSetC)
     def("Dict", builtinDictC)
     def("import", builtinImport)
+    def("Bytes", builtinBytes)
+    def("fromhex", builtinFromhex)
     def("id", builtinId)
     def("__instattrs__", builtinInstAttrs)
     def("__instname__", builtinInstName)

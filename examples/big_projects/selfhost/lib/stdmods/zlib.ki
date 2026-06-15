@@ -1,77 +1,127 @@
-# The `zlib` module in pure Kirito: a self-contained run-length codec (so repetitive data actually
-# shrinks) wrapped with the standard zlib header byte pair and exposing an adler32 checksum. Tokens
-# are "R<count>:<char>" for runs >= 4 and "L<count>:<literal bytes>" otherwise — length-prefixed, so
-# any bytes round-trip. (The tests round-trip with this codec and never require C-zlib interop.)
+# The `zlib` module in pure Kirito: a self-contained LZ77 codec (sliding-window back-references, so
+# both runs AND repeated substrings shrink) wrapped with the standard zlib header byte pair, plus an
+# adler32 checksum. The compressed form is a length-prefixed token stream over code points:
+#   L<count>:<count literal chars>     a literal run
+#   M<dist>,<len>:                     copy <len> chars from <dist> back in the decoded output
+# so any bytes round-trip. compress/decompress/deflate/inflate are TYPE-PRESERVING: a String returns
+# a String, a Bytes returns a Bytes (bridged through latin-1, which maps every byte 0..255 to one code
+# point). (The tests round-trip with this codec and never require C-zlib interop.)
 
 var _HDR = chr(120) + chr(156)        # 0x78 0x9C
+var _MINMATCH = 4
 
-var _rle = Function(s):
-    var out = ""
-    var i = 0
+# LZ77 encode over a code-point String -> a token String. A 3-gram hash table keyed on the next three
+# characters points at the most recent occurrence (1-deep: fast under the doubly-interpreted runtime);
+# a match is only emitted when its token is actually shorter than the run it replaces, so the output
+# never expands a matched region.
+var _lz = Function(s):
     var n = len(s)
+    var out = ""
+    var litStart = 0
+    var table = {}
+    var i = 0
     while i < n:
-        var c = s[i]
-        var j = i + 1
-        while j < n and s[j] == c:
-            j = j + 1
-        if j - i >= 4:
-            out = out + "R" + String(j - i) + ":" + c
-            i = j
-        else:
-            var lit = ""
-            var go = True
-            while go and i < n:
-                var c2 = s[i]
-                var k = i + 1
-                while k < n and s[k] == c2:
-                    k = k + 1
-                if k - i >= 4:
-                    go = False
-                else:
-                    lit = lit + s[i:k]
-                    i = k
-            out = out + "L" + String(len(lit)) + ":" + lit
+        var matchLen = 0
+        var matchDist = 0
+        if i + 3 <= n:
+            var key = s[i:i + 3]
+            if key in table:
+                var pos = table[key]
+                var l = 0
+                while i + l < n and s[pos + l] == s[i + l]:
+                    l = l + 1
+                if l >= _MINMATCH:
+                    matchLen = l
+                    matchDist = i - pos
+            table[key] = i
+        var emitted = False
+        if matchLen >= _MINMATCH:
+            var tok = "M" + String(matchDist) + "," + String(matchLen) + ":"
+            if len(tok) < matchLen:
+                if i > litStart:
+                    out = out + "L" + String(i - litStart) + ":" + s[litStart:i]
+                out = out + tok
+                i = i + matchLen
+                litStart = i
+                emitted = True
+        if not emitted:
+            i = i + 1
+    if n > litStart:
+        out = out + "L" + String(n - litStart) + ":" + s[litStart:n]
     return out
 
-var _unrle = Function(body):
+var _unlz = Function(body):
     var out = ""
     var i = 0
     var n = len(body)
     while i < n:
         var tok = body[i]
         i = i + 1
-        var num = ""
-        while body[i] != ":":
-            num = num + body[i]
+        if tok == "L":
+            var num = ""
+            while i < n and body[i] != ":":
+                num = num + body[i]
+                i = i + 1
             i = i + 1
-        i = i + 1
-        var count = Integer(num)
-        if tok == "R":
-            out = out + body[i] * count
+            var cnt = Integer(num)
+            out = out + body[i:i + cnt]
+            i = i + cnt
+        elif tok == "M":
+            var dnum = ""
+            while i < n and body[i] != ",":
+                dnum = dnum + body[i]
+                i = i + 1
             i = i + 1
+            var lnum = ""
+            while i < n and body[i] != ":":
+                lnum = lnum + body[i]
+                i = i + 1
+            i = i + 1
+            var dist = Integer(dnum)
+            var mlen = Integer(lnum)
+            var base = len(out) - dist
+            if dist <= 0 or base < 0:
+                throw "zlib: invalid compressed data"
+            if dist >= mlen:
+                out = out + out[base:base + mlen]
+            else:
+                var k = 0
+                while k < mlen:
+                    out = out + out[base + k]
+                    k = k + 1
         else:
-            out = out + body[i:i + count]
-            i = i + count
+            throw "zlib: invalid compressed data"
     return out
 
-var deflate = Function(s):
-    return _rle(s)
+# Run a code-point-String codec while preserving the input's type (String -> String, Bytes -> Bytes).
+var _typed = Function(data, fn):
+    if type(data) == "Bytes":
+        return fn(data.decode("latin-1")).encode("latin-1")
+    return fn(data)
 
-var inflate = Function(s):
-    return _unrle(s)
-
-var compress = Function(s):
-    return _HDR + _rle(s)
-
-var decompress = Function(s):
-    if len(s) < 2 or s[0:2] != _HDR:
+var _compressStr = Function(x):
+    return _HDR + _lz(x)
+var _decompressStr = Function(x):
+    if len(x) < 2 or x[0:2] != _HDR:
         throw "zlib: invalid compressed data"
-    return _unrle(s[2:])
+    return _unlz(x[2:])
+
+var deflate = Function(s):
+    return _typed(s, _lz)
+var inflate = Function(s):
+    return _typed(s, _unlz)
+var compress = Function(s):
+    return _typed(s, _compressStr)
+var decompress = Function(s):
+    return _typed(s, _decompressStr)
 
 var adler32 = Function(s):
     var a = 1
     var b = 0
-    for c in s:
+    var bytes = s
+    if type(s) == "Bytes":
+        bytes = s.decode("latin-1")
+    for c in bytes:
         a = (a + ord(c) % 256) % 65521
         b = (b + a) % 65521
     return b * 65536 + a

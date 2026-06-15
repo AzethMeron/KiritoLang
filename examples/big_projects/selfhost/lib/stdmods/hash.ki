@@ -85,10 +85,12 @@ var _hex8 = Function(x):
     return out
 
 var _bytesOf = Function(s):
-    var out = []
-    for c in s:
-        out.append(ord(c) % 256)
-    return out
+    # Hash the raw bytes: a Bytes yields its bytes directly; a String is its UTF-8 encoding (so the
+    # self-host matches the real byte-transparent String, and hash(s) == hash(s.encode())). Anything
+    # else has no .encode and raises, which is the intended "wrong type" rejection.
+    if type(s) == "Bytes":
+        return List(s)
+    return List(s.encode())
 
 # --- md5 -----------------------------------------------------------------------------------------
 var _MD5_S = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
@@ -316,3 +318,72 @@ var sha256 = Function(s):
     for v in h:
         out = out + _hex8(v)
     return out
+
+# --- non-cryptographic checksums (crc32 / adler32) -----------------------------------------------
+# CRC-32/ISO-HDLC (the zlib/gzip CRC): reflected polynomial 0xEDB88320, init/xorout 0xFFFFFFFF.
+var _CRC32_TABLE = []
+var _ct = 0
+while _ct < 256:
+    var _cc = _ct
+    var _ck = 0
+    while _ck < 8:
+        if _cc % 2 == 1:
+            _cc = _xor(3988292384, _cc // 2)
+        else:
+            _cc = _cc // 2
+        _ck = _ck + 1
+    _CRC32_TABLE.append(_cc)
+    _ct = _ct + 1
+
+var crc32 = Function(s):
+    var crc = 4294967295
+    for b in _bytesOf(s):
+        crc = _xor(crc // 256, _CRC32_TABLE[_xor(crc % 256, b)])
+    return _xor(crc, 4294967295)
+
+var adler32 = Function(s):
+    var a = 1
+    var b = 0
+    for byte in _bytesOf(s):
+        a = (a + byte) % 65521
+        b = (b + a) % 65521
+    return b * 65536 + a
+
+# CRC-64/XZ: reflected poly 0xC96C5795D7870F42, init/xorout all-ones, refin/refout. The 64-bit state
+# is kept as two non-negative 32-bit halves [hi, lo] (the nibble _xor is 32-bit); the final value is
+# reassembled with wrapping int64 multiply, which yields the correct signed two's-complement result.
+var _CRC64_POLY_HI = 3379320725       # 0xC96C5795
+var _CRC64_POLY_LO = 3615952706       # 0xD7870F42
+var _CRC64_TABLE = []
+var _q = 0
+while _q < 256:
+    var hi = 0
+    var lo = _q
+    var kk = 0
+    while kk < 8:
+        var bit0 = lo % 2
+        # crc >> 1 (logical, 64-bit)
+        var nlo = lo // 2 + (hi % 2) * 2147483648
+        var nhi = hi // 2
+        if bit0 == 1:
+            hi = _xor(nhi, _CRC64_POLY_HI)
+            lo = _xor(nlo, _CRC64_POLY_LO)
+        else:
+            hi = nhi
+            lo = nlo
+        kk = kk + 1
+    _CRC64_TABLE.append([hi, lo])
+    _q = _q + 1
+
+var crc64 = Function(s):
+    var hi = 4294967295
+    var lo = 4294967295
+    for b in _bytesOf(s):
+        var ent = _CRC64_TABLE[_xor(lo % 256, b)]
+        var shlo = lo // 256 + (hi % 256) * 16777216
+        var shhi = hi // 256
+        hi = _xor(shhi, ent[0])
+        lo = _xor(shlo, ent[1])
+    hi = 4294967295 - hi
+    lo = 4294967295 - lo
+    return hi * 4294967296 + lo

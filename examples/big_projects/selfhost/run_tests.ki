@@ -31,21 +31,27 @@ var readFile = Function(path):
 #   * parallel (true multiprocessing: a KiritoDispatcher + OS threads, no sequential equivalent):
 #     parallel_basic, parallel_sync, probe_parallel, probe_parallel_adversarial, probe_parallel_fuzz
 #   * native `tensor` (no self-host stdmod): spec_tensor, spec_tensor_item, probe_apply_fuzz
-#   * native `complex` (no self-host stdmod): complex_demo, spec_complex, sample_linsolve,
-#     sample_systems, probe_serde_matrix, spec_serde_adversarial, spec_serialize_native
-#   * native `gzip` (no self-host stdmod): spec_gzip, probe_compress_fuzz
+#   * (the `complex` module IS now supported — lib/stdmods/complex.ki: complex numbers + the analytic
+#     math set + complex matrices/vectors; complex_demo, spec_complex, sample_linsolve, sample_systems
+#     run. probe_serde_matrix, spec_serde_adversarial, spec_serialize_native still need tensor too.)
+#   * (gzip/zlib/hash ARE now supported — lib/stdmods/gzip.ki + an LZ77 zlib + crc32/adler32/crc64 in
+#     hash; spec_gzip and probe_compress_fuzz PASS but are in SLOW below, not blocked: their KB-scale
+#     sha256 + LZ77 over the doubly-interpreted runtime takes minutes, so they run only under `full`.)
 #   * (semver IS now supported — see lib/stdmods/semver.ki; `versioning` runs through the self-host)
-#   * the native `Bytes` type (self-host strings are plain Kirito): spec_bytes, probe_bytes_fuzz,
-#     probe_serde_fuzz, probe_trio, probe_binary_adversarial
-#   * native container `apply` / `matrix.vector` (not in the self-host's pure-Kirito stdlib):
-#     spec_apply, spec_matrix
+#   * (the `Bytes` type IS now supported — interp.ki maps an inner Bytes onto a host Bytes; spec_bytes,
+#     spec_apply, probe_bytes_fuzz, probe_serde_fuzz run. probe_trio/probe_binary_adversarial still
+#     need tensor+complex too.)
+#   * (container `apply` and `matrix.vector`/dot/cross/norm ARE now supported — spec_matrix runs)
 #   * native-OBJECT introspection format / net.Socket (self-host types are ordinary classes):
 #     probe_inspect, spec_inspect, probe_surface
 #   * assert *native* rejection behaviour that pure Kirito correctly diverges on: spec_serde
 #   * a self-host string edge-case divergence (empty-needle count): spec_edges
 #   * other pre-existing exclusions: spec_modules, sample_pipeline, spec_fuzz, libraries, spec_net,
 #     spec_pass_todo, spec_tee, spec_io_stream
-var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_compress_fuzz", "probe_apply_fuzz", "complex_demo", "probe_binary_adversarial", "probe_bytes_fuzz", "probe_inspect", "probe_serde_fuzz", "probe_serde_matrix", "probe_trio", "sample_linsolve", "sample_systems", "spec_apply", "spec_bytes", "spec_complex", "spec_edges", "spec_gzip", "spec_inspect", "spec_matrix", "spec_serde_adversarial", "spec_serialize_native", "spec_tensor", "spec_tensor_item"])
+var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_apply_fuzz", "probe_binary_adversarial", "probe_inspect", "probe_serde_matrix", "probe_trio", "spec_edges", "spec_inspect", "spec_serde_adversarial", "spec_serialize_native", "spec_tensor", "spec_tensor_item"])
+# SLOW: these PASS through the self-host but their crypto/compression over KB-scale data is too slow
+# for the default fast CTest, so they are skipped unless `full` is given (the gzip/zlib/hash stack).
+var SLOW = Set(["spec_gzip", "probe_compress_fuzz"])
 var runAll = "full" in arglist
 
 var cases = []
@@ -53,7 +59,7 @@ for entry in io.listdir(SCRIPTS):
     if entry.endswith(".ki"):
         var base = entry[0:len(entry) - 3]
         if io.exists(SCRIPTS + "/" + base + ".expected"):
-            if runAll or not (base in EXCLUDE):
+            if runAll or not (base in EXCLUDE or base in SLOW):
                 cases.append(base)
 cases.sort()
 

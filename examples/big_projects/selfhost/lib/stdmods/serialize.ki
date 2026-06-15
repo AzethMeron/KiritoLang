@@ -48,6 +48,9 @@ var _encode = Function(v, reg, nodes):
                 pairs.append([_encode(k, reg, nodes), _encode(v[k], reg, nodes)])
             nodes[idx] = ["dict", pairs]
         return ["ref", idx]
+    # Bytes is an immutable leaf (like a scalar); carry it through JSON as a hex string.
+    if type(v) == "Bytes":
+        return ["bytesval", v.hex()]
     return ["val", v]
 
 var dumps = Function(v):
@@ -59,6 +62,8 @@ var dumps = Function(v):
 var _resolve = Function(enc, shells):
     if enc[0] == "ref":
         return shells[enc[1]]
+    if enc[0] == "bytesval":
+        return fromhex(enc[1])
     return enc[1]
 
 var loads = Function(s):

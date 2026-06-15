@@ -1,0 +1,32 @@
+# The `gzip` module in pure Kirito: the gzip container (a distinct stream from the bare zlib one),
+# built on zlib's raw DEFLATE codec. The container is the two gzip magic bytes 0x1f 0x8b followed by
+# the raw deflate stream (self-consistent round-trip; the tests never require gzip(1) interop). Like
+# the real module, compress/decompress are TYPE-PRESERVING (String in -> String out, Bytes in -> Bytes
+# out, bridged through latin-1) and `gzip`/`gunzip` are aliases.
+
+var zlib = import("zlib")
+
+var _MAGIC = chr(31) + chr(139)        # 0x1f 0x8b
+
+var _gz = Function(x):
+    return _MAGIC + zlib.deflate(x)
+var _gunz = Function(x):
+    if len(x) < 2 or x[0:2] != _MAGIC:
+        throw "gzip: not a gzip stream"
+    return zlib.inflate(x[2:])
+
+var _typed = Function(data, fn):
+    var t = type(data)
+    if t == "String":
+        return fn(data)
+    if t == "Bytes":
+        return fn(data.decode("latin-1")).encode("latin-1")
+    throw "gzip: expected a String or Bytes"
+
+var compress = Function(data):
+    return _typed(data, _gz)
+var decompress = Function(data):
+    return _typed(data, _gunz)
+
+var gzip = compress
+var gunzip = decompress

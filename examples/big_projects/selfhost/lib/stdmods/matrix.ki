@@ -121,6 +121,40 @@ class Matrix:
             i = i + 1
         return s
 
+    # --- vector helpers (a Vector is a Matrix with one dimension == 1) ---
+    var _flat = Function(self):
+        var out = []
+        for row in self._data:
+            for v in row:
+                out.append(v)
+        return out
+
+    var dot = Function(self, o):
+        var a = self._flat()
+        var b = o._flat()
+        var n = len(a)
+        if n != len(b):
+            throw "matrix: dot requires vectors of equal length"
+        var s = 0.0
+        var i = 0
+        while i < n:
+            s = s + a[i] * b[i]
+            i = i + 1
+        return s
+
+    var cross = Function(self, o):
+        var a = self._flat()
+        var b = o._flat()
+        if len(a) != 3 or len(b) != 3:
+            throw "matrix: cross requires two 3-vectors"
+        return Matrix([[a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]])
+
+    var norm = Function(self):
+        var s = 0.0
+        for v in self._flat():
+            s = s + v * v
+        return s ** 0.5
+
     var _copyData = Function(self):
         var out = []
         for row in self._data:
@@ -282,3 +316,7 @@ var identity = Function(n):
         m[i, i] = 1.0
         i = i + 1
     return m
+
+# A vector is a 1xn row Matrix; dot/cross/norm live on Matrix above.
+var vector = Function(values):
+    return Matrix([values])
