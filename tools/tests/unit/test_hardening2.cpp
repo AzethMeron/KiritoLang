@@ -135,17 +135,27 @@ int main() {
         CHECK(raises(vm, "import(\"math\").comb(70, 35)"));
     }
 
-    // --- Integer()/Float() reject trailing garbage (no silent prefix parse) ---
+    // --- Integer()/Float() reject trailing garbage; Integer accepts 0x/0o/0b prefixes ---
     {
         KiritoVM vm;
-        CHECK(raises(vm, "Integer(\"0x1F\")"));
+        // 0x/0o/0b prefixes ARE valid per the doc'd promise (audit fix). Negative + signed forms too.
+        CHECK(run(vm, "Integer(\"0x1F\")") == "31");
+        CHECK(run(vm, "Integer(\"0X1F\")") == "31");
+        CHECK(run(vm, "Integer(\"0o17\")") == "15");
+        CHECK(run(vm, "Integer(\"0b1010\")") == "10");
+        CHECK(run(vm, "Integer(\"-0xFF\")") == "-255");
+        CHECK(run(vm, "Integer(\"  0xFF  \")") == "255");      // surrounding whitespace tolerated
+        // genuine garbage still rejected
+        CHECK(raises(vm, "Integer(\"0xZZ\")"));               // bad hex digit
+        CHECK(raises(vm, "Integer(\"0b3\")"));                // 3 isn't binary
+        CHECK(raises(vm, "Integer(\"0x\")"));                 // prefix alone, no value
         CHECK(raises(vm, "Integer(\"42abc\")"));
         CHECK(raises(vm, "Integer(\"12.5\")"));
         CHECK(raises(vm, "Integer(\"\")"));
         CHECK(raises(vm, "Integer(\"  \")"));
         CHECK(raises(vm, "Float(\"1.5x\")"));
         CHECK(raises(vm, "Float(\"abc\")"));
-        // valid forms (with optional surrounding whitespace) still work
+        // valid plain-decimal forms still work
         CHECK(run(vm, "Integer(\"42\")") == "42");
         CHECK(run(vm, "Integer(\"  -7  \")") == "-7");
         CHECK(run(vm, "String(Float(\"1.5\"))") == "1.5");
