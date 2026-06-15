@@ -33,7 +33,11 @@ var readFile = Function(path):
 #   * probe_serde / probe_serde_matrix — assert that a *native* Matrix is REJECTED by serialize. In
 #     pure Kirito, Matrix is a normal class instance, so it serializes fine (a correct divergence).
 # Everything else passes through both self-host levels.
-var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream"])
+# parallel_*/probe_parallel* need TRUE multiprocessing (a KiritoDispatcher + OS threads + cross-VM
+# serialization) and use genuine concurrency (Event broadcast, Barrier rendezvous) with no sequential
+# equivalent; probe_surface imports `parallel`. The single-threaded pure-Kirito self-host has no such
+# module, so these are excluded here (the real interpreter tests them under CTest/asan/tsan).
+var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface"])
 var runAll = "full" in arglist
 
 var cases = []
