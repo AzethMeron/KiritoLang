@@ -260,7 +260,8 @@ anything. Inline form: `Function(x): return x * x`.
 ## Packing and unpacking
 
 A bare comma sequence packs into a List; the left side of `=`, `var`, and `for` unpacks any iterable,
-with one optional starred target absorbing the surplus.
+with one optional starred target absorbing the surplus. The starred target can sit **anywhere** —
+at the start, middle, or end of the target list.
 
 <!--norun (syntax skeleton with ... placeholders)-->
 ```kirito
@@ -268,6 +269,8 @@ var t = 1, 2, 3            # t == [1, 2, 3]
 var a, b = 1, 2            # a == 1, b == 2
 a, b = b, a               # swap
 var first, *rest = [1, 2, 3, 4]   # first == 1, rest == [2, 3, 4]
+var *init, last = [1, 2, 3, 4]    # init == [1, 2, 3], last == 4
+var head, *mid, tail = [1, 2, 3, 4, 5]   # head == 1, mid == [2, 3, 4], tail == 5
 for k, v in d.items():
     ...
 ```
@@ -278,7 +281,7 @@ for k, v in d.items():
 class Animal:
     var _init_ = Function(self, name):
         self.name = name
-        self._id = 0          # _name => private (only methods of this class can touch it)
+        self._id = 0          # `_id` is private (only methods of this class chain can touch it)
     var speak = Function(self) -> String:
         return "..."
 
