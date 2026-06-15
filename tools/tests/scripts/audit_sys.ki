@@ -28,9 +28,15 @@ assert sys.getenv("KIRITO_AUDIT_VAR", "fb") == "fb", "getenv default kicks in wh
 assert sys.getenv("KIRITO_AUDIT_VAR_X", 42) == 42, "default may be Integer"
 assert sys.getenv("KIRITO_AUDIT_VAR_X", [1, 2]) == [1, 2], "default may be List"
 
-# empty value is a valid set
+# empty value: POSIX round-trips an empty string; Windows treats an empty value as *unset* (the
+# narrow CRT API deletes the variable), so getenv returns None there. Assert the platform-appropriate
+# result — strict on POSIX, honest on Windows.
 sys.setenv("KIRITO_AUDIT_EMPTY", "")
-assert sys.getenv("KIRITO_AUDIT_EMPTY") == "", "empty value round-trips"
+var emptyval = sys.getenv("KIRITO_AUDIT_EMPTY")
+if sys.platform == "windows":
+    assert emptyval == "" or emptyval == None, "Windows: empty value reads back empty-or-unset"
+else:
+    assert emptyval == "", "POSIX: empty value round-trips"
 sys.unsetenv("KIRITO_AUDIT_EMPTY")
 assert sys.getenv("KIRITO_AUDIT_EMPTY") == None, "unset after empty"
 

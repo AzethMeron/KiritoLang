@@ -656,9 +656,10 @@ Process environment and platform.
 - `unsetenv(name: String) → None` — remove a variable.
 - `environ() → Dict` — all environment variables.
 
-> **Encoding.** Names and values are byte-for-byte round-tripped on POSIX. On Windows they go
-> through the narrow (ANSI code-page) environment API, so a non-ASCII value isn't guaranteed to
-> survive a `setenv`→`getenv` round-trip; keep environment values ASCII for portability.
+> **Encoding & empty values.** Names and values are byte-for-byte round-tripped on POSIX. On
+> Windows they go through the narrow (ANSI code-page) environment API, so a non-ASCII value isn't
+> guaranteed to survive a `setenv`→`getenv` round-trip (keep env values ASCII for portability), and
+> setting a variable to the **empty string** is treated as *unset* — `getenv` then returns `None`.
 - `gettempdir() → String` — the system temp directory (honors `TMPDIR`/`TMP`/`TEMP`, falls back to
   `/tmp`). Pairs with `io` to build scratch file paths:
   `io.open(sys.joinpath(sys.gettempdir(), "scratch.txt"), "w")`.
