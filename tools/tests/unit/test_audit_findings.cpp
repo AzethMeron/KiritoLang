@@ -80,4 +80,19 @@ int main() {
               == "example.com");
         CHECK(ev(vm, "import(\"net\").urlsplit(\"http://example.com:80/p\")[\"port\"]") == "80");
     }
+
+    // ---- Dict.remove on a missing key raises (doc says: "raises if absent; like pop but returns
+    //      nothing"). Before the fix the bool return of DictVal::remove was discarded and the
+    //      method was a silent no-op.
+    {
+        KiritoVM vm;
+        // present key: removes and returns None
+        CHECK(ev(vm, "var d = {\"a\": 1, \"b\": 2}\nd.remove(\"a\")\nd") == "{b: 2}");
+        // missing key: raises
+        CHECK(raises(vm, "var d = {\"a\": 1}\nd.remove(\"missing\")"));
+        // and the dict is unchanged after the raise
+        CHECK(ev(vm, "var d = {\"a\": 1}\ntry:\n    d.remove(\"missing\")\ncatch as e:\n    pass\nd") == "{a: 1}");
+        // kwarg form `key=` still works
+        CHECK(ev(vm, "var d = {\"x\": 5}\nd.remove(key = \"x\")\nd") == "{}");
+    }
 }

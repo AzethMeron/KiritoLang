@@ -611,7 +611,10 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
         });
     if (name == "remove")
         return bind("remove", {"key"}, [self, dict](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            dict(vm, self).remove(vm.arena(), a[0]);
+            // Like pop, raise on a missing key (the doc says "raises if absent; like pop but
+            // returns nothing"). DictVal::remove returns a bool telling whether anything was deleted.
+            if (!dict(vm, self).remove(vm.arena(), a[0]))
+                throw KiritoError("key not found: " + vm.stringify(a[0]));
             return vm.none();
         });
     if (name == "copy")
