@@ -131,11 +131,6 @@ kirito_test(bench bench/bench.cpp)
 file(GLOB ki_scripts ${CMAKE_CURRENT_SOURCE_DIR}/scripts/*.ki)
 foreach(script ${ki_scripts})
     get_filename_component(nm ${script} NAME_WE)
-    # audit_cli_argv_probe is registered with custom argv below (auto-discovery would run it with
-    # no script args, producing a wrong arglist length).
-    if(nm STREQUAL "audit_cli_argv_probe")
-        continue()
-    endif()
     set(expected ${CMAKE_CURRENT_SOURCE_DIR}/scripts/${nm}.expected)
     if(NOT EXISTS ${expected})
         continue()
@@ -145,20 +140,21 @@ foreach(script ${ki_scripts})
     if(EXISTS ${input})
         set(extra -DINPUT=${input})
     endif()
+    # Optional `<name>.args` sidecar (one argv token per line) supplies the script's command-line
+    # arguments, so a test of arglist/argmain runs with identical argv in every runner (CTest,
+    # test_release.sh, the self-host). Newlines -> the ';' separator run_ki_script.cmake expects.
+    set(argfile ${CMAKE_CURRENT_SOURCE_DIR}/scripts/${nm}.args)
+    if(EXISTS ${argfile})
+        file(STRINGS ${argfile} arglines)
+        string(REPLACE ";" "\\;" arglines "${arglines}")   # protect any literal ';' in a token
+        string(JOIN ";" argjoined ${arglines})
+        list(APPEND extra -DARGS=${argjoined})
+    endif()
     add_test(NAME script_${nm}
              COMMAND ${CMAKE_COMMAND} -DKI=$<TARGET_FILE:ki> -DSCRIPT=${script}
                      -DEXPECTED=${expected} ${extra}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_script.cmake)
 endforeach()
-
-# Pure-Kirito CLI-argv ownership test: pass `arg1 --foo bar -- last` after the script path; the
-# .expected verifies arglist captures every token (incl. option-shaped ones) and argmain is True.
-add_test(NAME script_audit_cli_argv_probe
-         COMMAND ${CMAKE_COMMAND} -DKI=$<TARGET_FILE:ki>
-                 -DSCRIPT=${CMAKE_CURRENT_SOURCE_DIR}/scripts/audit_cli_argv_probe.ki
-                 -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/scripts/audit_cli_argv_probe.expected
-                 -DARGS=arg1$<SEMICOLON>--foo$<SEMICOLON>bar$<SEMICOLON>--$<SEMICOLON>last
-                 -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_script.cmake)
 
 # The parallel golden scripts can block on a real bug; cap them so a regression fails rather than
 # stalling CI (the watchdog backstop, mirroring the parallel unit tests' TIMEOUT).

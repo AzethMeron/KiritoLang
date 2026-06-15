@@ -2733,6 +2733,11 @@ var run3 = Function(src, inputText, moddir):
 # run4: import dirs are searched in order for `import("name")` -> name.ki (so a program's own
 # directory can supply library modules like complex/linsolve alongside the stdmods).
 var run4 = Function(src, inputText, importdirs):
+    return run5(src, inputText, importdirs, [])
+
+# run5: like run4 but also seeds the run-directly program's `arglist` (so a CLI-argv test runs with
+# the same command-line arguments here as under the native `ki`).
+var run5 = Function(src, inputText, importdirs, arglist):
     var inlines = []
     if len(inputText) > 0:
         inlines = inputText.split("\n")
@@ -2744,7 +2749,7 @@ var run4 = Function(src, inputText, importdirs):
         var toks = lexerMod.tokenize(src)
         var ast = parserMod.parseProgram(toks)
         var modEnv = newEnv(g)
-        envDefine(modEnv, "arglist", [])     # the run-directly program: empty args, argmain True
+        envDefine(modEnv, "arglist", arglist)   # the run-directly program: its argv, argmain True
         envDefine(modEnv, "argmain", True)
         execBlock(St, modEnv, ast)
     catch as e:

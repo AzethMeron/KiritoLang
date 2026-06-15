@@ -34,9 +34,10 @@ assert sys.getenv("KIRITO_AUDIT_EMPTY") == "", "empty value round-trips"
 sys.unsetenv("KIRITO_AUDIT_EMPTY")
 assert sys.getenv("KIRITO_AUDIT_EMPTY") == None, "unset after empty"
 
-# weird values (spaces, equals, unicode)
-sys.setenv("KIRITO_AUDIT_WEIRD", "a b = c café")
-assert sys.getenv("KIRITO_AUDIT_WEIRD") == "a b = c café", "spaces / = / unicode in env value"
+# weird values (spaces, equals) — ASCII only: the narrow (*A / ANSI) env APIs used on Windows can't
+# round-trip arbitrary UTF-8 bytes, so a non-ASCII env value is not a cross-platform guarantee.
+sys.setenv("KIRITO_AUDIT_WEIRD", "a b = c d")
+assert sys.getenv("KIRITO_AUDIT_WEIRD") == "a b = c d", "spaces and '=' in env value"
 sys.unsetenv("KIRITO_AUDIT_WEIRD")
 
 # --- environ() returns a Dict reflecting current state ---

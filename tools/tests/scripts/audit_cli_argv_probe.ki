@@ -1,4 +1,6 @@
-# Pure-Kirito CLI-argv test (custom-add_test'd by CMakeLists). Driven with the literal argv
+# Pure-Kirito CLI-argv test (custom-add_test'd by CMakeLists; golden file is `.argv-expected`, not
+# `.expected`, so the auto-discovery runners — the CTest glob, test_release.sh, and the self-host —
+# skip it; only the custom add_test runs it with the right argv). Driven with the literal argv
 # `arg1 --foo bar -- last` AFTER the script path, so arglist is exactly that 5-token List —
 # argv-ownership semantics: every token after the script file (incl. option-shaped ones like
 # "--foo" and the bare "--") is the script's, NOT a ki option.

@@ -23,12 +23,17 @@ cd "$(dirname "$0")/../.."
 # output, so the line-ending difference is normalized away.
 run_suite() {
     local label="$1"; shift
-    local pass=0 fail=0 s exp in actual expected err rc ok n
+    local pass=0 fail=0 s exp in actual expected err rc ok n argf tok
+    local args
     for s in tools/tests/scripts/*.ki; do
         exp="${s%.ki}.expected"; [ -f "$exp" ] || continue
         in="${s%.ki}.in"
-        if [ -f "$in" ]; then actual="$("$@" "$s" < "$in" 2>/dev/null | tr -d '\r')"
-        else                  actual="$("$@" "$s" < /dev/null 2>/dev/null | tr -d '\r')"; fi
+        # Optional `<name>.args` sidecar (one argv token per line) supplies the script's command-line
+        # arguments, so an arglist/argmain test runs with identical argv in every runner.
+        args=(); argf="${s%.ki}.args"
+        if [ -f "$argf" ]; then while IFS= read -r tok || [ -n "$tok" ]; do args+=("$tok"); done < "$argf"; fi
+        if [ -f "$in" ]; then actual="$("$@" "$s" "${args[@]}" < "$in" 2>/dev/null | tr -d '\r')"
+        else                  actual="$("$@" "$s" "${args[@]}" < /dev/null 2>/dev/null | tr -d '\r')"; fi
         expected="$(tr -d '\r' < "$exp")"
         if [ "$actual" = "$expected" ]; then pass=$((pass + 1))
         else echo "  FAIL       $s"; fail=$((fail + 1)); fi

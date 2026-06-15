@@ -655,6 +655,10 @@ Process environment and platform.
 - `setenv(name: String, value: String) → None` — set a variable.
 - `unsetenv(name: String) → None` — remove a variable.
 - `environ() → Dict` — all environment variables.
+
+> **Encoding.** Names and values are byte-for-byte round-tripped on POSIX. On Windows they go
+> through the narrow (ANSI code-page) environment API, so a non-ASCII value isn't guaranteed to
+> survive a `setenv`→`getenv` round-trip; keep environment values ASCII for portability.
 - `gettempdir() → String` — the system temp directory (honors `TMPDIR`/`TMP`/`TEMP`, falls back to
   `/tmp`). Pairs with `io` to build scratch file paths:
   `io.open(sys.joinpath(sys.gettempdir(), "scratch.txt"), "w")`.
