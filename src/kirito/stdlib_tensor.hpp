@@ -1291,6 +1291,13 @@ inline Handle einsumT(KiritoVM& vm, const std::string& spec, const std::vector<H
     std::string outl;
     if (explicitOut) outl = rhs;
     else { std::map<char, int> cnt; for (auto& su : insub) for (char ch : su) cnt[ch]++; for (auto& kv : cnt) if (kv.second == 1) outl += kv.first; }
+    // Every label in the output spec must appear in at least one input, otherwise its dimension is
+    // undefined and the silent zero-shape fall-through produces an empty tensor (NumPy raises here).
+    if (explicitOut)
+        for (char ch : outl)
+            if (!sz.count(ch))
+                throw KiritoError(std::string("einsum: output label '") + ch
+                                  + "' does not appear in any input");
     std::vector<char> labels; std::unordered_set<char> seen;
     for (char ch : outl) if (seen.insert(ch).second) labels.push_back(ch);
     { std::set<char> all; for (auto& su : insub) for (char ch : su) all.insert(ch); std::unordered_set<char> os(outl.begin(), outl.end()); for (char ch : all) if (!os.count(ch)) labels.push_back(ch); }
@@ -1772,9 +1779,32 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     if (name == "take") return bind("take", {"indices", "axis"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         std::vector<std::ptrdiff_t> idxs;
         for (Value e : Value(vm, a[0]).items()) idxs.push_back(static_cast<std::ptrdiff_t>(e.asInt("index")));
-        if (a.size() > 1 && vm.arena().deref(a[1]).kind() != ValueKind::None && Value(vm, a[1]).asInt("axis") != 0)
-            throw KiritoError("take currently supports axis 0 only");
-        return tns::wrap([&]() { return tns::g_takeAxis0(vm, self, idxs); });
+        int64_t axis = 0;
+        if (a.size() > 1 && vm.arena().deref(a[1]).kind() != ValueKind::None)
+            axis = Value(vm, a[1]).asInt("axis");
+        auto& t = static_cast<TensorVal&>(vm.arena().deref(self));
+        int64_t nd = static_cast<int64_t>(t.shape().size());
+        if (nd == 0) throw KiritoError("take: tensor has no axes");
+        if (axis < 0) axis += nd;
+        if (axis < 0 || axis >= nd) throw KiritoError("take: axis out of range");
+        if (axis == 0)
+            return tns::wrap([&]() { return tns::g_takeAxis0(vm, self, idxs); });
+        // axis > 0: permute the target axis to 0, take along 0, then permute back.
+        tensor::Shape perm(static_cast<std::size_t>(nd));
+        perm[0] = static_cast<std::size_t>(axis);
+        std::size_t fill = 0;
+        for (std::size_t i = 1; i < perm.size(); ++i) {
+            if (fill == static_cast<std::size_t>(axis)) ++fill;
+            perm[i] = fill++;
+        }
+        tensor::Shape inv(static_cast<std::size_t>(nd));
+        for (std::size_t i = 0; i < perm.size(); ++i) inv[perm[i]] = i;
+        return tns::wrap([&]() {
+            RootScope rs(vm);
+            Handle permuted = rs.add(tns::g_permute(vm, self, perm));
+            Handle taken = rs.add(tns::g_takeAxis0(vm, permuted, idxs));
+            return tns::g_permute(vm, taken, inv);
+        });
     });
     // sorting
     if (name == "sort") return bind("sort", {"axis"}, [self, axisOf](KiritoVM& vm, std::span<const Handle> a) -> Handle {

@@ -1397,7 +1397,12 @@ inline bool kiEquals(KiritoVM& vm, Handle a, Handle b) {
         }
         return true;
     }
-    return oa.equals(vm.arena(), ob);
+    // Cross-type equality must stay symmetric: if oa.equals(ob) says no but ob would recognize oa
+    // (e.g. 2 == Complex(2, 0): the Integer doesn't know about Complex, but the Complex does), give
+    // the other side a chance. Skip when kinds match — same-kind dispatch is already symmetric.
+    if (oa.equals(vm.arena(), ob)) return true;
+    if (oa.kind() != ob.kind()) return ob.equals(vm.arena(), oa);
+    return false;
 }
 
 inline bool ListVal::contains(KiritoVM& vm, Handle value) {

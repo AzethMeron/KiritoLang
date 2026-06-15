@@ -41,6 +41,15 @@ kirito_test(test_tabular unit/test_tabular.cpp)
 kirito_test(test_xml unit/test_xml.cpp)
 kirito_test(test_audit_fixes unit/test_audit_fixes.cpp)
 kirito_test(test_audit_findings unit/test_audit_findings.cpp)
+# CLI argument-handling test: drives the built ki as a subprocess (popen). The actual ki binary
+# isn't a link-time dependency, but the test needs it on disk — depend on the ki target and pass
+# its location as argv[1] so the test is hermetic.
+add_executable(test_cli_args unit/test_cli_args.cpp)
+target_compile_features(test_cli_args PRIVATE cxx_std_20)
+target_link_libraries(test_cli_args PRIVATE kirito)
+target_precompile_headers(test_cli_args REUSE_FROM kirito_pch)
+add_dependencies(test_cli_args ki)
+add_test(NAME test_cli_args COMMAND test_cli_args $<TARGET_FILE:ki>)
 kirito_test(test_protocol unit/test_protocol.cpp)
 kirito_test(test_value_extra unit/test_value_extra.cpp)
 kirito_test(test_embedding_extra unit/test_embedding_extra.cpp)
@@ -122,6 +131,11 @@ kirito_test(bench bench/bench.cpp)
 file(GLOB ki_scripts ${CMAKE_CURRENT_SOURCE_DIR}/scripts/*.ki)
 foreach(script ${ki_scripts})
     get_filename_component(nm ${script} NAME_WE)
+    # audit_cli_argv_probe is registered with custom argv below (auto-discovery would run it with
+    # no script args, producing a wrong arglist length).
+    if(nm STREQUAL "audit_cli_argv_probe")
+        continue()
+    endif()
     set(expected ${CMAKE_CURRENT_SOURCE_DIR}/scripts/${nm}.expected)
     if(NOT EXISTS ${expected})
         continue()
@@ -136,6 +150,15 @@ foreach(script ${ki_scripts})
                      -DEXPECTED=${expected} ${extra}
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_script.cmake)
 endforeach()
+
+# Pure-Kirito CLI-argv ownership test: pass `arg1 --foo bar -- last` after the script path; the
+# .expected verifies arglist captures every token (incl. option-shaped ones) and argmain is True.
+add_test(NAME script_audit_cli_argv_probe
+         COMMAND ${CMAKE_COMMAND} -DKI=$<TARGET_FILE:ki>
+                 -DSCRIPT=${CMAKE_CURRENT_SOURCE_DIR}/scripts/audit_cli_argv_probe.ki
+                 -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/scripts/audit_cli_argv_probe.expected
+                 -DARGS=arg1$<SEMICOLON>--foo$<SEMICOLON>bar$<SEMICOLON>--$<SEMICOLON>last
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_script.cmake)
 
 # The parallel golden scripts can block on a real bug; cap them so a regression fails rather than
 # stalling CI (the watchdog backstop, mirroring the parallel unit tests' TIMEOUT).
