@@ -111,6 +111,16 @@ class DateTime:
     var sub = Function(self, seconds):
         return _fromEpoch(self.timestamp - Integer(seconds))
 
+    # value equality + hash by instant (epoch), mirroring the native DateTime
+    var _eq_ = Function(self, o):
+        if type(o) != "DateTime":
+            return False
+        return self.timestamp == o.timestamp
+    var _ne_ = Function(self, o):
+        return not self._eq_(o)
+    var _hash_ = Function(self):
+        return self.timestamp
+
     var _str_ = Function(self):
         return self.iso()
 

@@ -106,21 +106,21 @@ var _decompressStr = Function(x):
         throw "zlib: invalid compressed data"
     return _unlz(x[2:])
 
-var deflate = Function(s):
-    return _typed(s, _lz)
-var inflate = Function(s):
-    return _typed(s, _unlz)
-var compress = Function(s):
-    return _typed(s, _compressStr)
-var decompress = Function(s):
-    return _typed(s, _decompressStr)
+var deflate = Function(data):
+    return _typed(data, _lz)
+var inflate = Function(data):
+    return _typed(data, _unlz)
+var compress = Function(data):
+    return _typed(data, _compressStr)
+var decompress = Function(data):
+    return _typed(data, _decompressStr)
 
-var adler32 = Function(s):
+var adler32 = Function(data):
     var a = 1
     var b = 0
-    var bytes = s
-    if type(s) == "Bytes":
-        bytes = s.decode("latin-1")
+    var bytes = data
+    if type(data) == "Bytes":
+        bytes = data.decode("latin-1")
     for c in bytes:
         a = (a + ord(c) % 256) % 65521
         b = (b + a) % 65521

@@ -5,16 +5,16 @@
 
 var serialize = import("serialize")
 
-var dumps = Function(v):
-    return serialize.dumps(v).encode()
+var dumps = Function(value):
+    return serialize.dumps(value).encode()
 
-var loads = Function(d):
-    if type(d) == "String":
-        return serialize.loads(d)
-    return serialize.loads(d.decode())
+var loads = Function(data):
+    if type(data) == "String":
+        return serialize.loads(data)
+    return serialize.loads(data.decode())
 
-var save = Function(v, path):
-    serialize.save(v, path)
+var save = Function(value, path):
+    serialize.save(value, path)
 
 var load = Function(path):
     return serialize.load(path)

@@ -1467,14 +1467,17 @@ Tensor.var = Tensor.varr
 
 # ================================================================= creation
 var Tensor = Tensor
-var zeros = Function(shape, dtype = "Float"):
+var zeros = Function(shape, dtype = "Float", requiresgrad = False):
     var n = _prod(shape)
     var flat = []
     var i = 0
     while i < n:
         flat.append(_zeroOf(dtype))
         i = i + 1
-    return _make(flat, List(shape), dtype)
+    var t = _make(flat, List(shape), dtype)
+    if requiresgrad:
+        t.requiresgrad(True)
+    return t
 var ones = Function(shape, dtype = "Float"):
     var n = _prod(shape)
     var one = _coerce(1, dtype)

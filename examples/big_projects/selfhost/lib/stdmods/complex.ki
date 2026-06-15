@@ -119,7 +119,9 @@ var abs = Function(z):
     return math.hypot(c.re, c.im)
 
 # ================================================================= complex matrices
-class Matrix:
+# Named ComplexMatrix (matching the native type name) so it is distinct from matrix.Matrix for
+# serialization (which keys instances by class name); exposed below as the module member `Matrix`.
+class ComplexMatrix:
     var _init_ = Function(self, rows):
         var data = []
         var ncol = -1
@@ -157,6 +159,11 @@ class Matrix:
         if i < 0 or i >= self._r or j < 0 or j >= self._c:
             throw "complex matrix index out of range"
         self._data[i][j] = _toC(v)
+    var get = Function(self, row, col):
+        return self._getitem_(row, col)
+    var set = Function(self, row, col, value):
+        self._setitem_(row, col, value)
+        return None
 
     var _ew = Function(self, o, add):
         if self._r != o._r or self._c != o._c:
@@ -375,7 +382,7 @@ class Matrix:
         return Matrix([[a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]])
 
     var _eq_ = Function(self, o):
-        if type(o) != "Matrix":
+        if type(o) != "ComplexMatrix":
             return False
         if self._r != o._r or self._c != o._c:
             return False
@@ -391,6 +398,9 @@ class Matrix:
 
     var _str_ = Function(self):
         return "ComplexMatrix(" + String(self._r) + "x" + String(self._c) + ")"
+
+# expose the complex matrix as `Matrix` (the module member used as C.Matrix)
+var Matrix = ComplexMatrix
 
 var zeros = Function(r, c):
     var rows = []

@@ -246,10 +246,10 @@ var _dumpSeq = Function(v, indent, depth, openc, closec, isObj):
     out = out + _pad(indent, depth)
     return out + closec
 
-var dumps = Function(v, indent = 0):
+var dumps = Function(value, indent = 0):
     var ind = 0
     if indent != None:
         ind = indent
-    return _dump(v, ind, 0)
+    return _dump(value, ind, 0)
 
 var stringify = dumps

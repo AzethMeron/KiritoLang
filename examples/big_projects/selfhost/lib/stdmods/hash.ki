@@ -122,8 +122,8 @@ var _hexLE = Function(x):
         b = b + 1
     return out
 
-var md5 = Function(s):
-    var msg = _bytesOf(s)
+var md5 = Function(data):
+    var msg = _bytesOf(data)
     var origLenBits = len(msg) * 8
     msg.append(128)
     while len(msg) % 64 != 56:
@@ -177,8 +177,8 @@ var md5 = Function(s):
     return _hexLE(a0) + _hexLE(b0) + _hexLE(c0) + _hexLE(d0)
 
 # --- sha1 ----------------------------------------------------------------------------------------
-var sha1 = Function(s):
-    var msg = _bytesOf(s)
+var sha1 = Function(data):
+    var msg = _bytesOf(data)
     var origLenBits = len(msg) * 8
     msg.append(128)
     while len(msg) % 64 != 56:
@@ -255,8 +255,8 @@ var _SHA_K = [1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970
 var _be32 = Function(bytes, i):
     return bytes[i] * 16777216 + bytes[i + 1] * 65536 + bytes[i + 2] * 256 + bytes[i + 3]
 
-var sha256 = Function(s):
-    var msg = _bytesOf(s)
+var sha256 = Function(data):
+    var msg = _bytesOf(data)
     var origLenBits = len(msg) * 8
     msg.append(128)
     while len(msg) % 64 != 56:
@@ -335,16 +335,16 @@ while _ct < 256:
     _CRC32_TABLE.append(_cc)
     _ct = _ct + 1
 
-var crc32 = Function(s):
+var crc32 = Function(data):
     var crc = 4294967295
-    for b in _bytesOf(s):
+    for b in _bytesOf(data):
         crc = _xor(crc // 256, _CRC32_TABLE[_xor(crc % 256, b)])
     return _xor(crc, 4294967295)
 
-var adler32 = Function(s):
+var adler32 = Function(data):
     var a = 1
     var b = 0
-    for byte in _bytesOf(s):
+    for byte in _bytesOf(data):
         a = (a + byte) % 65521
         b = (b + a) % 65521
     return b * 65536 + a
@@ -375,10 +375,10 @@ while _q < 256:
     _CRC64_TABLE.append([hi, lo])
     _q = _q + 1
 
-var crc64 = Function(s):
+var crc64 = Function(data):
     var hi = 4294967295
     var lo = 4294967295
-    for b in _bytesOf(s):
+    for b in _bytesOf(data):
         var ent = _CRC64_TABLE[_xor(lo % 256, b)]
         var shlo = lo // 256 + (hi % 256) * 16777216
         var shhi = hi // 256

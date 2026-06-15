@@ -53,10 +53,10 @@ var _encode = Function(v, reg, nodes):
         return ["bytesval", v.hex()]
     return ["val", v]
 
-var dumps = Function(v):
+var dumps = Function(value):
     var reg = {}
     var nodes = []
-    var root = _encode(v, reg, nodes)
+    var root = _encode(value, reg, nodes)
     return json.dumps({"root": root, "nodes": nodes})
 
 var _resolve = Function(enc, shells):
@@ -66,8 +66,8 @@ var _resolve = Function(enc, shells):
         return fromhex(enc[1])
     return enc[1]
 
-var loads = Function(s):
-    var top = json.loads(s)
+var loads = Function(data):
+    var top = json.loads(data)
     var nodes = top["nodes"]
     # create empty shells so references (incl. cycles) can point at them before they are filled
     var shells = []
@@ -109,9 +109,9 @@ var loads = Function(s):
         shells[si]._setstate_(_resolve(nodes[si][2], shells))
     return _resolve(top["root"], shells)
 
-var save = Function(v, path):
+var save = Function(value, path):
     var fh = io.open(path, "w")
-    fh.write(dumps(v))
+    fh.write(dumps(value))
     fh.close()
 
 var load = Function(path):
