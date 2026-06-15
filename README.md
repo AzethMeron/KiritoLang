@@ -62,9 +62,9 @@ And why did i call it after MC of SAO? Dunno, just thought it's funny. Also I do
   are entirely optional.
 
 - **Easy integration, both directions.**
-  - *Embed Kirito in C++* — construct a `KiritoVM`, run source, read results back. No build step
-    beyond adding `src/` to your include path and compiling as C++20; there is no library to
-    link.
+  - *Embed Kirito in C++* — construct a `KiritoDispatcher`, run source on `dispatcher.mainVM()`,
+    read results back. No build step beyond adding `src/` to your include path and compiling as
+    C++20; there is no library to link.
   - *Extend Kirito from C++* — register your own functions, modules, and object types. Anything you
     add flows through the same object protocol as the built-ins, so to a Kirito program your C++ type
     is indistinguishable from a native one.
@@ -121,15 +121,21 @@ Reproduce: `cmake --build build-release --target ki && python3 tools/tests/bench
 
 ## Embedding Kirito in C++
 
+Construct a `KiritoDispatcher` — the recommended entry point — and run source on the VM it gives you.
+It owns a fully-configured `KiritoVM` (with the `parallel` module enabled) plus the worker machinery,
+exactly like the `ki` CLI, and costs nothing until you use it. (For the bare minimum without
+`parallel`, you can construct a `KiritoVM` directly — see the docs.)
+
 ```cpp
 #include "kirito.hpp"
 using namespace kirito;
 
 int main() {
-    KiritoVM vm;                                   // one isolated interpreter
+    KiritoDispatcher dispatcher;                   // the embedding entry point
+    KiritoVM& vm = dispatcher.mainVM();            // a fully-configured interpreter
     Handle result = vm.runSource("var x = 6 * 7\nx\n");
     std::printf("%s\n", vm.stringify(result).c_str());   // 42
-}
+}   // ~KiritoDispatcher cleanly joins any worker threads
 ```
 
 ## Extending Kirito from C++
