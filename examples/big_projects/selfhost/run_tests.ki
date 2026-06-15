@@ -49,7 +49,12 @@ var readFile = Function(path):
 #
 # SLOW (below) PASS but their KB-scale sha256 + LZ77 over the doubly-interpreted runtime takes minutes,
 # so they run only under `full`: spec_gzip, probe_compress_fuzz.
-var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_binary_adversarial", "probe_inspect", "probe_serde_matrix", "probe_trio", "spec_edges", "spec_inspect", "spec_serialize_native", "audit_parallel", "audit_followups", "audit_net"])
+var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_binary_adversarial", "probe_inspect", "probe_serde_matrix", "probe_trio", "spec_edges", "spec_inspect", "spec_serialize_native", "audit_parallel", "audit_followups", "audit_net",
+  # deep adversarial probes that exercise native internals / runtime corners beyond the self-host's
+  # scope (both pass on the native interpreter under CTest): deep_serialization is native-serde-heavy
+  # (native value-type round-trips + resource-rejection wording, like spec_serde); deep_runtime
+  # exercises List `in` routing through a boxed instance's _eq_, which the self-host doesn't replicate.
+  "deep_serialization", "deep_runtime"])
 # SLOW: these PASS through the self-host but their crypto/compression over KB-scale data is too slow
 # for the default fast CTest, so they are skipped unless `full` is given (the gzip/zlib/hash stack).
 var SLOW = Set(["spec_gzip", "probe_compress_fuzz"])
