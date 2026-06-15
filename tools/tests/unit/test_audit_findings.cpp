@@ -95,4 +95,37 @@ int main() {
         // kwarg form `key=` still works
         CHECK(ev(vm, "var d = {\"x\": 5}\nd.remove(key = \"x\")\nd") == "{}");
     }
+
+    // ---- parseDouble: a subnormal/underflowing float no longer crashes the lexer or the
+    //      serializers (std::stod threw std::out_of_range on underflow -> SIGABRT). It now parses
+    //      to the (subnormal) value everywhere a double is read from text.
+    {
+        KiritoVM vm;
+        // a subnormal literal lexes instead of aborting; it's tiny and positive
+        CHECK(ev(vm, "var x = 5e-324\nx > 0.0 and x < 1e-300") == "True");
+        CHECK(ev(vm, "1e-308 > 0.0") == "True");
+        // Float(String) accepts a subnormal too
+        CHECK(ev(vm, "Float(\"5e-324\") > 0.0") == "True");
+        // genuine overflow still raises (unchanged: parseDouble treats ±inf as out-of-range, and
+        // the converter surfaces it as a clear conversion error — only underflow was the crash)
+        CHECK(raises(vm, "Float(\"1e400\")"));
+        // serialize (text) + dump (binary) round-trip a subnormal that std::stod would have rejected
+        CHECK(ev(vm, "var s = import(\"serialize\")\nvar t = 1e-308 * 0.001\ns.loads(s.dumps(t)) == t") == "True");
+        CHECK(ev(vm, "var d = import(\"dump\")\nvar t = 1e-308 * 0.001\nd.loads(d.dumps(t)) == t") == "True");
+    }
+
+    // ---- json emits and re-parses the Python-json non-finite spelling (NaN / Infinity /
+    //      -Infinity), so a structure with a non-finite Float round-trips (was lowercase nan/inf,
+    //      which json.parse rejected).
+    {
+        KiritoVM vm;
+        CHECK(ev(vm, "import(\"json\").dumps(import(\"math\").inf)") == "Infinity");
+        CHECK(ev(vm, "import(\"json\").dumps(-import(\"math\").inf)") == "-Infinity");
+        CHECK(ev(vm, "import(\"json\").dumps(import(\"math\").nan)") == "NaN");
+        CHECK(ev(vm, "import(\"json\").parse(\"Infinity\") == import(\"math\").inf") == "True");
+        CHECK(ev(vm, "import(\"json\").parse(\"-Infinity\") == -import(\"math\").inf") == "True");
+        CHECK(ev(vm, "import(\"math\").isnan(import(\"json\").parse(\"NaN\"))") == "True");
+        CHECK(ev(vm, "var j = import(\"json\")\nvar m = import(\"math\")\n"
+                     "j.loads(j.dumps([m.inf, -m.inf])) == [m.inf, -m.inf]") == "True");
+    }
 }

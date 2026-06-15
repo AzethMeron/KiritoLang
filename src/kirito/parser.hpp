@@ -722,7 +722,9 @@ private:
             }
             case TokenType::Float: {
                 advance();
-                return literal(std::stod(t.text), t.span);
+                // parseDouble (not std::stod) so a subnormal literal like 5e-324 yields the value
+                // instead of crashing with an uncaught std::out_of_range.
+                return literal(parseDouble(t.text), t.span);
             }
             case TokenType::String: {
                 advance();

@@ -2242,7 +2242,7 @@ inline void KiritoVM::installBuiltins() {
                 const std::string& s = static_cast<const StrVal&>(o).value();
                 try {
                     std::size_t pos = 0;
-                    double v = std::stod(s, &pos);
+                    double v = parseDouble(s, &pos);
                     while (pos < s.size() && std::isspace(static_cast<unsigned char>(s[pos]))) ++pos;
                     if (pos != s.size()) throw std::invalid_argument("trailing");
                     return vm.makeFloat(v);

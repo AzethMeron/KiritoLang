@@ -69,6 +69,10 @@ private:
         if (c == 't') { if (match("true")) return vm_.makeBool(true); fail("invalid literal"); }
         if (c == 'f') { if (match("false")) return vm_.makeBool(false); fail("invalid literal"); }
         if (c == 'n') { if (match("null")) return vm_.none(); fail("invalid literal"); }
+        // Non-finite floats, Python-json style (and what dumps emits): NaN / Infinity / -Infinity.
+        if (c == 'N') { if (match("NaN")) return roots_.add(vm_.makeFloat(std::nan(""))); fail("invalid literal"); }
+        if (c == 'I') { if (match("Infinity")) return roots_.add(vm_.makeFloat(HUGE_VAL)); fail("invalid literal"); }
+        if (c == '-' && s_.compare(pos_, 9, "-Infinity") == 0) { pos_ += 9; return roots_.add(vm_.makeFloat(-HUGE_VAL)); }
         if (c == '-' || (c >= '0' && c <= '9')) return number();
         fail("unexpected character");
     }
@@ -184,12 +188,12 @@ private:
         std::string tok = s_.substr(start, pos_ - start);
         if (tok.empty() || tok == "-") fail("invalid number");
         try {
-            if (isFloat) return roots_.add(vm_.makeFloat(std::stod(tok)));
+            if (isFloat) return roots_.add(vm_.makeFloat(parseDouble(tok)));
             return vm_.makeInt(static_cast<int64_t>(std::stoll(tok)));
         } catch (const std::out_of_range&) {
             // An integer too large for int64 -> widen to Float (mirroring dynamic languages). If
             // even the double overflows, represent it as infinity rather than throwing.
-            try { return roots_.add(vm_.makeFloat(std::stod(tok))); }
+            try { return roots_.add(vm_.makeFloat(parseDouble(tok))); }
             catch (const std::out_of_range&) {
                 return roots_.add(vm_.makeFloat(tok[0] == '-' ? -HUGE_VAL : HUGE_VAL));
             }
@@ -233,13 +237,22 @@ inline void escapeString(const std::string& s, std::string& out) {
     out += '"';
 }
 
+// JSON float text. Finite values use the shared formatter; non-finite values use the Python-`json`
+// spelling (NaN / Infinity / -Infinity) which our parser accepts back, so dumps->loads round-trips
+// (plain `floatToString` would emit lowercase nan/inf, which JSON readers — including ours — reject).
+inline std::string jsonFloat(double d) {
+    if (std::isnan(d)) return "NaN";
+    if (std::isinf(d)) return d < 0 ? "-Infinity" : "Infinity";
+    return floatToString(d);
+}
+
 inline void write(KiritoVM& vm, Handle h, std::string& out, std::unordered_set<const Object*>& active) {
     const Object& o = vm.arena().deref(h);
     switch (o.kind()) {
         case ValueKind::None: out += "null"; return;
         case ValueKind::Bool: out += static_cast<const BoolVal&>(o).value() ? "true" : "false"; return;
         case ValueKind::Integer: out += std::to_string(static_cast<const IntVal&>(o).value()); return;
-        case ValueKind::Float: out += floatToString(static_cast<const FloatVal&>(o).value()); return;
+        case ValueKind::Float: out += jsonFloat(static_cast<const FloatVal&>(o).value()); return;
         case ValueKind::String: escapeString(static_cast<const StrVal&>(o).value(), out); return;
         default: break;
     }
@@ -280,7 +293,7 @@ inline void writeIndented(KiritoVM& vm, Handle h, std::string& out,
         case ValueKind::None: out += "null"; return;
         case ValueKind::Bool: out += static_cast<const BoolVal&>(o).value() ? "true" : "false"; return;
         case ValueKind::Integer: out += std::to_string(static_cast<const IntVal&>(o).value()); return;
-        case ValueKind::Float: out += floatToString(static_cast<const FloatVal&>(o).value()); return;
+        case ValueKind::Float: out += jsonFloat(static_cast<const FloatVal&>(o).value()); return;
         case ValueKind::String: escapeString(static_cast<const StrVal&>(o).value(), out); return;
         default: break;
     }

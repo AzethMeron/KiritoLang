@@ -96,7 +96,7 @@ public:
             if (t == "N") nd.tag = serde::Tag::None;
             else if (t == "B") { nd.tag = serde::Tag::Bool; nd.b = std::stoi(token()) != 0; }
             else if (t == "I") { nd.tag = serde::Tag::Integer; nd.i = std::stoll(token()); }
-            else if (t == "F") { nd.tag = serde::Tag::Float; nd.f = std::stod(token()); }
+            else if (t == "F") { nd.tag = serde::Tag::Float; nd.f = parseDouble(token()); }   // parseDouble: subnormals don't trap
             else if (t == "S") { nd.tag = serde::Tag::String; int len = std::stoi(token()); nd.s = rawBytes(len); }
             else if (t == "L") { nd.tag = serde::Tag::List; readIds(nd.links); }
             else if (t == "T") { nd.tag = serde::Tag::Set; readIds(nd.links); }

@@ -1,7 +1,10 @@
 #ifndef KIRITO_COMMON_HPP
 #define KIRITO_COMMON_HPP
 
+#include <cerrno>
+#include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 
@@ -32,6 +35,24 @@ public:
     // module reports the module's path, not the entry script's.
     std::string file;
 };
+
+// Parse a double from `s` without std::stod's underflow trap: std::stod throws std::out_of_range
+// when a value underflows to a subnormal/zero (errno==ERANGE), which would crash the lexer and the
+// serializers on a perfectly representable tiny literal like `5e-324`. std::strtod instead RETURNS
+// the (subnormal/zero) value and merely sets errno, so we accept underflow and only reject a
+// genuine non-parse (no digits consumed) or a true overflow to ±inf. `consumed`, if non-null,
+// receives the number of characters parsed (like std::stod's `pos`), for trailing-garbage checks.
+inline double parseDouble(const std::string& s, std::size_t* consumed = nullptr) {
+    const char* begin = s.c_str();
+    char* end = nullptr;
+    errno = 0;
+    double v = std::strtod(begin, &end);
+    if (end == begin) throw std::invalid_argument("parseDouble: no conversion");
+    if (errno == ERANGE && (v == HUGE_VAL || v == -HUGE_VAL))
+        throw std::out_of_range("parseDouble: overflow");   // ±inf — genuine out-of-range
+    if (consumed) *consumed = static_cast<std::size_t>(end - begin);
+    return v;   // underflow (subnormal/zero) is accepted, not thrown
+}
 
 }  // namespace kirito
 
