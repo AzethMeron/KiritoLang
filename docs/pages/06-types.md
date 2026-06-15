@@ -206,7 +206,7 @@ io.print(xs[0], xs[-1], xs[1:3])   # 1 4 [2, 3]
 | `xs.append(x)` | Add `x` to the end. |
 | `xs.pop([i])` | Remove and return the last element (or index `i`). |
 | `xs.insert(i, x)` | Insert `x` before index `i`. |
-| `xs.remove(x)` | Remove the first element equal to `x`. |
+| `xs.remove(x)` | Remove the first element equal to `x`; raises if absent. |
 | `xs.index(x[, start[, end]])` | Index of the first element equal to `x` (raises if absent), within an optional window. |
 | `xs.count(x)` | Number of elements equal to `x`. |
 | `xs.reverse()` | Reverse in place. |
