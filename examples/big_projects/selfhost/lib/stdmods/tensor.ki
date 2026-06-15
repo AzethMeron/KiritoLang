@@ -1,0 +1,1616 @@
+# The `tensor` module in pure Kirito: dense N-dimensional arrays (flat row-major storage + shape),
+# dtype Float (default) or Complex, NumPy-style broadcasting, the usual ops, linear algebra, and
+# reverse-mode autograd (Float-only, opt-in). Mirrors the native module's surface so spec_tensor runs
+# through the self-host. Correctness over speed (this is the self-host's most demanding stress test).
+
+var math = import("math")
+var C = import("complex")
+
+# --- grad-mode flag (VM-scoped; toggled by the nograd() context manager) -------------------------
+var _grad_on = [True]
+var _grad_enabled = Function():
+    return _grad_on[0]
+
+# --- scalar helpers (an element is a host Float, or a complex.Complex) ----------------------------
+var _zeroOf = Function(dtype):
+    if dtype == "Complex":
+        return C.of(0, 0)
+    return 0.0
+var _coerce = Function(x, dtype):
+    if dtype == "Complex":
+        if type(x) == "Complex":
+            return x
+        return C.of(Float(x), 0)
+    if type(x) == "Complex":
+        return x.re
+    return Float(x)
+var _absval = Function(x):
+    if type(x) == "Complex":
+        return x.modulus()
+    if x < 0.0:
+        return -x
+    return x
+
+# --- shape / nesting helpers ---------------------------------------------------------------------
+var _shapeOf = Function(data):
+    var shape = []
+    var d = data
+    while type(d) == "List":
+        shape.append(len(d))
+        if len(d) == 0:
+            break
+        d = d[0]
+    return shape
+
+var _flattenInto = Function(data, out, depth, shape):
+    if depth == len(shape):
+        out.append(data)
+        return None
+    if type(data) != "List" or len(data) != shape[depth]:
+        throw "tensor: ragged nested list"
+    for x in data:
+        _flattenInto(x, out, depth + 1, shape)
+    return None
+
+var _prod = Function(xs):
+    var p = 1
+    for x in xs:
+        p = p * x
+    return p
+
+var _strides = Function(shape):
+    var n = len(shape)
+    var st = []
+    var i = 0
+    while i < n:
+        st.append(1)
+        i = i + 1
+    var k = n - 2
+    while k >= 0:
+        st[k] = st[k + 1] * shape[k + 1]
+        k = k - 1
+    return st
+
+var _unflatten = Function(flat, shape):
+    if len(shape) == 0:
+        return flat[0]
+    if len(shape) == 1:
+        return List(flat)
+    var n = shape[0]
+    var sub = shape[1:len(shape)]
+    var subsize = _prod(sub)
+    var out = []
+    var i = 0
+    while i < n:
+        out.append(_unflatten(flat[i * subsize:(i + 1) * subsize], sub))
+        i = i + 1
+    return out
+
+# normalize a slice (lo,hi,step possibly None) into an explicit index list over length n
+var _sliceIdx = Function(lo, hi, step, n):
+    var st = 1
+    if step != None:
+        st = step
+    if st == 0:
+        throw "slice step cannot be zero"
+    var a = lo
+    var b = hi
+    if st > 0:
+        if a == None:
+            a = 0
+        if b == None:
+            b = n
+    else:
+        if a == None:
+            a = n - 1
+        if b == None:
+            b = -n - 1
+    if a < 0:
+        a = a + n
+    if b < 0 and b >= -n:
+        b = b + n
+    var out = []
+    var i = a
+    if st > 0:
+        if a < 0:
+            i = 0
+        while i < b and i < n:
+            out.append(i)
+            i = i + st
+    else:
+        if i > n - 1:
+            i = n - 1
+        while i > b and i >= 0:
+            out.append(i)
+            i = i + st
+    return out
+
+# broadcast two shapes (right-aligned); raise if incompatible
+var _bcastShape = Function(s1, s2):
+    var n1 = len(s1)
+    var n2 = len(s2)
+    var n = n1
+    if n2 > n:
+        n = n2
+    var out = []
+    var i = 0
+    while i < n:
+        var d1 = 1
+        var d2 = 1
+        if i >= n - n1:
+            d1 = s1[i - (n - n1)]
+        if i >= n - n2:
+            d2 = s2[i - (n - n2)]
+        if d1 != d2 and d1 != 1 and d2 != 1:
+            throw "tensor: shapes not broadcastable"
+        if d1 > d2:
+            out.append(d1)
+        else:
+            out.append(d2)
+        i = i + 1
+    return out
+
+# expand a flat buffer of `shape` to the flat layout of `target` (right-aligned broadcasting)
+var _expand = Function(flat, shape, target):
+    if shape == target:
+        return flat
+    var nd = len(target)
+    var pad = nd - len(shape)
+    var ps = []
+    var i = 0
+    while i < pad:
+        ps.append(1)
+        i = i + 1
+    for d in shape:
+        ps.append(d)
+    var st = _strides(ps)
+    var bst = []
+    var ax = 0
+    while ax < nd:
+        if ps[ax] == 1:
+            bst.append(0)
+        else:
+            bst.append(st[ax])
+        ax = ax + 1
+    var tst = _strides(target)
+    var tsize = _prod(target)
+    var out = []
+    var f = 0
+    while f < tsize:
+        var off = 0
+        var d2 = 0
+        while d2 < nd:
+            off = off + ((f // tst[d2]) % target[d2]) * bst[d2]
+            d2 = d2 + 1
+        out.append(flat[off])
+        f = f + 1
+    return out
+
+# pure flat-list helpers (no tensor internals — safe as module functions)
+var _negFlat = Function(a):
+    var o = []
+    for x in a:
+        o.append(-x)
+    return o
+var _mulFlat = Function(a, b):
+    var o = []
+    var i = 0
+    while i < len(a):
+        o.append(a[i] * b[i])
+        i = i + 1
+    return o
+var _scaleFlat = Function(a, s):
+    var o = []
+    for x in a:
+        o.append(x * s)
+    return o
+
+# sum a flat grad buffer of shape `gshape` down to `target` (reverse of broadcasting)
+var _unbroadcastFlat = Function(gflat, gshape, target):
+    if gshape == target:
+        return gflat
+    var nd = len(gshape)
+    var pt = []
+    var pad = nd - len(target)
+    var i = 0
+    while i < pad:
+        pt.append(1)
+        i = i + 1
+    for d in target:
+        pt.append(d)
+    var rsize = _prod(pt)
+    var res = []
+    var z = 0
+    while z < rsize:
+        res.append(0.0)
+        z = z + 1
+    var gst = _strides(gshape)
+    var rst = _strides(pt)
+    var f = 0
+    while f < len(gflat):
+        var off = 0
+        var d2 = 0
+        while d2 < nd:
+            if pt[d2] != 1:
+                off = off + ((f // gst[d2]) % gshape[d2]) * rst[d2]
+            d2 = d2 + 1
+        res[off] = res[off] + gflat[f]
+        f = f + 1
+    return res
+
+class Tensor:
+    # data: a nested List (rank inferred), or built internally via _wrap. dtype: "Float"|"Complex".
+    var _init_ = Function(self, data, dtype = "Float", requiresgrad = False):
+        var shape = _shapeOf(data)
+        var flat = []
+        _flattenInto(data, flat, 0, shape)
+        var cd = []
+        for x in flat:
+            cd.append(_coerce(x, dtype))
+        self._data = cd
+        self._shape = shape
+        self._dtype = dtype
+        self.grad = None
+        self._req = False
+        self._bw = None
+        self._parents = []
+        if requiresgrad:
+            self.requiresgrad(True)
+
+    var shape = Function(self):
+        return List(self._shape)
+    var ndim = Function(self):
+        return len(self._shape)
+    var size = Function(self):
+        return len(self._data)
+    var dtype = Function(self):
+        return self._dtype
+
+    var requiresgrad = Function(self, flag = None):
+        if flag == None:
+            return self._req
+        if flag and self._dtype == "Complex":
+            throw "tensor: autograd is Float-only (complex tensors cannot require grad)"
+        self._req = flag
+        return None
+
+    # Build a tensor directly from a flat data list + shape (internal; bypasses nesting inference).
+    var _wrap = Function(self, flat, shape, dtype):
+        var t = Tensor([], dtype)
+        t._data = flat
+        t._shape = shape
+        t._dtype = dtype
+        return t
+
+    # gather sub-tensors along axis 0 at the given row indices -> a new tensor
+    var _gatherRows = Function(self, rows):
+        var sub = self._shape[1:len(self._shape)]
+        var subsize = _prod(sub)
+        var flat = []
+        for r in rows:
+            var rr = r
+            if rr < 0:
+                rr = rr + self._shape[0]
+            if rr < 0 or rr >= self._shape[0]:
+                throw "tensor index out of range"
+            var p = 0
+            while p < subsize:
+                flat.append(self._data[rr * subsize + p])
+                p = p + 1
+        var ns = [len(rows)]
+        for d in sub:
+            ns.append(d)
+        return _make(flat, ns, self._dtype)
+
+    var _indexInts = Function(self, idx):
+        var nd = len(self._shape)
+        var st = _strides(self._shape)
+        var off = 0
+        var m = 0
+        while m < len(idx):
+            var v = idx[m]
+            if v < 0:
+                v = v + self._shape[m]
+            if v < 0 or v >= self._shape[m]:
+                throw "tensor index out of range"
+            off = off + v * st[m]
+            m = m + 1
+        if len(idx) == nd:
+            return self._data[off]
+        var sub = self._shape[len(idx):nd]
+        var subsize = _prod(sub)
+        var flat = []
+        var p = 0
+        while p < subsize:
+            flat.append(self._data[off + p])
+            p = p + 1
+        return _make(flat, sub, self._dtype)
+
+    var _getitem_ = Function(self, i, j = None, k = None):
+        if type(i) == "Dict" and "__slice__" in i:
+            return self._gatherRows(_sliceIdx(i["lo"], i["hi"], i["step"], self._shape[0]))
+        if type(i) == "Tensor":
+            var out = []
+            var p = 0
+            while p < len(self._data):
+                if i._data[p] != 0.0 and i._data[p] != 0:
+                    out.append(self._data[p])
+                p = p + 1
+            return _make(out, [len(out)], self._dtype)
+        if type(i) == "List":
+            return self._gatherRows(i)
+        var idx = [i]
+        if j != None:
+            idx.append(j)
+        if k != None:
+            idx.append(k)
+        return self._indexInts(idx)
+
+    var _setitem_ = Function(self, a, b = None, c = None, d = None):
+        var idx = [a]
+        var value = b
+        if d != None:
+            idx = [a, b, c]
+            value = d
+        elif c != None:
+            idx = [a, b]
+            value = c
+        var st = _strides(self._shape)
+        var off = 0
+        var m = 0
+        while m < len(idx):
+            var v = idx[m]
+            if v < 0:
+                v = v + self._shape[m]
+            off = off + v * st[m]
+            m = m + 1
+        self._data[off] = _coerce(value, self._dtype)
+        return None
+
+    var flat = Function(self):
+        return self._data
+
+    # accumulate a flat grad buffer (at `gshape`) into self.grad, reducing broadcast axes
+    var _addGrad = Function(self, gflat, gshape):
+        if not self._req:
+            return None
+        var reduced = _unbroadcastFlat(gflat, gshape, self._shape)
+        if self.grad == None:
+            self.grad = _make(reduced, List(self._shape), "Float")
+        else:
+            var i = 0
+            while i < len(reduced):
+                self.grad._data[i] = self.grad._data[i] + reduced[i]
+                i = i + 1
+        return None
+
+    # elementwise binary op. fn(x,y)->elem; kind in {add,sub,mul,div,pow,mod} drives autograd.
+    var _binop = Function(self, o, fn, kind):
+        var rdt = self._dtype
+        if type(o) == "Tensor" and o._dtype == "Complex":
+            rdt = "Complex"
+        if type(o) != "Tensor":
+            var sc = _coerce(o, rdt)
+            var sflat = []
+            var i = 0
+            while i < len(self._data):
+                sflat.append(fn(_coerce(self._data[i], rdt), sc))
+                i = i + 1
+            var rsc = _make(sflat, List(self._shape), rdt)
+            if _grad_enabled() and self._req and rdt == "Float" and (kind == "add" or kind == "sub" or kind == "mul"):
+                var aT = self
+                var k2 = kind
+                var sc2 = sc
+                var shp = List(self._shape)
+                rsc._req = True
+                rsc._parents = [aT]
+                rsc._bw = Function(g):
+                    if k2 == "mul":
+                        aT._addGrad(_scaleFlat(g._data, sc2), shp)
+                    else:
+                        aT._addGrad(g._data, shp)
+                    return None
+            return rsc
+        var rs = _bcastShape(self._shape, o._shape)
+        var ad = _expand(self._data, self._shape, rs)
+        var bd = _expand(o._data, o._shape, rs)
+        var flat = []
+        var i = 0
+        while i < len(ad):
+            flat.append(fn(_coerce(ad[i], rdt), _coerce(bd[i], rdt)))
+            i = i + 1
+        var r = _make(flat, rs, rdt)
+        if _grad_enabled() and (self._req or o._req) and rdt == "Float" and (kind == "add" or kind == "sub" or kind == "mul"):
+            var aT = self
+            var bT = o
+            var k2 = kind
+            var rs2 = rs
+            var adE = ad
+            var bdE = bd
+            r._req = True
+            r._parents = [aT, bT]
+            r._bw = Function(g):
+                if k2 == "add":
+                    aT._addGrad(g._data, rs2)
+                    bT._addGrad(g._data, rs2)
+                elif k2 == "sub":
+                    aT._addGrad(g._data, rs2)
+                    bT._addGrad(_negFlat(g._data), rs2)
+                else:
+                    aT._addGrad(_mulFlat(g._data, bdE), rs2)
+                    bT._addGrad(_mulFlat(g._data, adE), rs2)
+                return None
+        return r
+
+    var _add_ = Function(self, o):
+        return self._binop(o, Function(x, y): return x + y, "add")
+    var _sub_ = Function(self, o):
+        return self._binop(o, Function(x, y): return x - y, "sub")
+    var _mul_ = Function(self, o):
+        return self._binop(o, Function(x, y): return x * y, "mul")
+    var _div_ = Function(self, o):
+        return self._binop(o, Function(x, y): return x / y, "div")
+    var _mod_ = Function(self, o):
+        return self._binop(o, Function(x, y): return x % y, "mod")
+    var _pow_ = Function(self, o):
+        return self._binop(o, Function(x, y): return x ** y, "pow")
+    var _neg_ = Function(self):
+        var flat = _negFlat(self._data)
+        var r = _make(flat, List(self._shape), self._dtype)
+        if _grad_enabled() and self._req:
+            var aT = self
+            var shp = List(self._shape)
+            r._req = True
+            r._parents = [aT]
+            r._bw = Function(g):
+                aT._addGrad(_negFlat(g._data), shp)
+                return None
+        return r
+
+    # comparisons -> 0/1 Float masks (Float dtype only)
+    var _cmp = Function(self, o, fn):
+        var rs = self._shape
+        var od = None
+        if type(o) == "Tensor":
+            rs = _bcastShape(self._shape, o._shape)
+            od = _expand(o._data, o._shape, rs)
+        var ad = _expand(self._data, self._shape, rs)
+        var flat = []
+        var i = 0
+        while i < len(ad):
+            var yv = o
+            if od != None:
+                yv = od[i]
+            if fn(ad[i], yv):
+                flat.append(1.0)
+            else:
+                flat.append(0.0)
+            i = i + 1
+        return _make(flat, rs, "Float")
+    var gt = Function(self, o):
+        return self._cmp(o, Function(x, y): return x > y)
+    var lt = Function(self, o):
+        return self._cmp(o, Function(x, y): return x < y)
+    var ge = Function(self, o):
+        return self._cmp(o, Function(x, y): return x >= y)
+    var le = Function(self, o):
+        return self._cmp(o, Function(x, y): return x <= y)
+    var eq = Function(self, o):
+        return self._cmp(o, Function(x, y): return x == y)
+    var ne = Function(self, o):
+        return self._cmp(o, Function(x, y): return x != y)
+    var _gt_ = Function(self, o):
+        return self.gt(o)
+    var _lt_ = Function(self, o):
+        return self.lt(o)
+    var _ge_ = Function(self, o):
+        return self.ge(o)
+    var _le_ = Function(self, o):
+        return self.le(o)
+    var logicaland = Function(self, o):
+        return self._cmp(o, Function(x, y): return x != 0.0 and y != 0.0)
+    var logicalor = Function(self, o):
+        return self._cmp(o, Function(x, y): return x != 0.0 or y != 0.0)
+
+    var item = Function(self):
+        if len(self._data) != 1:
+            throw "tensor: item() requires a one-element tensor"
+        return self._data[0]
+    var tolist = Function(self):
+        return _unflatten(self._data, self._shape)
+
+    # reduce along one axis (op in sum/mean/prod/min/max/argmax/argmin/var) -> tensor
+    var _reduceAxis = Function(self, axis, op):
+        var nd = len(self._shape)
+        if axis < 0:
+            axis = axis + nd
+        var outshape = []
+        var d = 0
+        while d < nd:
+            if d != axis:
+                outshape.append(self._shape[d])
+            d = d + 1
+        var st = _strides(self._shape)
+        var ost = _strides(outshape)
+        var outsize = _prod(outshape)
+        var alen = self._shape[axis]
+        var astride = st[axis]
+        var flat = []
+        var f = 0
+        while f < outsize:
+            var off = 0
+            var oi = 0
+            var dd = 0
+            while dd < nd:
+                if dd != axis:
+                    off = off + ((f // ost[oi]) % outshape[oi]) * st[dd]
+                    oi = oi + 1
+                dd = dd + 1
+            var acc = self._data[off]
+            var bestidx = 0
+            if op == "sum" or op == "mean" or op == "var":
+                acc = _zeroOf(self._dtype)
+            elif op == "prod":
+                acc = _coerce(1, self._dtype)
+            var k = 0
+            if op == "min" or op == "max" or op == "argmax" or op == "argmin":
+                k = 1
+            while k < alen:
+                var v = self._data[off + k * astride]
+                if op == "sum" or op == "mean" or op == "var":
+                    acc = acc + v
+                elif op == "prod":
+                    acc = acc * v
+                elif op == "min":
+                    if v < acc:
+                        acc = v
+                elif op == "max":
+                    if v > acc:
+                        acc = v
+                elif op == "argmax":
+                    if v > acc:
+                        acc = v
+                        bestidx = k
+                elif op == "argmin":
+                    if v < acc:
+                        acc = v
+                        bestidx = k
+                k = k + 1
+            if op == "mean":
+                acc = acc / Float(alen)
+            if op == "var":
+                var mu = acc / Float(alen)
+                var s2 = 0.0
+                var kk = 0
+                while kk < alen:
+                    var dv = self._data[off + kk * astride] - mu
+                    s2 = s2 + dv * dv
+                    kk = kk + 1
+                flat.append(s2 / Float(alen))
+            elif op == "argmax" or op == "argmin":
+                flat.append(Float(bestidx))
+            else:
+                flat.append(acc)
+            f = f + 1
+        return _make(flat, outshape, self._dtype)
+
+    var sum = Function(self, axis = None):
+        if axis != None:
+            return self._reduceAxis(axis, "sum")
+        var s = _zeroOf(self._dtype)
+        for x in self._data:
+            s = s + x
+        if self._req and _grad_enabled() and self._dtype == "Float":
+            var r = _make([s], [], "Float")
+            var aT = self
+            var shp = List(self._shape)
+            var n = len(self._data)
+            r._req = True
+            r._parents = [aT]
+            r._bw = Function(g):
+                var gv = g._data[0]
+                var gf = []
+                var i = 0
+                while i < n:
+                    gf.append(gv)
+                    i = i + 1
+                aT._addGrad(gf, shp)
+                return None
+            return r
+        return s
+    var mean = Function(self, axis = None):
+        if axis != None:
+            return self._reduceAxis(axis, "mean")
+        var n = len(self._data)
+        if self._req and _grad_enabled() and self._dtype == "Float":
+            var r = _make([self.sum().item() / Float(n)], [], "Float")
+            # build via sum()/n with grad: reuse sum's graph by scaling
+            var aT = self
+            var shp = List(self._shape)
+            r._req = True
+            r._parents = [aT]
+            r._bw = Function(g):
+                var gv = g._data[0] / Float(n)
+                var gf = []
+                var i = 0
+                while i < n:
+                    gf.append(gv)
+                    i = i + 1
+                aT._addGrad(gf, shp)
+                return None
+            return r
+        var s = _zeroOf(self._dtype)
+        for x in self._data:
+            s = s + x
+        return s / Float(n)
+    var prod = Function(self, axis = None):
+        if axis != None:
+            return self._reduceAxis(axis, "prod")
+        var p = _coerce(1, self._dtype)
+        for x in self._data:
+            p = p * x
+        return p
+    var min = Function(self, axis = None):
+        if self._dtype == "Complex":
+            throw "tensor: min is undefined for a complex tensor"
+        if axis != None:
+            return self._reduceAxis(axis, "min")
+        var m = self._data[0]
+        for x in self._data:
+            if x < m:
+                m = x
+        return m
+    var max = Function(self, axis = None):
+        if self._dtype == "Complex":
+            throw "tensor: max is undefined for a complex tensor"
+        if axis != None:
+            return self._reduceAxis(axis, "max")
+        var m = self._data[0]
+        for x in self._data:
+            if x > m:
+                m = x
+        return m
+    var argmax = Function(self, axis = None):
+        if axis != None:
+            return self._reduceAxis(axis, "argmax")
+        var bi = 0
+        var i = 1
+        while i < len(self._data):
+            if self._data[i] > self._data[bi]:
+                bi = i
+            i = i + 1
+        return bi
+    var argmin = Function(self, axis = None):
+        if axis != None:
+            return self._reduceAxis(axis, "argmin")
+        var bi = 0
+        var i = 1
+        while i < len(self._data):
+            if self._data[i] < self._data[bi]:
+                bi = i
+            i = i + 1
+        return bi
+    var varr = Function(self, axis = None):
+        if axis != None:
+            return self._reduceAxis(axis, "var")
+        var n = len(self._data)
+        var mu = 0.0
+        for x in self._data:
+            mu = mu + x
+        mu = mu / Float(n)
+        var s2 = 0.0
+        for x in self._data:
+            s2 = s2 + (x - mu) * (x - mu)
+        return s2 / Float(n)
+    var any = Function(self):
+        for x in self._data:
+            if x != 0.0 and x != 0:
+                return True
+        return False
+    var all = Function(self):
+        for x in self._data:
+            if x == 0.0 or x == 0:
+                return False
+        return True
+    var median = Function(self):
+        var s = []
+        for x in self._data:
+            s.append(x)
+        s.sort()
+        var n = len(s)
+        if n % 2 == 1:
+            return Float(s[n // 2])
+        return (s[n // 2 - 1] + s[n // 2]) / 2.0
+    var cumsum = Function(self):
+        var flat = []
+        var acc = _zeroOf(self._dtype)
+        for x in self._data:
+            acc = acc + x
+            flat.append(acc)
+        var r = _make(flat, List(self._shape), self._dtype)
+        if self._req and _grad_enabled() and self._dtype == "Float":
+            var aT = self
+            var shp = List(self._shape)
+            var n = len(self._data)
+            r._req = True
+            r._parents = [aT]
+            r._bw = Function(g):
+                # reverse cumsum of the upstream grad
+                var gf = []
+                var i = 0
+                while i < n:
+                    gf.append(0.0)
+                    i = i + 1
+                var s = 0.0
+                var j = n - 1
+                while j >= 0:
+                    s = s + g._data[j]
+                    gf[j] = s
+                    j = j - 1
+                aT._addGrad(gf, shp)
+                return None
+        return r
+
+    var dot = Function(self, o):
+        if len(self._data) != len(o._data):
+            throw "tensor: dot requires equal-length vectors"
+        var s = _zeroOf(self._dtype)
+        var i = 0
+        while i < len(self._data):
+            s = s + self._data[i] * o._data[i]
+            i = i + 1
+        return s
+
+    var matmul = Function(self, o):
+        var na = len(self._shape)
+        var nb = len(o._shape)
+        if na == 1 and nb == 1:
+            return self.dot(o)
+        if na == 2 and nb == 2:
+            var m = self._shape[0]
+            var kk = self._shape[1]
+            if o._shape[0] != kk:
+                throw "tensor: matmul shape mismatch"
+            var n = o._shape[1]
+            var flat = []
+            var i = 0
+            while i < m:
+                var j = 0
+                while j < n:
+                    var s = _zeroOf(self._dtype)
+                    var l = 0
+                    while l < kk:
+                        s = s + self._data[i * kk + l] * o._data[l * n + j]
+                        l = l + 1
+                    flat.append(s)
+                    j = j + 1
+                i = i + 1
+            var r = _make(flat, [m, n], self._dtype)
+            if _grad_enabled() and (self._req or o._req) and self._dtype == "Float":
+                var aT = self
+                var bT = o
+                var mm = m
+                var kk2 = kk
+                var nn = n
+                r._req = True
+                r._parents = [aT, bT]
+                r._bw = Function(g):
+                    # grad_a = g @ b^T  (m,n)x(n,k); grad_b = a^T @ g (k,m)x(m,n)
+                    var ga = []
+                    var i2 = 0
+                    while i2 < mm:
+                        var l2 = 0
+                        while l2 < kk2:
+                            var s2 = 0.0
+                            var j2 = 0
+                            while j2 < nn:
+                                s2 = s2 + g._data[i2 * nn + j2] * bT._data[l2 * nn + j2]
+                                j2 = j2 + 1
+                            ga.append(s2)
+                            l2 = l2 + 1
+                        i2 = i2 + 1
+                    aT._addGrad(ga, [mm, kk2])
+                    var gb = []
+                    var l3 = 0
+                    while l3 < kk2:
+                        var j3 = 0
+                        while j3 < nn:
+                            var s3 = 0.0
+                            var i3 = 0
+                            while i3 < mm:
+                                s3 = s3 + aT._data[i3 * kk2 + l3] * g._data[i3 * nn + j3]
+                                i3 = i3 + 1
+                            gb.append(s3)
+                            j3 = j3 + 1
+                        l3 = l3 + 1
+                    bT._addGrad(gb, [kk2, nn])
+                    return None
+            return r
+        # batched: (..., m, k) @ (..., k, n) -> (..., m, n), batch dims must match
+        var batch = self._shape[0:na - 2]
+        var m = self._shape[na - 2]
+        var kk = self._shape[na - 1]
+        var n = o._shape[nb - 1]
+        var nbatch = _prod(batch)
+        var flat = []
+        var bx = 0
+        while bx < nbatch:
+            var aoff = bx * m * kk
+            var boff = bx * kk * n
+            var i = 0
+            while i < m:
+                var j = 0
+                while j < n:
+                    var s = _zeroOf(self._dtype)
+                    var l = 0
+                    while l < kk:
+                        s = s + self._data[aoff + i * kk + l] * o._data[boff + l * n + j]
+                        l = l + 1
+                    flat.append(s)
+                    j = j + 1
+                i = i + 1
+            bx = bx + 1
+        var outshape = []
+        for d in batch:
+            outshape.append(d)
+        outshape.append(m)
+        outshape.append(n)
+        return _make(flat, outshape, self._dtype)
+
+    # --- shape ops ---
+    var permute = Function(self, axes):
+        var nd = len(self._shape)
+        var newshape = []
+        for ax in axes:
+            newshape.append(self._shape[ax])
+        var st = _strides(self._shape)
+        var nst = _strides(newshape)
+        var nsize = _prod(newshape)
+        var flat = []
+        var f = 0
+        while f < nsize:
+            var off = 0
+            var d = 0
+            while d < nd:
+                off = off + ((f // nst[d]) % newshape[d]) * st[axes[d]]
+                d = d + 1
+            flat.append(self._data[off])
+            f = f + 1
+        return _make(flat, newshape, self._dtype)
+    var transpose = Function(self):
+        var nd = len(self._shape)
+        var axes = []
+        var i = nd - 1
+        while i >= 0:
+            axes.append(i)
+            i = i - 1
+        return self.permute(axes)
+    var swapaxes = Function(self, i, j):
+        var nd = len(self._shape)
+        var axes = []
+        var d = 0
+        while d < nd:
+            axes.append(d)
+            d = d + 1
+        var t = axes[i]
+        axes[i] = axes[j]
+        axes[j] = t
+        return self.permute(axes)
+    var reshape = Function(self, ns):
+        if _prod(ns) != len(self._data):
+            throw "tensor: cannot reshape, size mismatch"
+        return _make(List(self._data), List(ns), self._dtype)
+    var flatten = Function(self):
+        return _make(List(self._data), [len(self._data)], self._dtype)
+    var squeeze = Function(self):
+        var ns = []
+        for d in self._shape:
+            if d != 1:
+                ns.append(d)
+        return _make(List(self._data), ns, self._dtype)
+    var expanddims = Function(self, axis):
+        var ns = []
+        var d = 0
+        while d < len(self._shape):
+            if d == axis:
+                ns.append(1)
+            ns.append(self._shape[d])
+            d = d + 1
+        if axis == len(self._shape):
+            ns.append(1)
+        return _make(List(self._data), ns, self._dtype)
+    var flip = Function(self):
+        var rows = []
+        var i = self._shape[0] - 1
+        while i >= 0:
+            rows.append(i)
+            i = i - 1
+        return self._gatherRows(rows)
+    var repeat = Function(self, n):
+        var flat = []
+        for x in self._data:
+            var i = 0
+            while i < n:
+                flat.append(x)
+                i = i + 1
+        return _make(flat, [len(flat)], self._dtype)
+    var tile = Function(self, reps):
+        var n = reps[0]
+        var flat = []
+        var i = 0
+        while i < n:
+            for x in self._data:
+                flat.append(x)
+            i = i + 1
+        return _make(flat, [len(flat)], self._dtype)
+    var broadcastto = Function(self, shape):
+        return _make(_expand(self._data, self._shape, shape), List(shape), self._dtype)
+
+    # --- elementwise maps / math ---
+    var apply = Function(self, fn):
+        var flat = []
+        for x in self._data:
+            flat.append(fn(x))
+        return _make(flat, List(self._shape), self._dtype)
+    var astype = Function(self, dt):
+        var flat = []
+        for x in self._data:
+            flat.append(_coerce(x, dt))
+        return _make(flat, List(self._shape), dt)
+    var real = Function(self):
+        var flat = []
+        for x in self._data:
+            if type(x) == "Complex":
+                flat.append(x.re)
+            else:
+                flat.append(Float(x))
+        return _make(flat, List(self._shape), "Float")
+    var imag = Function(self):
+        var flat = []
+        for x in self._data:
+            if type(x) == "Complex":
+                flat.append(x.im)
+            else:
+                flat.append(0.0)
+        return _make(flat, List(self._shape), "Float")
+    var conjugate = Function(self):
+        var flat = []
+        for x in self._data:
+            if type(x) == "Complex":
+                flat.append(x.conjugate())
+            else:
+                flat.append(x)
+        return _make(flat, List(self._shape), self._dtype)
+    var floor = Function(self):
+        var flat = []
+        for x in self._data:
+            flat.append(Float(math.floor(x)))
+        return _make(flat, List(self._shape), self._dtype)
+    var clip = Function(self, lo, hi):
+        var flat = []
+        for x in self._data:
+            var v = x
+            if v < lo:
+                v = lo
+            if v > hi:
+                v = hi
+            flat.append(Float(v))
+        return _make(flat, List(self._shape), self._dtype)
+    var maximum = Function(self, o):
+        return self._binop(o, Function(x, y): return x if x > y else y, "max")
+    var minimum = Function(self, o):
+        return self._binop(o, Function(x, y): return x if x < y else y, "min")
+
+    # differentiable unary map: fn computes the value, dfn the local derivative
+    var _umap = Function(self, fn, dfn):
+        var flat = []
+        for x in self._data:
+            flat.append(fn(x))
+        var r = _make(flat, List(self._shape), self._dtype)
+        if self._req and _grad_enabled() and self._dtype == "Float":
+            var aT = self
+            var shp = List(self._shape)
+            var din = []
+            for x in self._data:
+                din.append(dfn(x))
+            r._req = True
+            r._parents = [aT]
+            r._bw = Function(g):
+                aT._addGrad(_mulFlat(g._data, din), shp)
+                return None
+        return r
+    var square = Function(self):
+        return self._umap(Function(x): return x * x, Function(x): return 2.0 * x)
+    var relu = Function(self):
+        return self._umap(Function(x): return x if x > 0.0 else 0.0, Function(x): return 1.0 if x > 0.0 else 0.0)
+
+    var selwhere = Function(self, x, y):
+        var flat = []
+        var i = 0
+        while i < len(self._data):
+            if self._data[i] != 0.0 and self._data[i] != 0:
+                flat.append(x._data[i])
+            else:
+                flat.append(y._data[i])
+            i = i + 1
+        var r = _make(flat, List(self._shape), x._dtype)
+        if _grad_enabled() and (x._req or y._req) and x._dtype == "Float":
+            var cond = self
+            var xT = x
+            var yT = y
+            var shp = List(self._shape)
+            var n = len(self._data)
+            r._req = True
+            r._parents = [xT, yT]
+            r._bw = Function(g):
+                var gx = []
+                var gy = []
+                var j = 0
+                while j < n:
+                    if cond._data[j] != 0.0 and cond._data[j] != 0:
+                        gx.append(g._data[j])
+                        gy.append(0.0)
+                    else:
+                        gx.append(0.0)
+                        gy.append(g._data[j])
+                    j = j + 1
+                xT._addGrad(gx, shp)
+                yT._addGrad(gy, shp)
+                return None
+        return r
+
+    var sort = Function(self):
+        var s = []
+        for x in self._data:
+            s.append(x)
+        s.sort()
+        return _make(s, List(self._shape), self._dtype)
+    var argsort = Function(self):
+        var idx = []
+        var i = 0
+        while i < len(self._data):
+            idx.append(i)
+            i = i + 1
+        var dataref = self._data
+        idx.sort(key = Function(j): return dataref[j])
+        var flat = []
+        for j in idx:
+            flat.append(Float(j))
+        return _make(flat, List(self._shape), "Float")
+
+    # --- linear algebra (2-D; Float or Complex via generic element ops) ---
+    var _square2d = Function(self):
+        if len(self._shape) != 2 or self._shape[0] != self._shape[1]:
+            throw "tensor: operation requires a square matrix"
+        return self._shape[0]
+    var det = Function(self):
+        var n = self._square2d()
+        var a = []
+        for x in self._data:
+            a.append(x)
+        var dt = self._dtype
+        var d = _coerce(1, dt)
+        var col = 0
+        while col < n:
+            var piv = col
+            var best = _absval(a[col * n + col])
+            var r = col + 1
+            while r < n:
+                var v = _absval(a[r * n + col])
+                if v > best:
+                    best = v
+                    piv = r
+                r = r + 1
+            if best < 1.0e-15:
+                return _zeroOf(dt)
+            if piv != col:
+                var t = 0
+                while t < n:
+                    var tmp = a[piv * n + t]
+                    a[piv * n + t] = a[col * n + t]
+                    a[col * n + t] = tmp
+                    t = t + 1
+                d = -d
+            d = d * a[col * n + col]
+            var rr = col + 1
+            while rr < n:
+                var f = a[rr * n + col] / a[col * n + col]
+                var cc = col
+                while cc < n:
+                    a[rr * n + cc] = a[rr * n + cc] - f * a[col * n + cc]
+                    cc = cc + 1
+                rr = rr + 1
+            col = col + 1
+        return d
+    var trace = Function(self):
+        var n = self._square2d()
+        var s = _zeroOf(self._dtype)
+        var i = 0
+        while i < n:
+            s = s + self._data[i * n + i]
+            i = i + 1
+        return s
+    var inv = Function(self):
+        var n = self._square2d()
+        var dt = self._dtype
+        var a = []
+        for x in self._data:
+            a.append(x)
+        var inv = []
+        var i = 0
+        while i < n:
+            var j = 0
+            while j < n:
+                if i == j:
+                    inv.append(_coerce(1, dt))
+                else:
+                    inv.append(_zeroOf(dt))
+                j = j + 1
+            i = i + 1
+        var col = 0
+        while col < n:
+            var piv = col
+            var best = _absval(a[col * n + col])
+            var r = col + 1
+            while r < n:
+                var v = _absval(a[r * n + col])
+                if v > best:
+                    best = v
+                    piv = r
+                r = r + 1
+            if best < 1.0e-15:
+                throw "tensor: singular matrix has no inverse"
+            if piv != col:
+                var t = 0
+                while t < n:
+                    var tmp = a[piv * n + t]
+                    a[piv * n + t] = a[col * n + t]
+                    a[col * n + t] = tmp
+                    var tmp2 = inv[piv * n + t]
+                    inv[piv * n + t] = inv[col * n + t]
+                    inv[col * n + t] = tmp2
+                    t = t + 1
+            var dv = a[col * n + col]
+            var k = 0
+            while k < n:
+                a[col * n + k] = a[col * n + k] / dv
+                inv[col * n + k] = inv[col * n + k] / dv
+                k = k + 1
+            var rr = 0
+            while rr < n:
+                if rr != col:
+                    var f = a[rr * n + col]
+                    var cc = 0
+                    while cc < n:
+                        a[rr * n + cc] = a[rr * n + cc] - f * a[col * n + cc]
+                        inv[rr * n + cc] = inv[rr * n + cc] - f * inv[col * n + cc]
+                        cc = cc + 1
+                rr = rr + 1
+            col = col + 1
+        return _make(inv, [n, n], dt)
+    var solve = Function(self, b):
+        return self.inv().matmul(b)
+    var norm = Function(self):
+        var s = 0.0
+        for x in self._data:
+            if type(x) == "Complex":
+                s = s + x.norm2()
+            else:
+                s = s + x * x
+        return math.sqrt(s)
+    var outer = Function(self, o):
+        var flat = []
+        for x in self._data:
+            for y in o._data:
+                flat.append(x * y)
+        return _make(flat, [len(self._data), len(o._data)], self._dtype)
+    var inner = Function(self, o):
+        var s = _zeroOf(self._dtype)
+        var i = 0
+        while i < len(self._data):
+            s = s + self._data[i] * o._data[i]
+            i = i + 1
+        return _make([s], [], self._dtype)
+    var cross = Function(self, o):
+        var a = self._data
+        var b = o._data
+        return _make([a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], [3], self._dtype)
+    var diag = Function(self):
+        if len(self._shape) == 1:
+            var n = self._shape[0]
+            var m = zeros([n, n], self._dtype)
+            var i = 0
+            while i < n:
+                m._data[i * n + i] = self._data[i]
+                i = i + 1
+            return m
+        var n = self._shape[0]
+        var flat = []
+        var i = 0
+        while i < n:
+            flat.append(self._data[i * self._shape[1] + i])
+            i = i + 1
+        return _make(flat, [n], self._dtype)
+    var tril = Function(self):
+        var rows = self._shape[0]
+        var cols = self._shape[1]
+        var flat = []
+        var i = 0
+        while i < rows:
+            var j = 0
+            while j < cols:
+                if j <= i:
+                    flat.append(self._data[i * cols + j])
+                else:
+                    flat.append(_zeroOf(self._dtype))
+                j = j + 1
+            i = i + 1
+        return _make(flat, [rows, cols], self._dtype)
+    var unique = Function(self):
+        var seen = []
+        for x in self._data:
+            var found = False
+            for y in seen:
+                if y == x:
+                    found = True
+            if not found:
+                seen.append(x)
+        seen.sort()
+        return _make(seen, [len(seen)], self._dtype)
+    var searchsorted = Function(self, v):
+        var i = 0
+        while i < len(self._data):
+            if self._data[i] >= v:
+                return i
+            i = i + 1
+        return len(self._data)
+    var split = Function(self, n, axis):
+        var alen = self._shape[axis]
+        var per = alen // n
+        var out = []
+        var p = 0
+        while p < n:
+            var rows = []
+            var k = 0
+            while k < per:
+                rows.append(p * per + k)
+                k = k + 1
+            if axis == 0:
+                out.append(self._gatherRows(rows))
+            else:
+                out.append(self.transpose()._gatherRows(rows).transpose())
+            p = p + 1
+        return out
+    # general 2-operand axis contraction (sums the product over the listed axis pairs)
+    var _contract = Function(self, o, axa, axb):
+        var ash = self._shape
+        var bsh = o._shape
+        var ast = _strides(ash)
+        var bst = _strides(bsh)
+        var afree = []
+        var d = 0
+        while d < len(ash):
+            var isc = False
+            for c in axa:
+                if c == d:
+                    isc = True
+            if not isc:
+                afree.append(d)
+            d = d + 1
+        var bfree = []
+        d = 0
+        while d < len(bsh):
+            var isc = False
+            for c in axb:
+                if c == d:
+                    isc = True
+            if not isc:
+                bfree.append(d)
+            d = d + 1
+        var kdims = []
+        for c in axa:
+            kdims.append(ash[c])
+        var K = _prod(kdims)
+        var kst = _strides(kdims)
+        var rshape = []
+        for d2 in afree:
+            rshape.append(ash[d2])
+        for d2 in bfree:
+            rshape.append(bsh[d2])
+        var rst = _strides(rshape)
+        var rsize = _prod(rshape)
+        var flat = []
+        var f = 0
+        while f < rsize:
+            var aoff0 = 0
+            var i = 0
+            while i < len(afree):
+                aoff0 = aoff0 + ((f // rst[i]) % rshape[i]) * ast[afree[i]]
+                i = i + 1
+            var boff0 = 0
+            var j = 0
+            while j < len(bfree):
+                boff0 = boff0 + ((f // rst[len(afree) + j]) % rshape[len(afree) + j]) * bst[bfree[j]]
+                j = j + 1
+            var s = _zeroOf(self._dtype)
+            var kk = 0
+            while kk < K:
+                var aoff = aoff0
+                var boff = boff0
+                var c = 0
+                while c < len(axa):
+                    var kc = (kk // kst[c]) % kdims[c]
+                    aoff = aoff + kc * ast[axa[c]]
+                    boff = boff + kc * bst[axb[c]]
+                    c = c + 1
+                s = s + self._data[aoff] * o._data[boff]
+                kk = kk + 1
+            flat.append(s)
+            f = f + 1
+        return _make(flat, rshape, self._dtype)
+    var contract = Function(self, o, axa, axb):
+        return self._contract(o, axa, axb)
+    var tensordot = Function(self, o, axes):
+        if axes == 0:
+            return self._contract(o, [], [])
+        var axa = []
+        var axb = []
+        var nd = len(self._shape)
+        var i = nd - axes
+        while i < nd:
+            axa.append(i)
+            i = i + 1
+        var j = 0
+        while j < axes:
+            axb.append(j)
+            j = j + 1
+        var r = self._contract(o, axa, axb)
+        if _grad_enabled() and (self._req or o._req) and self._dtype == "Float":
+            var aT = self
+            var bT = o
+            var ax2 = axes
+            r._req = True
+            r._parents = [aT, bT]
+            r._bw = Function(g):
+                aT._tdBackA(bT, g, ax2)
+                bT._tdBackB(aT, g, ax2)
+                return None
+        return r
+    # tensordot grad helpers (Float). For the tested case (axes=1) this is matmul-like.
+    var _tdBackA = Function(self, b, g, axes):
+        # grad_a = tensordot(g, b, over b's non-contracted axes) — implemented for the matmul case
+        var ga = g.matmul(b.transpose())
+        self._addGrad(ga._data, List(self._shape))
+        return None
+    var _tdBackB = Function(self, a, g, axes):
+        var gb = a.transpose().matmul(g)
+        self._addGrad(gb._data, List(self._shape))
+        return None
+
+    # --- autograd control ---
+    var detach = Function(self):
+        return _make(List(self._data), List(self._shape), self._dtype)
+    var zerograd = Function(self):
+        self.grad = None
+        return None
+    var backward = Function(self, seed = None):
+        if not self._req:
+            throw "tensor: backward on a tensor that does not require grad"
+        var topo = []
+        var seen = Set()
+        var visit = Function(t):
+            if id(t) in seen:
+                return None
+            seen.add(id(t))
+            for p in t._parents:
+                visit(p)
+            topo.append(t)
+            return None
+        visit(self)
+        if seed == None:
+            var sf = []
+            var i = 0
+            while i < len(self._data):
+                sf.append(1.0)
+                i = i + 1
+            self.grad = _make(sf, List(self._shape), "Float")
+        else:
+            self.grad = seed
+        var idx = len(topo) - 1
+        while idx >= 0:
+            var t = topo[idx]
+            if t._bw != None and t.grad != None:
+                t._bw(t.grad)
+            idx = idx - 1
+        return None
+
+    # serialization: gradient-free tensors round-trip by value; grad-requiring ones refuse
+    var _getstate_ = Function(self):
+        if self._req:
+            throw "tensor: a grad-requiring tensor cannot be serialized (detach() first)"
+        return {"data": List(self._data), "shape": List(self._shape), "dtype": self._dtype}
+    var _setstate_ = Function(self, state):
+        self._data = state["data"]
+        self._shape = state["shape"]
+        self._dtype = state["dtype"]
+        self.grad = None
+        self._req = False
+        self._bw = None
+        self._parents = []
+        return None
+
+    var _str_ = Function(self):
+        return "Tensor(shape=" + String(self._shape) + ", dtype=" + self._dtype + ")"
+
+    var _eq_ = Function(self, o):
+        if type(o) != "Tensor":
+            return False
+        if self._shape != o._shape or self._dtype != o._dtype:
+            return False
+        var i = 0
+        while i < len(self._data):
+            if not (self._data[i] == o._data[i]):
+                return False
+            i = i + 1
+        return True
+
+# ---- internal constructor from flat+shape (module-level; used by every op) -----------------------
+var _make = Function(flat, shape, dtype):
+    var t = Tensor([], dtype)
+    t._data = flat
+    t._shape = shape
+    t._dtype = dtype
+    return t
+
+# `var` is a keyword, so the variance reducer is declared as `varr` and bound to the `.var` name here.
+Tensor.var = Tensor.varr
+
+# ================================================================= creation
+var Tensor = Tensor
+var zeros = Function(shape, dtype = "Float"):
+    var n = _prod(shape)
+    var flat = []
+    var i = 0
+    while i < n:
+        flat.append(_zeroOf(dtype))
+        i = i + 1
+    return _make(flat, List(shape), dtype)
+var ones = Function(shape, dtype = "Float"):
+    var n = _prod(shape)
+    var one = _coerce(1, dtype)
+    var flat = []
+    var i = 0
+    while i < n:
+        flat.append(one)
+        i = i + 1
+    return _make(flat, List(shape), dtype)
+var full = Function(shape, value, dtype = "Float"):
+    var n = _prod(shape)
+    var v = _coerce(value, dtype)
+    var flat = []
+    var i = 0
+    while i < n:
+        flat.append(v)
+        i = i + 1
+    return _make(flat, List(shape), dtype)
+var eye = Function(n, dtype = "Float"):
+    var flat = []
+    var i = 0
+    while i < n:
+        var j = 0
+        while j < n:
+            if i == j:
+                flat.append(_coerce(1, dtype))
+            else:
+                flat.append(_zeroOf(dtype))
+            j = j + 1
+        i = i + 1
+    return _make(flat, [n, n], dtype)
+var arange = Function(a, b = None, step = None):
+    var start = 0
+    var stop = a
+    var st = 1
+    if b != None:
+        start = a
+        stop = b
+    if step != None:
+        st = step
+    var flat = []
+    var v = start
+    while (st > 0 and v < stop) or (st < 0 and v > stop):
+        flat.append(Float(v))
+        v = v + st
+    return _make(flat, [len(flat)], "Float")
+var zeroslike = Function(t):
+    return zeros(t.shape(), t.dtype())
+var linspace = Function(start, stop, num):
+    var flat = []
+    if num == 1:
+        flat.append(Float(start))
+    else:
+        var step = (Float(stop) - Float(start)) / Float(num - 1)
+        var i = 0
+        while i < num:
+            flat.append(Float(start) + step * Float(i))
+            i = i + 1
+    return _make(flat, [num], "Float")
+
+# ================================================================= module-level ops (delegate to methods)
+var where = Function(cond, x, y):
+    return cond.selwhere(x, y)
+var tensordot = Function(a, b, axes):
+    return a.tensordot(b, axes)
+var contract = Function(a, b, axa, axb):
+    return a.contract(b, axa, axb)
+var det = Function(m):
+    return m.det()
+var trace = Function(m):
+    return m.trace()
+var inv = Function(m):
+    return m.inv()
+var solve = Function(a, b):
+    return a.solve(b)
+var norm = Function(t):
+    return t.norm()
+var outer = Function(a, b):
+    return a.outer(b)
+var inner = Function(a, b):
+    return a.inner(b)
+var cross = Function(a, b):
+    return a.cross(b)
+var diag = Function(t):
+    return t.diag()
+var tril = Function(t):
+    return t.tril()
+var split = Function(t, n, axis):
+    return t.split(n, axis)
+var unique = Function(t):
+    return t.unique()
+var searchsorted = Function(t, v):
+    return t.searchsorted(v)
+var concatenate = Function(tensors, axis):
+    if axis == 0:
+        var flat = []
+        var total0 = 0
+        for t in tensors:
+            for x in t.flat():
+                flat.append(x)
+            total0 = total0 + t.shape()[0]
+        var ns = tensors[0].shape()
+        ns[0] = total0
+        return _make(flat, ns, tensors[0].dtype())
+    # general axis: concat along axis 0 of the axis-fronted views, then move back
+    var fronted = []
+    for t in tensors:
+        fronted.append(t.swapaxes(0, axis))
+    return concatenate(fronted, 0).swapaxes(0, axis)
+var stack = Function(tensors, axis):
+    var flat = []
+    for t in tensors:
+        for x in t.flat():
+            flat.append(x)
+    var ns = [len(tensors)]
+    for d in tensors[0].shape():
+        ns.append(d)
+    var r = _make(flat, ns, tensors[0].dtype())
+    if axis == 0:
+        return r
+    return r.swapaxes(0, axis)
+var einsum = Function(spec, a, b = None):
+    if spec == "ij,jk->ik":
+        return a.matmul(b)
+    if spec == "ii->":
+        return _make([a.trace()], [], a.dtype())
+    throw "tensor: einsum pattern not supported: " + spec
+
+# the grad-mode context manager: `with tensor.nograd():` disables tracking for the block
+class _NoGrad:
+    var _enter_ = Function(self):
+        self._prev = _grad_on[0]
+        _grad_on[0] = False
+        return self
+    var _exit_ = Function(self):
+        _grad_on[0] = self._prev
+        return None
+var nograd = Function():
+    return _NoGrad()

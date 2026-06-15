@@ -30,7 +30,9 @@ var readFile = Function(path):
 # CTest/asan/tsan):
 #   * parallel (true multiprocessing: a KiritoDispatcher + OS threads, no sequential equivalent):
 #     parallel_basic, parallel_sync, probe_parallel, probe_parallel_adversarial, probe_parallel_fuzz
-#   * native `tensor` (no self-host stdmod): spec_tensor, spec_tensor_item, probe_apply_fuzz
+#   * (the `tensor` module IS now supported — lib/stdmods/tensor.ki: N-D arrays, broadcasting, linalg,
+#     and reverse-mode autograd; spec_tensor, spec_tensor_item, probe_apply_fuzz, spec_serde_adversarial
+#     run. probe_serde_matrix/probe_trio/probe_binary_adversarial/spec_serialize_native need a few more.)
 #   * (the `complex` module IS now supported — lib/stdmods/complex.ki: complex numbers + the analytic
 #     math set + complex matrices/vectors; complex_demo, spec_complex, sample_linsolve, sample_systems
 #     run. probe_serde_matrix, spec_serde_adversarial, spec_serialize_native still need tensor too.)
@@ -48,7 +50,7 @@ var readFile = Function(path):
 #   * a self-host string edge-case divergence (empty-needle count): spec_edges
 #   * other pre-existing exclusions: spec_modules, sample_pipeline, spec_fuzz, libraries, spec_net,
 #     spec_pass_todo, spec_tee, spec_io_stream
-var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_apply_fuzz", "probe_binary_adversarial", "probe_inspect", "probe_serde_matrix", "probe_trio", "spec_edges", "spec_inspect", "spec_serde_adversarial", "spec_serialize_native", "spec_tensor", "spec_tensor_item"])
+var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_binary_adversarial", "probe_inspect", "probe_serde_matrix", "probe_trio", "spec_edges", "spec_inspect", "spec_serialize_native"])
 # SLOW: these PASS through the self-host but their crypto/compression over KB-scale data is too slow
 # for the default fast CTest, so they are skipped unless `full` is given (the gzip/zlib/hash stack).
 var SLOW = Set(["spec_gzip", "probe_compress_fuzz"])

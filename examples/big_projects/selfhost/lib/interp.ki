@@ -369,7 +369,16 @@ var evalExpr = Function(St, env, node):
         return doIndex(St, obj, keys)
     if k == "slice":
         var so = evalExpr(St, env, node["obj"])
-        return doSlice(so, _sliceClamp(node["lo"], St, env), _sliceClamp(node["hi"], St, env), _sliceClamp(node["step"], St, env))
+        var lo = _sliceClamp(node["lo"], St, env)
+        var hi = _sliceClamp(node["hi"], St, env)
+        var step = _sliceClamp(node["step"], St, env)
+        # an instance may customize slicing via _getitem_ given a slice descriptor (the self-host has
+        # no slice object); built-in sequences keep the generic element-walk in doSlice.
+        if boxKind(so) == "instance":
+            var m = classLookup(so["cls"], "_getitem_")
+            if m != None:
+                return callValue(St, mkBound(so, m), [{"__slice__": True, "lo": lo, "hi": hi, "step": step}], [])
+        return doSlice(so, lo, hi, step)
     if k == "member":
         return evalMember(St, env, node)
     if k == "fstr":
@@ -733,6 +742,11 @@ var setMember = Function(St, obj, name, value):
         return None
     if k == "module":
         obj["members"][name] = value
+        return None
+    if k == "class":
+        # allow adding/replacing a method on a class (e.g. to bind a member whose name is a keyword,
+        # like `var`, that `var NAME = ...` cannot declare)
+        obj["methods"][name] = value
         return None
     rtError("cannot set attribute '" + name + "' on " + typeName(obj))
 
