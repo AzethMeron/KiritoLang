@@ -179,3 +179,14 @@ add_test(NAME script_video
                  -DEXPECTED=${_imaging_dir}/test_video.expected
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/run_ki_script.cmake)
 set_tests_properties(script_video PROPERTIES WORKING_DIRECTORY ${_imaging_dir})
+
+# --- the self-host interpreter: run the main .ki suite THROUGH a Kirito-in-Kirito interpreter ---
+# examples/big_projects/selfhost lexes/parses/evaluates every tools/tests/scripts program and checks
+# it reproduces the recorded output (the language's most demanding stress test). run_tests.ki exits
+# non-zero if any program diverges. Run from the repo root so its relative paths resolve. Slow by
+# design (a tree-walker on a tree-walker), hence a generous timeout; pass `full` to also run the
+# SLOW crypto/compression programs (kept out of the default run for tractability).
+add_test(NAME selfhost
+         COMMAND $<TARGET_FILE:ki> --lib ${CMAKE_SOURCE_DIR}/examples/big_projects/selfhost/lib
+                 ${CMAKE_SOURCE_DIR}/examples/big_projects/selfhost/run_tests.ki)
+set_tests_properties(selfhost PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} TIMEOUT 2400)
