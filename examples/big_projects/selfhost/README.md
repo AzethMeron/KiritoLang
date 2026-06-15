@@ -97,6 +97,7 @@ type method** of String (`upper`/`split`/`replace`/`find`/`strip`/`center`/…),
 | `random` | object PRNG (LCG): random/uniform/randint/randrange/choice/shuffle/sample/gauss |
 | `matrix` | Matrix class: +,-,*, transpose, determinant, trace, inverse, zeros/ones/identity; `vector`/dot/cross/norm |
 | `complex` | complex numbers (the analytic math set) + complex matrices/vectors (Gaussian det, Gauss-Jordan inverse, Hermitian dot) |
+| `tensor` | N-D arrays (flat storage + shape), Float/Complex dtype, broadcasting, indexing/slicing/fancy/boolean, reductions, matmul/tensordot/contract/einsum, linalg (det/inv/solve/...), and reverse-mode autograd |
 | `time` | clocks via `_os`; DateTime with epoch↔civil math, format/iso/diff/strptime |
 | `net` | URL helpers: quote/unquote (UTF-8), urlencode/parseqs, urlsplit |
 | `hash` | **standards-conformant** md5 / sha1 / sha256 (byte-exact) + crc32 / adler32 / crc64-XZ checksums |
@@ -119,10 +120,13 @@ The harness auto-discovers every `tools/tests/scripts/*.ki` that has a matching 
 the vast majority of them, reproducing the real interpreter's output byte-for-byte. The authoritative,
 always-current list of what is skipped (and why) lives in `run_tests.ki` as two sets:
 
-- **`EXCLUDE`** — programs out of scope for a *core-language* self-host: native-only facilities with no
-  pure-Kirito stand-in — `tensor` (an N-D engine with reverse-mode autograd), `parallel` (true
-  multiprocessing), native-object introspection format / `net.Socket`, and a couple of intentional
-  pure-Kirito divergences.
+- **`EXCLUDE`** — programs that can't (or shouldn't) match the native interpreter through a pure-Kirito
+  self-host: `parallel` (true multiprocessing — no sequential equivalent); the native-object
+  introspection format (self-host values are ordinary classes, so `inspect` shows `<Name> instance:`
+  with Kirito-shaped signatures, not the native `<Name> object:`) and `net.Socket`; instances used as
+  Dict/Set keys (the host Dict/Set can't key on a boxed instance); and a couple of intentional
+  pure-Kirito divergences. (The `tensor`, `complex`, `gzip`/`zlib`/`hash`, `Bytes`, `matrix.vector`
+  and `semver` features ARE implemented now — see the module table above.)
 - **`SLOW`** — programs that **pass** but whose KB-scale crypto/compression (the pure-Kirito
   md5/sha1/sha256 + LZ77) costs minutes under the doubly-interpreted runtime, so they run only with the
   `full` argument (`spec_gzip`, `probe_compress_fuzz`).
