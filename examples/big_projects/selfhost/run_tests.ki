@@ -37,7 +37,9 @@ var readFile = Function(path):
 # serialization) and use genuine concurrency (Event broadcast, Barrier rendezvous) with no sequential
 # equivalent; probe_surface imports `parallel`. The single-threaded pure-Kirito self-host has no such
 # module, so these are excluded here (the real interpreter tests them under CTest/asan/tsan).
-var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface"])
+# probe_parallel_fuzz (parallel), probe_compress_fuzz (gzip), probe_apply_fuzz (tensor) use native
+# modules the pure-Kirito self-host has no stdmod for, so they are excluded alongside the parallel set.
+var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_compress_fuzz", "probe_apply_fuzz"])
 var runAll = "full" in arglist
 
 var cases = []
