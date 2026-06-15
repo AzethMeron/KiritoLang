@@ -16,8 +16,12 @@ ki --lib examples/big_projects/selfhost/lib examples/big_projects/selfhost/run_t
 ```
 
 (run from the repository root, so the `tools/tests/scripts` paths resolve). It prints `PASS`/`FAIL` per
-program and ends with `ALL SELF-HOST TESTS PASSED`. It is also wired into CTest as the `selfhost`
-test.
+program and ends with `ALL SELF-HOST TESTS PASSED`. Pass `full` to also run the slow crypto/compression
+programs.
+
+This is a **standalone big project**, deliberately **not** wired into the main CTest suite: it's the
+slowest test by far (a tree-walker running on a tree-walker) and it tracks the **core language**, not
+the native stdlib. Run it by hand now and then with the command above — it isn't part of every build.
 
 To run a single program through the self-host from C++/CLI, use `run.ki`:
 
