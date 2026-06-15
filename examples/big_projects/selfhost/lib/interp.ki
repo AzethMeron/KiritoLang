@@ -1127,6 +1127,11 @@ var listMethod = Function(St, recv, name, args, kwargs):
             recv[w] = sorted2[w]
             w = w + 1
         return None
+    if name == "apply":
+        var out = []
+        for x in recv:
+            out.append(callValue(St, args[0], [x], []))
+        return out
     rtError("'List' object has no method '" + name + "'")
 
 # String methods, implemented from the char substrate (ord/chr, indexing, slicing, concat, repeat).
@@ -1449,6 +1454,11 @@ var strMethod = Function(St, recv, name, args):
         if not isinstance(other, "String"):
             rtError("levenshtein expects a String or a List of Strings")
         return dist1(recv, other)
+    if name == "apply":
+        var out = ""
+        for ch in recv:
+            out = out + callValue(St, args[0], [ch], [])
+        return out
     rtError("'String' object has no method '" + name + "'")
 
 var _isAlnumCh = Function(c):
@@ -1524,6 +1534,11 @@ var dictMethod = Function(St, recv, name, args):
         while len(recv) > 0:
             recv.popitem()
         return None
+    if name == "apply":
+        var out = {}
+        for key in recv.keys():
+            out[key] = callValue(St, args[0], [recv[key]], [])
+        return out
     rtError("'Dict' object has no method '" + name + "'")
 
 # Set methods. Storage primitives: add, discard, pop, membership, iteration. The algebra (union/
@@ -1596,6 +1611,11 @@ var setMethod = Function(St, recv, name, args):
         for x in recv:
             c2.add(x)
         return c2
+    if name == "apply":
+        var out = []
+        for x in recv:
+            out.append(callValue(St, args[0], [x], []))
+        return Set(out)
     rtError("'Set' object has no method '" + name + "'")
 
 # str.format with {} / {n} positional fields and optional :spec.

@@ -34,7 +34,7 @@ var readFile = Function(path):
 #   * native `complex` (no self-host stdmod): complex_demo, spec_complex, sample_linsolve,
 #     sample_systems, probe_serde_matrix, spec_serde_adversarial, spec_serialize_native
 #   * native `gzip` (no self-host stdmod): spec_gzip, probe_compress_fuzz
-#   * native `semver` (no self-host stdmod): versioning
+#   * (semver IS now supported — see lib/stdmods/semver.ki; `versioning` runs through the self-host)
 #   * the native `Bytes` type (self-host strings are plain Kirito): spec_bytes, probe_bytes_fuzz,
 #     probe_serde_fuzz, probe_trio, probe_binary_adversarial
 #   * native container `apply` / `matrix.vector` (not in the self-host's pure-Kirito stdlib):
@@ -45,7 +45,7 @@ var readFile = Function(path):
 #   * a self-host string edge-case divergence (empty-needle count): spec_edges
 #   * other pre-existing exclusions: spec_modules, sample_pipeline, spec_fuzz, libraries, spec_net,
 #     spec_pass_todo, spec_tee, spec_io_stream
-var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_compress_fuzz", "probe_apply_fuzz", "complex_demo", "probe_binary_adversarial", "probe_bytes_fuzz", "probe_inspect", "probe_serde_fuzz", "probe_serde_matrix", "probe_trio", "sample_linsolve", "sample_systems", "spec_apply", "spec_bytes", "spec_complex", "spec_edges", "spec_gzip", "spec_inspect", "spec_matrix", "spec_serde_adversarial", "spec_serialize_native", "spec_tensor", "spec_tensor_item", "versioning"])
+var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_compress_fuzz", "probe_apply_fuzz", "complex_demo", "probe_binary_adversarial", "probe_bytes_fuzz", "probe_inspect", "probe_serde_fuzz", "probe_serde_matrix", "probe_trio", "sample_linsolve", "sample_systems", "spec_apply", "spec_bytes", "spec_complex", "spec_edges", "spec_gzip", "spec_inspect", "spec_matrix", "spec_serde_adversarial", "spec_serialize_native", "spec_tensor", "spec_tensor_item"])
 var runAll = "full" in arglist
 
 var cases = []
