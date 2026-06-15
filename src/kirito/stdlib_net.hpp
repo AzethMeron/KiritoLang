@@ -56,7 +56,7 @@ class SocketVal : public NativeClass<SocketVal> {
 public:
     static constexpr const char* kTypeName = "Socket";
     std::vector<std::string> inspectMembers() const override {
-        return {"connect(host, port)", "bind(host, port)", "listen(backlog)", "accept() -> Socket", "send(data) -> Integer", "recv(size) -> Bytes", "recvall() -> Bytes", "settimeout(seconds)", "close()"};
+        return {"connect(host, port)", "bind(host, port)", "listen(backlog)", "accept() -> Socket", "send(data) -> Integer", "recv(size) -> Bytes", "recvall() -> Bytes", "settimeout(seconds)", "close()", "detach() -> Integer"};
     }
     netcompat::socket_t fd = netcompat::kInvalidSocket;
     bool closed = false;
@@ -497,6 +497,23 @@ public:
     void children(std::vector<Handle>& out) const override { out.push_back(headersH); out.push_back(cookiesH); }
     std::string str(StringifyCtx&) const override { return "<Response [" + std::to_string(status) + "]>"; }
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override;
+    // Dict-style indexing for convenience: r["status"]/r["body"]/... map to the same fields as the
+    // attributes, so a Response can be consumed like a Dict.
+    Handle getItem(KiritoVM& vm, std::span<const Handle> keys) override {
+        if (keys.size() != 1) throw KiritoError("Response indexing takes a single string key");
+        const Object& k = vm.arena().deref(keys[0]);
+        if (k.kind() != ValueKind::String) throw KiritoError("Response index must be a String key");
+        const std::string& name = static_cast<const StrVal&>(k).value();
+        if (name == "status" || name == "statuscode") return vm.makeInt(status);
+        if (name == "reason") return vm.makeString(reason);
+        if (name == "ok") return vm.makeBool(status >= 100 && status < 400);
+        if (name == "url") return vm.makeString(url);
+        if (name == "text" || name == "body") return vm.makeString(body);
+        if (name == "content") return vm.alloc(std::make_unique<BytesVal>(body));
+        if (name == "headers") return headersH;
+        if (name == "cookies") return cookiesH;
+        throw KiritoError("Response has no field '" + name + "'");
+    }
 };
 
 // A persistent HTTP session: keeps a cookie jar and default headers across requests (requests.Session

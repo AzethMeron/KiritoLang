@@ -28,6 +28,11 @@ parameter name.
 - `List([iterable]) → List` — an empty list, or a new list built from any iterable. `List(iterable = xs)`.
 - `Set([iterable]) → Set` — an empty set, or a set of the distinct elements of an iterable.
 - `Dict([iterable]) → Dict` — an empty dict, or a dict from an iterable of `[key, value]` pairs.
+- `Bytes(x[, encoding]) → Bytes` — build a [`Bytes`](types.html#bytes) from a `List` of Integers (0–255),
+  an Integer `n` (`n` zero bytes), a `String` (encoded; default `utf-8`, also `latin-1`/`ascii`), or
+  another `Bytes`. No argument (or `None`) gives empty `Bytes`.
+- `fromhex(s) → Bytes` — parse a hex `String` (spaces allowed) into `Bytes` — the free-function form of
+  `Bytes.fromhex`. E.g. `fromhex("48 69").decode() == "Hi"`.
 - `isinstance(value, type) → Bool` — whether `value` is an instance of `type` — a class value or a
   type-name `String` (`isinstance(x, "Integer")`). Inheritance-aware: a subclass instance satisfies a
   base type.

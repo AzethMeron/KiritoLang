@@ -138,7 +138,7 @@ endforeach()
 
 # The parallel golden scripts can block on a real bug; cap them so a regression fails rather than
 # stalling CI (the watchdog backstop, mirroring the parallel unit tests' TIMEOUT).
-foreach(nm parallel_basic parallel_sync)
+foreach(nm parallel_basic parallel_sync probe_parallel probe_parallel_adversarial)
     if(TEST script_${nm})
         set_tests_properties(script_${nm} PROPERTIES TIMEOUT 60)
     endif()

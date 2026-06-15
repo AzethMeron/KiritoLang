@@ -40,6 +40,7 @@ Presets (`CMakePresets.json`):
 | `debug` | `-O2` with the hardened warning set (`-Werror -Wall -Wextra -Wconversion -Wpedantic -fstack-protector-all -Wshadow ...`) — the strictest compile gate (binary dir `build-debug`) |
 | `release` | `-O2`, the looser warnings-as-errors set (no `-Wconversion`/`-Wshadow`); the build to benchmark and ship (`build-release`) |
 | `asan` | AddressSanitizer + UBSan with the same hardened warnings (memory/UB checks) (`build-asan`) |
+| `tsan` | ThreadSanitizer with the same hardened warnings — the data-race + lock-order check for the multiprocessing dispatcher (`build-tsan`) |
 
 The standalone binary is statically linked by default, so `build-debug/ki` (or the release build's
 `build-release/ki`) is self-contained.

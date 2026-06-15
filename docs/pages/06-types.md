@@ -126,13 +126,13 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 | `s.split([sep][, maxsplit])` | Split into a List; whitespace runs by default. |
 | `s.join(iter)` | Join an iterable of Strings with `s` as the separator. |
 | `s.replace(old, new[, count])` | Replace occurrences of `old` with `new`. |
-| `s.startswith(p)` | Whether `s` begins with prefix `p`. |
-| `s.endswith(p)` | Whether `s` ends with suffix `p`. |
-| `s.find(sub)` | First index of `sub`, or `-1` if absent. |
-| `s.rfind(sub)` | Last index of `sub`, or `-1` if absent. |
-| `s.index(sub)` | First index of `sub`; raises if absent. |
-| `s.rindex(sub)` | Last index of `sub`; raises if absent. |
-| `s.count(sub)` | Number of non-overlapping occurrences. |
+| `s.startswith(p[, start[, end]])` | Whether `s` begins with prefix `p` (within an optional code-point window). |
+| `s.endswith(p[, start[, end]])` | Whether `s` ends with suffix `p` (within an optional code-point window). |
+| `s.find(sub[, start[, end]])` | First index of `sub`, or `-1` if absent. |
+| `s.rfind(sub[, start[, end]])` | Last index of `sub`, or `-1` if absent. |
+| `s.index(sub[, start[, end]])` | First index of `sub`; raises if absent. |
+| `s.rindex(sub[, start[, end]])` | Last index of `sub`; raises if absent. |
+| `s.count(sub[, start[, end]])` | Number of non-overlapping occurrences. |
 | `s.format(...)` | Substitute `{}` (sequential) and `{0}`/`{1}` (indexed) fields with the positional arguments. (Named `{x}` fields are an f-string feature.) |
 | `s.isdigit()` | Whether every character is a digit. |
 | `s.isalpha()` | Whether every character is a letter. |
@@ -207,7 +207,7 @@ io.print(xs[0], xs[-1], xs[1:3])   # 1 4 [2, 3]
 | `xs.pop([i])` | Remove and return the last element (or index `i`). |
 | `xs.insert(i, x)` | Insert `x` before index `i`. |
 | `xs.remove(x)` | Remove the first element equal to `x`. |
-| `xs.index(x)` | Index of the first element equal to `x` (raises if absent). |
+| `xs.index(x[, start[, end]])` | Index of the first element equal to `x` (raises if absent), within an optional window. |
 | `xs.count(x)` | Number of elements equal to `x`. |
 | `xs.reverse()` | Reverse in place. |
 | `xs.sort([key][, reverse])` | Sort in place, **stable**; `key` precomputed once per element. |

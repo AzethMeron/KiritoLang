@@ -86,6 +86,8 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 - `b.seek(off[, whence]) → Integer` — move the cursor (whence 0=start, 1=cur, 2=end).
 - `b.size() → Integer` — total buffer length in bytes (`len(b)` also works).
 - `b.truncate() → Integer` — drop everything after the cursor.
+- `b.flush() → None` — a no-op (the buffer is always in sync); present for the common stream protocol.
+- `b.close() → None` — close the buffer (also via a `with` block); part of the stream protocol.
 
 ---
 
@@ -577,7 +579,8 @@ TCP sockets, a full-fledged HTTP/1.1 client, and URL helpers.
 - `head(url: String, options: Dict = None) → Response` — a `HEAD` request.
 - `options(url: String, options: Dict = None) → Response` — an `OPTIONS` request.
 - `Session() → Session` — a session that persists a cookie jar (`.cookies`) and default headers
-  (`.headers`) across requests; has the same verb methods (`s.get(url[, options])`, …).
+  (`.headers`) across requests; has the same `request(method, url[, options])` and verb methods
+  (`s.get(url[, options])`, …).
 
 The `options` Dict may contain: `headers` (Dict), `params` (Dict → query string), `data` (String or
 form-Dict), `json` (any value → JSON body + `application/json`), `files` (Dict → `multipart/form-data`
@@ -594,7 +597,8 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 - `r.url` — the final URL (after any redirects).
 - `r.text` — the decoded response body (`String`); `r.body` is an alias.
 - `r.content` — the **raw** response body as [`Bytes`](types.html#bytes) — for binary downloads (images, `.gz`, …). E.g. `gzip.decompress(net.get(url).content)`.
-- `r.headers` — a Dict of response headers; `r.header(name)` looks one up **case-insensitively**.
+- `r.headers` — a Dict of response headers; `r.header(name[, default])` looks one up
+  **case-insensitively** (returning `default`, or `None`, when absent).
 - `r.cookies` — a Dict of cookies set by the server.
 - `r.json()` — parse the body as JSON.
 - `r.raiseforstatus()` — throw if the status is ≥ 400, else return the response.
@@ -626,6 +630,10 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 - `s.close() → None` — close the socket.
 - `s.detach() → Integer` — surrender the raw fd to the caller and stop owning it (the socket's
   destructor will no longer close it). Pair with `net.fromfd` to hand a connection to a worker VM.
+
+A Socket is also usable as a `with` context manager — it is closed automatically on block exit
+(`with net.Socket() as s: ...`). A `Response` additionally supports Dict-style indexing as a
+convenience: `r["status"]`, `r["body"]`, `r["headers"]`, etc. map to the same fields as the attributes.
 
 ---
 
@@ -885,7 +893,8 @@ woken by interpreter shutdown.
 
 - `Lock() → Lock` — a non-reentrant mutex. `l.acquire(block = True, timeout = None) → Bool` (True if
   acquired, False on timeout), `l.release()`, `l.locked() → Bool`. Best used as a context manager,
-  which always releases: `with l: ...`.
+  which always releases: `with l: ...`. Non-reentrant means a worker that already holds the lock and
+  acquires it again **raises** (rather than self-deadlocking); releasing an unheld lock also raises.
 - `Event() → Event` — a resettable flag. `e.set()`, `e.clear()`, `e.isset() → Bool`,
   `e.wait(timeout = None) → Bool` (True once set, False on timeout).
 - `Semaphore(value: Integer = 1) → Semaphore` — a permit counter for bounded concurrency.
@@ -1030,7 +1039,7 @@ Operates on **byte values**: a `List` of Integers (0–255), a [`Bytes`](types.h
 
 - `encode(data: List | Bytes | String) → String` — Base64-encode the data.
 - `decode(s: String) → List` — decode Base64 text back to a list of byte values.
-- `urlsafeencode(data: List) → String` — encode using the URL-safe alphabet (`-_`).
+- `urlsafeencode(data: List | Bytes | String) → String` — encode using the URL-safe alphabet (`-_`).
 - `urlsafedecode(s: String) → List` — decode using the URL-safe alphabet (`-_`).
 
 ---

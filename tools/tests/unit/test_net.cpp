@@ -176,6 +176,31 @@ int main() {
         server.join();
     }
 
+    // --- Response Dict-style indexing: r["status"]/r["body"]/r["reason"]/r["ok"]/r["headers"]/... ---
+    {
+        int port = 0, srv = makeListener(port);
+        CHECK(srv >= 0);
+        std::thread server(serveN, srv, 1, [](const std::string&) {
+            return std::string("HTTP/1.1 200 OK\r\nX-K: v\r\nContent-Length: 3\r\n\r\nabc");
+        }, nullptr);
+        std::string src =
+            "var r = import(\"net\").get(\"" + url(port) + "\")\n"
+            "String(r[\"status\"]) + \"|\" + r[\"body\"] + \"|\" + r[\"reason\"] + \"|\" +"
+            " String(r[\"ok\"]) + \"|\" + r[\"headers\"][\"X-K\"]\n";
+        CHECK(evalStr(vm, src) == "200|abc|OK|True|v");
+        server.join();
+    }
+    // --- Response indexing: an unknown key raises ---
+    {
+        int port = 0, srv = makeListener(port);
+        CHECK(srv >= 0);
+        std::thread server(serveN, srv, 1, [](const std::string&) {
+            return std::string("HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nx");
+        }, nullptr);
+        CHECK_THROWS(evalStr(vm, "import(\"net\").get(\"" + url(port) + "\")[\"nope\"]\n"));
+        server.join();
+    }
+
     // --- redirect following: 302 -> relative Location -> 200 ---
     {
         int port = 0, srv = makeListener(port);

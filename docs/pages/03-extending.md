@@ -267,6 +267,7 @@ Override only what your type supports; every slot defaults to a clear "unsupport
 | `setAttr(vm, name, value)` | `obj.field = v` |
 | `getItem(vm, keys)` | `obj[i]` / `obj[i, j]` (keys are variadic) |
 | `setItem(vm, keys, value)` | `obj[i] = v` / `obj[i, j] = v` (keys are variadic) |
+| `slice(vm, start, stop, step)` | `obj[a:b:c]` — a dedicated slice slot (each bound may be `None`) |
 | `iterate(vm)` | `for x in obj` — return the elements as a vector of `Handle` |
 | `length(vm)` | `len(obj)` |
 | `contains(vm, value)` | `x in obj` |

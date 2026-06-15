@@ -106,7 +106,7 @@ public:
         const Handle* v = d.find(vm_->arena(), k);
         return v ? Value(*vm_, *v) : dflt;
     }
-    // dict key/value pairs as Values (insertion order).
+    // dict key/value pairs as Values (in the dict's iteration order — hash-bucket, not insertion).
     std::vector<std::pair<Value, Value>> pairs() const {
         const auto& d = asDictRef("pairs");
         std::vector<std::pair<Value, Value>> out;

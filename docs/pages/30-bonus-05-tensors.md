@@ -505,6 +505,7 @@ tensor, and aliases of it see the change — but there is no vectorized in-place
 holder object and rebind its field — this is precisely what a `Parameter` does in a neural-net library
 (see `examples/deep_learning/lib/nn.ki`):
 
+<!--norun (illustrative fragment: uses `p` and `lr` as placeholder names)-->
 ```kirito
 class Parameter:
     var _init_ = Function(self, t):
