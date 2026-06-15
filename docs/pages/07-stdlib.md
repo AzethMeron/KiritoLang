@@ -609,7 +609,10 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 - `unquote(s: String) → String` — percent-decode a String (UTF-8).
 - `urlencode(params: Dict) → String` — build a `k=v&...` query string (keys and values encoded).
 - `parseqs(query: String) → Dict` — parse `k=v&...` into a Dict (values decoded).
-- `urlsplit(url: String) → Dict` — split a URL into `scheme`/`host`/`port`/`path`/`query`/`fragment`.
+- `urlsplit(url: String) → Dict` — split a URL into `scheme`/`host`/`port`/`path`/`query`/`fragment`
+  (all `String`; `port` is the textual digits, empty when absent — use `Integer(d["port"])` if you need
+  it numeric). A bracketed IPv6 literal is preserved in `host` with its brackets, and the optional
+  port follows after `]:` — `urlsplit("http://[::1]:8080/p")` -> `host = "[::1]", port = "8080"`.
 
 ### Socket object
 

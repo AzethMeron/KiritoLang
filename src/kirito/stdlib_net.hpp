@@ -222,6 +222,17 @@ inline UrlParts splitUrl(const std::string& url) {
     std::size_t slash = rest.find('/');
     std::string hostport = slash == std::string::npos ? rest : rest.substr(0, slash);
     p.path = slash == std::string::npos ? "" : rest.substr(slash);
+    // IPv6 literals are bracketed: `[::1]:8080`. Keep the brackets in `host`; the port (if any)
+    // is the `:NNNN` after `]`. Without this the plain `find(':')` would split the address itself.
+    if (!hostport.empty() && hostport[0] == '[') {
+        std::size_t rb = hostport.find(']');
+        if (rb != std::string::npos) {
+            p.host = hostport.substr(0, rb + 1);
+            if (rb + 1 < hostport.size() && hostport[rb + 1] == ':')
+                p.port = hostport.substr(rb + 2);
+            return p;
+        }
+    }
     std::size_t colon = hostport.find(':');
     if (colon == std::string::npos) { p.host = hostport; }
     else { p.host = hostport.substr(0, colon); p.port = hostport.substr(colon + 1); }

@@ -656,10 +656,43 @@ var format = Function(rows) -> String:
     return "\n".join(lines)
 
 var parse = Function(text):
+    # RFC-4180-aware parse: track quote state across the whole text so a quoted field may contain
+    # newlines without being split into separate rows. A `\n` is a row terminator only outside quotes.
     var rows = []
-    for line in text.split("\n"):
-        if len(line) > 0:
-            rows.append(parserow(line))
+    var fields = []
+    var current = ""
+    var inQuotes = False
+    var i = 0
+    var n = len(text)
+    while i < n:
+        var c = text[i]
+        if inQuotes:
+            if c == "\"":
+                if i + 1 < n and text[i + 1] == "\"":
+                    current = current + "\""
+                    i = i + 1
+                else:
+                    inQuotes = False
+            else:
+                current = current + c
+        elif c == "\"":
+            inQuotes = True
+        elif c == ",":
+            fields.append(current)
+            current = ""
+        elif c == "\n":
+            fields.append(current)
+            rows.append(fields)
+            fields = []
+            current = ""
+        elif c == "\r":
+            pass        # \r is skipped (CRLF treated as LF)
+        else:
+            current = current + c
+        i = i + 1
+    if current != "" or len(fields) > 0:
+        fields.append(current)
+        rows.append(fields)
     return rows
 )KI";
 
