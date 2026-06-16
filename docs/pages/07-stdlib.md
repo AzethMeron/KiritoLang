@@ -358,7 +358,8 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
 - `t.astype(dtype: String) → Tensor` — convert dtype (`Float → Complex`, or `Complex → Float` keeping
   the real part).
 - `t.sum(axis = None)`, `t.mean(axis = None)`, `t.prod(axis = None)` — reduce the whole tensor to a
-  scalar, or one `axis` to a lower-rank tensor.
+  scalar, or one `axis` to a lower-rank tensor. A **negative axis** counts from the end NumPy-style
+  (`-1` is the last axis); an out-of-range axis raises. (Applies to every axis-taking reduction below.)
 - `t.min(axis = None)`, `t.max(axis = None)` — extremes (whole-tensor or along an axis; raise for a
   `Complex` tensor, which is unordered).
 
@@ -983,8 +984,9 @@ rather than a lazy sequence.
 - `c.get(x) → Integer` — the count for `x` (`0` if unseen).
 - `c[x] → Integer` — index syntax for the count of `x`.
 - `c.items() → List` — `[value, count]` pairs.
-- `c.mostcommon([n: Integer]) → List` — `[value, count]` pairs, highest count first (ties keep
-  insertion order). With `n`, only the top `n`.
+- `c.mostcommon([n: Integer]) → List` — `[value, count]` pairs, highest count first. The sort is
+  stable, but the underlying Dict is unordered, so the relative order of *tied* counts is
+  unspecified (don't rely on it). With `n`, only the top `n`.
 
 ### defaultdict object
 
@@ -1206,8 +1208,13 @@ Binary search / ordered insertion into a sorted List.
 
 ## copy
 
-- `copy(obj)` — a shallow copy.
+- `copy(obj)` — a shallow copy (a `List`/`Dict`/`Set` with the same elements; immutable scalars are
+  returned as-is).
 - `deepcopy(obj)` — a deep copy (handles shared references and cycles).
+- A **class instance** (or a native value object like `Matrix`/`Tensor`/`DateTime`) is copied via the
+  `serialize` graph codec — both `copy` and `deepcopy` return an independent (deep) instance, since
+  Kirito has no per-instance attribute introspection. A value that can't be serialized (a live
+  socket/file) is returned unchanged (best effort).
 
 ---
 

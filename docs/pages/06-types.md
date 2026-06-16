@@ -175,7 +175,7 @@ String (encoded; default `utf-8`), or another Bytes (copied) — or `fromhex("48
 
 | Method / function | Meaning |
 | --- | --- |
-| `b.decode([encoding])` | Decode to a `String` (`utf-8` default, or `latin-1`/`ascii`). |
+| `b.decode([encoding])` | Decode to a `String` (`utf-8` default, or `latin-1`/`ascii`). Raises on bytes that aren't valid for the encoding (malformed/overlong/surrogate UTF-8; a byte ≥ 0x80 for `ascii`). |
 | `b.hex()` | Lowercase hex String (`b'Hi' → "4869"`). |
 | `b.apply(fn)` | A new Bytes with `fn` applied to each byte (`fn` takes/returns an Integer 0–255). |
 | `fromhex(s)` | Build a Bytes from a hex String (whitespace ignored). |

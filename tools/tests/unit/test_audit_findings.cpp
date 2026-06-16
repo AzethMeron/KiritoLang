@@ -128,4 +128,54 @@ int main() {
         CHECK(ev(vm, "var j = import(\"json\")\nvar m = import(\"math\")\n"
                      "j.loads(j.dumps([m.inf, -m.inf])) == [m.inf, -m.inf]") == "True");
     }
+
+    // ---- round-4 fixes: float-literal overflow, tensor negative axis, UTF-8 decode validation,
+    //      copy/deepcopy of a class instance, heapq.nlargest negative n ----
+    {
+        KiritoVM vm;
+        // a too-large float literal overflows to +inf instead of crashing the parser (was SIGABRT)
+        CHECK(ev(vm, "import(\"math\").isinf(1e999999)") == "True");
+        CHECK(ev(vm, "1e999999 > 0.0 and -1e999999 < 0.0") == "True");
+        // a subnormal literal still parses (underflow), doesn't crash
+        CHECK(ev(vm, "5e-324 > 0.0") == "True");
+    }
+    {
+        KiritoVM vm;
+        // tensor negative axis is NumPy-style (-1 = last axis), not the whole-tensor collapse
+        const std::string mk = "var T = import(\"tensor\")\nvar a = T.Tensor([[1.0, 2, 3], [4, 5, 6]])\n";
+        CHECK(ev(vm, mk + "a.sum(-1).tolist()") == "[6.0, 15.0]");      // last axis
+        CHECK(ev(vm, mk + "a.sum(-2).tolist()") == "[5.0, 7.0, 9.0]");  // axis 0
+        CHECK(ev(vm, mk + "a.argmax(-1).tolist()") == "[2.0, 2.0]");
+        CHECK(ev(vm, mk + "a.sum()") == "21.0");                        // no axis -> whole-tensor scalar
+        CHECK(raises(vm, mk + "a.sum(-3)"));                            // out of range
+        CHECK(raises(vm, mk + "a.sum(2)"));
+    }
+    {
+        KiritoVM vm;
+        // decode("utf-8") validates: invalid byte sequences raise; valid (multibyte) still decodes
+        CHECK(ev(vm, "Bytes([104, 195, 169]).decode(\"utf-8\")") == "h\xc3\xa9");
+        CHECK(ev(vm, "\"caf\xc3\xa9\".encode(\"utf-8\").decode(\"utf-8\")") == "caf\xc3\xa9");
+        CHECK(raises(vm, "Bytes([255, 254, 128]).decode(\"utf-8\")"));  // stray bytes
+        CHECK(raises(vm, "Bytes([0xC3]).decode(\"utf-8\")"));            // truncated 2-byte seq
+        CHECK(raises(vm, "Bytes([0xED, 0xA0, 0x80]).decode(\"utf-8\")")); // surrogate U+D800
+        // latin-1/ascii decode error reports the byte in hex
+        CHECK(raises(vm, "Bytes([200]).decode(\"ascii\")"));
+    }
+    {
+        KiritoVM vm;
+        // copy/deepcopy of a class instance is an INDEPENDENT object (was the same object)
+        const std::string box = "var c = import(\"copy\")\nclass Box:\n    var _init_ = Function(self, v):\n        self.v = v\nvar a = Box(1)\n";
+        CHECK(ev(vm, box + "var b = c.copy(a)\nb.v = 99\na.v") == "1");
+        CHECK(ev(vm, box + "var b = c.deepcopy(a)\nb.v = 77\na.v") == "1");
+        // immutable scalars and containers unchanged
+        CHECK(ev(vm, "import(\"copy\").copy(5)") == "5");
+        CHECK(ev(vm, "var c = import(\"copy\")\nvar x = [1, 2]\nvar y = c.copy(x)\ny.append(3)\nx") == "[1, 2]");
+    }
+    {
+        KiritoVM vm;
+        // heapq.nlargest with a non-positive n returns [] (matches nsmallest + Python), not a tail slice
+        CHECK(ev(vm, "import(\"heapq\").nlargest(-2, [5, 4, 3, 2, 1])") == "[]");
+        CHECK(ev(vm, "import(\"heapq\").nlargest(0, [3, 1, 2])") == "[]");
+        CHECK(ev(vm, "import(\"heapq\").nlargest(2, [5, 4, 3, 2, 1])") == "[5, 4]");
+    }
 }

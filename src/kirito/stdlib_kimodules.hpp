@@ -757,6 +757,8 @@ var nsmallest = Function(n, items):
     return out
 
 var nlargest = Function(n, items):
+    if n <= 0:           # match nsmallest (and Python): a non-positive n yields [], not a tail slice
+        return []
     var s = sorted(items, None, True)
     return s[0:n]
 
@@ -818,19 +820,39 @@ var insort = insortright
 
 // --- copy (shallow / deep) ---------------------------------------------------------------------
 inline constexpr std::string_view copy_mod = R"KI(
+# Immutable scalars can be shared safely; copying them is a no-op.
+var _IMMUTABLE = Set(["None", "Bool", "Integer", "Float", "String", "Bytes"])
+
+# Pure Kirito has no generic way to enumerate/set an instance's attributes, so a class instance (or a
+# native value object like Matrix/Tensor/DateTime) is copied via the serialize graph codec, which
+# copies by attributes / the _getstate_/_setstate_ protocol and preserves shared refs + cycles. This
+# is necessarily a DEEP, independent copy. A value that can't be serialized (e.g. a live socket/file)
+# falls back to itself — best effort, matching the old behaviour for those.
+var _copyViaSerde = Function(obj):
+    var serialize = import("serialize")
+    try:
+        return serialize.loads(serialize.dumps(obj))
+    catch as e:
+        return obj
+
 var copy = Function(obj):
-    if type(obj) == "List":
+    var t = type(obj)
+    if t == "List":
         return obj.copy()
-    if type(obj) == "Dict":
+    if t == "Dict":
         return obj.copy()
-    if type(obj) == "Set":
+    if t == "Set":
         return obj.copy()
-    return obj
+    if t in _IMMUTABLE:
+        return obj
+    return _copyViaSerde(obj)        # user instance / native value object: independent (deep) copy
 
 var deepcopy = Function(obj):
     var t = type(obj)
-    if t != "List" and t != "Dict" and t != "Set":
+    if t in _IMMUTABLE:
         return obj
+    if t != "List" and t != "Dict" and t != "Set":
+        return _copyViaSerde(obj)    # instance / native value object — serde handles refs + cycles
     # Iterative + cycle-safe (recursion would overflow / loop on deep or self-referential data):
     # 1) discover every reachable container and give it an empty shell, keyed by id(original);
     # 2) fill the shells, mapping each child to its shell (or itself for scalars). Shared references

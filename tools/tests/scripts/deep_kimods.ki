@@ -312,18 +312,19 @@ cyc.append(cyc)
 var dc = c.deepcopy(cyc)
 assert dc[0] == 1 and id(dc[1]) == id(dc) and id(dc) != id(cyc), "deepcopy reconstructs a self-cycle without looping"
 
-# --- FINDING (doc gap): copy/deepcopy of a user CLASS INSTANCE returns the SAME object (no copy).
-#     docs say only 'shallow/deep copy' with no caveat; Python's copy module copies instances. -----
+# --- copy/deepcopy of a user CLASS INSTANCE makes an INDEPENDENT copy (via the serialize graph
+#     codec, since pure Kirito has no attribute introspection). Mutating the copy can't touch the
+#     original. (For an instance this is necessarily a deep copy.) ------------------------------------
 class Box:
     var _init_ = Function(self, v):
         self.v = v
 var bx = Box([1])
 var bc = c.copy(bx)
-assert id(bc) == id(bx), "FINDING: copy.copy of a class instance is the SAME object (not copied)"
+assert id(bc) != id(bx), "copy.copy of a class instance is a fresh object"
 bc.v.append(2)
-assert bx.v == [1, 2], "FINDING: mutating the 'copy' mutates the original instance"
+assert bx.v == [1], "mutating the copy does NOT touch the original instance"
 var bd = c.deepcopy(bx)
-assert id(bd) == id(bx), "FINDING: deepcopy of a class instance is ALSO the same object (no deep copy of instances)"
+assert id(bd) != id(bx) and bd.v == [1], "deepcopy of a class instance is independent"
 
 io.print("ok copy")
 
@@ -372,12 +373,9 @@ h.heappush(hp, 0)
 assert hp[0] == 0, "heappush mutates the heap in place"
 assert h.heappop(hp) == 0 and hp[0] == 1, "heappop removes and returns the root"
 
-# --- the n<0 INCONSISTENCY between nlargest and nsmallest (a genuine bug). ------------------------
-# FINDING (bug): nsmallest uses `while len(out) < n` so a negative n yields [] (guard never true),
-# but nlargest uses `sorted(...)[0:n]` so a negative n SLICES OFF THE TAIL (Python: both should be
-# []). The two disagree for any negative n.
-assert h.nsmallest(-2, [5, 4, 3, 2, 1]) == [], "nsmallest(negative) -> [] (loop guard)"
-assert h.nlargest(-2, [5, 4, 3, 2, 1]) == [5, 4, 3], "FINDING: nlargest(negative) slices off the tail instead of returning [] -- INCONSISTENT with nsmallest"
+# --- nlargest and nsmallest agree on a non-positive n: both yield [] (like Python). ---------------
+assert h.nsmallest(-2, [5, 4, 3, 2, 1]) == [], "nsmallest(negative) -> []"
+assert h.nlargest(-2, [5, 4, 3, 2, 1]) == [], "nlargest(negative) -> [] (fixed: was a tail slice)"
 assert h.nlargest(0, [3, 1, 2]) == [] and h.nsmallest(0, [3, 1, 2]) == [], "n=0 agrees: both []"
 
 # --- merge is GIGO-TOLERANT: it re-heaps every element, so it sorts even unsorted inputs. ---------
