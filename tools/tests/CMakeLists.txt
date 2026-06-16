@@ -128,7 +128,9 @@ kirito_test(bench bench/bench.cpp)
 # --- end-to-end .ki script tests (run through the `ki` interpreter, diff vs .expected) ---
 # A .ki file is only registered as a test if it has a matching .expected; this lets library
 # files (imported by other scripts, e.g. complex.ki) live alongside without being run directly.
-file(GLOB ki_scripts ${CMAKE_CURRENT_SOURCE_DIR}/scripts/*.ki)
+# CONFIGURE_DEPENDS so a newly-added scripts/*.ki is picked up by a plain `cmake --build` (which
+# re-globs), not only after a manual reconfigure — otherwise a new test silently isn't registered.
+file(GLOB ki_scripts CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/*.ki)
 foreach(script ${ki_scripts})
     get_filename_component(nm ${script} NAME_WE)
     set(expected ${CMAKE_CURRENT_SOURCE_DIR}/scripts/${nm}.expected)
