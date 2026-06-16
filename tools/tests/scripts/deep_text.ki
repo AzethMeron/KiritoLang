@@ -253,6 +253,20 @@ check("decode-unknown-enc-raises", decUnkFail, True)
 check("latin1-bridge", Bytes([0xff, 0x00, 0x80]).decode("latin-1").encode("latin-1"), Bytes([0xff, 0x00, 0x80]))
 # encoding-name normalisation: "UTF-8" / "utf_8" / "utf8" all accepted
 check("enc-name-norm", "hi".encode("UTF_8").decode("utf8"), "hi")
+# decode("utf-8") VALIDATES: malformed/truncated/surrogate/stray byte sequences raise (instead of
+# silently fabricating a corrupt String); valid multibyte still decodes.
+var badUtf8 = [Bytes([255, 254, 128]), Bytes([0xC3]), Bytes([0xED, 0xA0, 0x80]), Bytes([0x80])]
+var nBad = 0
+for b in badUtf8:
+    var raised = False
+    try:
+        discard b.decode("utf-8")
+    catch as e:
+        raised = True
+    if raised:
+        nBad = nBad + 1
+check("utf8-decode-validates-invalid", nBad, len(badUtf8))
+check("utf8-decode-valid-multibyte", Bytes([104, 195, 169]).decode("utf-8"), "hé")
 
 # =====================================================================================
 # BYTES — construction, indexing, slicing, iteration, ops, hex, immutability
