@@ -61,7 +61,7 @@ void usage() {
 
 
 int repl(kirito::KiritoVM& vm) {
-    std::cout << "kirito (ki) REPL - Ctrl-D to exit\n";
+    std::cout << "Kirito (ki) " << kirito::kVersion << " REPL - Ctrl-D to exit\n";
     std::string line;
     while (std::cout << ">>> " && std::getline(std::cin, line)) {
         if (line.empty()) continue;
