@@ -2,11 +2,18 @@ name: release
 
 # Build shippable 64-bit `ki` binaries for Windows and Linux, each an optimized Release build with
 # TLS (HTTPS) enabled and OpenSSL + the C/C++ runtime linked statically, then attach them to a
-# GitHub Release. Triggered by pushing a version tag (e.g. v1.0.0); also runnable manually.
+# GitHub Release. Triggered by pushing a version tag — releases are tagged as BARE semver in this
+# repo (1.6.0, 1.4.2), so match that (a leading `v` is also tolerated). Building from the tag is what
+# guarantees the binary's embedded sys.version matches the release name; a stale manual build does
+# not (e.g. the 1.6.0 asset that shipped reporting 1.1.0 because the old "v*" trigger never fired).
 
 on:
   push:
-    tags: ["v*"]
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"            # 1.6.0
+      - "[0-9]+.[0-9]+.[0-9]+-*"          # 1.6.0-rc1 (prerelease)
+      - "v[0-9]+.[0-9]+.[0-9]+"           # v1.6.0 (tolerated)
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
 
 permissions:
@@ -30,6 +37,13 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS="-s"
           cmake --build build --target ki
           mv build/ki ki-linux-x64
+      - name: Verify embedded version matches the tag
+        if: github.ref_type == 'tag'
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          got="$(./ki-linux-x64 --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.]+)?')"
+          echo "tag=$tag  built=$got"
+          test "$got" = "$tag" || { echo "::error::built ki version ($got) != tag ($tag) — refusing to ship a mis-versioned binary"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: ki-linux-x64
@@ -52,6 +66,14 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
           cmake --build build --config Release --target ki
           mv build/Release/ki.exe ki-windows-x64.exe
+      - name: Verify embedded version matches the tag
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          got="$(./ki-windows-x64.exe --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.]+)?')"
+          echo "tag=$tag  built=$got"
+          test "$got" = "$tag" || { echo "::error::built ki version ($got) != tag ($tag) — refusing to ship a mis-versioned binary"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: ki-windows-x64
