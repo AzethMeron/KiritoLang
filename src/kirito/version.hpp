@@ -9,7 +9,7 @@ namespace kirito {
 // and the `sys.version` module value so Kirito programs (notably `kpm`) can read it and decide
 // whether a newer interpreter is available. Bump it IN THE SAME COMMIT you tag, so the published
 // binary's embedded version matches its release (CI verifies this and refuses to ship a mismatch).
-inline constexpr const char* kVersion = "1.6.0";
+inline constexpr const char* kVersion = "1.6.1";
 
 }  // namespace kirito
 
