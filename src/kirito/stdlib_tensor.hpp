@@ -1505,9 +1505,13 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
         return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
     };
-    auto axisOf = [](KiritoVM& vm, std::span<const Handle> a) -> int64_t {  // -1 = whole tensor
+    auto axisOf = [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> int64_t {  // -1 = whole tensor (no axis given)
         if (a.empty() || vm.arena().deref(a[0]).kind() == ValueKind::None) return -1;
-        return Value(vm, a[0]).asInt("axis");
+        int64_t ax = Value(vm, a[0]).asInt("axis");
+        int64_t nd = static_cast<int64_t>(self_t(vm, self).shape().size());
+        if (ax < 0) ax += nd;                       // NumPy-style: -1 is the last axis, -2 the next, ...
+        if (ax < 0 || ax >= nd) throw KiritoError("axis out of range");
+        return ax;                                  // always a valid 0..nd-1 once an axis is given
     };
     // item() — extract a one-element tensor's single value as a plain Float (or Complex).
     if (name == "item") return bind("item", {}, [self, self_t](KiritoVM& vm, std::span<const Handle>) -> Handle {

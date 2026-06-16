@@ -202,16 +202,52 @@ inline std::string encode(const std::string& s, const std::string& enc) {
     throw KiritoError("unknown encoding: '" + enc + "'");
 }
 
+// Well-formed UTF-8 check: correct lead/continuation bytes, no overlong encodings, no surrogates,
+// in range. Used so decode("utf-8") can't silently fabricate a String whose bytes aren't valid
+// UTF-8 (which would then misbehave under code-point indexing/len) — Python raises here too.
+inline bool validUtf8(const std::string& s) {
+    std::size_t i = 0, n = s.size();
+    while (i < n) {
+        unsigned char c = static_cast<unsigned char>(s[i]);
+        std::size_t len; unsigned cp;
+        if (c < 0x80) { ++i; continue; }
+        else if ((c >> 5) == 0x6) { len = 2; cp = c & 0x1Fu; }
+        else if ((c >> 4) == 0xE) { len = 3; cp = c & 0x0Fu; }
+        else if ((c >> 3) == 0x1E) { len = 4; cp = c & 0x07u; }
+        else return false;                                  // stray continuation byte or 0xF8+ lead
+        if (i + len > n) return false;                      // truncated multibyte sequence
+        for (std::size_t k = 1; k < len; ++k) {
+            unsigned char cc = static_cast<unsigned char>(s[i + k]);
+            if ((cc >> 6) != 0x2) return false;             // not a 10xxxxxx continuation byte
+            cp = (cp << 6) | (cc & 0x3Fu);
+        }
+        if ((len == 2 && cp < 0x80) || (len == 3 && cp < 0x800) || (len == 4 && cp < 0x10000))
+            return false;                                   // overlong
+        if (cp > 0x10FFFFu || (cp >= 0xD800u && cp <= 0xDFFFu)) return false;  // out of range / surrogate
+        i += len;
+    }
+    return true;
+}
+
+// Format a byte as a 2-digit hex literal (the decode error labels it "0x...").
+inline std::string hexByte(unsigned char c) {
+    static const char* d = "0123456789abcdef";
+    return std::string("0x") + d[(c >> 4) & 0xF] + d[c & 0xF];
+}
+
 // Decode bytes to a String (UTF-8 text) under `enc`. utf-8 keeps the bytes (they are already the
-// String's storage); latin-1/ascii map each byte to a code point, then UTF-8-encode it.
+// String's storage) once validated; latin-1/ascii map each byte to a code point, then UTF-8-encode it.
 inline std::string decode(const std::string& data, const std::string& enc) {
     std::string e = normEnc(enc);
-    if (e == "utf8") return data;
+    if (e == "utf8") {
+        if (!validUtf8(data)) throw KiritoError("'utf-8' codec can't decode: invalid UTF-8 byte sequence");
+        return data;
+    }
     if (e == "latin1" || e == "iso88591" || e == "ascii") {
         unsigned cap = (e == "ascii") ? 0x80u : 0x100u;
         std::string out;
         for (unsigned char c : data) {
-            if (c >= cap) throw KiritoError("'" + enc + "' codec can't decode byte 0x" + std::to_string(c));
+            if (c >= cap) throw KiritoError("'" + enc + "' codec can't decode byte " + hexByte(c));
             utf8Encode(c, out);
         }
         return out;

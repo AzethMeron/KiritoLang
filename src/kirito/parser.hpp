@@ -723,8 +723,16 @@ private:
             case TokenType::Float: {
                 advance();
                 // parseDouble (not std::stod) so a subnormal literal like 5e-324 yields the value
-                // instead of crashing with an uncaught std::out_of_range.
-                return literal(parseDouble(t.text), t.span);
+                // instead of crashing with an uncaught std::out_of_range. A literal too large for
+                // double overflows to +inf (Python/JS source semantics, and consistent with runtime
+                // float overflow) rather than throwing — never crash the parser on a huge literal.
+                double d;
+                try {
+                    d = parseDouble(t.text);
+                } catch (const std::out_of_range&) {
+                    d = HUGE_VAL;   // the literal token is unsigned; a leading '-' is a separate unary op
+                }
+                return literal(d, t.span);
             }
             case TokenType::String: {
                 advance();
