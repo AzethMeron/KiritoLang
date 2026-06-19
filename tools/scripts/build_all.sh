@@ -31,7 +31,15 @@ build_mingw_openssl() {
     ( cd "$b"
       ./Configure mingw64 no-shared no-tests no-docs --libdir=lib \
           --cross-compile-prefix=x86_64-w64-mingw32- --prefix="$pfx"
-      make -j"$(nproc)" >/dev/null
+      # OpenSSL's generated Makefile carries a self-regeneration rule that fires (regenerating, then
+      # exiting 1 with "Please run the same make command again") whenever it judges a build input
+      # newer than the Makefile — which happens with the fresh copy+configure timestamps under a
+      # parallel make, and is environment-dependent (mtime granularity / make version). Touch the
+      # freshly generated Makefile so it's definitively newest, then build; re-run once as the
+      # OpenSSL-blessed fallback in case the rule still fires. A genuine build error still fails the
+      # second pass.
+      touch Makefile
+      make -j"$(nproc)" >/dev/null 2>&1 || make -j"$(nproc)" >/dev/null
       make install_sw >/dev/null )
     echo "openssl[win-x64]: built"
 }
