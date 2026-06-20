@@ -1,18 +1,21 @@
 name: release
 
-# Build shippable 64-bit `ki` binaries for Windows and Linux, each an optimized Release build with
-# TLS (HTTPS) enabled and OpenSSL + the C/C++ runtime linked statically, then attach them to a
-# GitHub Release. Triggered by pushing a version tag — releases are tagged as BARE semver in this
-# repo (1.6.0, 1.4.2), so match that (a leading `v` is also tolerated). Building from the tag is what
-# guarantees the binary's embedded sys.version matches the release name; a stale manual build does
-# not (e.g. the 1.6.0 asset that shipped reporting 1.1.0 because the old "v*" trigger never fired).
+# Build shippable 64-bit `ki` binaries for Linux and Windows and attach them to a GitHub Release.
+# Triggered by pushing a version tag — releases are tagged as BARE semver in this repo (1.6.1,
+# 1.4.2), with a leading `v` tolerated. Building from the tag is what guarantees the binary's
+# embedded sys.version matches the release name.
+#
+# Both binaries are built with the SAME toolchain the project develops/tests/ships with — gcc for
+# Linux, mingw-w64 cross-compile for Windows — by running tools/scripts/build_all.sh, the exact
+# script used for local releases. (The interpreter is not MSVC-clean; an earlier MSVC/vcpkg Windows
+# job never compiled it. Using build_all.sh keeps CI artifacts identical to local builds.)
 
 on:
   push:
     tags:
-      - "[0-9]+.[0-9]+.[0-9]+"            # 1.6.0
-      - "[0-9]+.[0-9]+.[0-9]+-*"          # 1.6.0-rc1 (prerelease)
-      - "v[0-9]+.[0-9]+.[0-9]+"           # v1.6.0 (tolerated)
+      - "[0-9]+.[0-9]+.[0-9]+"            # 1.6.1
+      - "[0-9]+.[0-9]+.[0-9]+-*"          # 1.6.1-rc1 (prerelease)
+      - "v[0-9]+.[0-9]+.[0-9]+"           # v1.6.1 (tolerated)
       - "v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
 
@@ -20,76 +23,43 @@ permissions:
   contents: write
 
 jobs:
-  # ---- Linux x86_64 (gcc; static OpenSSL/libstdc++/libgcc, glibc dynamic) ----
-  linux:
+  build-and-release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install toolchain + OpenSSL
+
+      - name: Install toolchain (gcc + mingw-w64 + OpenSSL build deps)
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libssl-dev
-      - name: Build
-        run: |
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DKIRITO_ENABLE_TLS=ON -DOPENSSL_USE_STATIC_LIBS=ON \
-            -DCMAKE_EXE_LINKER_FLAGS="-s"
-          cmake --build build --target ki
-          mv build/ki ki-linux-x64
-      - name: Verify embedded version matches the tag
+          sudo apt-get install -y build-essential cmake ninja-build git perl libssl-dev mingw-w64
+
+      # Cache the from-source static Windows OpenSSL so repeat releases don't rebuild it (~10 min).
+      - name: Cache Windows OpenSSL
+        uses: actions/cache@v4
+        with:
+          path: .deps/ssl-win-x64
+          key: ssl-win-x64-${{ hashFiles('tools/scripts/build_all.sh') }}
+
+      - name: Build ki-linux-x64 + ki-windows-x64.exe
+        run: tools/scripts/build_all.sh
+
+      - name: Verify the embedded version matches the tag
         if: github.ref_type == 'tag'
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          got="$(./ki-linux-x64 --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.]+)?')"
-          echo "tag=$tag  built=$got"
-          test "$got" = "$tag" || { echo "::error::built ki version ($got) != tag ($tag) — refusing to ship a mis-versioned binary"; exit 1; }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ki-linux-x64
-          path: ki-linux-x64
+          # The Linux binary is runnable on the runner; both binaries come from the same source in the
+          # same build, so a correct Linux version implies a correct Windows one. Also assert the tag
+          # string is embedded in the .exe as a cross-check.
+          lin="$(./dist/ki-linux-x64 --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.]+)?')"
+          echo "tag=$tag  linux=$lin"
+          test "$lin" = "$tag" || { echo "::error::built ki version ($lin) != tag ($tag) — refusing to ship a mis-versioned binary"; exit 1; }
+          strings dist/ki-windows-x64.exe | grep -qx "$tag" || { echo "::error::tag $tag not embedded in ki-windows-x64.exe"; exit 1; }
 
-  # ---- Windows x86_64 (MSVC; static CRT via /MT, static OpenSSL from vcpkg) ----
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install static OpenSSL (vcpkg)
-        shell: bash
-        run: vcpkg install openssl:x64-windows-static
-      - name: Build
-        shell: bash
-        run: |
-          cmake -S . -B build -A x64 \
-            -DKIRITO_ENABLE_TLS=ON -DOPENSSL_USE_STATIC_LIBS=ON \
-            -DVCPKG_TARGET_TRIPLET=x64-windows-static \
-            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-          cmake --build build --config Release --target ki
-          mv build/Release/ki.exe ki-windows-x64.exe
-      - name: Verify embedded version matches the tag
-        if: github.ref_type == 'tag'
-        shell: bash
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          got="$(./ki-windows-x64.exe --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.]+)?')"
-          echo "tag=$tag  built=$got"
-          test "$got" = "$tag" || { echo "::error::built ki version ($got) != tag ($tag) — refusing to ship a mis-versioned binary"; exit 1; }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ki-windows-x64
-          path: ki-windows-x64.exe
-
-  # ---- collect the artifacts and publish the GitHub Release ----
-  release:
-    needs: [linux, windows]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
       - name: Publish release
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/**
+          files: |
+            dist/ki-linux-x64
+            dist/ki-windows-x64.exe
           generate_release_notes: true
