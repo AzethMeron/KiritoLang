@@ -65,6 +65,10 @@ enum class Op : uint8_t {
     ForIter,          // a: advance the cursor on top; if exhausted pop it and ip=a, else push next item
     Unpack,           // a: (unpacks[a]) pop an iterable -> push its n spread slots, last target on top
     SwitchMatch,      //    v=pop, subj=pop -> push Bool(subj and v are the same scalar by type+value)
+    SetupBlock,       // a: push an exception block (try/with): on a throw, unwind here with the exc value
+    PopBlock,         //    pop the innermost exception block (left normally)
+    Reraise,          //    pop an exception value -> re-throw it (unmatched catch / after a finally)
+    ExcMatch,         //    type=pop, exc=pop -> push Bool(exc is an instance of the class `type`)
     Throw,            //    pop -> throw it as a Kirito exception (assert/throw)
     Return,           //    pop -> return it from this frame
 };

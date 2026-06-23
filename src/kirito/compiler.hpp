@@ -2,6 +2,7 @@
 #define KIRITO_COMPILER_HPP
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <unordered_set>
@@ -58,6 +59,10 @@ private:
     uint32_t addUnpack(uint32_t count, int starIndex) {
         proto_.unpacks.push_back(UnpackSpec{count, starIndex});
         return static_cast<uint32_t>(proto_.unpacks.size() - 1);
+    }
+    void emitCall0(SourceSpan span) {  // call the value on top of stack with no arguments
+        proto_.calls.push_back(CallSpec{0, {}});
+        emit(Op::Call, static_cast<uint32_t>(proto_.calls.size() - 1), span);
     }
 
     // The switch-dispatch key of a literal scalar, matching scalarSwitchKey() at run time, so the
@@ -164,14 +169,14 @@ private:
         uint32_t start = here();
         compileExpr(*s.cond);
         std::size_t exit = emit(Op::PopJumpIfFalse, 0, s.span);
-        loops_.push_back(LoopCtx{0, {}, {}});
+        frames_.push_back(CFrame{CFrame::Loop, 0, {}, {}, nullptr});
         compileBlock(s.body);
         emit(Op::Jump, start);
         uint32_t end = here();
         patch(exit, end);
-        for (std::size_t j : loops_.back().breaks) patch(j, end);
-        for (std::size_t j : loops_.back().continues) patch(j, start);
-        loops_.pop_back();
+        for (std::size_t j : frames_.back().breaks) patch(j, end);
+        for (std::size_t j : frames_.back().continues) patch(j, start);
+        frames_.pop_back();
         emit(Op::ClearResult);
     }
 
@@ -186,25 +191,27 @@ private:
             emit(Op::Unpack, addUnpack(static_cast<uint32_t>(s.vars.size()), s.starIndex), s.span);
             for (const auto& v : s.vars) emit(Op::StoreName, addName(v), s.span);  // slot0 on top
         }
-        loops_.push_back(LoopCtx{1, {}, {}});  // breaking out must pop the live cursor
+        frames_.push_back(CFrame{CFrame::Loop, 1, {}, {}, nullptr});  // break must pop the live cursor
         compileBlock(s.body);
         emit(Op::Jump, top);
         uint32_t end = here();
         patch(exit, end);
-        for (std::size_t j : loops_.back().breaks) patch(j, end);
-        for (std::size_t j : loops_.back().continues) patch(j, top);
-        loops_.pop_back();
+        for (std::size_t j : frames_.back().breaks) patch(j, end);
+        for (std::size_t j : frames_.back().continues) patch(j, top);
+        frames_.pop_back();
         emit(Op::ClearResult);
     }
 
     void visit(const ast::BreakStmt&) override {
-        if (loops_.empty()) throw BytecodeUnsupported{};  // parser rejects this anyway
-        for (int i = 0; i < loops_.back().unwind; ++i) emit(Op::Pop);
-        loops_.back().breaks.push_back(emit(Op::Jump));
+        std::size_t li = innermostLoop();
+        unwindFramesAbove(li + 1);  // run finally/with cleanups between here and the loop
+        for (int i = 0; i < frames_[li].unwind; ++i) emit(Op::Pop);  // drop the for-cursor
+        frames_[li].breaks.push_back(emit(Op::Jump));
     }
     void visit(const ast::ContinueStmt&) override {
-        if (loops_.empty()) throw BytecodeUnsupported{};
-        loops_.back().continues.push_back(emit(Op::Jump));
+        std::size_t li = innermostLoop();
+        unwindFramesAbove(li + 1);  // cleanups; the cursor stays (the loop's advance needs it)
+        frames_[li].continues.push_back(emit(Op::Jump));
     }
     void visit(const ast::PassStmt&) override { emit(Op::ClearResult); }
     void visit(const ast::TodoStmt&) override { emit(Op::ClearResult); }
@@ -222,6 +229,7 @@ private:
     void visit(const ast::ReturnStmt& s) override {
         if (s.value) compileExpr(*s.value);
         else emit(Op::LoadNone);
+        unwindFramesAbove(0);  // run every enclosing finally/with cleanup before returning (value on stack)
         emit(Op::Return, 0, s.span);
     }
 
@@ -272,9 +280,105 @@ private:
         emit(Op::ClearResult);
     }
 
-    // Not yet compiled — fall back to the tree-walker for any body that uses these (next stage).
-    void visit(const ast::TryStmt&) override { throw BytecodeUnsupported{}; }
-    void visit(const ast::WithStmt&) override { throw BytecodeUnsupported{}; }
+    // `try: ... catch [T as e]: ... finally: ...`. Exception unwinding uses a runtime block stack
+    // (SetupBlock/PopBlock + the executor's outer catch); break/continue/return crossing this try run
+    // the finally via the frame-cleanup machinery. The finally body is duplicated per exit path
+    // (normal / matched-handler / no-match / handler-exception) — small and simple beats clever.
+    void visit(const ast::TryStmt& s) override {
+        bool hasFin = s.hasFinally;
+        bool hasHand = !s.handlers.empty();
+        auto emitFinally = [this, &s, hasFin] { if (hasFin) compileBlock(s.finallyBody); };
+
+        std::size_t finSetup = 0, exSetup = 0;
+        if (hasFin) {  // outer block: catches exceptions in the body AND in handlers
+            finSetup = emit(Op::SetupBlock, 0, s.span);
+            frames_.push_back(CFrame{CFrame::Block, 0, {}, {}, emitFinally});
+        }
+        if (hasHand) {  // inner block: catches exceptions in the body, routes to the handlers
+            exSetup = emit(Op::SetupBlock, 0, s.span);
+            frames_.push_back(CFrame{CFrame::Block, 0, {}, {}, nullptr});
+        }
+        compileBlock(s.body);
+
+        std::vector<std::size_t> endJumps;
+        if (hasHand) { frames_.pop_back(); emit(Op::PopBlock); }  // body ok: drop the EXCEPT block
+        if (hasFin) { frames_.pop_back(); emit(Op::PopBlock); emitFinally(); }  // run the normal-path finally
+        endJumps.push_back(emit(Op::Jump));  // -> Lend
+
+        if (hasHand) {
+            patch(exSetup, here());  // Lhand: an exception unwound here, with the exception value on the stack
+            if (hasFin) frames_.push_back(CFrame{CFrame::Block, 0, {}, {}, emitFinally});  // re-arm for handler bodies
+            std::vector<std::size_t> toHandled;
+            bool sawCatchAll = false;
+            std::size_t pendingNext = SIZE_MAX;  // PopJumpIfFalse from the previous typed clause
+            for (const auto& h : s.handlers) {
+                if (pendingNext != SIZE_MAX) { patch(pendingNext, here()); pendingNext = SIZE_MAX; }
+                if (h.type) {  // typed: match the exception against the class
+                    emit(Op::Dup);
+                    compileExpr(*h.type);
+                    emit(Op::ExcMatch, 0, s.span);
+                    pendingNext = emit(Op::PopJumpIfFalse, 0, s.span);
+                } else {
+                    sawCatchAll = true;
+                }
+                if (!h.name.empty()) emit(Op::StoreName, addName(h.name), s.span);  // bind the exception
+                else emit(Op::Pop);                                                 // or drop it
+                compileBlock(h.body);
+                toHandled.push_back(emit(Op::Jump));  // -> Lhandled
+            }
+            if (hasFin) frames_.pop_back();  // FINALLY frame no longer active beyond the handler bodies
+            if (pendingNext != SIZE_MAX) patch(pendingNext, here());
+            if (!sawCatchAll) {  // no handler matched: run finally, re-raise
+                if (hasFin) { emit(Op::PopBlock); emitFinally(); }
+                emit(Op::Reraise, 0, s.span);
+            }
+            uint32_t lhandled = here();
+            for (std::size_t j : toHandled) patch(j, lhandled);
+            if (hasFin) { emit(Op::PopBlock); emitFinally(); }  // a handler ran: run finally, continue
+            endJumps.push_back(emit(Op::Jump));  // -> Lend
+        }
+
+        if (hasFin) {  // Lfin: an exception in a handler (or in a type expr) — finally then re-raise
+            patch(finSetup, here());
+            emitFinally();
+            emit(Op::Reraise, 0, s.span);
+        }
+        for (std::size_t j : endJumps) patch(j, here());  // Lend
+        // NB: unlike most statements, `try` does NOT clear the result — it carries the value of the
+        // last expression in the executed body/handler (matching the tree-walker), so the REPL echoes it.
+    }
+
+    // `with CTX as NAME:` — call CTX._enter_() (bound to NAME), run the body, and ALWAYS call
+    // CTX._exit_() (on normal completion, break/continue/return, or exception). The manager is held in
+    // a hidden local so the exit can reach it on every path, including after the stack is unwound.
+    void visit(const ast::WithStmt& s) override {
+        compileExpr(*s.context);
+        std::string mgr = "$with" + std::to_string(withCounter_++);  // '$' can't appear in a user name
+        emit(Op::StoreName, addName(mgr), s.span);
+        emit(Op::LoadName, addName(mgr), s.span);
+        emit(Op::GetAttr, addName("_enter_"), s.span);
+        emitCall0(s.span);
+        if (!s.name.empty()) emit(Op::StoreName, addName(s.name), s.span);
+        else emit(Op::Pop);
+        auto emitExit = [this, mgr, span = s.span] {
+            emit(Op::LoadName, addName(mgr), span);
+            emit(Op::GetAttr, addName("_exit_"), span);
+            emitCall0(span);
+            emit(Op::Pop);  // discard the _exit_ return value
+        };
+        std::size_t setup = emit(Op::SetupBlock, 0, s.span);
+        frames_.push_back(CFrame{CFrame::Block, 0, {}, {}, emitExit});
+        compileBlock(s.body);
+        frames_.pop_back();
+        emit(Op::PopBlock);
+        emitExit();  // normal-path exit
+        std::size_t endJump = emit(Op::Jump);
+        patch(setup, here());  // exception path: exit then re-raise
+        emitExit();
+        emit(Op::Reraise, 0, s.span);
+        patch(endJump, here());
+        emit(Op::ClearResult);
+    }
 
     // --- expressions ---
     void visit(const ast::LiteralExpr& e) override {
@@ -401,15 +505,45 @@ private:
         emit(Op::BuildString, static_cast<uint32_t>(e.parts.size()), e.span);
     }
 
-    struct LoopCtx {
-        int unwind;  // operand-stack slots a break must pop (the for-loop's live cursor; 0 for while)
-        std::vector<std::size_t> breaks;
-        std::vector<std::size_t> continues;
+    // The control-flow nesting stack. A Loop frame collects break/continue jumps to patch; a Block
+    // frame is a runtime exception block (try/with) whose `cleanup` (a finally body, or a `with`'s
+    // _exit_ call) must run when control leaves it normally OR via break/continue/return. break and
+    // continue and return therefore "unwind" the frames between them and their target, emitting each
+    // crossed Block frame's PopBlock + inline cleanup.
+    struct CFrame {
+        enum Kind { Loop, Block } kind;
+        int unwind = 0;                              // Loop: operand slots to pop on break (for-cursor)
+        std::vector<std::size_t> breaks, continues;  // Loop: jump sites to patch
+        std::function<void()> cleanup;               // Block: emit the inline cleanup (empty for a bare except block)
     };
+
+    std::size_t innermostLoop() {  // index of the nearest enclosing Loop frame, or throw (parser rejects)
+        for (std::size_t i = frames_.size(); i-- > 0;)
+            if (frames_[i].kind == CFrame::Loop) return i;
+        throw BytecodeUnsupported{};
+    }
+
+    // Emit PopBlock + inline cleanup for every frame above index `keep`, innermost first. Each frame is
+    // removed before its own cleanup is emitted (so a cleanup that itself returns/breaks targets only
+    // the still-active outer frames), then all are restored — leaving frames_ unchanged for sibling code.
+    void unwindFramesAbove(std::size_t keep) {
+        std::vector<CFrame> saved;
+        while (frames_.size() > keep) {
+            CFrame f = std::move(frames_.back());
+            frames_.pop_back();
+            if (f.kind == CFrame::Block) {
+                emit(Op::PopBlock);
+                if (f.cleanup) f.cleanup();
+            }
+            saved.push_back(std::move(f));
+        }
+        for (auto it = saved.rbegin(); it != saved.rend(); ++it) frames_.push_back(std::move(*it));
+    }
 
     KiritoVM& vm_;
     Proto& proto_;
-    std::vector<LoopCtx> loops_;
+    std::vector<CFrame> frames_;
+    int withCounter_ = 0;  // unique hidden-local index per `with` (holds the context manager)
     int depth_ = 0;
 };
 

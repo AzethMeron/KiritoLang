@@ -59,7 +59,9 @@ public:
     Handle run(const Proto& proto) {
         const std::vector<Instr>& code = proto.code;
         std::size_t ip = 0;
-        while (ip < code.size()) {
+        while (true) {
+          try {
+            while (ip < code.size()) {
             const Instr& in = code[ip++];
             switch (in.op) {
                 case Op::LoadConst: push(proto.consts[in.a]); break;
@@ -319,11 +321,31 @@ public:
                     break;
                 }
 
+                case Op::SetupBlock: blocks_.push_back({in.a, stack_.size()}); break;
+                case Op::PopBlock: blocks_.pop_back(); break;
+                case Op::Reraise: { Handle v = pop(); throw KiritoThrow{v, in.span}; }
+                case Op::ExcMatch: {
+                    Handle type = pop(), exc = pop();
+                    push(vm_.makeBool(isInstanceOf(vm_, exc, type)));
+                    break;
+                }
                 case Op::Throw: { Handle v = pop(); throw KiritoThrow{v, in.span}; }
                 case Op::Return: return pop();
             }
+            }
+            return vm_.none();  // every Proto ends in Return; this is only a defensive fallback
+          } catch (const KiritoThrow& t) {
+            if (!unwind(t.value, ip)) throw;
+          } catch (const KiritoError& e) {
+            // Internal/runtime errors are surfaced to Kirito `catch` as a String exception value.
+            Handle s = vm_.makeString(e.what());
+            if (!unwind(s, ip)) throw;
+          } catch (const std::exception& e) {
+            // Any other native exception is also catchable (as a String), guarding the whole boundary.
+            Handle s = vm_.makeString(e.what());
+            if (!unwind(s, ip)) throw;
+          }
         }
-        return vm_.none();  // every Proto ends in Return; this is only a defensive fallback
     }
 
 private:
@@ -346,8 +368,27 @@ private:
         }
     }
 
+    // Route an in-flight exception to the innermost active try/with block: pop it, unwind the operand
+    // stack to that block's height, hand it the exception value, and jump to its handler. Returns
+    // false (leaving state untouched) when no block is active — the exception escapes this frame.
+    bool unwind(Handle exc, std::size_t& ip) {
+        if (blocks_.empty()) return false;
+        Block b = blocks_.back();
+        blocks_.pop_back();
+        stack_.resize(b.stackHeight);
+        push(exc);
+        ip = b.target;
+        return true;
+    }
+
+    struct Block {
+        uint32_t target;        // ip of the handler/finally landing pad
+        std::size_t stackHeight;  // operand-stack size at SetupBlock (restored on unwind)
+    };
+
     KiritoVM& vm_;
     std::vector<Handle> stack_;
+    std::vector<Block> blocks_;
     bool hasOwner_;
 };
 
