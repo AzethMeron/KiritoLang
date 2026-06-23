@@ -13,7 +13,8 @@
 #   sudo apt-get install -y build-essential cmake ninja-build git perl libssl-dev mingw-w64
 #
 # The Windows OpenSSL is built once and cached under .deps/, so re-running only recompiles `ki`.
-# (The same set is also produced on CI by .github/workflows/release.yml and published to a Release.)
+# This is the only release-build path — the project has no CI; upload dist/* to a GitHub Release
+# (tagged with the bare version, e.g. 1.6.1) by hand.
 
 set -euo pipefail
 cd "$(dirname "$0")/../.."

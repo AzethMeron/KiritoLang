@@ -261,7 +261,6 @@ docs/              The documentation site: hand-authored Markdown in `docs/pages
 
 CLAUDE.md          The project charter: what Kirito is, how it's built, and the working rules.
 Archive/           Two prior incomplete attempts (V1/V2) — reference only; not built.
-.github/           CI workflows (the release matrix).
 ```
 
 ## Building and running
@@ -291,8 +290,10 @@ tools/scripts/build_all.sh
 ```
 
 Each binary is a Release build with TLS on and linked as statically as possible (the Linux binary
-keeps only glibc dynamic; the Windows `.exe` is fully static). The same set is also produced on CI by
-`.github/workflows/release.yml`, which publishes it to a GitHub Release on a `v*` tag.
+keeps only glibc dynamic; the Windows `.exe` is fully static). To cut a release, bump the version in
+`src/kirito/version.hpp`, build with `build_all.sh`, and upload `dist/ki-linux-x64` and
+`dist/ki-windows-x64.exe` to a GitHub Release tagged with the bare version (e.g. `1.6.1`). The
+project does not use CI.
 
 ### Testing the built executables
 
