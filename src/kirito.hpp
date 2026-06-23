@@ -44,10 +44,9 @@
 #include "kirito/stdlib_hash.hpp"
 #include "kirito/stdlib_regex.hpp"
 #include "kirito/analyzer.hpp"
-#include "kirito/evaluator.hpp"
 #include "kirito/runtime.hpp"
-// The bytecode execution engine. AFTER runtime.hpp — it dispatches through the shared operation
-// helpers (applyCall / applyBinaryOp / evalMemberGet / ...) that runtime.hpp defines.
+// The bytecode execution engine (the sole engine). AFTER runtime.hpp — it dispatches through the
+// shared operation helpers (applyCall / applyBinaryOp / evalMemberGet / ...) runtime.hpp defines.
 #include "kirito/bytecode_vm.hpp"
 // Multiprocessing: the dispatcher and the `parallel` module. AFTER runtime.hpp — they call inline
 // KiritoVM members (evalIn / importModule / install) that runtime.hpp defines.

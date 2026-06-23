@@ -17,7 +17,6 @@
 #include "builtins.hpp"
 #include "class_value.hpp"
 #include "collections.hpp"
-#include "evaluator.hpp"
 #include "function.hpp"
 #include "lexer.hpp"
 #include "module.hpp"
@@ -47,7 +46,7 @@ namespace kirito {
 
 // The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
 // intentionally shadow the enclosing getAttr/setup `vm`/`self` (same VM, by design). Silence
-// -Wshadow for these mechanical bindings; it stays active in the evaluator/parser/lexer core.
+// -Wshadow for these mechanical bindings; it stays active in the compiler/VM/parser/lexer core.
 #if defined(__GNUC__)
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wshadow"
@@ -1694,19 +1693,10 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
         }
     };
 
-    // Execute the body on the bytecode engine when enabled and the body is compilable; otherwise
-    // (or for any node bytecode doesn't yet support) tree-walk it. The choice is transparent — both
-    // engines share the runtime, so the result is identical.
+    // Compile (once) and execute the body on the bytecode engine — the sole execution path.
     auto runBody = [&](Handle bodyScope) -> Handle {
-        if (vm.bytecode()) {
-            Handle r;
-            if (tryRunBytecodeBody(vm, bodyScope, def_->body, hasOwner ? ownerClass : Handle{},
-                                   hasOwner, /*isFunction=*/true, r))
-                return r;
-        }
-        Evaluator ev(vm, bodyScope);
-        if (hasOwner) ev.setCurrentClass(ownerClass);
-        return ev.callBody(def_->body);
+        return runBytecodeBody(vm, bodyScope, def_->body, hasOwner ? ownerClass : Handle{}, hasOwner,
+                               /*isFunction=*/true);
     };
 
     if (named.empty() && positional.size() == params.size() && *def_->fastBindable) {
@@ -1739,8 +1729,8 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
     for (std::size_t i = 0; i < params.size(); ++i) {
         if (!bound[i]) {
             if (params[i].defaultValue) {
-                Evaluator dev(vm, scope);  // defaults evaluate in the call scope (closure-visible)
-                values[i] = rs.add(dev.eval(*params[i].defaultValue));
+                // defaults evaluate in the call scope (closure-visible), once per call
+                values[i] = rs.add(runBytecodeExpr(vm, scope, *params[i].defaultValue));
             } else {
                 throw KiritoError("function missing required argument '" + params[i].name + "'");
             }
@@ -1760,11 +1750,10 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
     return result;
 }
 
-// --- shared operation semantics (used by BOTH the tree-walker and the bytecode engine) -------
+// --- operation semantics (the single source of truth, used by the bytecode VM) ----------------
 //
-// These free functions are the single source of truth for operator/call/member dispatch, so the two
-// execution engines can never drift apart. The Evaluator and the BytecodeVM each add only their own
-// span-tagging around them.
+// These free functions are the single source of truth for operator/call/member dispatch; the
+// BytecodeVM's opcode handlers call them and add only their own span-tagging.
 
 // True if `value` is an instance of class `typeH` (walking the base chain). Only user-defined
 // InstanceValues carry a class handle; native C++ objects report ValueKind::Instance too, so a
@@ -1901,7 +1890,7 @@ inline Handle evalMemberGet(KiritoVM& vm, Handle obj, const std::string& name, H
 
 // Spread an iterable `value` across `n` unpack slots, with an optional starred slot at `starIndex`
 // (-1 if none) that absorbs the surplus into a List. Returns the n slot values (the caller must root
-// them). Shared by the tree-walker's unpacking and the bytecode engine's Unpack opcode.
+// them). Used by the bytecode engine's Unpack opcode (var/for/tuple-assign destructuring).
 inline std::vector<Handle> spreadValues(KiritoVM& vm, Handle value, std::size_t n, int starIndex,
                                         SourceSpan span) {
     std::optional<std::vector<Handle>> items;
@@ -1938,7 +1927,7 @@ inline std::vector<Handle> spreadValues(KiritoVM& vm, Handle value, std::size_t 
 
 // Canonical type+value key for switch dispatch. Only hashable scalar kinds can label a case or be
 // matched; other types yield nullopt (they only reach `default`). Matching is exact by type AND
-// value, so `case 1` and `case 1.0` differ. Shared by the tree-walker and the bytecode SwitchMatch.
+// value, so `case 1` and `case 1.0` differ. Used by the bytecode SwitchMatch opcode.
 inline std::optional<std::string> scalarSwitchKey(KiritoVM& vm, Handle h) {
     const Object& o = vm.arena().deref(h);
     switch (o.kind()) {
@@ -1987,8 +1976,7 @@ inline void KiritoVM::registerSourceModule(std::string name, std::string_view so
             auto prog = std::make_unique<ast::Program>(Parser(Lexer(src).tokenize()).parseProgram());
             const ast::Program& program = *prog;
             vm.retainChunk(std::move(prog));
-            Evaluator ev(vm, scope);
-            ev.run(program);
+            runBytecodeBody(vm, scope, program.stmts, Handle{}, /*hasOwner=*/false, /*isFunction=*/false);
             auto mod = std::make_unique<ModuleValue>(modName);
             for (const auto& [k, v] : static_cast<EnvValue&>(vm.arena().deref(scope)).locals())
                 // hide private top-level names and the injected per-file env (arglist/argmain)
@@ -2076,8 +2064,7 @@ inline Handle KiritoVM::importModule(const std::string& name) {
             const ast::Program& program = *prog;
             retainChunk(std::move(prog));
             programByFile_[path.string()] = &program;  // for parallel.spawn span lookup in workers
-            Evaluator ev(*this, scope);
-            ev.run(program);
+            runBytecodeBody(*this, scope, program.stmts, Handle{}, /*hasOwner=*/false, /*isFunction=*/false);
             auto mod = std::make_unique<ModuleValue>(name);
             for (const auto& [k, v] : static_cast<EnvValue&>(arena_.deref(scope)).locals())
                 if (k != "arglist" && k != "argmain")  // exclude the injected per-file env
@@ -2981,14 +2968,8 @@ inline Handle KiritoVM::evalIn(std::string_view source, Handle scope, std::strin
         retainChunk(std::move(prog));  // keep the AST alive for the VM's lifetime (closures)
         if (!chunkName.empty()) programByFile_[std::string(chunkName)] = &program;  // for parallel.spawn span lookup
         try {
-            if (bytecode_) {  // run the top level on the bytecode engine when it can be compiled
-                Handle r;
-                if (tryRunBytecodeBody(*this, scope, program.stmts, Handle{}, /*hasOwner=*/false,
-                                       /*isFunction=*/false, r))
-                    return r;
-            }
-            Evaluator ev(*this, scope);
-            return ev.run(program);
+            return runBytecodeBody(*this, scope, program.stmts, Handle{}, /*hasOwner=*/false,
+                                   /*isFunction=*/false);
         } catch (const KiritoThrow& t) {
             KiritoError err("uncaught exception: " + stringify(t.value), t.span);
             err.file = t.file;  // the defining chunk of the function that threw, if it escaped one

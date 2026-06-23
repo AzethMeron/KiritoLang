@@ -42,11 +42,7 @@ int main() {
     // reference assignment: `var b = a` binds b to the SAME value (same handle), no copy
     {
         Handle scope = vm.newModuleScope();
-        Lexer lex("var a = 5\nvar b = a\n");
-        Parser parser(lex.tokenize());
-        auto prog = parser.parseProgram();
-        Evaluator ev(vm, scope);
-        ev.run(prog);
+        vm.evalIn("var a = 5\nvar b = a\n", scope);  // compile + run in this scope
         auto& env = static_cast<EnvValue&>(vm.arena().deref(scope));
         const Handle* a = env.findLocal("a");
         const Handle* b = env.findLocal("b");

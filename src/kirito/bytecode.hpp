@@ -15,19 +15,14 @@ namespace kirito {
 //
 // Kirito's second back end (behind the stable AST boundary): a compiler turns a Block of statements
 // into a flat Proto of stack-machine instructions, and a BytecodeVM executes it with an explicit
-// operand stack instead of native recursion. The value model, operator dispatch, call protocol, and
-// GC are entirely REUSED from the tree-walker — bytecode changes only the control structure, so the
-// two engines stay semantically identical (and are validated differentially against each other).
+// operand stack instead of native recursion. The value model (Object protocol), operator dispatch,
+// call protocol, and GC are all reused; bytecode owns only the control structure. It is the sole
+// execution engine — the program runs by compiling each body to a Proto and executing it.
 //
-// Compilation is per body (a function body or the top-level program) and lazy: a nested function
-// literal is emitted as MakeFunction(funcExpr*) and its own body is compiled on first call. Anything
-// the compiler does not yet support throws BytecodeUnsupported, and the caller transparently falls
-// back to the tree-walker for that body — so the bytecode path can grow node-by-node while every
-// program keeps running.
-
-// Thrown by the compiler for an AST node it does not (yet) handle. Caught at the body boundary,
-// which then runs that body on the tree-walking evaluator instead. Never escapes to user code.
-struct BytecodeUnsupported {};
+// Compilation is per body (a function body, the top-level program, a class body) and lazy: a nested
+// function literal is emitted as MakeFunction(funcExpr*) and its own body is compiled on first call.
+// The compiler handles every AST node; a genuine program error (a deep nest, an invalid assignment
+// target, ...) is raised as a KiritoError, exactly like a parser diagnostic.
 
 enum class Op : uint8_t {
     LoadConst,        // a: push consts[a]
@@ -108,13 +103,14 @@ struct Proto {
 
 class KiritoVM;
 
-// Execute a body on the bytecode engine if it is compilable: returns true and sets `out` to the
-// body's result, or returns false to tell the caller (KiFunction::callFull / KiritoVM::evalIn) to
-// fall back to the tree-walking evaluator for this body. Defined in bytecode_vm.hpp (after the
-// runtime), so the call sites only need this declaration. `isFunction` selects the implicit tail
-// (a function returns None on fall-through; the top-level program returns its last expression).
-bool tryRunBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body, Handle ownerClass,
-                        bool hasOwner, bool isFunction, Handle& out);
+// Compile (if needed) and execute a body against `scope`, returning its result. `isFunction` selects
+// the implicit tail (a function returns None on fall-through; the top-level program / a class body
+// returns its last expression). Defined in bytecode_vm.hpp (after the runtime), so the call sites
+// (KiFunction::callFull / KiritoVM::evalIn / the module loaders) only need this declaration.
+Handle runBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body, Handle ownerClass,
+                       bool hasOwner, bool isFunction);
+// Compile and evaluate a single expression against `scope` (a parameter's default value).
+Handle runBytecodeExpr(KiritoVM& vm, Handle scope, const ast::Expr& e);
 
 }  // namespace kirito
 

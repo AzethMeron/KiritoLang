@@ -49,9 +49,6 @@ public:
             smallInts_.push_back(arena_.alloc(std::make_unique<IntVal>(v)));
         installBuiltins();
         installStandardLibrary();
-        // Opt into the bytecode engine process-wide via the environment, so every VM (the CLI, the
-        // tests, the dispatcher's workers) agrees. Programmatic control is setBytecode().
-        if (const char* e = std::getenv("KIRITO_BYTECODE"); e && e[0] == '1') bytecode_ = true;
     }
 
     ObjectArena& arena() { return arena_; }
@@ -100,9 +97,7 @@ public:
     void pushAuxRoots(const std::vector<Handle>* v) { auxRoots_.push_back(v); }
     void popAuxRoots() { auxRoots_.pop_back(); }
 
-    // --- bytecode engine (the optional second back end behind the AST boundary) ---
-    void setBytecode(bool on) { bytecode_ = on; }
-    bool bytecode() const { return bytecode_; }
+    // --- bytecode engine (the sole execution engine, behind the AST boundary) ---
     // A compiled Proto's literal constants are pinned here so they live for the VM's lifetime (the
     // Proto is cached as long as its AST is retained), giving O(1) LoadConst with no re-allocation.
     void pinConst(Handle h) { bytecodeConsts_.push_back(h); }
@@ -283,7 +278,6 @@ private:
     static constexpr int64_t kSmallIntLo = -256;
     static constexpr int64_t kSmallIntHi = 256;
     // --- bytecode engine state ---
-    bool bytecode_ = false;
     std::vector<const std::vector<Handle>*> auxRoots_;   // live operand stacks (GC roots)
     std::vector<Handle> bytecodeConsts_;                 // pinned literal pool of every compiled Proto
     std::unordered_map<const void*, std::unique_ptr<Proto>> protoCache_;  // per-body compiled cache

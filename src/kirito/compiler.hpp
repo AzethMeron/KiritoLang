@@ -15,15 +15,14 @@
 
 namespace kirito {
 
-// Compile a body once, caching the Proto on the VM (or nullptr if not yet compilable). Defined below;
-// forward-declared so the compiler can eagerly compile a nested class body and fall back if it can't.
+// Compile a body once, caching the Proto on the VM. Defined below; forward-declared so the compiler
+// can eagerly compile a nested class body (a genuine error there propagates as a KiritoError).
 inline const Proto* protoForBody(KiritoVM& vm, const ast::Block& body, bool isFunction);
 
-// Compiles a Block (a function body or the top-level program) into a Proto — the AST's second
-// visitor, alongside the tree-walking Evaluator. It emits stack-machine instructions that reuse the
-// runtime's value/operator/call semantics verbatim. Any node it does not yet handle raises
-// BytecodeUnsupported, which the body boundary catches to fall back to the evaluator — so the
-// bytecode path grows node-by-node while every program keeps running and stays correct.
+// Compiles a Block (a function body, the top-level program, or a class body) into a Proto — the AST's
+// second visitor, alongside the parser. It emits stack-machine instructions that reuse the runtime's
+// value/operator/call semantics verbatim. It handles every AST node; a genuine program error (a deep
+// nest, an invalid assignment target, positional-after-keyword) is raised as a KiritoError.
 class Compiler : public ast::ExprVisitor, public ast::StmtVisitor {
 public:
     Compiler(KiritoVM& vm, Proto& proto) : vm_(vm), proto_(proto) {}
@@ -35,6 +34,10 @@ public:
         if (isFunction) { emit(Op::LoadNone); emit(Op::Return); }
         else { emit(Op::LoadResult); emit(Op::Return); }
     }
+
+    // Compile a single expression to a self-contained Proto (push the value, return it) — for a
+    // parameter's default value, which is evaluated per call in the call scope.
+    void compileSingleExpr(const ast::Expr& e) { compileExpr(e); emit(Op::Return); }
 
 private:
     // --- emit / operand tables ---
@@ -77,18 +80,20 @@ private:
         return std::nullopt;
     }
 
-    // --- recursion with a depth guard mirroring the evaluator's, so a pathologically deep AST falls
-    // back to the tree-walker (whose own guard raises a clean error) instead of overflowing here. ---
-    struct DepthGuard {
+    // --- recursion with a depth guard (matching the parser's nesting bound) so a pathologically deep
+    // AST raises a clean error (with the node's span) instead of overflowing the compiler's stack. ---
+    static constexpr int kMaxDepth = 3000;  // matches the parser/evaluator nesting bound
+    struct DepthScope {
         int& d;
-        explicit DepthGuard(int& dd) : d(dd) { if (++d > kMaxDepth) { --d; throw BytecodeUnsupported{}; } }
-        ~DepthGuard() { --d; }
-        DepthGuard(const DepthGuard&) = delete;
-        DepthGuard& operator=(const DepthGuard&) = delete;
-        static constexpr int kMaxDepth = 3000;  // mirrors Evaluator::kMaxExprDepth: beyond it, fall back
+        DepthScope(int& dd, SourceSpan sp) : d(dd) {
+            if (++d > kMaxDepth) { --d; throw KiritoError("expression too deeply nested to evaluate", sp); }
+        }
+        ~DepthScope() { --d; }
+        DepthScope(const DepthScope&) = delete;
+        DepthScope& operator=(const DepthScope&) = delete;
     };
-    void compileExpr(const ast::Expr& e) { DepthGuard g(depth_); e.accept(*this); }
-    void compileStmt(const ast::Stmt& s) { DepthGuard g(depth_); s.accept(*this); }
+    void compileExpr(const ast::Expr& e) { DepthScope g(depth_, e.span); e.accept(*this); }
+    void compileStmt(const ast::Stmt& s) { DepthScope g(depth_, s.span); s.accept(*this); }
     void compileBlock(const ast::Block& b) { for (const auto& s : b) compileStmt(*s); }
 
     // --- statements ---
@@ -147,7 +152,7 @@ private:
                 emit(Op::SetAttr, addName(mem.name), span);
                 break;
             }
-            default: throw BytecodeUnsupported{};
+            default: throw KiritoError("invalid assignment target", span);
         }
     }
 
@@ -242,14 +247,27 @@ private:
     // a comparison chain: keep the subject on the stack, test each case value with SwitchMatch, jump to
     // the matching arm; if none match, run `default`. Duplicate literal case values are a compile error.
     void visit(const ast::SwitchStmt& s) override {
+        // Duplicate literal case values are rejected — but the error is observable only when the
+        // switch is REACHED (catchable, raised at run time, like the old jump-table build), so on a
+        // duplicate we evaluate the subject (for its side effects) and then throw at this position.
+        {
+            std::unordered_set<std::string> seen;
+            for (const auto& c : s.cases)
+                for (const auto& valExpr : c.values)
+                    if (const auto* lit = dynamic_cast<const ast::LiteralExpr*>(valExpr.get()))
+                        if (auto key = literalSwitchKey(*lit); key && !seen.insert(*key).second) {
+                            compileExpr(*s.subject);
+                            emit(Op::Pop);
+                            emit(Op::LoadConst, addConst(vm_.makeString("duplicate switch case value")));
+                            emit(Op::Throw, 0, valExpr->span);
+                            emit(Op::ClearResult);
+                            return;
+                        }
+        }
         compileExpr(*s.subject);                       // subject stays on the stack across the tests
-        std::unordered_set<std::string> seen;          // literal case keys, for duplicate detection
         std::vector<std::vector<std::size_t>> caseJumps(s.cases.size());
         for (std::size_t ci = 0; ci < s.cases.size(); ++ci)
             for (const auto& valExpr : s.cases[ci].values) {
-                if (const auto* lit = dynamic_cast<const ast::LiteralExpr*>(valExpr.get()))
-                    if (auto key = literalSwitchKey(*lit); key && !seen.insert(*key).second)
-                        throw KiritoError("duplicate switch case value", valExpr->span);
                 emit(Op::Dup);
                 compileExpr(*valExpr);
                 emit(Op::SwitchMatch, 0, valExpr->span);
@@ -270,10 +288,10 @@ private:
         emit(Op::ClearResult);
     }
 
-    // `class Name [(Base)]:` — eagerly compile the class body (so an unsupported node there makes the
-    // whole enclosing body fall back, not crash at run time); push the base; BuildClass does the rest.
+    // `class Name [(Base)]:` — eagerly compile the class body (caching it, surfacing any error in it
+    // at compile time); push the base; BuildClass runs the body in a child scope and builds the class.
     void visit(const ast::ClassStmt& s) override {
-        if (!protoForBody(vm_, s.body, /*isFunction=*/true)) throw BytecodeUnsupported{};
+        protoForBody(vm_, s.body, /*isFunction=*/true);  // compile + cache the body (errors propagate)
         if (s.base) compileExpr(*s.base);
         proto_.classes.push_back(&s);
         emit(Op::BuildClass, static_cast<uint32_t>(proto_.classes.size() - 1), s.span);
@@ -345,7 +363,7 @@ private:
         }
         for (std::size_t j : endJumps) patch(j, here());  // Lend
         // NB: unlike most statements, `try` does NOT clear the result — it carries the value of the
-        // last expression in the executed body/handler (matching the tree-walker), so the REPL echoes it.
+        // last expression in the executed body/handler (Python-style), so the REPL echoes it.
     }
 
     // `with CTX as NAME:` — call CTX._enter_() (bound to NAME), run the body, and ALWAYS call
@@ -430,17 +448,28 @@ private:
     }
 
     void visit(const ast::CallExpr& e) override {
+        // A positional argument after a keyword argument is a (catchable) run-time error, like the old
+        // evaluator: the callee and the arguments up to and including the offending one are evaluated,
+        // then it throws. Detect it here and compile that throw instead of a normal call.
+        {
+            bool sawNamed = false;
+            for (std::size_t i = 0; i < e.args.size(); ++i) {
+                if (!e.args[i].name.empty()) { sawNamed = true; continue; }
+                if (sawNamed) {
+                    compileExpr(*e.callee);
+                    for (std::size_t j = 0; j <= i; ++j) compileExpr(*e.args[j].value);
+                    emit(Op::LoadConst,
+                         addConst(vm_.makeString("positional argument follows keyword argument")));
+                    emit(Op::Throw, 0, e.span);
+                    return;
+                }
+            }
+        }
         compileExpr(*e.callee);
         CallSpec spec;
-        bool sawNamed = false;
         for (const auto& arg : e.args) {
-            if (arg.name.empty()) {
-                if (sawNamed) throw BytecodeUnsupported{};  // positional-after-keyword: let the evaluator raise it
-                ++spec.positional;
-            } else {
-                sawNamed = true;
-                spec.names.push_back(arg.name);
-            }
+            if (arg.name.empty()) ++spec.positional;
+            else spec.names.push_back(arg.name);
         }
         for (const auto& arg : e.args)            // positional values, in source order
             if (arg.name.empty()) compileExpr(*arg.value);
@@ -486,12 +515,15 @@ private:
 
     void visit(const ast::TupleExpr& e) override {
         for (const auto& el : e.elems)
-            if (el->exprKind() == ast::ExprKind::Star) throw BytecodeUnsupported{};  // evaluator raises it
+            if (el->exprKind() == ast::ExprKind::Star)
+                throw KiritoError("starred expression is only valid as an assignment target", el->span);
         for (const auto& el : e.elems) compileExpr(*el);
         emit(Op::BuildPack, static_cast<uint32_t>(e.elems.size()), e.span);
     }
 
-    void visit(const ast::StarExpr&) override { throw BytecodeUnsupported{}; }  // evaluator raises it
+    void visit(const ast::StarExpr& e) override {
+        throw KiritoError("starred expression is only valid as an assignment target", e.span);
+    }
 
     void visit(const ast::FStringExpr& e) override {
         for (const auto& part : e.parts) {
@@ -517,10 +549,10 @@ private:
         std::function<void()> cleanup;               // Block: emit the inline cleanup (empty for a bare except block)
     };
 
-    std::size_t innermostLoop() {  // index of the nearest enclosing Loop frame, or throw (parser rejects)
+    std::size_t innermostLoop() {  // index of the nearest enclosing Loop frame (parser rejects break/continue outside one)
         for (std::size_t i = frames_.size(); i-- > 0;)
             if (frames_[i].kind == CFrame::Loop) return i;
-        throw BytecodeUnsupported{};
+        throw KiritoError("'break'/'continue' outside a loop");
     }
 
     // Emit PopBlock + inline cleanup for every frame above index `keep`, innermost first. Each frame is
@@ -547,25 +579,34 @@ private:
     int depth_ = 0;
 };
 
-// Compile a body once and cache the result on the VM (keyed by the body's address). Returns the
-// compiled Proto, or nullptr if the body uses a not-yet-supported node (the caller then tree-walks
-// it). A failed compile is cached as nullptr so it is attempted only once.
+// Compile a body once and cache the Proto on the VM (keyed by the body's address). The compiler
+// handles every node, so this never fails to produce a Proto — a genuine program error (a deep nest,
+// an invalid assignment target, ...) propagates out as a KiritoError, exactly as the parser's do.
 inline const Proto* protoForBody(KiritoVM& vm, const ast::Block& body, bool isFunction) {
     const void* key = &body;
     if (vm.protoTried(key)) return vm.protoGet(key);
-    std::unique_ptr<Proto> proto;
-    try {
-        RootScope rs(vm);  // roots the constants the compiler materialises until they are pinned
-        auto p = std::make_unique<Proto>();
-        Compiler c(vm, *p);
-        c.compile(body, isFunction);
-        for (Handle h : p->consts) vm.pinConst(h);  // survive past rs; live for the VM's lifetime
-        proto = std::move(p);
-    } catch (const BytecodeUnsupported&) {
-        proto = nullptr;
-    }
-    const Proto* result = proto.get();
-    vm.protoPut(key, std::move(proto));
+    RootScope rs(vm);  // roots the constants the compiler materialises until they are pinned
+    auto p = std::make_unique<Proto>();
+    Compiler c(vm, *p);
+    c.compile(body, isFunction);
+    for (Handle h : p->consts) vm.pinConst(h);  // survive past rs; live for the VM's lifetime
+    const Proto* result = p.get();
+    vm.protoPut(key, std::move(p));
+    return result;
+}
+
+// Compile a single expression (e.g. a parameter default) to its own Proto, cached by the expr's
+// address. The Proto evaluates the expression and returns its value.
+inline const Proto* protoForExpr(KiritoVM& vm, const ast::Expr& e) {
+    const void* key = &e;
+    if (vm.protoTried(key)) return vm.protoGet(key);
+    RootScope rs(vm);
+    auto p = std::make_unique<Proto>();
+    Compiler c(vm, *p);
+    c.compileSingleExpr(e);
+    for (Handle h : p->consts) vm.pinConst(h);
+    const Proto* result = p.get();
+    vm.protoPut(key, std::move(p));
     return result;
 }
 

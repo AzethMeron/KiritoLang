@@ -360,10 +360,9 @@ finally:
     order.append("fin")
 assert order == ["body", "fin"], "finally runs on normal exit"
 
-# BUG (evaluator.hpp:333-355): when a MATCHED catch handler re-throws (or throws anew), the inner
-# `finally` is SKIPPED — the handler's throw escapes the `if (pending)` loop before the finally block
-# is reached. The doc ("finally runs ... on re-thrown") and Python both require it to run. We assert
-# the actual buggy order so the suite stays green; the divergence is flagged in the report.
+# When a MATCHED catch handler re-throws (or throws anew), the inner `finally` STILL runs before the
+# exception propagates — as the doc ("finally runs ... on re-thrown") and Python require. (The old
+# tree-walker had a bug that skipped it; the bytecode engine handles it correctly.)
 order = []
 try:
     try:
@@ -372,10 +371,10 @@ try:
         order.append("catch")
         throw "rewrapped:" + e
     finally:
-        order.append("fin-inner")     # <- NOT reached (the bug); would be present if correct
+        order.append("fin-inner")     # runs even though the handler re-threw
 catch as e:
     order.append(e)
-assert order == ["catch", "rewrapped:deep"], "BUG: re-throw from a handler SKIPS the inner finally"
+assert order == ["catch", "fin-inner", "rewrapped:deep"], "re-throw from a handler still runs the inner finally"
 
 # Contrast: when the exception ESCAPES (no handler runs — unmatched type or no handler at all), the
 # finally DOES run. So the finally-skip is specific to a throw from a matched handler body.

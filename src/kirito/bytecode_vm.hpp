@@ -15,11 +15,10 @@
 #include "object.hpp"
 #include "vm.hpp"
 
-// The bytecode execution engine. Included by the umbrella AFTER runtime.hpp, because it dispatches
-// through the shared operation helpers (applyCall / applyBinaryOp / applyUnaryOp / evalMemberGet /
-// checkPrivateAccess) and value methods (iterate / setItem / ...) that runtime.hpp defines. It owns
-// no semantics of its own — only the stack-machine control structure. Result parity with the
-// tree-walker is the contract, validated differentially across the whole test suite.
+// The bytecode execution engine (Kirito's sole engine). Included by the umbrella AFTER runtime.hpp,
+// because it dispatches through the shared operation helpers (applyCall / applyBinaryOp / applyUnaryOp
+// / evalMemberGet / checkPrivateAccess) and value methods (iterate / setItem / ...) that runtime.hpp
+// defines. It owns no semantics of its own — only the stack-machine control structure.
 
 namespace kirito {
 
@@ -323,7 +322,7 @@ public:
 
                 case Op::SetupBlock: blocks_.push_back({in.a, stack_.size()}); break;
                 case Op::PopBlock: blocks_.pop_back(); break;
-                case Op::Reraise: { Handle v = pop(); throw KiritoThrow{v, in.span}; }
+                case Op::Reraise: { Handle v = pop(); throw KiritoThrow{v, excSpan_}; }  // keep the original site
                 case Op::ExcMatch: {
                     Handle type = pop(), exc = pop();
                     push(vm_.makeBool(isInstanceOf(vm_, exc, type)));
@@ -335,15 +334,15 @@ public:
             }
             return vm_.none();  // every Proto ends in Return; this is only a defensive fallback
           } catch (const KiritoThrow& t) {
-            if (!unwind(t.value, ip)) throw;
+            if (!unwind(t.value, t.span, ip)) throw;
           } catch (const KiritoError& e) {
             // Internal/runtime errors are surfaced to Kirito `catch` as a String exception value.
             Handle s = vm_.makeString(e.what());
-            if (!unwind(s, ip)) throw;
+            if (!unwind(s, e.span, ip)) throw;
           } catch (const std::exception& e) {
             // Any other native exception is also catchable (as a String), guarding the whole boundary.
             Handle s = vm_.makeString(e.what());
-            if (!unwind(s, ip)) throw;
+            if (!unwind(s, SourceSpan{}, ip)) throw;
           }
         }
     }
@@ -371,8 +370,10 @@ private:
     // Route an in-flight exception to the innermost active try/with block: pop it, unwind the operand
     // stack to that block's height, hand it the exception value, and jump to its handler. Returns
     // false (leaving state untouched) when no block is active — the exception escapes this frame.
-    bool unwind(Handle exc, std::size_t& ip) {
+    // The exception's original span is remembered so a later Reraise reports its true site.
+    bool unwind(Handle exc, SourceSpan span, std::size_t& ip) {
         if (blocks_.empty()) return false;
+        excSpan_ = span;
         Block b = blocks_.back();
         blocks_.pop_back();
         stack_.resize(b.stackHeight);
@@ -389,11 +390,12 @@ private:
     KiritoVM& vm_;
     std::vector<Handle> stack_;
     std::vector<Block> blocks_;
+    SourceSpan excSpan_{};  // span of the exception currently being unwound (for Reraise)
     bool hasOwner_;
 };
 
-inline bool tryRunBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body, Handle ownerClass,
-                               bool hasOwner, bool isFunction, Handle& out) {
+inline Handle runBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body, Handle ownerClass,
+                              bool hasOwner, bool isFunction) {
     // Root the scope (and owning class) across BOTH compilation and execution: first-run compilation
     // materialises constants and so may trigger GC, and the top-level scope is not otherwise rooted
     // here (unlike a function call scope, which callFull already roots). The BytecodeVM re-roots them
@@ -402,10 +404,16 @@ inline bool tryRunBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& bod
     rs.add(scope);
     if (hasOwner) rs.add(ownerClass);
     const Proto* proto = protoForBody(vm, body, isFunction);
-    if (!proto) return false;  // not compilable yet -> caller tree-walks this body
     BytecodeVM bc(vm, scope, ownerClass, hasOwner);
-    out = bc.run(*proto);
-    return true;
+    return bc.run(*proto);
+}
+
+inline Handle runBytecodeExpr(KiritoVM& vm, Handle scope, const ast::Expr& e) {
+    RootScope rs(vm);
+    rs.add(scope);
+    const Proto* proto = protoForExpr(vm, e);
+    BytecodeVM bc(vm, scope, vm.none(), false);
+    return bc.run(*proto);
 }
 
 }  // namespace kirito

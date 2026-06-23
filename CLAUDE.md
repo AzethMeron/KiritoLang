@@ -16,17 +16,19 @@ Main idea for the language: it should be high-level language like Python that's 
 
 Furthemore, Kirito is expected to be capable of being extension language that can be integrated into bigger application in C++. It's therefore important that single "proccess" of Kirito is expected to be fully encapsulated in single object of KiritoVM class.
 
-Implementation: **modern C++ (C++20)**, as a **tree-walking interpreter**.
+Implementation: **modern C++ (C++20)**. The execution engine is a **bytecode compiler + stack VM**
+behind the AST boundary (it replaced the original tree-walking evaluator — there is no tree-walker).
 
 Pipeline — keep these stages separate, each behind a clean interface:
 
 ```
-.ki source -> Lexer -> [tokens] -> Parser -> [AST] -> Evaluator -> result
+.ki source -> Lexer -> [tokens] -> Parser -> [AST] -> Compiler -> [bytecode Proto] -> BytecodeVM -> result
 ```
 
-The **AST is the stable boundary**. Treat it as a contract: the evaluator depends
-only on the AST, never on lexer/parser internals. This keeps the door open to one
-day swapping the tree-walker for a bytecode VM without rewriting the front end.
+The **AST is the stable boundary**. Treat it as a contract: the compiler depends only on the AST,
+never on lexer/parser internals — it is a second AST visitor alongside the parser. The bytecode VM
+reuses the entire value/object model, operator dispatch, call protocol, and GC; it owns only the
+control structure (a flat instruction stream + an explicit operand stack instead of native recursion).
 
 ### Language shape (the target)
 
@@ -86,7 +88,7 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
 - **Classes**: user-defined types in the Python spirit — `class` with methods and instance
   attributes, instantiated by calling the class. A class is just another first-class value, in the
   same value/object model as built-ins, so a C++-defined type and a Kirito `class` look alike to
-  the evaluator. Special methods use Python's dunder names with **single** underscores:
+  the VM. Special methods use Python's dunder names with **single** underscores:
   `_init_`, `_str_`, `_add_`/`_sub_`/`_mul_`/`_div_`/`_floordiv_`/`_mod_`/`_pow_`,
   `_eq_`/`_ne_`/`_lt_`/`_le_`/`_gt_`/`_ge_`, `_neg_`/`_not_`, `_call_`, `_getitem_`/`_setitem_`
   (variadic keys: `m[i, j] = v`), `_len_`, `_contains_`, `_iter_`, `_enter_`/`_exit_`. Members whose
@@ -185,7 +187,7 @@ a stability fuzzer, and a benchmark). Working today:
   functions/modules that declare a signature**.
 - **Native functions can declare a signature** (`NativeFunction` second ctor / `ModuleBuilder::fn`
   overload, taking `std::vector<NativeParam>` + a return-type string). A signatured native function
-  then accepts **keyword arguments** and **defaults** (the evaluator binds them into the positional
+  then accepts **keyword arguments** and **defaults** (the VM binds them into the positional
   `span` the impl expects via `NativeFunction::bindArgs` — strictly by name, so out-of-order keywords
   bind correctly) and is fully described by `inspect`. Errors
   carry the module/chunk filename (`KiritoError::file`), so a parse error in an imported module
@@ -429,7 +431,7 @@ the only concurrent code).
 The codebase is `-Wconversion`-clean; the deliberate native-binding idiom where bound-method lambdas
 take `vm`/`self` parameters shadowing the enclosing `getAttr`/`setup` (same VM by design) is silenced
 with a scoped `#pragma GCC diagnostic ignored "-Wshadow"` in the stdlib glue + runtime type-methods,
-so `-Wshadow` stays active in the evaluator/parser/lexer/GC core. An 11k-input fuzzer guards
+so `-Wshadow` stays active in the compiler/VM/parser/lexer/GC core. An 11k-input fuzzer guards
 stability. Tests include an **error-message suite** (`tools/tests/errors/*.ki` + `.experr`: programs that
 must fail, with the required diagnostic text) and an **adversarial suite**
 (`tools/tests/unit/test_adversarial.cpp`: overflow, recursion, cyclic structures, Unicode, slicing edge
@@ -456,7 +458,9 @@ Documentation is authored in those `.md` files, NOT scraped from code comments.
 
 Not yet done (future enrichment): comprehensions, variadic params,
 generators, arbitrary-precision integers, full-Unicode case folding (current `upper`/`lower` cover
-ASCII + Latin-1 + Latin Extended-A), and a bytecode VM behind the AST boundary.
+ASCII + Latin-1 + Latin Extended-A). The **bytecode compiler + stack VM** is done and is the sole
+engine (`bytecode.hpp` / `compiler.hpp` / `bytecode_vm.hpp`); a per-scope compile-time name-resolution
+pass (slot-addressed locals + compile-time "name is not defined" errors) is the next enrichment.
 
 ## The Archive is reference only
 
@@ -486,14 +490,24 @@ ASCII + Latin-1 + Latin Extended-A), and a bytecode VM behind the AST boundary.
   (`unique_ptr`); everything else holds lightweight `Handle`s (slot+generation). Reference-assignment
   = two bindings sharing one handle. No `shared_ptr`, no per-value refcount. Mark-sweep GC is
   designed-for (`Object::children()`) but deferred — early on, values accumulate until the VM dies.
-- **Unified object protocol.** Built-ins, C++-authored types, and future Kirito `class`es all derive
+- **Unified object protocol.** Built-ins, C++-authored types, and Kirito `class`es all derive
   from one `Object` base exposing the same slots (`truthy/str/equals/hash`, and operation slots
-  `binary/unary/call/getAttr/setAttr/getItem/setItem/iterate/length`). The evaluator dispatches
+  `binary/unary/call/getAttr/setAttr/getItem/setItem/iterate/length`). The VM dispatches
   through the protocol — it can't tell built-ins from user types.
+- **Execution engine: bytecode.** The `Compiler` (`compiler.hpp`, a second AST visitor) lowers each
+  body — a function body, the top-level program, a class body, or a parameter default — to a flat
+  `Proto` (`bytecode.hpp`: an `Op` stream + constant/name/func/call/unpack/class side-tables), cached
+  per body on the VM and compiled lazily (a nested function literal compiles on first call). The
+  `BytecodeVM` (`bytecode_vm.hpp`) executes a `Proto` with an explicit operand stack (a region of the
+  VM's GC roots) instead of native recursion. Control flow is jumps; exceptions use a runtime block
+  stack; `finally`/`with`-exit on `return`/`break`/`continue` is compiled inline. Operator/call/member
+  semantics live in shared free functions (`applyBinaryOp`/`applyCall`/`evalMemberGet`/… in
+  `runtime.hpp`). A genuine program error the compiler finds (deep nest, invalid assignment target,
+  positional-after-keyword) is raised as a `KiritoError`, like a parser diagnostic.
 - **Layered scoping**: global (built-ins) → module (per `.ki` file) → local (per function call);
-  closures capture their lexical scope by handle. Only functions/modules introduce scopes.
+  closures capture their lexical scope by handle. Only functions/modules/class-bodies introduce scopes.
 - **Extending in C++**: subclass `NativeModule` (override `setup`) or `NativeClass` (override only
-  the slots you need) and register with one call — indistinguishable from a built-in to the evaluator.
+  the slots you need) and register with one call — indistinguishable from a built-in to the VM.
   Prefer the built-in types via the ergonomic `value.hpp` API (`Value` facade + `Args` + `List`/
   `Dict`/`Set` builders + `val(...)`; builders root intermediates for the GC). Returning built-in
   values is the default; defining a new `NativeClass` is the fallback (only for genuinely new
