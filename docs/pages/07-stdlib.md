@@ -648,7 +648,7 @@ Process environment and platform.
 - `platform` — `"linux"` / `"darwin"` / `"windows"` (a `String`).
 - `arch` — the CPU architecture, normalized to the names used in release-asset filenames:
   `"x64"` / `"arm64"` / `"x86"` / `"unknown"` (a `String`).
-- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.6.1"`); the same
+- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.6.2"`); the same
   value `ki --version` prints. `kpm` compares it against the latest GitHub release to self-upgrade.
 - `executable` — the absolute path of the running `ki` binary (a `String`, or `""` if it can't be
   determined). `kpm upgrade-ki` uses it to locate the binary to replace.
