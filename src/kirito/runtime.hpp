@@ -1694,11 +1694,24 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
         }
     };
 
+    // Execute the body on the bytecode engine when enabled and the body is compilable; otherwise
+    // (or for any node bytecode doesn't yet support) tree-walk it. The choice is transparent — both
+    // engines share the runtime, so the result is identical.
+    auto runBody = [&](Handle bodyScope) -> Handle {
+        if (vm.bytecode()) {
+            Handle r;
+            if (tryRunBytecodeBody(vm, bodyScope, def_->body, hasOwner ? ownerClass : Handle{},
+                                   hasOwner, /*isFunction=*/true, r))
+                return r;
+        }
+        Evaluator ev(vm, bodyScope);
+        if (hasOwner) ev.setCurrentClass(ownerClass);
+        return ev.callBody(def_->body);
+    };
+
     if (named.empty() && positional.size() == params.size() && *def_->fastBindable) {
         for (std::size_t i = 0; i < params.size(); ++i) env.define(params[i].name, positional[i]);
-        Evaluator evf(vm, scope);
-        if (hasOwner) evf.setCurrentClass(ownerClass);
-        return attributed([&] { return evf.callBody(def_->body); });
+        return attributed([&] { return runBody(scope); });
     }
 
     std::vector<bool> bound(params.size(), false);
@@ -1738,15 +1751,152 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
         env.define(params[i].name, values[i]);
     }
 
-    Evaluator ev(vm, scope);
-    if (hasOwner) ev.setCurrentClass(ownerClass);  // enables private-member access in the body
-    Handle result = attributed([&] { return ev.callBody(def_->body); });
+    Handle result = attributed([&] { return runBody(scope); });
 
     // enforce the return annotation
     if (!def_->returnAnnotation.empty() && !typeMatches(vm, result, def_->returnAnnotation))
         throw KiritoError("function must return " + def_->returnAnnotation + ", got " +
                           vm.arena().deref(result).typeName());
     return result;
+}
+
+// --- shared operation semantics (used by BOTH the tree-walker and the bytecode engine) -------
+//
+// These free functions are the single source of truth for operator/call/member dispatch, so the two
+// execution engines can never drift apart. The Evaluator and the BytecodeVM each add only their own
+// span-tagging around them.
+
+// True if `value` is an instance of class `typeH` (walking the base chain). Only user-defined
+// InstanceValues carry a class handle; native C++ objects report ValueKind::Instance too, so a
+// dynamic_cast tells them apart.
+inline bool isInstanceOf(KiritoVM& vm, Handle value, Handle typeH) {
+    if (vm.arena().deref(typeH).kind() != ValueKind::Class) return false;
+    const Object& v = vm.arena().deref(value);
+    const auto* inst = dynamic_cast<const InstanceValue*>(&v);
+    if (!inst) return false;
+    Handle cur = inst->cls;
+    while (true) {
+        if (cur == typeH) return true;
+        const auto& c = static_cast<const ClassValue&>(vm.arena().deref(cur));
+        if (!c.hasBase) return false;
+        cur = c.base;
+    }
+}
+
+// A private member (_name, no trailing underscore) may only be touched from within a method of the
+// receiver's class chain (i.e. while running such a method). currentClass/hasCurrentClass describe
+// the method currently executing.
+inline void checkPrivateAccess(KiritoVM& vm, Handle obj, const std::string& name, Handle currentClass,
+                               bool hasCurrentClass, SourceSpan span) {
+    if (!isPrivateName(name)) return;
+    if (!dynamic_cast<const InstanceValue*>(&vm.arena().deref(obj))) return;  // user classes only
+    if (hasCurrentClass && isInstanceOf(vm, obj, currentClass)) return;
+    throw KiritoError("cannot access private member '" + name + "' of '" +
+                      vm.arena().deref(obj).typeName() + "' outside its class", span);
+}
+
+inline Handle applyUnaryOp(KiritoVM& vm, UnOp op, Handle operand) {
+    if (op == UnOp::Not) {
+        // An instance may override `not` via _not_; otherwise negate truthiness.
+        Object& o = vm.arena().deref(operand);
+        if (o.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&o) &&
+            static_cast<InstanceValue&>(o).findMethod(vm.arena(), "_not_"))
+            return o.unary(vm, op, operand);
+        return vm.makeBool(!vm.arena().deref(operand).truthy());
+    }
+    return vm.arena().deref(operand).unary(vm, op, operand);
+}
+
+inline Handle applyBinaryOp(KiritoVM& vm, BinOp op, Handle lhs, Handle rhs) {
+    // Equality never raises on a type mismatch (1 == "x" is False); it uses structural equals, unless
+    // a user class overrides it. Ordering/arithmetic dispatch through binary(); in/not in via contains.
+    if (op == BinOp::Eq || op == BinOp::Ne) {
+        Object& l = vm.arena().deref(lhs);
+        if (l.kind() == ValueKind::Instance) {
+            if (auto* inst = dynamic_cast<InstanceValue*>(&l)) {
+                if (inst->findMethod(vm.arena(), binOpMethod(op)))
+                    return l.binary(vm, op, lhs, rhs);
+                if (op == BinOp::Ne && inst->findMethod(vm.arena(), "_eq_")) {
+                    Handle eqr = l.binary(vm, BinOp::Eq, lhs, rhs);
+                    return vm.makeBool(!vm.arena().deref(eqr).truthy());
+                }
+            }
+        }
+        bool eq = kiEquals(vm, lhs, rhs);
+        return vm.makeBool(op == BinOp::Eq ? eq : !eq);
+    }
+    if (op == BinOp::In || op == BinOp::NotIn) {
+        bool c = vm.arena().deref(rhs).contains(vm, lhs);
+        return vm.makeBool(op == BinOp::In ? c : !c);
+    }
+    return vm.arena().deref(lhs).binary(vm, op, lhs, rhs);
+}
+
+// Dispatch a call with already-evaluated positional + named arguments to any callable: a Kirito
+// function, a class (instantiation forwards kwargs to _init_), a native function (signatured/kwarg/
+// exact-arity), or an instance (_call_). The caller wraps this with its own location tag.
+inline Handle applyCall(KiritoVM& vm, Handle callee, std::span<const Handle> positional,
+                        std::span<const NamedArg> named) {
+    Object& c = vm.arena().deref(callee);
+    if (named.empty()) {
+        if (c.kind() == ValueKind::Function)
+            return static_cast<KiFunction&>(c).callFull(vm, positional, {});
+        if (c.kind() == ValueKind::NativeFunction && static_cast<NativeFunction&>(c).hasSignature() &&
+            positional.size() != static_cast<NativeFunction&>(c).params().size()) {
+            auto& nf = static_cast<NativeFunction&>(c);
+            RootScope rs(vm);
+            std::vector<Handle> bound = nf.bindArgs(positional, {});
+            for (Handle h : bound) rs.add(h);
+            return nf.call(vm, bound);
+        }
+        return c.call(vm, positional);
+    }
+    if (c.kind() == ValueKind::Function)
+        return static_cast<KiFunction&>(c).callFull(vm, positional, named);
+    if (c.kind() == ValueKind::Class)
+        return static_cast<ClassValue&>(c).callFull(vm, positional, named);
+    if (c.kind() == ValueKind::NativeFunction && static_cast<NativeFunction&>(c).acceptsKwargs())
+        return static_cast<NativeFunction&>(c).callKw(vm, positional, named);
+    if (c.kind() == ValueKind::NativeFunction && static_cast<NativeFunction&>(c).hasSignature()) {
+        auto& nf = static_cast<NativeFunction&>(c);
+        RootScope rs(vm);
+        std::vector<Handle> bound = nf.bindArgs(positional, named);
+        for (Handle h : bound) rs.add(h);
+        return nf.call(vm, bound);
+    }
+    if (c.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&c))
+        return static_cast<InstanceValue&>(c).callKw(vm, positional, named);
+    throw KiritoError("this callable does not accept keyword arguments");
+}
+
+// Read obj.name with full member semantics: the self._super_() builder (inside a method of an
+// inheriting class), the private-access check, then the value protocol's getAttr.
+inline Handle evalMemberGet(KiritoVM& vm, Handle obj, const std::string& name, Handle currentClass,
+                            bool hasCurrentClass, SourceSpan span) {
+    if (name == "_super_" && hasCurrentClass) {
+        Object& o = vm.arena().deref(obj);
+        if (o.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&o)) {
+            const auto& ownerCls = static_cast<const ClassValue&>(vm.arena().deref(currentClass));
+            if (!ownerCls.findMethod(vm.arena(), "_super_")) {  // not overridden
+                Handle objH = obj, ownerH = currentClass;
+                return vm.alloc(std::make_unique<NativeFunction>(
+                    "_super_",
+                    [objH, ownerH](KiritoVM& v, std::span<const Handle>) -> Handle {
+                        const auto& oc = static_cast<const ClassValue&>(v.arena().deref(ownerH));
+                        if (!oc.hasBase)
+                            throw KiritoError("_super_() called in '" + oc.name +
+                                              "', which does not inherit from any class");
+                        auto sup = std::make_unique<SuperValue>();
+                        sup->instance = objH;
+                        sup->startClass = oc.base;
+                        return v.alloc(std::move(sup));
+                    },
+                    std::vector<Handle>{objH, ownerH}));
+            }
+        }
+    }
+    checkPrivateAccess(vm, obj, name, currentClass, hasCurrentClass, span);
+    return vm.arena().deref(obj).getAttr(vm, obj, name);
 }
 
 // --- VM entry point & lifetime ---------------------------------------------------------------
@@ -2778,8 +2928,14 @@ inline Handle KiritoVM::evalIn(std::string_view source, Handle scope, std::strin
         const ast::Program& program = *prog;
         retainChunk(std::move(prog));  // keep the AST alive for the VM's lifetime (closures)
         if (!chunkName.empty()) programByFile_[std::string(chunkName)] = &program;  // for parallel.spawn span lookup
-        Evaluator ev(*this, scope);
         try {
+            if (bytecode_) {  // run the top level on the bytecode engine when it can be compiled
+                Handle r;
+                if (tryRunBytecodeBody(*this, scope, program.stmts, Handle{}, /*hasOwner=*/false,
+                                       /*isFunction=*/false, r))
+                    return r;
+            }
+            Evaluator ev(*this, scope);
             return ev.run(program);
         } catch (const KiritoThrow& t) {
             KiritoError err("uncaught exception: " + stringify(t.value), t.span);

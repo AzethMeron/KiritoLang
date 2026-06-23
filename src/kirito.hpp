@@ -16,11 +16,13 @@
 #include "kirito/class_value.hpp"
 #include "kirito/module.hpp"
 #include "kirito/ast.hpp"
+#include "kirito/bytecode.hpp"
 #include "kirito/lexer.hpp"
 #include "kirito/parser.hpp"
 #include "kirito/environment.hpp"
 #include "kirito/function.hpp"
 #include "kirito/vm.hpp"
+#include "kirito/compiler.hpp"
 #include "kirito/value.hpp"
 #include "kirito/native.hpp"
 #include "kirito/bytes.hpp"
@@ -44,6 +46,9 @@
 #include "kirito/analyzer.hpp"
 #include "kirito/evaluator.hpp"
 #include "kirito/runtime.hpp"
+// The bytecode execution engine. AFTER runtime.hpp — it dispatches through the shared operation
+// helpers (applyCall / applyBinaryOp / evalMemberGet / ...) that runtime.hpp defines.
+#include "kirito/bytecode_vm.hpp"
 // Multiprocessing: the dispatcher and the `parallel` module. AFTER runtime.hpp — they call inline
 // KiritoVM members (evalIn / importModule / install) that runtime.hpp defines.
 #include "kirito/dispatcher.hpp"

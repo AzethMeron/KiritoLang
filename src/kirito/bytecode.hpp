@@ -1,0 +1,104 @@
+#ifndef KIRITO_BYTECODE_HPP
+#define KIRITO_BYTECODE_HPP
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "ast.hpp"
+#include "common.hpp"
+#include "handle.hpp"
+
+namespace kirito {
+
+// --- The bytecode intermediate representation -------------------------------------------------
+//
+// Kirito's second back end (behind the stable AST boundary): a compiler turns a Block of statements
+// into a flat Proto of stack-machine instructions, and a BytecodeVM executes it with an explicit
+// operand stack instead of native recursion. The value model, operator dispatch, call protocol, and
+// GC are entirely REUSED from the tree-walker — bytecode changes only the control structure, so the
+// two engines stay semantically identical (and are validated differentially against each other).
+//
+// Compilation is per body (a function body or the top-level program) and lazy: a nested function
+// literal is emitted as MakeFunction(funcExpr*) and its own body is compiled on first call. Anything
+// the compiler does not yet support throws BytecodeUnsupported, and the caller transparently falls
+// back to the tree-walker for that body — so the bytecode path can grow node-by-node while every
+// program keeps running.
+
+// Thrown by the compiler for an AST node it does not (yet) handle. Caught at the body boundary,
+// which then runs that body on the tree-walking evaluator instead. Never escapes to user code.
+struct BytecodeUnsupported {};
+
+enum class Op : uint8_t {
+    LoadConst,        // a: push consts[a]
+    LoadNone,         //    push the None singleton
+    LoadName,         // a: push the value bound to names[a] (NameError if undefined)
+    StoreName,        // a: define names[a] = pop() in the current scope (var)
+    AssignName,       // a: rebind the nearest existing names[a] = pop() (NameError if undefined)
+    Pop,              //    discard the top of stack
+    UnaryOp,          // a: (UnOp) replace top with op(top)
+    BinaryOp,         // a: (BinOp) rhs=pop, lhs=pop, push op(lhs, rhs)
+    Jump,             // a: ip = a
+    PopJumpIfFalse,   // a: v=pop; if not truthy(v): ip = a
+    PopJumpIfTrue,    // a: v=pop; if truthy(v): ip = a
+    JumpIfFalseOrPop, // a: if not truthy(peek): ip = a   else pop   (`and`)
+    JumpIfTrueOrPop,  // a: if truthy(peek): ip = a       else pop   (`or`)
+    SetResult,        //    frame.result = pop()   (an expression statement's value)
+    ClearResult,      //    frame.result = None    (every other statement)
+    LoadResult,       //    push frame.result      (top-level program return value)
+    Call,             // a: dispatch calls[a]; the callee then its args are on the stack
+    MakeFunction,     // a: push a closure of funcs[a] capturing the current scope
+    GetAttr,          // a: replace top with top.names[a]  (member read; handles _super_/privacy)
+    SetAttr,          // a: value=pop, obj=pop; obj.names[a] = value
+    GetItem,          // a: (key count) keys then obj... -> push obj[keys]
+    SetItem,          // a: (key count) value, keys, obj -> obj[keys] = value
+    GetSlice,         //    step,stop,start,obj on stack -> push obj[start:stop:step]
+    BuildList,        // a: (count) pop count items -> push a List
+    BuildSet,         // a: (count) pop count items -> push a Set
+    BuildDict,        // a: (count) pop count key/value pairs -> push a Dict
+    BuildPack,        // a: (count) pop count items -> push a List (bare-comma packing)
+    FormatValue,      // a: (names[a] = spec, "" for none) replace top with its formatted String
+    BuildString,      // a: (count) concatenate count Strings on the stack -> push the joined String
+    GetIter,          //    replace the top iterable with an internal iteration cursor
+    ForIter,          // a: advance the cursor on top; if exhausted pop it and ip=a, else push next item
+    Throw,            //    pop -> throw it as a Kirito exception (assert/throw)
+    Return,           //    pop -> return it from this frame
+};
+
+// A call site's static shape: how many leading positional args, then the names of the trailing
+// keyword args (in the order their values are pushed). Reconstructed into positional span + NamedArg
+// list at run time. Kept out of the instruction so the hot loop stays compact.
+struct CallSpec {
+    uint32_t positional = 0;
+    std::vector<std::string> names;  // keyword argument names, value-push order
+};
+
+struct Instr {
+    Op op;
+    uint32_t a = 0;
+    SourceSpan span{};  // for diagnostics: a runtime error is tagged with this node's location
+};
+
+// A compiled body. consts hold materialised literal values (pinned as GC roots by the VM that built
+// the Proto); names/funcs/calls are the operand side tables the instruction stream indexes into.
+struct Proto {
+    std::vector<Instr> code;
+    std::vector<Handle> consts;                       // LoadConst targets (GC-pinned by the VM)
+    std::vector<std::string> names;                   // identifiers (names/attrs/format specs)
+    std::vector<const ast::FunctionExpr*> funcs;      // MakeFunction targets
+    std::vector<CallSpec> calls;                      // Call targets
+};
+
+class KiritoVM;
+
+// Execute a body on the bytecode engine if it is compilable: returns true and sets `out` to the
+// body's result, or returns false to tell the caller (KiFunction::callFull / KiritoVM::evalIn) to
+// fall back to the tree-walking evaluator for this body. Defined in bytecode_vm.hpp (after the
+// runtime), so the call sites only need this declaration. `isFunction` selects the implicit tail
+// (a function returns None on fall-through; the top-level program returns its last expression).
+bool tryRunBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body, Handle ownerClass,
+                        bool hasOwner, bool isFunction, Handle& out);
+
+}  // namespace kirito
+
+#endif

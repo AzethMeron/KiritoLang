@@ -1,6 +1,7 @@
 #ifndef KIRITO_VM_HPP
 #define KIRITO_VM_HPP
 
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <string>
@@ -30,6 +31,7 @@ namespace kirito {
 namespace ast { struct Program; }
 class NativeModule;
 class KiritoDispatcher;  // multiprocessing coordinator (dispatcher.hpp); a bare VM has none
+struct Proto;            // a compiled body (bytecode.hpp); the optional second execution engine
 
 // One KiritoVM == one fully-encapsulated Kirito process. It owns the whole process state by
 // composing its sub-objects: the value arena, the global (built-ins) environment, and interned
@@ -47,6 +49,9 @@ public:
             smallInts_.push_back(arena_.alloc(std::make_unique<IntVal>(v)));
         installBuiltins();
         installStandardLibrary();
+        // Opt into the bytecode engine process-wide via the environment, so every VM (the CLI, the
+        // tests, the dispatcher's workers) agrees. Programmatic control is setBytecode().
+        if (const char* e = std::getenv("KIRITO_BYTECODE"); e && e[0] == '1') bytecode_ = true;
     }
 
     ObjectArena& arena() { return arena_; }
@@ -88,6 +93,28 @@ public:
     std::size_t tempMark() const { return tempRoots_.size(); }
     void popTempTo(std::size_t mark) { tempRoots_.resize(mark); }
 
+    // Auxiliary root regions: the bytecode engine's operand stack lives in a C++ vector held by the
+    // running BytecodeVM, not in tempRoots_. Registering that vector here (RAII, in execution order)
+    // makes every operand it holds a GC root for as long as the frame is live. Nested frames each
+    // register their own. Pointers stay valid because each frame owns its vector for its lifetime.
+    void pushAuxRoots(const std::vector<Handle>* v) { auxRoots_.push_back(v); }
+    void popAuxRoots() { auxRoots_.pop_back(); }
+
+    // --- bytecode engine (the optional second back end behind the AST boundary) ---
+    void setBytecode(bool on) { bytecode_ = on; }
+    bool bytecode() const { return bytecode_; }
+    // A compiled Proto's literal constants are pinned here so they live for the VM's lifetime (the
+    // Proto is cached as long as its AST is retained), giving O(1) LoadConst with no re-allocation.
+    void pinConst(Handle h) { bytecodeConsts_.push_back(h); }
+    // Per-body Proto cache, keyed by the body's stable address. A present-but-null entry records a
+    // body the compiler could not handle, so it is tree-walked and never re-attempted.
+    bool protoTried(const void* key) const { return protoCache_.find(key) != protoCache_.end(); }
+    const Proto* protoGet(const void* key) const {
+        auto it = protoCache_.find(key);
+        return it != protoCache_.end() ? it->second.get() : nullptr;
+    }
+    void protoPut(const void* key, std::unique_ptr<Proto> p) { protoCache_[key] = std::move(p); }
+
     // Mark from every root (singletons, globals, module cache, REPL scope, temp roots), then sweep.
     void collectGarbage() {
         arena_.clearMarks();
@@ -101,6 +128,9 @@ public:
         if (arglist_.slot) enqueue(arglist_);  // the per-file `arglist`, shared by every module scope
         for (const auto& [name, h] : classRegistry_) enqueue(h);  // keep deserializable classes alive
         for (Handle h : tempRoots_) enqueue(h);
+        for (Handle h : bytecodeConsts_) enqueue(h);              // pinned bytecode literal pool
+        for (const std::vector<Handle>* region : auxRoots_)       // live bytecode operand stacks
+            for (Handle h : *region) enqueue(h);
         std::vector<Handle> childbuf;
         while (!work.empty()) {
             Handle h = work.back();
@@ -252,6 +282,11 @@ private:
     std::vector<Handle> smallInts_;
     static constexpr int64_t kSmallIntLo = -256;
     static constexpr int64_t kSmallIntHi = 256;
+    // --- bytecode engine state ---
+    bool bytecode_ = false;
+    std::vector<const std::vector<Handle>*> auxRoots_;   // live operand stacks (GC roots)
+    std::vector<Handle> bytecodeConsts_;                 // pinned literal pool of every compiled Proto
+    std::unordered_map<const void*, std::unique_ptr<Proto>> protoCache_;  // per-body compiled cache
     std::size_t allocsSinceGc_ = 0;
     std::size_t gcThreshold_ = 100000;
     bool gcEnabled_ = true;

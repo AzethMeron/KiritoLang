@@ -1,6 +1,7 @@
 #ifndef KIRITO_EVALUATOR_HPP
 #define KIRITO_EVALUATOR_HPP
 
+#include <span>
 #include <string>
 #include <variant>
 
@@ -23,6 +24,17 @@ namespace kirito {
 inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string& spec);
 // Defined in runtime.hpp; VM-aware deep equality honoring nested instance _eq_ (used by ==/!=).
 inline bool kiEquals(KiritoVM& vm, Handle a, Handle b);
+// Defined in runtime.hpp; the shared operation semantics both this evaluator and the bytecode engine
+// dispatch through, so the two execution engines can never drift apart.
+inline bool isInstanceOf(KiritoVM& vm, Handle value, Handle typeH);
+inline void checkPrivateAccess(KiritoVM& vm, Handle obj, const std::string& name, Handle currentClass,
+                               bool hasCurrentClass, SourceSpan span);
+inline Handle applyUnaryOp(KiritoVM& vm, UnOp op, Handle operand);
+inline Handle applyBinaryOp(KiritoVM& vm, BinOp op, Handle lhs, Handle rhs);
+inline Handle applyCall(KiritoVM& vm, Handle callee, std::span<const Handle> positional,
+                        std::span<const NamedArg> named);
+inline Handle evalMemberGet(KiritoVM& vm, Handle obj, const std::string& name, Handle currentClass,
+                            bool hasCurrentClass, SourceSpan span);
 
 // A tiny argument buffer: holds up to kInline handles inline (the typical call has few args), and
 // spills to the heap only for larger arg lists. Avoids a per-call vector allocation on the hot
@@ -379,18 +391,7 @@ public:
     void visit(const ast::UnaryExpr& e) override {
         RootScope rs(vm_);
         Handle operand = rs.add(eval(*e.operand));
-        if (e.op == UnOp::Not) {
-            // An instance may override `not` via _not_; otherwise negate truthiness.
-            Object& o = vm_.arena().deref(operand);
-            if (o.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&o) &&
-                static_cast<InstanceValue&>(o).findMethod(vm_.arena(), "_not_")) {
-                result_ = located(e.span, [&] { return o.unary(vm_, e.op, operand); });
-            } else {
-                result_ = vm_.makeBool(!vm_.arena().deref(operand).truthy());
-            }
-            return;
-        }
-        result_ = located(e.span, [&] { return vm_.arena().deref(operand).unary(vm_, e.op, operand); });
+        result_ = located(e.span, [&] { return applyUnaryOp(vm_, e.op, operand); });
     }
 
     void visit(const ast::LogicalExpr& e) override {
@@ -430,22 +431,7 @@ public:
             for (std::size_t i = 0; i < e.args.size(); ++i)
                 positional[i] = rs.add(eval(*e.args[i].value));
             std::span<const Handle> args(positional.data(), e.args.size());
-            Object& c = vm_.arena().deref(callee);
-            if (c.kind() == ValueKind::Function)
-                result_ = located(e.span, [&] { return static_cast<KiFunction&>(c).callFull(vm_, args, {}); });
-            else if (c.kind() == ValueKind::NativeFunction &&
-                     static_cast<NativeFunction&>(c).hasSignature() &&
-                     args.size() != static_cast<NativeFunction&>(c).params().size())
-                // Positional call that doesn't exactly fill the params: bind to apply defaults /
-                // report arity errors. (The common exact-arity case below skips this — no alloc.)
-                result_ = located(e.span, [&] {
-                    auto& nf = static_cast<NativeFunction&>(c);
-                    std::vector<Handle> bound = nf.bindArgs(args, {});
-                    for (Handle h : bound) rs.add(h);
-                    return nf.call(vm_, bound);
-                });
-            else
-                result_ = located(e.span, [&] { return c.call(vm_, args); });
+            result_ = located(e.span, [&] { return applyCall(vm_, callee, args, {}); });
             return;
         }
 
@@ -461,107 +447,21 @@ public:
                 named.push_back({arg.name, v});
             }
         }
-        Object& c = vm_.arena().deref(callee);
-        if (c.kind() == ValueKind::Function) {
-            result_ = located(e.span, [&] { return static_cast<KiFunction&>(c).callFull(vm_, positional, named); });
-        } else if (c.kind() == ValueKind::Class) {
-            // Instantiating a class with keyword arguments forwards them to `_init_`.
-            result_ = located(e.span, [&] { return static_cast<ClassValue&>(c).callFull(vm_, positional, named); });
-        } else if (c.kind() == ValueKind::NativeFunction &&
-                   static_cast<NativeFunction&>(c).acceptsKwargs()) {
-            result_ = located(e.span, [&] {
-                return static_cast<NativeFunction&>(c).callKw(vm_, positional, named);
-            });
-        } else if (c.kind() == ValueKind::NativeFunction &&
-                   static_cast<NativeFunction&>(c).hasSignature()) {
-            result_ = located(e.span, [&] {
-                auto& nf = static_cast<NativeFunction&>(c);
-                std::vector<Handle> bound = nf.bindArgs(positional, named);
-                for (Handle h : bound) rs.add(h);
-                return nf.call(vm_, bound);
-            });
-        } else if (c.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&c)) {
-            // Calling an instance forwards keyword arguments to its _call_ method.
-            result_ = located(e.span, [&] {
-                return static_cast<InstanceValue&>(c).callKw(vm_, positional, named);
-            });
-        } else {
-            throw KiritoError("this callable does not accept keyword arguments", e.span);
-        }
+        result_ = located(e.span, [&] { return applyCall(vm_, callee, positional, named); });
     }
 
     void visit(const ast::BinaryExpr& e) override {
         RootScope rs(vm_);
         Handle lhs = rs.add(eval(*e.lhs));
         Handle rhs = rs.add(eval(*e.rhs));
-        // Equality never raises on type mismatch (1 == "x" is False); it uses the value protocol's
-        // structural equals. Ordering and arithmetic dispatch through binary().
-        if (e.op == BinOp::Eq || e.op == BinOp::Ne) {
-            // A user class may override equality via _eq_ / _ne_; otherwise use structural equals.
-            // Only an Instance can carry an _eq_ method, so the (relatively costly) dynamic_cast is
-            // guarded by a kind() check — the scalar fast path never pays for it.
-            Object& l = vm_.arena().deref(lhs);
-            if (l.kind() == ValueKind::Instance) {
-                if (auto* inst = dynamic_cast<InstanceValue*>(&l)) {
-                    // A direct operator method (_eq_ for ==, _ne_ for !=) wins.
-                    if (inst->findMethod(vm_.arena(), binOpMethod(e.op))) {
-                        result_ = located(e.span, [&] { return l.binary(vm_, e.op, lhs, rhs); });
-                        return;
-                    }
-                    // _ne_ defaults to "not _eq_" when only _eq_ is defined, so == and != stay consistent.
-                    if (e.op == BinOp::Ne && inst->findMethod(vm_.arena(), "_eq_")) {
-                        result_ = located(e.span, [&] {
-                            Handle eqr = l.binary(vm_, BinOp::Eq, lhs, rhs);
-                            return vm_.makeBool(!vm_.arena().deref(eqr).truthy());
-                        });
-                        return;
-                    }
-                }
-            }
-            bool eq = kiEquals(vm_, lhs, rhs);   // VM-aware: honors nested instance _eq_ in containers
-            result_ = vm_.makeBool(e.op == BinOp::Eq ? eq : !eq);
-            return;
-        }
-        if (e.op == BinOp::In || e.op == BinOp::NotIn) {
-            bool c = located(e.span, [&] { return vm_.arena().deref(rhs).contains(vm_, lhs); });
-            result_ = vm_.makeBool(e.op == BinOp::In ? c : !c);
-            return;
-        }
-        result_ = located(e.span, [&] { return vm_.arena().deref(lhs).binary(vm_, e.op, lhs, rhs); });
+        result_ = located(e.span, [&] { return applyBinaryOp(vm_, e.op, lhs, rhs); });
     }
 
     void visit(const ast::MemberExpr& e) override {
         RootScope rs(vm_);
         Handle obj = rs.add(eval(*e.object));
-        // `self._super_()` (the super operator): unless a class explicitly defines `_super_`, accessing
-        // it yields a builder that returns a SuperValue — a parent view of `obj` whose method lookup
-        // starts at the base of the CURRENTLY-EXECUTING method's class (so multi-level chains walk up
-        // one level per call). Only meaningful inside a method; a baseless class raises when called.
-        if (e.name == "_super_" && hasCurrentClass_) {
-            Object& o = vm_.arena().deref(obj);
-            if (o.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&o)) {
-                const auto& ownerCls = static_cast<const ClassValue&>(vm_.arena().deref(currentClass_));
-                if (!ownerCls.findMethod(vm_.arena(), "_super_")) {  // not overridden
-                    Handle objH = obj, ownerH = currentClass_;
-                    result_ = vm_.alloc(std::make_unique<NativeFunction>(
-                        "_super_",
-                        [objH, ownerH](KiritoVM& vm, std::span<const Handle>) -> Handle {
-                            const auto& oc = static_cast<const ClassValue&>(vm.arena().deref(ownerH));
-                            if (!oc.hasBase)
-                                throw KiritoError("_super_() called in '" + oc.name +
-                                                  "', which does not inherit from any class");
-                            auto sup = std::make_unique<SuperValue>();
-                            sup->instance = objH;
-                            sup->startClass = oc.base;
-                            return vm.alloc(std::move(sup));
-                        },
-                        std::vector<Handle>{objH, ownerH}));
-                    return;
-                }
-            }
-        }
-        checkPrivateAccess(obj, e.name, e.span);
-        result_ = located(e.span, [&] { return vm_.arena().deref(obj).getAttr(vm_, obj, e.name); });
+        result_ = located(e.span,
+                          [&] { return evalMemberGet(vm_, obj, e.name, currentClass_, hasCurrentClass_, e.span); });
     }
 
     void visit(const ast::IndexExpr& e) override {
@@ -735,28 +635,11 @@ private:
     // True if `value` is an instance of class `typeH` (walking the base chain). Only user-defined
     // InstanceValues carry a class handle; C++ NativeClass objects (Matrix/Socket/...) report
     // ValueKind::Instance too, so use dynamic_cast to tell them apart.
-    bool isInstanceOf(Handle value, Handle typeH) {
-        if (vm_.arena().deref(typeH).kind() != ValueKind::Class) return false;
-        const Object& v = vm_.arena().deref(value);
-        const auto* inst = dynamic_cast<const InstanceValue*>(&v);
-        if (!inst) return false;
-        Handle cur = inst->cls;
-        while (true) {
-            if (cur == typeH) return true;
-            const auto& c = static_cast<const ClassValue&>(vm_.arena().deref(cur));
-            if (!c.hasBase) return false;
-            cur = c.base;
-        }
-    }
-
-    // A private member (_name, no trailing underscore) may only be touched from within a method
-    // whose class the receiver is an instance of (i.e. while running such a method).
+    // These delegate to the shared free functions in runtime.hpp (one implementation, used by both
+    // the tree-walker and the bytecode engine).
+    bool isInstanceOf(Handle value, Handle typeH) { return kirito::isInstanceOf(vm_, value, typeH); }
     void checkPrivateAccess(Handle obj, const std::string& name, SourceSpan span) {
-        if (!isPrivateName(name)) return;
-        if (!dynamic_cast<const InstanceValue*>(&vm_.arena().deref(obj))) return;  // user classes only
-        if (hasCurrentClass_ && isInstanceOf(obj, currentClass_)) return;
-        throw KiritoError("cannot access private member '" + name + "' of '" +
-                          vm_.arena().deref(obj).typeName() + "' outside its class", span);
+        kirito::checkPrivateAccess(vm_, obj, name, currentClass_, hasCurrentClass_, span);
     }
 
     // Run an operation, tagging any location-less runtime error with this node's span.

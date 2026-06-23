@@ -1,0 +1,321 @@
+#ifndef KIRITO_BYTECODE_VM_HPP
+#define KIRITO_BYTECODE_VM_HPP
+
+#include <memory>
+#include <span>
+#include <string>
+#include <vector>
+
+#include "bytecode.hpp"
+#include "class_value.hpp"
+#include "collections.hpp"
+#include "compiler.hpp"
+#include "environment.hpp"
+#include "function.hpp"
+#include "object.hpp"
+#include "vm.hpp"
+
+// The bytecode execution engine. Included by the umbrella AFTER runtime.hpp, because it dispatches
+// through the shared operation helpers (applyCall / applyBinaryOp / applyUnaryOp / evalMemberGet /
+// checkPrivateAccess) and value methods (iterate / setItem / ...) that runtime.hpp defines. It owns
+// no semantics of its own — only the stack-machine control structure. Result parity with the
+// tree-walker is the contract, validated differentially across the whole test suite.
+
+namespace kirito {
+
+// An internal iteration cursor: the eagerly-materialised items of a for-loop's iterable plus a
+// position. It lives only on a frame's operand stack (so the GC traces its items via children())
+// between GetIter and the loop's end; it is never visible to Kirito code. kind() is a sentinel.
+class IterCursor : public Object {
+public:
+    std::vector<Handle> items;
+    std::size_t idx = 0;
+    ValueKind kind() const override { return ValueKind::None; }  // internal; never exposed to user code
+    std::string typeName() const override { return "iterator"; }
+    bool truthy() const override { return true; }
+    std::string str(StringifyCtx&) const override { return "<iterator>"; }
+    bool equals(const ObjectArena&, const Object& o) const override { return this == &o; }
+    void children(std::vector<Handle>& out) const override { out.insert(out.end(), items.begin(), items.end()); }
+};
+
+// Executes one Proto frame against a scope. The operand stack is a single C++ vector whose first
+// three slots hold the frame's scope / last-expression result / owning class (for private + _super_),
+// with the working operand stack above them; the whole vector is registered as a GC root region so
+// every live value is traced. One frame == one BytecodeVM instance, created and destroyed on the
+// stack; a nested call spins up its own. Non-movable so the registered &stack_ never dangles.
+class BytecodeVM {
+public:
+    BytecodeVM(KiritoVM& vm, Handle scope, Handle ownerClass, bool hasOwner) : vm_(vm), hasOwner_(hasOwner) {
+        stack_.reserve(16);
+        stack_.push_back(scope);                              // kScope
+        stack_.push_back(vm.none());                          // kResult
+        stack_.push_back(hasOwner ? ownerClass : vm.none());  // kOwner
+        vm_.pushAuxRoots(&stack_);
+    }
+    ~BytecodeVM() { vm_.popAuxRoots(); }
+    BytecodeVM(const BytecodeVM&) = delete;
+    BytecodeVM& operator=(const BytecodeVM&) = delete;
+
+    Handle run(const Proto& proto) {
+        const std::vector<Instr>& code = proto.code;
+        std::size_t ip = 0;
+        while (ip < code.size()) {
+            const Instr& in = code[ip++];
+            switch (in.op) {
+                case Op::LoadConst: push(proto.consts[in.a]); break;
+                case Op::LoadNone: push(vm_.none()); break;
+                case Op::LoadResult: push(result()); break;
+                case Op::SetResult: setResult(pop()); break;
+                case Op::ClearResult: setResult(vm_.none()); break;
+                case Op::Pop: pop(); break;
+
+                case Op::LoadName: {
+                    auto found = envLookup(vm_.arena(), scope(), proto.names[in.a]);
+                    if (!found) throw KiritoError("name '" + proto.names[in.a] + "' is not defined", in.span);
+                    push(*found);
+                    break;
+                }
+                case Op::StoreName: {
+                    Handle v = pop();
+                    static_cast<EnvValue&>(vm_.arena().deref(scope())).define(proto.names[in.a], v);
+                    break;
+                }
+                case Op::AssignName: {
+                    Handle v = pop();
+                    if (!envAssign(vm_.arena(), scope(), proto.names[in.a], v))
+                        throw KiritoError("name '" + proto.names[in.a] + "' is not defined", in.span);
+                    break;
+                }
+
+                case Op::UnaryOp: {
+                    Handle operand = peek(0);
+                    Handle r = located(in.span, [&] { return applyUnaryOp(vm_, static_cast<UnOp>(in.a), operand); });
+                    pop();
+                    push(r);
+                    break;
+                }
+                case Op::BinaryOp: {
+                    Handle lhs = peek(1), rhs = peek(0);  // operands stay rooted on the stack while we operate
+                    Handle r = located(in.span, [&] { return applyBinaryOp(vm_, static_cast<BinOp>(in.a), lhs, rhs); });
+                    pop(); pop();
+                    push(r);
+                    break;
+                }
+
+                case Op::Jump: ip = in.a; break;
+                case Op::PopJumpIfFalse: { Handle v = pop(); if (!vm_.arena().deref(v).truthy()) ip = in.a; break; }
+                case Op::PopJumpIfTrue: { Handle v = pop(); if (vm_.arena().deref(v).truthy()) ip = in.a; break; }
+                case Op::JumpIfFalseOrPop:
+                    if (!vm_.arena().deref(peek(0)).truthy()) ip = in.a; else pop();
+                    break;
+                case Op::JumpIfTrueOrPop:
+                    if (vm_.arena().deref(peek(0)).truthy()) ip = in.a; else pop();
+                    break;
+
+                case Op::Call: {
+                    const CallSpec& spec = proto.calls[in.a];
+                    std::size_t total = spec.positional + spec.names.size();
+                    std::size_t base = stack_.size() - total;   // first argument slot
+                    Handle callee = stack_[base - 1];            // sits just below the arguments
+                    std::span<const Handle> pos(stack_.data() + base, spec.positional);
+                    std::vector<NamedArg> named;
+                    named.reserve(spec.names.size());
+                    for (std::size_t i = 0; i < spec.names.size(); ++i)
+                        named.push_back({spec.names[i], stack_[base + spec.positional + i]});
+                    Handle r = located(in.span, [&] { return applyCall(vm_, callee, pos, named); });
+                    stack_.resize(base - 1);                     // pop callee + all arguments
+                    push(r);
+                    break;
+                }
+                case Op::MakeFunction: {
+                    auto fn = std::make_unique<KiFunction>(proto.funcs[in.a], scope());
+                    fn->sourceFile = vm_.currentChunkFile();
+                    push(vm_.alloc(std::move(fn)));
+                    break;
+                }
+
+                case Op::GetAttr: {
+                    Handle obj = peek(0);
+                    Handle r = located(in.span, [&] {
+                        return evalMemberGet(vm_, obj, proto.names[in.a], ownerClass(), hasOwner_, in.span);
+                    });
+                    pop();
+                    push(r);
+                    break;
+                }
+                case Op::SetAttr: {
+                    Handle obj = peek(0), value = peek(1);   // stack: [value, obj]
+                    const std::string& name = proto.names[in.a];
+                    located(in.span, [&] {
+                        checkPrivateAccess(vm_, obj, name, ownerClass(), hasOwner_, in.span);
+                        vm_.arena().deref(obj).setAttr(vm_, name, value);
+                        return vm_.none();
+                    });
+                    pop(); pop();
+                    break;
+                }
+                case Op::GetItem: {
+                    std::size_t n = in.a, base = stack_.size() - n;
+                    Handle obj = stack_[base - 1];
+                    std::vector<Handle> keys(stack_.begin() + static_cast<std::ptrdiff_t>(base), stack_.end());
+                    Handle r = located(in.span, [&] { return vm_.arena().deref(obj).getItem(vm_, keys); });
+                    stack_.resize(base - 1);
+                    push(r);
+                    break;
+                }
+                case Op::SetItem: {
+                    std::size_t n = in.a, base = stack_.size() - n;   // stack: [value, obj, keys...]
+                    Handle obj = stack_[base - 1], value = stack_[base - 2];
+                    std::vector<Handle> keys(stack_.begin() + static_cast<std::ptrdiff_t>(base), stack_.end());
+                    located(in.span, [&] { vm_.arena().deref(obj).setItem(vm_, keys, value); return vm_.none(); });
+                    stack_.resize(base - 2);
+                    break;
+                }
+                case Op::GetSlice: {
+                    Handle obj = peek(3), start = peek(2), stop = peek(1), step = peek(0);
+                    Handle r = located(in.span, [&] { return vm_.arena().deref(obj).slice(vm_, start, stop, step); });
+                    pop(); pop(); pop(); pop();
+                    push(r);
+                    break;
+                }
+
+                case Op::BuildList: {
+                    std::size_t n = in.a, base = stack_.size() - n;
+                    auto list = std::make_unique<ListVal>();
+                    list->elems.reserve(n);
+                    for (std::size_t i = 0; i < n; ++i) list->elems.push_back(stack_[base + i]);
+                    Handle r = vm_.alloc(std::move(list));
+                    stack_.resize(base);
+                    push(r);
+                    break;
+                }
+                case Op::BuildPack: {  // bare-comma packing -> List (identical storage to a list literal)
+                    std::size_t n = in.a, base = stack_.size() - n;
+                    auto list = std::make_unique<ListVal>();
+                    list->elems.reserve(n);
+                    for (std::size_t i = 0; i < n; ++i) list->elems.push_back(stack_[base + i]);
+                    Handle r = vm_.alloc(std::move(list));
+                    stack_.resize(base);
+                    push(r);
+                    break;
+                }
+                case Op::BuildSet: {
+                    std::size_t n = in.a, base = stack_.size() - n;
+                    auto set = std::make_unique<SetVal>();
+                    located(in.span, [&] {
+                        for (std::size_t i = 0; i < n; ++i) set->add(vm_.arena(), stack_[base + i]);
+                        return vm_.none();
+                    });
+                    Handle r = vm_.alloc(std::move(set));
+                    stack_.resize(base);
+                    push(r);
+                    break;
+                }
+                case Op::BuildDict: {
+                    std::size_t pairs = in.a, base = stack_.size() - 2 * pairs;
+                    auto dict = std::make_unique<DictVal>();
+                    located(in.span, [&] {
+                        for (std::size_t i = 0; i < pairs; ++i)
+                            dict->set(vm_.arena(), stack_[base + 2 * i], stack_[base + 2 * i + 1]);
+                        return vm_.none();
+                    });
+                    Handle r = vm_.alloc(std::move(dict));
+                    stack_.resize(base);
+                    push(r);
+                    break;
+                }
+
+                case Op::FormatValue: {
+                    Handle v = peek(0);
+                    const std::string& spec = proto.names[in.a];
+                    std::string s = located(in.span, [&] {
+                        return spec.empty() ? vm_.stringify(v) : applyFormatSpec(vm_, v, spec);
+                    });
+                    Handle r = vm_.makeString(std::move(s));
+                    pop();
+                    push(r);
+                    break;
+                }
+                case Op::BuildString: {
+                    std::size_t n = in.a, base = stack_.size() - n;
+                    std::string out;
+                    for (std::size_t i = 0; i < n; ++i)
+                        out += static_cast<const StrVal&>(vm_.arena().deref(stack_[base + i])).value();
+                    Handle r = vm_.makeString(std::move(out));
+                    stack_.resize(base);
+                    push(r);
+                    break;
+                }
+
+                case Op::GetIter: {
+                    Handle iterable = peek(0);
+                    auto items = located(in.span, [&] { return vm_.arena().deref(iterable).iterate(vm_); });
+                    if (!items)
+                        throw KiritoError("type '" + vm_.arena().deref(iterable).typeName() + "' is not iterable", in.span);
+                    RootScope rs(vm_);  // root freshly-materialised items until the cursor (a GC root) holds them
+                    for (Handle it : items.value()) rs.add(it);
+                    auto cursor = std::make_unique<IterCursor>();
+                    cursor->items = std::move(items.value());
+                    Handle r = vm_.alloc(std::move(cursor));
+                    pop();
+                    push(r);
+                    break;
+                }
+                case Op::ForIter: {
+                    auto& cur = static_cast<IterCursor&>(vm_.arena().deref(peek(0)));
+                    if (cur.idx >= cur.items.size()) { pop(); ip = in.a; }  // exhausted: drop cursor, exit loop
+                    else push(cur.items[cur.idx++]);
+                    break;
+                }
+
+                case Op::Throw: { Handle v = pop(); throw KiritoThrow{v, in.span}; }
+                case Op::Return: return pop();
+            }
+        }
+        return vm_.none();  // every Proto ends in Return; this is only a defensive fallback
+    }
+
+private:
+    static constexpr std::size_t kScope = 0, kResult = 1, kOwner = 2, kOperandBase = 3;
+    Handle scope() const { return stack_[kScope]; }
+    Handle ownerClass() const { return stack_[kOwner]; }
+    Handle result() const { return stack_[kResult]; }
+    void setResult(Handle h) { stack_[kResult] = h; }
+    void push(Handle h) { stack_.push_back(h); }
+    Handle pop() { Handle h = stack_.back(); stack_.pop_back(); return h; }
+    Handle peek(std::size_t fromTop) const { return stack_[stack_.size() - 1 - fromTop]; }
+
+    template <typename F>
+    auto located(SourceSpan span, F&& fn) -> decltype(fn()) {
+        try {
+            return fn();
+        } catch (KiritoError& err) {
+            if (err.span.line == 0) err.span = span;
+            throw;
+        }
+    }
+
+    KiritoVM& vm_;
+    std::vector<Handle> stack_;
+    bool hasOwner_;
+};
+
+inline bool tryRunBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body, Handle ownerClass,
+                               bool hasOwner, bool isFunction, Handle& out) {
+    // Root the scope (and owning class) across BOTH compilation and execution: first-run compilation
+    // materialises constants and so may trigger GC, and the top-level scope is not otherwise rooted
+    // here (unlike a function call scope, which callFull already roots). The BytecodeVM re-roots them
+    // too once constructed; this just covers the compile window before it exists.
+    RootScope rs(vm);
+    rs.add(scope);
+    if (hasOwner) rs.add(ownerClass);
+    const Proto* proto = protoForBody(vm, body, isFunction);
+    if (!proto) return false;  // not compilable yet -> caller tree-walks this body
+    BytecodeVM bc(vm, scope, ownerClass, hasOwner);
+    out = bc.run(*proto);
+    return true;
+}
+
+}  // namespace kirito
+
+#endif
