@@ -1899,6 +1899,58 @@ inline Handle evalMemberGet(KiritoVM& vm, Handle obj, const std::string& name, H
     return vm.arena().deref(obj).getAttr(vm, obj, name);
 }
 
+// Spread an iterable `value` across `n` unpack slots, with an optional starred slot at `starIndex`
+// (-1 if none) that absorbs the surplus into a List. Returns the n slot values (the caller must root
+// them). Shared by the tree-walker's unpacking and the bytecode engine's Unpack opcode.
+inline std::vector<Handle> spreadValues(KiritoVM& vm, Handle value, std::size_t n, int starIndex,
+                                        SourceSpan span) {
+    std::optional<std::vector<Handle>> items;
+    try {
+        items = vm.arena().deref(value).iterate(vm);
+    } catch (KiritoError& err) {
+        if (err.span.line == 0) err.span = span;
+        throw;
+    }
+    if (!items)
+        throw KiritoError("cannot unpack non-iterable '" + vm.arena().deref(value).typeName() + "'", span);
+    RootScope rs(vm);  // keep iterated (possibly freshly-allocated) items alive during the alloc below
+    for (Handle it : items.value()) rs.add(it);
+    std::vector<Handle>& v = items.value();
+    std::vector<Handle> slots(n);
+    if (starIndex == -1) {
+        if (v.size() != n)
+            throw KiritoError("expected " + std::to_string(n) + " values to unpack, got " +
+                              std::to_string(v.size()), span);
+        for (std::size_t i = 0; i < n; ++i) slots[i] = v[i];
+    } else {
+        std::size_t before = static_cast<std::size_t>(starIndex), after = n - 1 - before;
+        if (v.size() < before + after)
+            throw KiritoError("expected at least " + std::to_string(before + after) +
+                              " values to unpack, got " + std::to_string(v.size()), span);
+        for (std::size_t i = 0; i < before; ++i) slots[i] = v[i];
+        auto mid = std::make_unique<ListVal>();
+        for (std::size_t i = before; i < v.size() - after; ++i) mid->elems.push_back(v[i]);
+        slots[before] = vm.alloc(std::move(mid));
+        for (std::size_t j = 0; j < after; ++j) slots[n - 1 - j] = v[v.size() - 1 - j];
+    }
+    return slots;
+}
+
+// Canonical type+value key for switch dispatch. Only hashable scalar kinds can label a case or be
+// matched; other types yield nullopt (they only reach `default`). Matching is exact by type AND
+// value, so `case 1` and `case 1.0` differ. Shared by the tree-walker and the bytecode SwitchMatch.
+inline std::optional<std::string> scalarSwitchKey(KiritoVM& vm, Handle h) {
+    const Object& o = vm.arena().deref(h);
+    switch (o.kind()) {
+        case ValueKind::None: return std::string("N");
+        case ValueKind::Bool: return std::string("B") + (static_cast<const BoolVal&>(o).value() ? "1" : "0");
+        case ValueKind::Integer: return "I" + std::to_string(static_cast<const IntVal&>(o).value());
+        case ValueKind::Float: return "F" + std::to_string(static_cast<const FloatVal&>(o).value());
+        case ValueKind::String: return "S" + static_cast<const StrVal&>(o).value();
+        default: return std::nullopt;
+    }
+}
+
 // --- VM entry point & lifetime ---------------------------------------------------------------
 
 // --- module / extension API ------------------------------------------------------------------

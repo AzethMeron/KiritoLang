@@ -35,6 +35,9 @@ inline Handle applyCall(KiritoVM& vm, Handle callee, std::span<const Handle> pos
                         std::span<const NamedArg> named);
 inline Handle evalMemberGet(KiritoVM& vm, Handle obj, const std::string& name, Handle currentClass,
                             bool hasCurrentClass, SourceSpan span);
+inline std::vector<Handle> spreadValues(KiritoVM& vm, Handle value, std::size_t n, int starIndex,
+                                        SourceSpan span);
+inline std::optional<std::string> scalarSwitchKey(KiritoVM& vm, Handle h);
 
 // A tiny argument buffer: holds up to kInline handles inline (the typical call has few args), and
 // spills to the heap only for larger arg lists. Avoids a per-call vector allocation on the hot
@@ -539,30 +542,7 @@ public:
     // Spread an iterable `value` across `n` unpack slots, with an optional starred slot at
     // `starIndex` (-1 if none) that absorbs the surplus into a List. Returns the n slot values.
     std::vector<Handle> spreadValues(Handle value, std::size_t n, int starIndex, SourceSpan span) {
-        auto items = located(span, [&] { return vm_.arena().deref(value).iterate(vm_); });
-        if (!items)
-            throw KiritoError("cannot unpack non-iterable '" + vm_.arena().deref(value).typeName() + "'", span);
-        RootScope rs(vm_);  // keep iterated (possibly freshly-allocated) items alive during alloc below
-        for (Handle it : items.value()) rs.add(it);
-        std::vector<Handle>& v = items.value();
-        std::vector<Handle> slots(n);
-        if (starIndex == -1) {
-            if (v.size() != n)
-                throw KiritoError("expected " + std::to_string(n) + " values to unpack, got " +
-                                  std::to_string(v.size()), span);
-            for (std::size_t i = 0; i < n; ++i) slots[i] = v[i];
-        } else {
-            std::size_t before = static_cast<std::size_t>(starIndex), after = n - 1 - before;
-            if (v.size() < before + after)
-                throw KiritoError("expected at least " + std::to_string(before + after) +
-                                  " values to unpack, got " + std::to_string(v.size()), span);
-            for (std::size_t i = 0; i < before; ++i) slots[i] = v[i];
-            auto mid = std::make_unique<ListVal>();
-            for (std::size_t i = before; i < v.size() - after; ++i) mid->elems.push_back(v[i]);
-            slots[before] = vm_.alloc(std::move(mid));
-            for (std::size_t j = 0; j < after; ++j) slots[n - 1 - j] = v[v.size() - 1 - j];
-        }
-        return slots;
+        return kirito::spreadValues(vm_, value, n, starIndex, span);  // shared with the bytecode engine
     }
 
     void visit(const ast::SetLiteral& e) override {
@@ -604,17 +584,7 @@ private:
     // Canonical type+value key for switch dispatch. Only hashable scalar kinds can label a case or
     // be matched; other types yield nullopt -> they only reach `default`. Matching is exact by type
     // and value (so `case 1` and `case 1.0` differ), making the jump table a plain string hash map.
-    std::optional<std::string> switchKey(Handle h) {
-        const Object& o = vm_.arena().deref(h);
-        switch (o.kind()) {
-            case ValueKind::None: return std::string("N");
-            case ValueKind::Bool: return std::string("B") + (static_cast<const BoolVal&>(o).value() ? "1" : "0");
-            case ValueKind::Integer: return "I" + std::to_string(static_cast<const IntVal&>(o).value());
-            case ValueKind::Float: return "F" + std::to_string(static_cast<const FloatVal&>(o).value());
-            case ValueKind::String: return "S" + static_cast<const StrVal&>(o).value();
-            default: return std::nullopt;
-        }
-    }
+    std::optional<std::string> switchKey(Handle h) { return kirito::scalarSwitchKey(vm_, h); }
 
     // Look up obj.name and call it (e.g. a context manager's enter/exit).
     Handle callMethod(SourceSpan span, Handle obj, const char* name, std::vector<Handle> args) {

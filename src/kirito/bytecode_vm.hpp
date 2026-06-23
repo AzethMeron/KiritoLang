@@ -68,6 +68,7 @@ public:
                 case Op::SetResult: setResult(pop()); break;
                 case Op::ClearResult: setResult(vm_.none()); break;
                 case Op::Pop: pop(); break;
+                case Op::Dup: push(peek(0)); break;
 
                 case Op::LoadName: {
                     auto found = envLookup(vm_.arena(), scope(), proto.names[in.a]);
@@ -131,6 +132,36 @@ public:
                     auto fn = std::make_unique<KiFunction>(proto.funcs[in.a], scope());
                     fn->sourceFile = vm_.currentChunkFile();
                     push(vm_.alloc(std::move(fn)));
+                    break;
+                }
+                case Op::BuildClass: {
+                    const ast::ClassStmt& cs = *proto.classes[in.a];
+                    RootScope rs(vm_);
+                    Handle base{};
+                    bool hasBase = cs.base != nullptr;
+                    if (hasBase) base = rs.add(pop());                  // base pushed just before BuildClass
+                    Handle classScope = rs.add(vm_.newScope(scope()));  // run the class body in a child scope
+                    const Proto* body = protoForBody(vm_, cs.body, /*isFunction=*/true);  // compiled+cached already
+                    { BytecodeVM sub(vm_, classScope, vm_.none(), false); sub.run(*body); }
+                    auto cls = std::make_unique<ClassValue>();
+                    cls->name = cs.name;
+                    cls->base = base;
+                    cls->hasBase = hasBase;
+                    for (const auto& [k, v] : static_cast<EnvValue&>(vm_.arena().deref(classScope)).locals())
+                        cls->methods[k] = v;                            // the names the body defined are the methods
+                    Handle clsHandle = rs.add(vm_.alloc(std::move(cls)));
+                    auto& klass = static_cast<ClassValue&>(vm_.arena().deref(clsHandle));
+                    klass.selfHandle = clsHandle;
+                    for (const auto& [mname, mh] : klass.methods) {     // tag methods so they may touch privates
+                        Object& mo = vm_.arena().deref(mh);
+                        if (mo.kind() == ValueKind::Function) {
+                            auto& fn = static_cast<KiFunction&>(mo);
+                            fn.ownerClass = clsHandle;
+                            fn.hasOwner = true;
+                        }
+                    }
+                    static_cast<EnvValue&>(vm_.arena().deref(scope())).define(cs.name, clsHandle);
+                    vm_.registerClass(cs.name, clsHandle);  // so serialize/dump can reconstruct instances
                     break;
                 }
 
@@ -265,6 +296,26 @@ public:
                     auto& cur = static_cast<IterCursor&>(vm_.arena().deref(peek(0)));
                     if (cur.idx >= cur.items.size()) { pop(); ip = in.a; }  // exhausted: drop cursor, exit loop
                     else push(cur.items[cur.idx++]);
+                    break;
+                }
+                case Op::Unpack: {
+                    const UnpackSpec& spec = proto.unpacks[in.a];
+                    Handle iterable = peek(0);   // stays rooted while spreadValues iterates/allocates
+                    std::vector<Handle> slots = located(in.span, [&] {
+                        return spreadValues(vm_, iterable, spec.count, spec.starIndex, in.span);
+                    });
+                    pop();  // drop the iterable
+                    for (std::size_t i = spec.count; i-- > 0;) push(slots[i]);  // reversed: slot 0 ends on top
+                    break;
+                }
+                case Op::SwitchMatch: {
+                    Handle v = peek(0), subj = peek(1);
+                    auto vk = scalarSwitchKey(vm_, v);
+                    if (!vk) throw KiritoError("switch case value must be Integer, Float, String, Bool, or None", in.span);
+                    auto sk = scalarSwitchKey(vm_, subj);
+                    bool match = sk.has_value() && *sk == *vk;
+                    pop(); pop();
+                    push(vm_.makeBool(match));
                     break;
                 }
 

@@ -36,6 +36,7 @@ enum class Op : uint8_t {
     StoreName,        // a: define names[a] = pop() in the current scope (var)
     AssignName,       // a: rebind the nearest existing names[a] = pop() (NameError if undefined)
     Pop,              //    discard the top of stack
+    Dup,              //    push a copy of the top of stack
     UnaryOp,          // a: (UnOp) replace top with op(top)
     BinaryOp,         // a: (BinOp) rhs=pop, lhs=pop, push op(lhs, rhs)
     Jump,             // a: ip = a
@@ -48,6 +49,7 @@ enum class Op : uint8_t {
     LoadResult,       //    push frame.result      (top-level program return value)
     Call,             // a: dispatch calls[a]; the callee then its args are on the stack
     MakeFunction,     // a: push a closure of funcs[a] capturing the current scope
+    BuildClass,       // a: (classes[a]) base on stack (if any) -> build the class, bind its name
     GetAttr,          // a: replace top with top.names[a]  (member read; handles _super_/privacy)
     SetAttr,          // a: value=pop, obj=pop; obj.names[a] = value
     GetItem,          // a: (key count) keys then obj... -> push obj[keys]
@@ -61,8 +63,17 @@ enum class Op : uint8_t {
     BuildString,      // a: (count) concatenate count Strings on the stack -> push the joined String
     GetIter,          //    replace the top iterable with an internal iteration cursor
     ForIter,          // a: advance the cursor on top; if exhausted pop it and ip=a, else push next item
+    Unpack,           // a: (unpacks[a]) pop an iterable -> push its n spread slots, last target on top
+    SwitchMatch,      //    v=pop, subj=pop -> push Bool(subj and v are the same scalar by type+value)
     Throw,            //    pop -> throw it as a Kirito exception (assert/throw)
     Return,           //    pop -> return it from this frame
+};
+
+// A destructuring shape for the Unpack opcode: how many targets, and which (if any) is the starred
+// one that absorbs the surplus into a List (-1 = none). Mirrors VarDecl/For/tuple-assign unpacking.
+struct UnpackSpec {
+    uint32_t count = 0;
+    int32_t starIndex = -1;
 };
 
 // A call site's static shape: how many leading positional args, then the names of the trailing
@@ -87,6 +98,8 @@ struct Proto {
     std::vector<std::string> names;                   // identifiers (names/attrs/format specs)
     std::vector<const ast::FunctionExpr*> funcs;      // MakeFunction targets
     std::vector<CallSpec> calls;                      // Call targets
+    std::vector<UnpackSpec> unpacks;                  // Unpack targets
+    std::vector<const ast::ClassStmt*> classes;       // BuildClass targets (name/base/body)
 };
 
 class KiritoVM;

@@ -2,7 +2,10 @@
 #define KIRITO_COMPILER_HPP
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <unordered_set>
+#include <variant>
 #include <vector>
 
 #include "ast.hpp"
@@ -10,6 +13,10 @@
 #include "vm.hpp"
 
 namespace kirito {
+
+// Compile a body once, caching the Proto on the VM (or nullptr if not yet compilable). Defined below;
+// forward-declared so the compiler can eagerly compile a nested class body and fall back if it can't.
+inline const Proto* protoForBody(KiritoVM& vm, const ast::Block& body, bool isFunction);
 
 // Compiles a Block (a function body or the top-level program) into a Proto — the AST's second
 // visitor, alongside the tree-walking Evaluator. It emits stack-machine instructions that reuse the
@@ -48,6 +55,22 @@ private:
         proto_.names.push_back(n);
         return static_cast<uint32_t>(proto_.names.size() - 1);
     }
+    uint32_t addUnpack(uint32_t count, int starIndex) {
+        proto_.unpacks.push_back(UnpackSpec{count, starIndex});
+        return static_cast<uint32_t>(proto_.unpacks.size() - 1);
+    }
+
+    // The switch-dispatch key of a literal scalar, matching scalarSwitchKey() at run time, so the
+    // compiler can detect duplicate `case` values (a compile-time error). nullopt for non-scalars.
+    static std::optional<std::string> literalSwitchKey(const ast::LiteralExpr& lit) {
+        if (std::holds_alternative<std::monostate>(lit.value)) return std::string("N");
+        if (std::holds_alternative<bool>(lit.value))
+            return std::string("B") + (std::get<bool>(lit.value) ? "1" : "0");
+        if (std::holds_alternative<int64_t>(lit.value)) return "I" + std::to_string(std::get<int64_t>(lit.value));
+        if (std::holds_alternative<double>(lit.value)) return "F" + std::to_string(std::get<double>(lit.value));
+        if (std::holds_alternative<std::string>(lit.value)) return "S" + std::get<std::string>(lit.value);
+        return std::nullopt;
+    }
 
     // --- recursion with a depth guard mirroring the evaluator's, so a pathologically deep AST falls
     // back to the tree-walker (whose own guard raises a clean error) instead of overflowing here. ---
@@ -68,16 +91,35 @@ private:
     void visit(const ast::DiscardStmt& s) override { compileExpr(*s.expr); emit(Op::Pop); emit(Op::ClearResult); }
 
     void visit(const ast::VarDeclStmt& s) override {
-        if (s.names.size() != 1 || s.starIndex != -1) throw BytecodeUnsupported{};  // unpacking: slice 2
         compileExpr(*s.init);
-        emit(Op::StoreName, addName(s.names[0]), s.span);
+        if (s.names.size() == 1 && s.starIndex == -1) {
+            emit(Op::StoreName, addName(s.names[0]), s.span);
+        } else {
+            emit(Op::Unpack, addUnpack(static_cast<uint32_t>(s.names.size()), s.starIndex), s.span);
+            for (const auto& name : s.names) emit(Op::StoreName, addName(name), s.span);  // slot0 on top
+        }
         emit(Op::ClearResult);
     }
 
     void visit(const ast::AssignStmt& s) override {
-        if (s.target->exprKind() == ast::ExprKind::Tuple) throw BytecodeUnsupported{};  // unpacking: slice 2
         compileExpr(*s.value);
-        compileAssignTarget(*s.target, s.span);
+        if (s.target->exprKind() == ast::ExprKind::Tuple) {
+            const auto& tup = static_cast<const ast::TupleExpr&>(*s.target);
+            int starIndex = -1;
+            for (std::size_t i = 0; i < tup.elems.size(); ++i)
+                if (tup.elems[i]->exprKind() == ast::ExprKind::Star) {
+                    if (starIndex != -1) throw KiritoError("two starred targets in assignment", s.span);
+                    starIndex = static_cast<int>(i);
+                }
+            emit(Op::Unpack, addUnpack(static_cast<uint32_t>(tup.elems.size()), starIndex), s.span);
+            for (const auto& elem : tup.elems) {  // forward order; slot_i is on top for target i
+                const ast::Expr* tgt = elem.get();
+                if (tgt->exprKind() == ast::ExprKind::Star) tgt = &*static_cast<const ast::StarExpr&>(*tgt).inner;
+                compileAssignTarget(*tgt, s.span);
+            }
+        } else {
+            compileAssignTarget(*s.target, s.span);
+        }
         emit(Op::ClearResult);
     }
 
@@ -134,12 +176,16 @@ private:
     }
 
     void visit(const ast::ForStmt& s) override {
-        if (s.vars.size() != 1 || s.starIndex != -1) throw BytecodeUnsupported{};  // unpacking: slice 2
         compileExpr(*s.iterable);
         emit(Op::GetIter, 0, s.span);
         uint32_t top = here();
         std::size_t exit = emit(Op::ForIter, 0, s.span);  // exhausted -> pops the cursor, jumps to end
-        emit(Op::StoreName, addName(s.vars[0]), s.span);
+        if (s.vars.size() == 1 && s.starIndex == -1) {
+            emit(Op::StoreName, addName(s.vars[0]), s.span);
+        } else {
+            emit(Op::Unpack, addUnpack(static_cast<uint32_t>(s.vars.size()), s.starIndex), s.span);
+            for (const auto& v : s.vars) emit(Op::StoreName, addName(v), s.span);  // slot0 on top
+        }
         loops_.push_back(LoopCtx{1, {}, {}});  // breaking out must pop the live cursor
         compileBlock(s.body);
         emit(Op::Jump, top);
@@ -184,11 +230,51 @@ private:
         emit(Op::Throw, 0, s.span);
     }
 
-    // Not yet compiled — fall back to the tree-walker for any body that uses these (slice 2+).
+    // `switch SUBJECT:` — no fallthrough, exact type+value matching (case 1 != case 1.0). Compiled as
+    // a comparison chain: keep the subject on the stack, test each case value with SwitchMatch, jump to
+    // the matching arm; if none match, run `default`. Duplicate literal case values are a compile error.
+    void visit(const ast::SwitchStmt& s) override {
+        compileExpr(*s.subject);                       // subject stays on the stack across the tests
+        std::unordered_set<std::string> seen;          // literal case keys, for duplicate detection
+        std::vector<std::vector<std::size_t>> caseJumps(s.cases.size());
+        for (std::size_t ci = 0; ci < s.cases.size(); ++ci)
+            for (const auto& valExpr : s.cases[ci].values) {
+                if (const auto* lit = dynamic_cast<const ast::LiteralExpr*>(valExpr.get()))
+                    if (auto key = literalSwitchKey(*lit); key && !seen.insert(*key).second)
+                        throw KiritoError("duplicate switch case value", valExpr->span);
+                emit(Op::Dup);
+                compileExpr(*valExpr);
+                emit(Op::SwitchMatch, 0, valExpr->span);
+                caseJumps[ci].push_back(emit(Op::PopJumpIfTrue, 0, s.span));
+            }
+        std::vector<std::size_t> endJumps;
+        emit(Op::Pop);                                 // no match: drop the subject, run default
+        if (s.hasDefault) compileBlock(s.defaultBody);
+        endJumps.push_back(emit(Op::Jump));
+        for (std::size_t ci = 0; ci < s.cases.size(); ++ci) {
+            uint32_t arm = here();
+            for (std::size_t j : caseJumps[ci]) patch(j, arm);
+            emit(Op::Pop);                             // arrived with the subject still on the stack
+            compileBlock(s.cases[ci].body);
+            endJumps.push_back(emit(Op::Jump));
+        }
+        for (std::size_t j : endJumps) patch(j, here());
+        emit(Op::ClearResult);
+    }
+
+    // `class Name [(Base)]:` — eagerly compile the class body (so an unsupported node there makes the
+    // whole enclosing body fall back, not crash at run time); push the base; BuildClass does the rest.
+    void visit(const ast::ClassStmt& s) override {
+        if (!protoForBody(vm_, s.body, /*isFunction=*/true)) throw BytecodeUnsupported{};
+        if (s.base) compileExpr(*s.base);
+        proto_.classes.push_back(&s);
+        emit(Op::BuildClass, static_cast<uint32_t>(proto_.classes.size() - 1), s.span);
+        emit(Op::ClearResult);
+    }
+
+    // Not yet compiled — fall back to the tree-walker for any body that uses these (next stage).
     void visit(const ast::TryStmt&) override { throw BytecodeUnsupported{}; }
     void visit(const ast::WithStmt&) override { throw BytecodeUnsupported{}; }
-    void visit(const ast::ClassStmt&) override { throw BytecodeUnsupported{}; }
-    void visit(const ast::SwitchStmt&) override { throw BytecodeUnsupported{}; }
 
     // --- expressions ---
     void visit(const ast::LiteralExpr& e) override {
