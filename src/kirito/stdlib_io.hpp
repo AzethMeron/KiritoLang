@@ -179,8 +179,12 @@ public:
             });
         if (name == "tell")
             return bind("tell", {}, [self, file](KiritoVM& vm, std::span<const Handle>) -> Handle {
-                file(vm, self).requireOpen();
-                return vm.makeInt(static_cast<int64_t>(file(vm, self).stream.tellg()));
+                auto& f = file(vm, self);
+                f.requireOpen();
+                if (!f.stream.good()) f.stream.clear();   // a prior read that hit EOF leaves eof/fail
+                                                          // set; that's not an error for tell() — clear
+                                                          // so tellg() reports the position, not -1.
+                return vm.makeInt(static_cast<int64_t>(f.stream.tellg()));
             });
         if (name == "seek")
             return bind("seek", {"offset", "whence"}, [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
@@ -225,6 +229,7 @@ public:
         pos += data.size();
     }
     std::string streamRead(std::optional<std::size_t> n) override {
+        if (pos >= buf.size()) return "";           // cursor at/past end (e.g. after seek-beyond-end)
         std::size_t avail = buf.size() - pos;
         std::size_t take = n ? std::min(avail, *n) : avail;
         std::string out = buf.substr(pos, take);
@@ -232,6 +237,7 @@ public:
         return out;
     }
     std::string streamReadLine() override {
+        if (pos >= buf.size()) return "";           // cursor at/past end: nothing to read
         std::size_t nl = buf.find('\n', pos);
         std::size_t end = (nl == std::string::npos) ? buf.size() : nl + 1;  // include the newline
         std::string out = buf.substr(pos, end - pos);

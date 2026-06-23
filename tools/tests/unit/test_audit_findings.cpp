@@ -178,4 +178,26 @@ int main() {
         CHECK(ev(vm, "import(\"heapq\").nlargest(0, [3, 1, 2])") == "[]");
         CHECK(ev(vm, "import(\"heapq\").nlargest(2, [5, 4, 3, 2, 1])") == "[5, 4]");
     }
+
+    // ---- round-5 fixes: BytesIO read after a seek-beyond-end (was a SIGABRT), File.tell after EOF ----
+    {
+        KiritoVM vm;
+        // seek past the end then read/readline returns "" (was: avail underflow -> substr out_of_range -> abort)
+        CHECK(ev(vm, "var b = import(\"io\").BytesIO(\"abc\")\ndiscard b.seek(10)\nb.read()") == "");
+        CHECK(ev(vm, "var b = import(\"io\").BytesIO(\"abc\")\ndiscard b.seek(10)\nb.readline()") == "");
+        // and the stream still works after seeking back in range
+        CHECK(ev(vm, "var b = import(\"io\").BytesIO(\"abc\")\ndiscard b.seek(10)\ndiscard b.read()\ndiscard b.seek(1)\nb.read()") == "bc");
+        // seek-past-end + write still zero-fills the gap
+        CHECK(ev(vm, "var b = import(\"io\").BytesIO(\"ab\")\ndiscard b.seek(5)\ndiscard b.write(\"Z\")\nlen(b)") == "6");
+    }
+    {
+        KiritoVM vm;
+        // File.tell() after an over-long read reports the byte length, not -1 (EOF bit cleared)
+        const std::string mk =
+            "var io = import(\"io\")\n"
+            "var p = import(\"sys\").joinpath(import(\"sys\").gettempdir(), \"kira_tell_probe.txt\")\n"
+            "var w = io.open(p, \"w\")\ndiscard w.write(\"hello\")\nw.close()\n"
+            "var f = io.open(p, \"r\")\n";
+        CHECK(ev(vm, mk + "discard f.read(1000)\nvar t = f.tell()\nf.close()\ndiscard io.remove(p)\nt") == "5");
+    }
 }

@@ -1069,9 +1069,10 @@ Low-level CSV parsing/formatting (RFC-4180-style quoting). For tabular data anal
 ## tabular
 
 A dataframe-style data-analysis library: a labelled 1-D **`Series`** and 2-D **`DataFrame`**, with CSV
-I/O, label/position indexing, boolean masking, element-wise arithmetic, aggregations, group-by,
-joins, and missing-data handling. Public names follow Kirito's lowercase-no-underscore convention
-(`readcsv`, `sortvalues`, `valuecounts`, `resetindex`, ...).
+I/O, label/position indexing, boolean masking, element-wise arithmetic (on `Series` —
+a `DataFrame` is operated on per-column), aggregations, group-by, joins, and missing-data handling.
+Public names follow Kirito's lowercase-no-underscore convention (`readcsv`, `sortvalues`,
+`valuecounts`, `resetindex`, ...).
 
 > **Column order from a dict.** Kirito dicts are not insertion-ordered, so
 > `DataFrame({"a": ..., "b": ...})` does not guarantee column order. Pass `columns=[...]` (or use
