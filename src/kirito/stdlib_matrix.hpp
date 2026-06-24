@@ -323,15 +323,23 @@ public:
         m.vm().registerDeserializer("Matrix", [](KiritoVM& vm, Handle) -> Handle {
             return vm.alloc(std::make_unique<MatrixVal>());
         });
-        // Matrix(nested-list) or Matrix(rows, cols)
-        m.fn("Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            Args args(vm, a, "Matrix");
-            if (args.size() == 2) {
-                int64_t r = args[0].asInt("Matrix rows");
-                int64_t c = args[1].asInt("Matrix cols");
+        // Matrix(nested-list) or Matrix(rows, cols) — the (rows, cols) form also accepts the rows=/cols= keywords.
+        m.kwfn("Matrix", [](KiritoVM& vm, std::span<const Handle> a, std::span<const NamedArg> named) -> Handle {
+            if (!named.empty() || a.size() == 2) {                       // (rows, cols) form
+                bool hasR = false, hasC = false; int64_t r = 0, c = 0;
+                for (const auto& na : named) {
+                    if (na.name == "rows") { r = Value(vm, na.value).asInt("Matrix rows"); hasR = true; }
+                    else if (na.name == "cols") { c = Value(vm, na.value).asInt("Matrix cols"); hasC = true; }
+                    else throw KiritoError("Matrix() got an unexpected keyword argument '" + na.name + "'");
+                }
+                if (a.size() > 2) throw KiritoError("Matrix expects a nested list or (rows, cols)");
+                if (a.size() >= 1) { if (hasR) throw KiritoError("Matrix() got multiple values for 'rows'"); r = Value(vm, a[0]).asInt("Matrix rows"); hasR = true; }
+                if (a.size() >= 2) { if (hasC) throw KiritoError("Matrix() got multiple values for 'cols'"); c = Value(vm, a[1]).asInt("Matrix cols"); hasC = true; }
+                if (!hasR || !hasC) throw KiritoError("Matrix(rows, cols) needs both rows and cols");
                 if (r < 0 || c < 0) throw KiritoError("Matrix dimensions must be non-negative");
                 return vm.alloc(mat::make(static_cast<std::size_t>(r), static_cast<std::size_t>(c)));
             }
+            Args args(vm, a, "Matrix");
             if (args.size() != 1) throw KiritoError("Matrix expects a nested list or (rows, cols)");
             std::vector<std::vector<double>> grid;
             for (Value row : args[0].items()) {

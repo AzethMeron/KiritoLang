@@ -311,6 +311,10 @@ private:
 
     // The ':'-introduced indented block, after the colon has been consumed.
     ast::Block parseIndentedSuite() {
+        // Nested blocks (if/while/for/...) recurse through here; share the expression depth budget so a
+        // pathologically deep indentation pyramid raises instead of overflowing the stack (parsing AND
+        // the recursive AST teardown that follows).
+        DepthGuard g(exprDepth_, peek().span);
         expect(TokenType::Newline, "a newline before an indented block");
         expect(TokenType::Indent, "an indented block");
         ast::Block body;
@@ -376,6 +380,23 @@ private:
         }
         ~DepthGuard() { --d; }
     };
+    // The operator/postfix loops below build LEFT-deep trees iteratively (a[0][1]..., 1+1+1+...), so a
+    // single long chain never trips DepthGuard's recursion bound yet still produces a tree that deep —
+    // which then overflows the native stack when the unique_ptr children cascade at teardown. ChainDepth
+    // makes each chain link count toward the same budget (and nested chains compound through it), so a
+    // pathological chain raises "expression nested too deeply" at parse time instead. The whole
+    // accumulated count is released at scope exit (RAII, exception-safe).
+    struct ChainDepth {
+        int& d; int n = 0;
+        explicit ChainDepth(int& depth) : d(depth) {}
+        ChainDepth(const ChainDepth&) = delete;
+        ChainDepth& operator=(const ChainDepth&) = delete;
+        void step(SourceSpan span) {
+            if (++d > kMaxParseDepth) throw KiritoError("expression nested too deeply", span);
+            ++n;
+        }
+        ~ChainDepth() { d -= n; }
+    };
     // Recursive-descent nesting bound: raise a clean "nested too deeply" error before the native
     // stack overflows. Sanitizer builds have far larger frames, so the parser would overflow long
     // before 2000 — cap much shallower there (this still admits any non-pathological program).
@@ -412,8 +433,10 @@ private:
     }
 
     ast::ExprPtr parseOr() {
+        ChainDepth cd(exprDepth_);
         auto left = parseAnd();
         while (at(TokenType::KwOr)) {
+            cd.step(peek().span);
             SourceSpan span = advance().span;
             left = logical(std::move(left), /*isAnd=*/false, parseAnd(), span);
         }
@@ -421,8 +444,10 @@ private:
     }
 
     ast::ExprPtr parseAnd() {
+        ChainDepth cd(exprDepth_);
         auto left = parseNot();
         while (at(TokenType::KwAnd)) {
+            cd.step(peek().span);
             SourceSpan span = advance().span;
             left = logical(std::move(left), /*isAnd=*/true, parseNot(), span);
         }
@@ -443,6 +468,7 @@ private:
     }
 
     ast::ExprPtr parseComparison() {
+        ChainDepth cd(exprDepth_);
         auto left = parseAdd();
         while (true) {
             BinOp op;
@@ -466,21 +492,25 @@ private:
                 }
                 span = advance().span;
             }
+            cd.step(span);
             left = binary(std::move(left), op, parseAdd(), span);
         }
     }
 
     ast::ExprPtr parseAdd() {
+        ChainDepth cd(exprDepth_);
         auto left = parseMul();
         while (at(TokenType::Plus) || at(TokenType::Minus)) {
             BinOp op = at(TokenType::Plus) ? BinOp::Add : BinOp::Sub;
             SourceSpan span = advance().span;
+            cd.step(span);
             left = binary(std::move(left), op, parseMul(), span);
         }
         return left;
     }
 
     ast::ExprPtr parseMul() {
+        ChainDepth cd(exprDepth_);
         auto left = parseUnary();
         while (at(TokenType::Star) || at(TokenType::Slash) ||
                at(TokenType::SlashSlash) || at(TokenType::Percent)) {
@@ -489,6 +519,7 @@ private:
                      : at(TokenType::SlashSlash) ? BinOp::FloorDiv
                                                  : BinOp::Mod;
             SourceSpan span = advance().span;
+            cd.step(span);
             left = binary(std::move(left), op, parseUnary(), span);
         }
         return left;
@@ -510,6 +541,7 @@ private:
     ast::ExprPtr parsePow() {
         auto base = parsePostfix();
         if (at(TokenType::StarStar)) {
+            DepthGuard g(exprDepth_, peek().span);  // ** is right-recursive (2**2**2**...): bound it
             SourceSpan span = advance().span;
             // Right-associative, and the exponent may itself be unary (2 ** -1).
             return binary(std::move(base), BinOp::Pow, parseUnary(), span);
@@ -519,8 +551,11 @@ private:
 
     // Postfix (call, index, member) binds tighter than **: f()**2 == (f())**2.
     ast::ExprPtr parsePostfix() {
+        ChainDepth cd(exprDepth_);
         auto expr = parsePrimary();
         while (true) {
+            if (!at(TokenType::LParen) && !at(TokenType::LBracket) && !at(TokenType::Dot)) break;
+            cd.step(peek().span);   // each call/index/member link deepens the tree by one
             if (at(TokenType::LParen)) {
                 SourceSpan span = advance().span;
                 auto call = std::make_unique<ast::CallExpr>();

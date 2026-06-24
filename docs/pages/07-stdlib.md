@@ -152,14 +152,14 @@ Object-based RNG — no global state; create a generator and call methods on it.
 
 ### Random object
 
-- `r.seed(n: Integer) → None` — reseed.
+- `r.seed(a: Integer) → None` — reseed.
 - `r.random() → Float` — uniform in `[0.0, 1.0)`.
 - `r.uniform(a, b) → Float` — uniform in `[a, b]`.
 - `r.randint(a, b) → Integer` — uniform integer in `[a, b]` (inclusive).
 - `r.randrange(stop)` / `r.randrange(start, stop[, step]) → Integer` — like `range`, a random member.
 - `r.choice(seq)` — a random element of a non-empty sequence.
-- `r.shuffle(list) → None` — shuffle a List in place.
-- `r.sample(seq, k) → List` — `k` distinct elements chosen at random.
+- `r.shuffle(seq) → None` — shuffle a List in place.
+- `r.sample(population, k) → List` — `k` distinct elements chosen at random.
 - `r.gauss(mu, sigma) → Float` — a sample from a normal distribution.
 - `r.normalvariate(mu, sigma) → Float` — a sample from a normal distribution (an alias of `gauss`).
 - `r.expovariate(lambd) → Float` — exponential distribution.
@@ -665,7 +665,7 @@ Process environment and platform.
 - `platform` — `"linux"` / `"darwin"` / `"windows"` (a `String`).
 - `arch` — the CPU architecture, normalized to the names used in release-asset filenames:
   `"x64"` / `"arm64"` / `"x86"` / `"unknown"` (a `String`).
-- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.6.2"`); the same
+- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.7.0"`); the same
   value `ki --version` prints. `kpm` compares it against the latest GitHub release to self-upgrade.
 - `executable` — the absolute path of the running `ki` binary (a `String`, or `""` if it can't be
   determined). `kpm upgrade-ki` uses it to locate the binary to replace.
@@ -847,6 +847,7 @@ Returned by a successful `match`/`search`/`fullmatch` (and by `finditer`):
 - `m.string` — the subject the match was found in.
 
 ```kirito
+var io = import("io")
 var re = import("regex")
 var m = re.search("(?P<user>\\w+)@(?P<host>[\\w.]+)", "contact ada@kirito.dev now")
 io.print(m.group())            # => ada@kirito.dev

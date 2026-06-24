@@ -341,6 +341,8 @@ inline bool kiEquals(KiritoVM& vm, Handle a, Handle b);
 // type error. List ordering compares element-by-element (recursively) and breaks ties by length,
 // matching Python — enabling the common multi-key sort idiom (key returns a [k1, k2, ...] list).
 inline bool kiLessThan(KiritoVM& vm, Handle a, Handle b) {
+    EqualsGuard guard;  // bound the element-wise recursion on nested lists (a cyclic/deep structure
+                        // would otherwise overflow the native stack), exactly as kiEquals does for ==
     const Object& x = vm.arena().deref(a);
     const Object& y = vm.arena().deref(b);
     if (isNumeric(x) && isNumeric(y)) return asDouble(x) < asDouble(y);
@@ -509,8 +511,9 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
     if (name == "insert")
         return makeMethod(vm,
             "insert", {"index", "item"}, [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.size() < 2) throw KiritoError("insert expects (index, item)");
                 auto& e = self_list(vm, self).elems;
-                int64_t i = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
+                int64_t i = argInt(vm, a[0], "insert");  // checked: a non-Integer index is a clean error, not a bad downcast
                 if (i < 0) i += static_cast<int64_t>(e.size());
                 if (i < 0) i = 0;
                 if (i > static_cast<int64_t>(e.size())) i = static_cast<int64_t>(e.size());
@@ -520,6 +523,7 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
     if (name == "remove")
         return makeMethod(vm,
             "remove", {"value"}, [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.empty()) throw KiritoError("remove expects a value");
                 auto& e = self_list(vm, self).elems;
                 for (std::size_t i = 0; i < e.size(); ++i)
                     if (kiEquals(vm, e[i], a[0])) { e.erase(e.begin() + i); return vm.none(); }
@@ -644,6 +648,7 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
         });
     if (name == "pop")
         return bind("pop", {"key", "default"}, [self, dict](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("pop expects a key");
             auto& d = dict(vm, self);
             const Handle* v = d.find(vm.arena(), a[0]);
             if (!v) {
@@ -782,6 +787,7 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         });
     if (name == "discard")  // remove if present, no error otherwise (cf. remove)
         return bind("discard", {"value"}, [self, set_of](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("discard expects a value");
             auto& s = set_of(vm, self);
             const Object& v = vm.arena().deref(a[0]);
             if (!v.hashable()) return vm.none();
@@ -2351,7 +2357,11 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
     if (i < spec.size() && spec[i] == ',') { comma = true; ++i; }
     if (i < spec.size() && spec[i] == '.') {
         ++i; precision = 0;
-        while (i < spec.size() && spec[i] >= '0' && spec[i] <= '9') { precision = precision * 10 + (spec[i] - '0'); ++i; }
+        while (i < spec.size() && spec[i] >= '0' && spec[i] <= '9') {
+            precision = precision * 10 + (spec[i] - '0');
+            if (precision > static_cast<int>(kMaxRepeat)) throw KiritoError("format precision too large");  // bound like width
+            ++i;
+        }
     }
     if (i < spec.size()) { type = spec[i]; ++i; }
     if (i != spec.size()) throw KiritoError("invalid format spec '" + spec + "'");
@@ -2398,6 +2408,8 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
             signStr += base == 2 ? "0b" : base == 8 ? "0o" : (type == 'X' ? "0X" : "0x");
         body = digits;
     } else if (type == 'f' || type == 'e' || type == 'g' || type == '%') {
+        if (o.kind() != ValueKind::Float && o.kind() != ValueKind::Integer && o.kind() != ValueKind::Bool)
+            throw KiritoError("format type '" + std::string(1, type) + "' needs a number, not '" + o.typeName() + "'");
         double d = o.kind() == ValueKind::Float ? static_cast<const FloatVal&>(o).value()
                  : o.kind() == ValueKind::Integer ? static_cast<double>(static_cast<const IntVal&>(o).value())
                  : (static_cast<const BoolVal&>(o).value() ? 1.0 : 0.0);
@@ -2406,13 +2418,16 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
         char fmtbuf[16];
         char conv = type == '%' ? 'f' : type;
         std::snprintf(fmtbuf, sizeof(fmtbuf), "%%.%d%c", precision < 0 ? 6 : precision, conv);
-        char out[64];
-        // fmtbuf is built above from a fixed pattern + validated conv char; the dynamic format is intentional.
+        // fmtbuf is built above from a fixed pattern + validated conv char; the dynamic format is
+        // intentional. Size the output buffer to what snprintf actually needs (a high precision like
+        // ".1000f" must NOT be silently truncated to a fixed 64-byte buffer).
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
-        std::snprintf(out, sizeof(out), fmtbuf, std::fabs(d));
+        int need = std::snprintf(nullptr, 0, fmtbuf, std::fabs(d));
+        std::string out(need > 0 ? static_cast<std::size_t>(need) : 0, '\0');
+        if (need > 0) std::snprintf(out.data(), static_cast<std::size_t>(need) + 1, fmtbuf, std::fabs(d));
 #pragma GCC diagnostic pop
-        body = out;
+        body = std::move(out);
         if (type == '%') body += "%";
         if (comma) {
             std::size_t dot = body.find('.');
@@ -2629,6 +2644,11 @@ inline void KiritoVM::installBuiltins() {
             const Object& no = vm.arena().deref(a[1]);
             if (no.kind() != ValueKind::Integer) throw KiritoError("round ndigits must be an Integer");
             int64_t nd = static_cast<const IntVal&>(no).value();
+            // Extreme ndigits: beyond a double's reach, pow(10, nd) would overflow to inf and yield
+            // NaN. Rounding to more places than a double holds is a no-op; rounding past its magnitude
+            // gives a signed zero (matching Python's round(x, 10**18) / round(x, -10**18)).
+            if (nd > 323) return vm.makeFloat(x);
+            if (nd < -323) return vm.makeFloat(std::copysign(0.0, x));
             // Scale with long double so the intermediate x*f doesn't double-round (e.g. 2.675*100 in
             // plain double becomes 267.5 -> 268; in extended precision it stays 267.4999... -> 267,
             // i.e. round(2.675, 2) == 2.67). Keeps Kirito's documented half-away-from-zero rounding.
@@ -2803,7 +2823,8 @@ inline void KiritoVM::installBuiltins() {
         for (Handle h : items.value()) {
             rs.add(h);
             auto pair = std::make_unique<ListVal>();
-            pair->elems.push_back(vm.makeInt(i++));
+            pair->elems.push_back(vm.makeInt(i));
+            i = wadd(i, 1);  // two's-complement wrap, no signed-overflow UB at INT64_MAX start
             pair->elems.push_back(h);
             out->elems.push_back(rs.add(vm.alloc(std::move(pair))));
         }

@@ -101,6 +101,8 @@ int repl(kirito::KiritoVM& vm) {
                 std::cout << vm.stringify(result) << "\n";
         } catch (const kirito::KiritoError& e) {
             std::cerr << "error: " << e.what() << " (line " << e.span.line << ":" << e.span.col << ")\n";
+        } catch (const std::exception& e) {
+            std::cerr << "error: " << e.what() << "\n";  // e.g. an uncaught std::bad_alloc from a native
         }
     }
     std::cout << "\n";
@@ -200,6 +202,11 @@ int main(int argc, char** argv) {
         // entry script when the error carries no location of its own.
         const std::string& where = e.file.empty() ? file : e.file;
         std::cerr << where << ":" << e.span.line << ":" << e.span.col << ": error: " << e.what() << "\n";
+        return 1;
+    } catch (const std::exception& e) {
+        // A native that throws a std::exception the user didn't catch (e.g. std::bad_alloc) must not
+        // call std::terminate — report it and exit non-zero like any other error.
+        std::cerr << file << ": error: " << e.what() << "\n";
         return 1;
     }
     return 0;

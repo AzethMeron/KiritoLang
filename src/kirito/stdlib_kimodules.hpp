@@ -881,8 +881,11 @@ var deepcopy = Function(obj):
             memo[cid] = {}
         elif ct == "Set":
             memo[cid] = Set()
+        elif ct in _IMMUTABLE:
+            continue                      # scalar: mapped() returns it unchanged
         else:
-            continue
+            memo[cid] = _copyViaSerde(cur)  # user instance / native value: independent deep copy
+            continue                      # serde copied it whole — no shell to fill, don't descend
         order.append(cur)
         if ct == "Dict":
             for pair in cur.items():
@@ -2688,8 +2691,12 @@ var _testcomp = Function(pv, comp):
 # Does `version` satisfy `range`? Prerelease versions match only when a comparator in the same
 # satisfied set pins the same major.minor.patch with a prerelease (node-semver's default).
 var satisfies = Function(version, rng) -> Bool:
+    var sets = None
+    try:
+        sets = _parserange(rng)         # an unparseable range satisfies nothing (node-semver)
+    catch as e:
+        return False
     var pv = parse(version)
-    var sets = _parserange(rng)
     for comps in sets:
         var ok = True
         for comp in comps:

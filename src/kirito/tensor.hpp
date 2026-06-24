@@ -275,6 +275,8 @@ Tensor<T> reduceAxis(const Tensor<T>& t, std::size_t axis, Comb comb) {
     Tensor<T> out(outshape);
     Shape st = t.strides();
     std::size_t axislen = t.shape[axis], axisstep = st[axis];
+    if (axislen == 0 && out.size() > 0)  // no first element to seed the reduction (numpy raises too)
+        throw TensorError("zero-size reduction: cannot reduce over an empty axis");
     Shape ost = out.strides();
     // For each output cell, walk the reduced axis in the source.
     for (std::size_t olin = 0; olin < out.size(); ++olin) {

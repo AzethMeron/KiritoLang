@@ -159,7 +159,7 @@ inline Handle ComplexVal::getAttr(KiritoVM& vm, Handle self, std::string_view na
         return bind("argument", [self, self_z](KiritoVM& vm, std::span<const Handle>) { return vm.makeFloat(std::arg(self_z(vm, self))); });
     if (name == "norm2")
         return bind("norm2", [self, self_z](KiritoVM& vm, std::span<const Handle>) { return vm.makeFloat(std::norm(self_z(vm, self))); });
-    if (name == "is_zero")
+    if (name == "is_zero")  // a near-zero predicate (deliberately tolerant, unlike exact ==)
         return bind("is_zero", [self, self_z](KiritoVM& vm, std::span<const Handle>) { return vm.makeBool(std::norm(self_z(vm, self)) < 1e-20); });
     // --- serialization (serialize / dump): a Complex round-trips as [re, im]. ---
     if (name == "_getstate_")

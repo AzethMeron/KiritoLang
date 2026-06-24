@@ -83,7 +83,8 @@ public:
                 try {
                     return wrap(vm, args[0].handle(), fn(raw(vm, args[0].handle(), nm)));
                 } catch (const deflate::DeflateError& e) {
-                    throw KiritoError(std::string("gzip: ") + e.what());
+                    std::string msg = e.what();  // the gzip decode messages already carry the prefix
+                    throw KiritoError(msg.rfind("gzip:", 0) == 0 ? msg : "gzip: " + msg);
                 }
             });
         };

@@ -961,7 +961,7 @@ inline Handle ResponseVal::getAttr(KiritoVM& vm, Handle self, std::string_view n
             return self;
         });
     if (name == "header")
-        return bind("header", {"name"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bind("header", {"name", "default"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto& r = static_cast<ResponseVal&>(vm.arena().deref(self));
             std::string want = net::asciiLower(argString(vm, a[0], "header"));
             const DictVal& hd = static_cast<const DictVal&>(vm.arena().deref(r.headersH));

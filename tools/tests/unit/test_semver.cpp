@@ -161,7 +161,10 @@ int main() {
     CHECK(ev("s.maxsatisfying([\"x\", \"y\", \"\"], \"*\")") == "None");  // all invalid -> None
     CHECK(ev("s.sort([\"x\", \"y\"])") == "[]");           // invalids dropped -> empty
     CHECK_THROWS(KiritoVM().runSource("import(\"semver\").compare(\"1.0.0\", \"garbage\")\n"));
-    CHECK_THROWS(KiritoVM().runSource("import(\"semver\").satisfies(\"1.0.0\", \">=abc\")\n"));
+    // An UNPARSEABLE range satisfies nothing (node-semver: satisfies->false, maxsatisfying->null) —
+    // never leaks the internal Integer()-conversion error to the caller (kpm passes user constraints here).
+    CHECK(ev("s.satisfies(\"1.0.0\", \">=abc\")") == "False");
+    CHECK(ev("s.maxsatisfying([\"1.0.0\", \"2.0.0\"], \"latest\")") == "None");
 
     // ---------- fuzz: random version-ish strings are total (no crash) and self-consistent ----------
     {

@@ -31,8 +31,8 @@ parameter name.
 - `Bytes(x[, encoding]) → Bytes` — build a [`Bytes`](types.html#bytes) from a `List` of Integers (0–255),
   an Integer `n` (`n` zero bytes), a `String` (encoded; default `utf-8`, also `latin-1`/`ascii`), or
   another `Bytes`. No argument (or `None`) gives empty `Bytes`.
-- `fromhex(s) → Bytes` — parse a hex `String` (spaces allowed) into `Bytes` — the free-function form of
-  `Bytes.fromhex`. E.g. `fromhex("48 69").decode() == "Hi"`.
+- `fromhex(s) → Bytes` — parse a hex `String` (spaces allowed) into `Bytes` (the inverse of the
+  `b.hex()` method). E.g. `fromhex("48 69").decode() == "Hi"`.
 - `isinstance(value, type) → Bool` — whether `value` is an instance of `type`. `type` may be a
   **built-in type constructor** (`isinstance(1, Integer)`, `isinstance("x", String)`), a user class
   value, or the equivalent type-name `String` (`isinstance(x, "Integer")`) — all three forms work.

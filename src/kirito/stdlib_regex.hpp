@@ -253,6 +253,7 @@ public:
                     if (endpos < 0) endpos = 0;
                     if (endpos < static_cast<int>(text.size())) text.resize(static_cast<std::size_t>(endpos));
                 }
+                if (pos > static_cast<int>(text.size())) pos = static_cast<int>(text.size());  // a past-end start matches nothing (no OOB)
                 bool anchored = (name != "search");
                 bool requireEnd = (name == "fullmatch");
                 reng::MatchResult r = reng::run(R.prog, text, pos, anchored, requireEnd);

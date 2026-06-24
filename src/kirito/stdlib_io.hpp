@@ -95,8 +95,16 @@ public:
     std::string streamRead(std::optional<std::size_t> n) override {
         requireReadable();
         if (!n) { std::stringstream ss; ss << stream.rdbuf(); return ss.str(); }
-        std::string buf(*n, '\0');
-        stream.read(buf.data(), static_cast<std::streamsize>(*n));
+        std::size_t want = *n;
+        std::streampos cur = stream.tellg();          // cap the pre-allocation to what's actually left
+        if (cur >= 0) {                               // (a huge read(n) must not try to allocate n bytes)
+            stream.seekg(0, std::ios::end);
+            std::streampos endp = stream.tellg();
+            stream.seekg(cur);
+            if (endp >= cur) want = std::min(want, static_cast<std::size_t>(endp - cur));
+        }
+        std::string buf(want, '\0');
+        stream.read(buf.data(), static_cast<std::streamsize>(want));
         buf.resize(static_cast<std::size_t>(stream.gcount()));
         return buf;
     }
@@ -227,6 +235,9 @@ public:
     }
 
     void streamWrite(const std::string& data) override {
+        constexpr std::size_t kMaxBuf = 256ull * 1024 * 1024;   // bound the in-memory buffer (matches Bytes)
+        if (pos > kMaxBuf || data.size() > kMaxBuf - pos)       // e.g. write after seek(9e18): overflow-safe
+            throw KiritoError("BytesIO too large");
         if (pos + data.size() > buf.size()) buf.resize(pos + data.size());  // overwrite-at-cursor
         std::copy(data.begin(), data.end(), buf.begin() + static_cast<std::ptrdiff_t>(pos));
         pos += data.size();
@@ -351,10 +362,18 @@ public:
     std::string streamRead(std::optional<std::size_t> n) override {
         if (dir != Dir::In) throw KiritoError("a write stream is not readable");
         if (!n) { std::stringstream ss; ss << std::cin.rdbuf(); return ss.str(); }
-        std::string buf(*n, '\0');
-        std::cin.read(buf.data(), static_cast<std::streamsize>(*n));
-        buf.resize(static_cast<std::size_t>(std::cin.gcount()));
-        return buf;
+        std::string out;                              // read in chunks: a huge n must not pre-allocate n bytes
+        std::size_t remaining = *n;
+        constexpr std::size_t kChunk = 1u << 16;
+        std::array<char, kChunk> tmp{};
+        while (remaining > 0 && std::cin) {
+            std::cin.read(tmp.data(), static_cast<std::streamsize>(std::min(remaining, kChunk)));
+            std::streamsize got = std::cin.gcount();
+            if (got <= 0) break;
+            out.append(tmp.data(), static_cast<std::size_t>(got));
+            remaining -= static_cast<std::size_t>(got);
+        }
+        return out;
     }
     std::string streamReadLine() override {
         if (dir != Dir::In) throw KiritoError("a write stream is not readable");

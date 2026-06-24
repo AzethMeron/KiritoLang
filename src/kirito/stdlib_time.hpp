@@ -86,14 +86,18 @@ public:
     explicit DateTime(int64_t secs) { setEpoch(secs); }
 
     // Set the epoch and recompute the broken-down UTC fields, keeping `epoch` and `tm` consistent.
+    // gmtime fails (returns null) for an epoch whose year overflows `tm_year`; raise rather than leave
+    // `tm` half-written and emit a nonsense date (e.g. day 00).
     void setEpoch(int64_t secs) {
         epoch = secs;
         std::time_t t = static_cast<std::time_t>(secs);
+        bool ok;
 #if defined(_WIN32)
-        ::gmtime_s(&tm, &t);
+        ok = (::gmtime_s(&tm, &t) == 0);
 #else
-        ::gmtime_r(&t, &tm);
+        ok = (::gmtime_r(&t, &tm) != nullptr);
 #endif
+        if (!ok) throw KiritoError("DateTime: epoch " + std::to_string(secs) + " is out of representable range");
     }
 
     std::string iso() const {
@@ -141,10 +145,15 @@ public:
                     const Object& o = vm.arena().deref(a[0]);
                     int64_t delta;
                     if (o.kind() == ValueKind::Integer) delta = static_cast<const IntVal&>(o).value();
-                    else if (o.kind() == ValueKind::Float) delta = static_cast<int64_t>(static_cast<const FloatVal&>(o).value());
+                    else if (o.kind() == ValueKind::Float) delta = toInt64Checked(static_cast<const FloatVal&>(o).value(), "add/sub");  // NaN/inf/range-safe
                     else throw KiritoError("add/sub expects a number of seconds");
                     int64_t base = static_cast<DateTime&>(vm.arena().deref(self)).epoch;
-                    return vm.alloc(std::make_unique<DateTime>(base + (sub ? -delta : delta)));
+                    // Overflow-safe (no UB even for delta == INT64_MIN); a wrapped epoch would be nonsense anyway.
+                    int64_t result;
+                    bool overflow = sub ? __builtin_sub_overflow(base, delta, &result)
+                                        : __builtin_add_overflow(base, delta, &result);
+                    if (overflow) throw KiritoError("DateTime arithmetic overflow");
+                    return vm.alloc(std::make_unique<DateTime>(result));
                 }, std::vector<Handle>{self});
         if (name == "diff")
             return makeMethod(vm,

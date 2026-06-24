@@ -190,6 +190,12 @@ using FT = TensorVal::FT;
 using CT = TensorVal::CT;
 
 inline TensorVal& asT(KiritoVM& vm, Handle h) { return static_cast<TensorVal&>(vm.arena().deref(h)); }
+// Checked downcast for public entry points that take a user value directly (no prior dynamic_cast).
+inline TensorVal& reqT(KiritoVM& vm, Handle h, const char* who) {
+    auto* t = dynamic_cast<TensorVal*>(&vm.arena().deref(h));
+    if (!t) throw KiritoError(std::string(who) + " expects a Tensor");
+    return *t;
+}
 
 inline constexpr std::size_t kMaxElems = 64ull * 1024 * 1024;
 inline void checkSize(const tensor::Shape& s) {
@@ -2072,7 +2078,10 @@ public:
         });
         m.fn("eye", {{"n", "Integer"}, {"dtype", "", m.vm().none()}, {"requiresgrad", "", m.vm().makeBool(false)}}, "Tensor",
              [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::size_t n = static_cast<std::size_t>(Args(vm, a, "eye")[0].asInt("n"));
+            int64_t ni = Args(vm, a, "eye")[0].asInt("n");
+            if (ni < 0) throw KiritoError("eye: n must be non-negative");
+            std::size_t n = static_cast<std::size_t>(ni);
+            tns::checkSize(tensor::Shape{n, n});  // before filling: n*n can overflow size_t -> tiny buffer, OOB write
             bool wantC = a.size() > 1 && tns::wantsComplex(vm, a[1]);
             bool reqGrad = a.size() > 2 && vm.arena().deref(a[2]).truthy();
             Handle h;
@@ -2091,12 +2100,26 @@ public:
             }
             return h;
         });
-        // arange(stop) or arange(start, stop[, step]) -> a 1-D Float tensor.
-        m.fn("arange", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            Args args(vm, a, "arange");
-            double start = 0, stop, step = 1;
-            if (args.size() == 1) stop = args[0].asFloat("stop");
-            else { start = args[0].asFloat("start"); stop = args[1].asFloat("stop"); if (args.size() > 2) step = args[2].asFloat("step"); }
+        // arange(stop) or arange(start, stop[, step]) -> a 1-D Float tensor. Variadic-by-position like the
+        // builtin range, but it also names its parameters so keywords work: arange(stop=5), arange(start=1, stop=9).
+        m.kwfn("arange", [](KiritoVM& vm, std::span<const Handle> a, std::span<const NamedArg> named) -> Handle {
+            double start = 0, stop = 0, step = 1;
+            bool hasStart = false, hasStop = false, hasStep = false;
+            auto fv = [&](Handle h, const char* w) { return Value(vm, h).asFloat(w); };
+            for (const auto& na : named) {
+                if (na.name == "start") { if (hasStart) throw KiritoError("arange() got multiple values for 'start'"); start = fv(na.value, "start"); hasStart = true; }
+                else if (na.name == "stop") { if (hasStop) throw KiritoError("arange() got multiple values for 'stop'"); stop = fv(na.value, "stop"); hasStop = true; }
+                else if (na.name == "step") { if (hasStep) throw KiritoError("arange() got multiple values for 'step'"); step = fv(na.value, "step"); hasStep = true; }
+                else throw KiritoError("arange() got an unexpected keyword argument '" + na.name + "'");
+            }
+            if (a.size() > 3) throw KiritoError("arange expects 1 to 3 positional arguments");
+            if (a.size() == 1 && !hasStop) { stop = fv(a[0], "stop"); hasStop = true; }  // arange(stop) overload
+            else {
+                if (a.size() >= 1) { if (hasStart) throw KiritoError("arange() got multiple values for 'start'"); start = fv(a[0], "start"); hasStart = true; }
+                if (a.size() >= 2) { if (hasStop) throw KiritoError("arange() got multiple values for 'stop'"); stop = fv(a[1], "stop"); hasStop = true; }
+                if (a.size() >= 3) { if (hasStep) throw KiritoError("arange() got multiple values for 'step'"); step = fv(a[2], "step"); hasStep = true; }
+            }
+            if (!hasStop) throw KiritoError("arange: missing stop");
             if (step == 0) throw KiritoError("arange step must be non-zero");
             std::vector<double> data;
             if (step > 0) for (double x = start; x < stop; x += step) { data.push_back(x); if (data.size() > tns::kMaxElems) throw KiritoError("Tensor too large"); }
@@ -2176,7 +2199,7 @@ public:
         m.alias("identity", "eye");
         // diag: a 1-D tensor -> a diagonal matrix; a 2-D tensor -> its diagonal (Float only)
         m.fn("diag", {{"t", "Tensor"}, {"k", "Integer", m.vm().makeInt(0)}}, "Tensor", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            const TensorVal::FT& t = tns::reqFloat(tns::asT(vm, a[0]), "diag");
+            const TensorVal::FT& t = tns::reqFloat(tns::reqT(vm, a[0], "diag"), "diag");
             int64_t k = Args(vm, a, "diag")[1].asInt("k");
             return tns::wrap([&]() -> Handle {
                 if (t.ndim() == 1) {
@@ -2206,7 +2229,7 @@ public:
         });
         auto triFn = [](const char* nm, bool lower) {
             return [nm, lower](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                const TensorVal::FT& t = tns::reqFloat(tns::asT(vm, a[0]), nm);
+                const TensorVal::FT& t = tns::reqFloat(tns::reqT(vm, a[0], nm), nm);
                 int64_t k = Args(vm, a, nm)[1].asInt("k");
                 if (t.ndim() != 2) throw KiritoError(std::string(nm) + " expects a 2-D tensor");
                 std::size_t rows = t.shape[0], cols = t.shape[1];
@@ -2318,7 +2341,7 @@ public:
         // ---- sorting / searching ----
         m.fn("unique", {{"t", "Tensor"}}, "Tensor", la1("unique", tns::uniqueT));
         m.fn("nonzero", {{"t", "Tensor"}}, "List", la1("nonzero", tns::nonzeroT));
-        m.fn("searchsorted", {{"a", "Tensor"}, {"v"}}, "Tensor", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("searchsorted", {{"a", "Tensor"}, {"v"}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {  // Integer for a scalar v, Tensor for a tensor v
             if (!dynamic_cast<const TensorVal*>(&vm.arena().deref(a[0]))) throw KiritoError("searchsorted expects a sorted 1-D Tensor");
             return tns::wrap([&]() { return tns::searchsortedT(vm, a[0], a[1]); });
         });

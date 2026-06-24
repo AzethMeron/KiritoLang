@@ -71,10 +71,11 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   == 0.3` is `False`, `NaN != NaN`, `inf == inf`, `0.0 == -0.0` — so equality agrees with `<`/`>`
   (trichotomy) and with hashing (distinct-but-close floats are distinct Set/Dict keys). For
   *approximate* comparison every Integer/Float has **`.compare(other, rel_tol = 1e-9, abs_tol = 0.0)
-  -> Bool`** (math.isclose semantics). **This rule is language-wide: `==` is ALWAYS exact and the
-  only tolerant comparison is `.compare` — every native numeric type (`Complex`, real `Matrix`,
-  `Tensor`, `ComplexMatrix`/complex `Matrix`) compares bit-exactly with `==` and carries the same
-  `.compare(other, rel_tol, abs_tol)` method.** Resource guards: huge string/list repetition, padding, and
+  -> Bool`** (math.isclose semantics). **The boundary rule is: ONLY `==`/`!=` are exact — every native
+  numeric type (`Complex`, real `Matrix`, `Tensor`, `ComplexMatrix`/complex `Matrix`) compares
+  bit-exactly with `==` and carries the same `.compare(other, rel_tol, abs_tol)` method. METHODS, by
+  contrast, MAY (and should) be tolerant — `.compare` and predicates like `complex.is_zero` use a
+  rel/abs epsilon; tolerance lives in methods, never in `==`.** Resource guards: huge string/list repetition, padding, and
   `range` are bounded (raise instead of OOMing); deeply nested source/data structures raise instead
   of overflowing the native stack.
 - **Modules** via `import("io")`; first stdlib module is `io` (`io.input`, `io.print`).

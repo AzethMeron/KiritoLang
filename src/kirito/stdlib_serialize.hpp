@@ -158,8 +158,12 @@ inline Handle loads(KiritoVM& vm, const std::string& text) {
     } catch (const KiritoError&) {
         throw;  // already a clean, intentional diagnostic
     } catch (const std::exception& e) {
-        // stol/stod on a malformed token, etc. -> a clean Kirito error, never an escape.
-        throw KiritoError(std::string("corrupt serialized data: ") + e.what());
+        // stol/stod on a malformed token, etc. -> a clean Kirito error, never an escape. std::stoi/stol/
+        // stoll/stod set what() to just the function name ("stoi"); translate that to a readable message.
+        std::string w = e.what();
+        if (w == "stoi" || w == "stol" || w == "stoll" || w == "stod" || w == "stoull")
+            w = "malformed number";
+        throw KiritoError("corrupt serialized data: " + w);
     }
 }
 

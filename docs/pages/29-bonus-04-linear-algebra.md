@@ -38,7 +38,8 @@ io.print(A * 2)             # [[2.0, 4.0], [6.0, 8.0]]       — scalar multiply
 io.print(A.transpose())     # [[1.0, 3.0], [2.0, 4.0]]
 io.print(A.determinant())   # -2.0
 io.print(A.trace())         # 5.0
-io.print(A * A.inverse() == m.identity(2))   # True
+io.print(A * A.inverse() == m.identity(2))   # False — `==` is exact and inversion has roundoff
+io.print((A * A.inverse()).compare(m.identity(2), abs_tol = 1e-9))   # True — tolerant compare
 ```
 
 ## Applying a function to every element — `apply`

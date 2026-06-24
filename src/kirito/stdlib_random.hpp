@@ -62,6 +62,7 @@ public:
         };
         if (name == "seed")
             return bind("seed", {"a"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {  // param name matches inspect "seed(a)"
+                if (a.empty()) throw KiritoError("seed expects a value");
                 rng(vm, self).engine.seed(static_cast<uint64_t>(asInt(vm, a[0])));
                 return vm.none();
             });
@@ -71,6 +72,7 @@ public:
             });
         if (name == "uniform")
             return bind("uniform", {"a", "b"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.size() < 2) throw KiritoError("uniform expects (a, b)");
                 std::uniform_real_distribution<double> d(asNum(vm, a[0]), asNum(vm, a[1]));
                 return vm.makeFloat(d(rng(vm, self).engine));
             });
@@ -88,6 +90,7 @@ public:
             });
         if (name == "randint")  // inclusive [a, b]
             return bind("randint", {"a", "b"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.size() < 2) throw KiritoError("randint expects (a, b)");
                 int64_t lo = asInt(vm, a[0]), hi = asInt(vm, a[1]);
                 if (lo > hi) throw KiritoError("randint: empty range");
                 return vm.makeInt(std::uniform_int_distribution<int64_t>(lo, hi)(rng(vm, self).engine));
@@ -112,6 +115,7 @@ public:
             });
         if (name == "choice")
             return bind("choice", {"seq"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.empty()) throw KiritoError("choice expects a sequence");
                 auto items = vm.arena().deref(a[0]).iterate(vm);
                 if (items.value().empty()) throw KiritoError("choice from empty sequence");
                 std::size_t i = std::uniform_int_distribution<std::size_t>(0, items.value().size() - 1)(rng(vm, self).engine);
@@ -119,6 +123,7 @@ public:
             });
         if (name == "shuffle")  // in place, requires a List
             return bind("shuffle", {"seq"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.empty()) throw KiritoError("shuffle requires a List");
                 Object& o = vm.arena().deref(a[0]);
                 if (o.kind() != ValueKind::List) throw KiritoError("shuffle requires a List");
                 auto& e = static_cast<ListVal&>(o).elems;
@@ -128,6 +133,7 @@ public:
             });
         if (name == "sample")  // k unique elements -> new List
             return bind("sample", {"population", "k"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.size() < 2) throw KiritoError("sample expects (population, k)");
                 auto items = vm.arena().deref(a[0]).iterate(vm);
                 std::vector<Handle> pool = items.value();
                 int64_t k = asInt(vm, a[1]);
