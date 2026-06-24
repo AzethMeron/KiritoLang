@@ -376,7 +376,14 @@ private:
         }
         ~DepthGuard() { --d; }
     };
+    // Recursive-descent nesting bound: raise a clean "nested too deeply" error before the native
+    // stack overflows. Sanitizer builds have far larger frames, so the parser would overflow long
+    // before 2000 — cap much shallower there (this still admits any non-pathological program).
+#if defined(KIRITO_SANITIZER_BUILD)
+    static constexpr int kMaxParseDepth = 250;
+#else
     static constexpr int kMaxParseDepth = 2000;
+#endif
 
     ast::ExprPtr parseExpr() {
         DepthGuard g(exprDepth_, peek().span);

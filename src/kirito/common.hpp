@@ -8,6 +8,19 @@
 #include <stdexcept>
 #include <string>
 
+// AddressSanitizer/ThreadSanitizer detection (GCC defines __SANITIZE_ADDRESS__; Clang exposes
+// __has_feature). Sanitizer builds use much larger native frames (redzones + shadow), so recursive
+// descents (the parser, the compiler) overflow the stack at a far shallower depth — the depth guards
+// below pick a lower bound under a sanitizer so they raise a clean error instead of crashing. Defined
+// here, in the first-included header, so every translation unit (parser, vm, ...) sees it.
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)  // GCC: asan / tsan
+#  define KIRITO_SANITIZER_BUILD 1
+#elif defined(__has_feature)                                       // Clang
+#  if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
+#    define KIRITO_SANITIZER_BUILD 1
+#  endif
+#endif
+
 namespace kirito {
 
 // Position of a token / node in source, for diagnostics. 1-based line/col.

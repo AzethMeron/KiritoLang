@@ -16,16 +16,6 @@
 #include "handle.hpp"
 #include "object.hpp"
 
-// AddressSanitizer detection (GCC defines __SANITIZE_ADDRESS__; Clang exposes __has_feature). Kept
-// in a nested form so the Clang-only __has_feature() is never referenced under GCC's preprocessor.
-#if defined(__SANITIZE_ADDRESS__)
-#  define KIRITO_SANITIZER_BUILD 1
-#elif defined(__has_feature)
-#  if __has_feature(address_sanitizer)
-#    define KIRITO_SANITIZER_BUILD 1
-#  endif
-#endif
-
 namespace kirito {
 
 namespace ast { struct Program; }
