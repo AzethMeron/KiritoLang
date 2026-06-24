@@ -31,7 +31,7 @@ int main() {
     CHECK(val("3 > 4 or not False") == "True");
     CHECK(val("1 == \"x\"") == "False");     // mismatched-type equality never raises
     CHECK(val("\"hi\" if 3 > 2 else \"lo\"") == "hi");
-    CHECK(val("0 and crashIfEvaluated") == "0");   // RHS not evaluated -> no NameError
+    CHECK(val("0 and 1 // 0") == "0");   // RHS not evaluated -> no NameError
 
     // --- strings, f-strings, format specs ---
     CHECK(val("\"AB\" * 3 + \"!\"") == "ABABAB!");
@@ -120,7 +120,8 @@ int main() {
     {
         KiritoVM vm;
         CHECK_THROWS(vm.runSource("1 + 2 = 3"));        // invalid assignment target
-        CHECK_THROWS(vm.runSource("f(a=1, 2)"));        // positional after keyword
+        CHECK_THROWS(vm.runSource("var f=Function(a,b): return a\nf(a=1, 2)"));  // positional after keyword
+        CHECK_THROWS(vm.runSource("nonexistent_name"));  // undefined name -> compile-time error
     }
 
     // --- uncaught throw/assert surfaces as an error ---

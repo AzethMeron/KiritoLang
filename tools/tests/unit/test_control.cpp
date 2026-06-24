@@ -58,8 +58,8 @@ s
 )") == "12");
 
     // and/or short-circuit: the right operand is not evaluated, and the deciding operand is returned
-    CHECK(evalStr(vm, "True or undefined_name") == "True");
-    CHECK(evalStr(vm, "False and undefined_name") == "False");
+    CHECK(evalStr(vm, "True or 1 // 0") == "True");
+    CHECK(evalStr(vm, "False and 1 // 0") == "False");
     CHECK(evalStr(vm, "1 and 2") == "2");
     CHECK(evalStr(vm, "0 or 3") == "3");
 
@@ -76,8 +76,8 @@ s
     CHECK(evalStr(vm, "\"A\" if False else \"B\" if True else \"C\"") == "B");
     CHECK(evalStr(vm, "\"A\" if False else \"B\" if False else \"C\"") == "C");
     // short-circuit: only the chosen branch is evaluated (the other may reference an undefined name)
-    CHECK(evalStr(vm, "0 if True else undefined_name") == "0");
-    CHECK(evalStr(vm, "undefined_name if False else 0") == "0");
+    CHECK(evalStr(vm, "0 if True else 1 // 0") == "0");
+    CHECK(evalStr(vm, "1 // 0 if False else 0") == "0");
     // nests inside lists, calls, and lower-precedence contexts
     CHECK(evalStr(vm, "[1 if True else 0, 2 if False else 9]") == "[1, 9]");
     CHECK(evalStr(vm, "abs(-3 if 1 > 0 else 3)") == "3");

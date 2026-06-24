@@ -160,8 +160,8 @@ assert parity == "odd", "conditional in a var binding"
 # right-associative chaining
 var bucket = "low" if n < 3 else "mid" if n < 8 else "high"
 assert bucket == "mid", "right-associative conditional chain"
-# short-circuit: the untaken branch is never evaluated
-assert (42 if True else undefined_here) == 42, "untaken branch is not evaluated"
+# short-circuit: the untaken branch is never evaluated (1 // 0 would raise if it were)
+assert (42 if True else 1 // 0) == 42, "untaken branch is not evaluated"
 # nests inside collections and calls
 assert [1 if True else 0, 9 if False else 2] == [1, 2], "conditional inside a list"
 assert abs(-4 if n > 0 else 4) == 4, "conditional as a call argument"

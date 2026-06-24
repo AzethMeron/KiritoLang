@@ -28,12 +28,9 @@ try:
 catch as e:
     "caught"
 )") == "caught");
-    CHECK(evalStr(vm, R"(
-try:
-    var x = undefined_var
-catch as e:
-    e
-)") == "name 'undefined_var' is not defined");
+    // an undefined name is a COMPILE-time error now (name resolution happens before execution), so it
+    // is raised when the chunk is compiled — before the try/catch can run — not as a catchable value.
+    CHECK_THROWS(vm.runSource("try:\n    var x = undefined_var\ncatch as e:\n    e\n"));
 
     // finally always runs (normal path)
     CHECK(evalStr(vm, R"(

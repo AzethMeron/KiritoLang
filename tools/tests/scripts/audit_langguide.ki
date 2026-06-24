@@ -39,12 +39,8 @@ var sa = 1
 sa = sa + 1
 assert sa == 2, "bare = rebinds existing binding"
 
-threw = False
-try:
-    sundefined = 5
-catch as e:
-    threw = "not defined" in e or "NameError" in e or "undefined" in e
-assert threw, "bare = to a name that doesn't exist raises"
+# bare = to a name that doesn't exist is now a COMPILE-time error (names resolve before execution),
+# so it cannot be caught at run time; see tools/tests/errors/undefined_name.ki.
 
 # Reference semantics: shared mutable is visible through every binding.
 var refA = [1, 2, 3]

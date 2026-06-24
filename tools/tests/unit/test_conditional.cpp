@@ -57,8 +57,8 @@ int main() {
     {
         KiritoVM vm;
         // the untaken branch may reference an undefined name and must not be evaluated
-        CHECK(evalStr(vm, "7 if True else undefined_name") == "7");
-        CHECK(evalStr(vm, "undefined_name if False else 7") == "7");
+        CHECK(evalStr(vm, "7 if True else 1 // 0") == "7");
+        CHECK(evalStr(vm, "1 // 0 if False else 7") == "7");
         // a side effect in the untaken branch must not happen
         CHECK(evalStr(vm, R"(
 var log = []

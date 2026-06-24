@@ -44,6 +44,7 @@
 #include "kirito/stdlib_hash.hpp"
 #include "kirito/stdlib_regex.hpp"
 #include "kirito/analyzer.hpp"
+#include "kirito/resolver.hpp"
 #include "kirito/runtime.hpp"
 // The bytecode execution engine (the sole engine). AFTER runtime.hpp — it dispatches through the
 // shared operation helpers (applyCall / applyBinaryOp / evalMemberGet / ...) runtime.hpp defines.

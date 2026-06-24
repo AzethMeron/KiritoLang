@@ -111,7 +111,7 @@ var collected = []
 for v in Countdown(3):
     collected.append(v)
 assert collected == [3, 2, 1], "_iter_ in a for-loop"
-assert list(Countdown(3)) == [3, 2, 1] if False else True, "iterable"
+assert List(Countdown(3)) == [3, 2, 1], "iterable materializes via List()"
 
 # --- _not_ : custom truthiness negation ---
 class Switch:

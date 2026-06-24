@@ -1976,6 +1976,7 @@ inline void KiritoVM::registerSourceModule(std::string name, std::string_view so
             auto prog = std::make_unique<ast::Program>(Parser(Lexer(src).tokenize()).parseProgram());
             const ast::Program& program = *prog;
             vm.retainChunk(std::move(prog));
+            Resolver(vm).resolve(program, scope);  // compile-time name resolution
             runBytecodeBody(vm, scope, program.stmts, Handle{}, /*hasOwner=*/false, /*isFunction=*/false);
             auto mod = std::make_unique<ModuleValue>(modName);
             for (const auto& [k, v] : static_cast<EnvValue&>(vm.arena().deref(scope)).locals())
@@ -2064,6 +2065,7 @@ inline Handle KiritoVM::importModule(const std::string& name) {
             const ast::Program& program = *prog;
             retainChunk(std::move(prog));
             programByFile_[path.string()] = &program;  // for parallel.spawn span lookup in workers
+            Resolver(*this).resolve(program, scope);  // compile-time name resolution
             runBytecodeBody(*this, scope, program.stmts, Handle{}, /*hasOwner=*/false, /*isFunction=*/false);
             auto mod = std::make_unique<ModuleValue>(name);
             for (const auto& [k, v] : static_cast<EnvValue&>(arena_.deref(scope)).locals())
@@ -2967,6 +2969,7 @@ inline Handle KiritoVM::evalIn(std::string_view source, Handle scope, std::strin
         const ast::Program& program = *prog;
         retainChunk(std::move(prog));  // keep the AST alive for the VM's lifetime (closures)
         if (!chunkName.empty()) programByFile_[std::string(chunkName)] = &program;  // for parallel.spawn span lookup
+        Resolver(*this).resolve(program, scope);  // compile-time: every name must resolve, else NameError
         try {
             return runBytecodeBody(*this, scope, program.stmts, Handle{}, /*hasOwner=*/false,
                                    /*isFunction=*/false);

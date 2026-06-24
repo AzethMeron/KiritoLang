@@ -78,13 +78,8 @@ for k in range(3):
     fns.append(mk(k))
 assert fns[0]() == 0 and fns[1]() == 1 and fns[2]() == 2, "per-iteration captured value"
 
-# --- bare = on an undefined name is a NameError (caught here) ---
-var nameErr = False
-try:
-    neverDeclared = 5
-catch as e:
-    nameErr = True
-assert nameErr, "bare = on undefined name raises"
+# --- bare = on an undefined name is now a COMPILE-time error (name resolution runs before execution),
+# so it cannot be caught at run time; it is exercised by tools/tests/errors/undefined_name.ki. ---
 
 # --- module members are accessible and shared via import ---
 var m1 = import("math")
