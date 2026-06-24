@@ -190,7 +190,8 @@ Matrices are arbitrary-shape (any rows × cols). Shape-specific operations (`det
 - `m1 == m2 → Bool` — **exact** equality (same shape, every element bit-equal; `NaN` never equal). For
   computed matrices use the tolerant `.compare` below.
 - `m.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` — tolerant comparison (math.isclose per
-  element); the way to test `A * A.inverse() ≈ I`.
+  element). When the target has **exact zeros** (e.g. an identity's off-diagonals) pass an `abs_tol`,
+  since `rel_tol` alone can't match a near-zero element: `(A * A.inverse()).compare(matrix.identity(2), abs_tol = 1e-9)`.
 - `m.get(i, j) → Float` — explicit element access (the method form of `m[i, j]`).
 - `m.set(i, j, v) → None` — explicit element assignment (the method form of `m[i, j] = v`).
 - `m.rows() → Integer` — the number of rows.
@@ -355,7 +356,8 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
 - `-t` — element-wise negation.
 - `a == b → Bool` — equal shape and **exact** element-wise equality (`NaN` never equal); distinct
   from the elementwise `.eq()` mask. Use `a.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` for
-  a tolerant whole-tensor check (a `solve`/`inv` result vs its literal).
+  a tolerant whole-tensor check (a `solve`/`inv` result vs its literal) — pass an `abs_tol` when the
+  target contains exact zeros (`rel_tol` alone can't match a near-zero element, like math.isclose).
 - `t.matmul(other) → Tensor` — matrix product (2-D), or **batched** over the leading dimensions for
   rank ≥ 2.
 - `t.dot(other) → Number` — the dot product of two 1-D tensors.

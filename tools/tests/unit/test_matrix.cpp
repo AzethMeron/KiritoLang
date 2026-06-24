@@ -32,7 +32,9 @@ int main() {
     CHECK(evalStr(vm, std::string(P) + "A.trace()") == "5.0");
 
     // inverse: A * inv(A) ~ I — computed floats, so use the tolerant .compare (Matrix == is exact)
-    CHECK(evalStr(vm, std::string(P) + "(A * A.inverse()).compare(matrix.identity(2))") == "True");
+    // abs_tol is needed because identity has exact zeros: comparing a near-zero computed off-diagonal
+    // to 0.0 with only rel_tol fails (math.isclose(1e-16, 0.0) is False — Python behaves the same).
+    CHECK(evalStr(vm, std::string(P) + "(A * A.inverse()).compare(matrix.identity(2), abs_tol = 1e-9)") == "True");
     CHECK(evalStr(vm, "var m = import(\"matrix\")\nm.identity(3)") ==
           "[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]");
 

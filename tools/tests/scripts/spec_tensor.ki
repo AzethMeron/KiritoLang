@@ -163,8 +163,9 @@ assert T.tril(T.ones([2, 2])) == T.Tensor([[1, 0], [1, 1]]), "tril"
 var M = T.Tensor([[4, 3], [6, 3]])
 assert T.det(M) == -6.0 and T.trace(M) == 7.0, "det / trace"
 # inv/solve are computed floats — `==` is exact now, so compare within tolerance via `.compare`.
-assert T.inv(M).matmul(M).compare(T.eye(2)), "inverse"
-assert T.solve(M, T.Tensor([[1], [1]])).compare(T.Tensor([[0], [1.0 / 3]])), "solve"
+# (abs_tol because eye / the solution have exact zeros: rel_tol alone can't match a near-zero element.)
+assert T.inv(M).matmul(M).compare(T.eye(2), abs_tol = 1e-9), "inverse"
+assert T.solve(M, T.Tensor([[1], [1]])).compare(T.Tensor([[0], [1.0 / 3]]), abs_tol = 1e-9), "solve"
 assert T.norm(T.Tensor([3, 4])) == 5.0, "norm"
 assert T.outer(T.Tensor([1, 2]), T.Tensor([3, 4])) == T.Tensor([[3, 4], [6, 8]]), "outer"
 assert T.cross(T.Tensor([1, 0, 0]), T.Tensor([0, 1, 0])) == T.Tensor([0, 0, 1]), "cross"
