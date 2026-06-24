@@ -458,9 +458,17 @@ Documentation is authored in those `.md` files, NOT scraped from code comments.
 
 Not yet done (future enrichment): comprehensions, variadic params,
 generators, arbitrary-precision integers, full-Unicode case folding (current `upper`/`lower` cover
-ASCII + Latin-1 + Latin Extended-A). The **bytecode compiler + stack VM** is done and is the sole
-engine (`bytecode.hpp` / `compiler.hpp` / `bytecode_vm.hpp`); a per-scope compile-time name-resolution
-pass (slot-addressed locals + compile-time "name is not defined" errors) is the next enrichment.
+ASCII + Latin-1 + Latin Extended-A). The **bytecode compiler + stack VM** is done and is the **sole
+engine** — the tree-walker is gone (`bytecode.hpp` / `compiler.hpp` / `bytecode_vm.hpp`; the
+`Compiler` is a second AST visitor that lowers each body to a `Proto`, executed by the `BytecodeVM`
+with an explicit GC-rooted operand stack instead of native recursion; operator/call/member semantics
+are shared free functions in `runtime.hpp`). A **compile-time, scope-aware name-resolution pass**
+(`resolver.hpp`, run before execution in `evalIn`/the module loaders) now raises `name 'X' is not
+defined` for any reference bound to no parameter, no `var`/`for`/`class`/`catch`/`with` name in an
+enclosing lexical scope, no run-scope/REPL binding, and no builtin — resolution is by scope
+*membership*, so recursion/mutual-recursion/forward-references resolve, and an undefined name is a
+compile error (not catchable at run time). **Slot-addressed locals** (turning resolved locals into
+indexed access) are the next enrichment.
 
 ## The Archive is reference only
 
