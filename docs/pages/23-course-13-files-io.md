@@ -70,7 +70,7 @@ io.print(io.exists(here))          # => True
 io.print(io.isdir(here))           # => True
 io.print(io.basename("/a/b/c.txt"))    # => c.txt
 io.print(io.dirname("/a/b/c.txt"))     # => /a/b
-io.print(io.splitext("report.csv"))    # => [report, .csv]
+io.print(io.splitext("report.csv"))    # => ['report', '.csv']
 io.print(io.join("dir", "sub", "file.txt"))   # => dir/sub/file.txt  (platform separator)
 ```
 

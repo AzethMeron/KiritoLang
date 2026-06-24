@@ -42,7 +42,7 @@ int main() {
     CHECK(lst.at(-1).asString() == "four");        // negative index
     auto items = lst.items();
     CHECK(items.size() == 4 && items[1].asInt() == 2);
-    CHECK(vm.stringify(lst) == "[1, 2, 3, four]");
+    CHECK(vm.stringify(lst) == "[1, 2, 3, 'four']");
 
     // makeList from handles
     Value lst2 = makeList(vm, {vm.makeInt(10), vm.makeInt(20)});

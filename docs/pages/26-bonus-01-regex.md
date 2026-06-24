@@ -105,7 +105,7 @@ These match a *position*, not a character: `^` start, `$` end, `\b` a word bound
 ```kirito
 io.print(re.search("^id", "id 99").group())           # => id   (only because it's at the start)
 io.print(re.search("99$", "id 99").group())           # => 99   (only at the end)
-io.print(re.findall(r"\bcat\b", "cat scatter cat"))  # => [cat, cat]  (whole word only, not "scatter")
+io.print(re.findall(r"\bcat\b", "cat scatter cat"))  # => ['cat', 'cat']  (whole word only, not "scatter")
 ```
 
 ## Capturing groups
@@ -119,7 +119,7 @@ var m = re.search(r"(\d{4})-(\d{2})-(\d{2})", "log 2024-06-07 ok")
 io.print(m.group())     # => 2024-06-07   (group 0: the whole match)
 io.print(m.group(1))    # => 2024         (first parenthesized group)
 io.print(m.group(2))    # => 06
-io.print(m.groups())    # => [2024, 06, 07]
+io.print(m.groups())    # => ['2024', '06', '07']
 io.print(m.span())      # => [4, 14]
 ```
 
@@ -140,7 +140,7 @@ as a Dict with `.groupdict()` — far clearer than counting parentheses:
 var who = re.search(r"(?P<user>\w+)@(?P<host>[\w.]+)", "write ada@kirito.dev today")
 io.print(who.group("user"))    # => ada
 io.print(who.group("host"))    # => kirito.dev
-io.print(who.groupdict())      # => {host: kirito.dev, user: ada}  (key order may vary)
+io.print(who.groupdict())      # => {'host': 'kirito.dev', 'user': 'ada'}  (key order may vary)
 ```
 
 ## Alternation
@@ -149,7 +149,7 @@ io.print(who.groupdict())      # => {host: kirito.dev, user: ada}  (key order ma
 
 ```kirito
 io.print(re.search("cat|dog|bird", "I have a dog").group())   # => dog
-io.print(re.findall("(jan|feb|mar)", "feb and mar"))           # => [feb, mar]
+io.print(re.findall("(jan|feb|mar)", "feb and mar"))           # => ['feb', 'mar']
 ```
 
 ## Finding every match
@@ -158,8 +158,8 @@ io.print(re.findall("(jan|feb|mar)", "feb and mar"))           # => [feb, mar]
 positions or groups of each):
 
 ```kirito
-io.print(re.findall(r"\d+", "3 cats, 12 dogs, 1 fox"))     # => [3, 12, 1]   (0 groups -> whole matches)
-io.print(re.findall(r"(\w+)=(\d+)", "x=1 y=22"))           # => [[x, 1], [y, 22]]  (>1 group -> tuples)
+io.print(re.findall(r"\d+", "3 cats, 12 dogs, 1 fox"))     # => ['3', '12', '1']   (0 groups -> whole matches)
+io.print(re.findall(r"(\w+)=(\d+)", "x=1 y=22"))           # => [['x', '1'], ['y', '22']]  (>1 group -> tuples)
 for hit in re.finditer(r"\d+", "a1 b22"):
     io.print(hit.group(), "at", hit.start())                # => 1 at 1 / 22 at 4
 ```
@@ -186,8 +186,8 @@ Pass a count to limit how many are replaced: `re.sub("a", "X", "aaaa", 2)` → `
 `split` breaks text at each match. If the pattern has groups, the captured separators are kept:
 
 ```kirito
-io.print(re.split(r",\s*", "a, b,c ,  d"))     # => [a, b, c , d]
-io.print(re.split(r"(\s+)", "one two"))         # => [one,  , two]   (separator retained)
+io.print(re.split(r",\s*", "a, b,c ,  d"))     # => ['a', 'b', 'c ', 'd']
+io.print(re.split(r"(\s+)", "one two"))         # => ['one', ' ', 'two']   (separator retained)
 ```
 
 ## Flags
@@ -199,8 +199,8 @@ Flags change how a pattern matches. Combine them with `+`:
 - `re.DOTALL` (`re.S`) — `.` also matches newlines.
 
 ```kirito
-io.print(re.findall("cat", "Cat CAT cat", re.IGNORECASE))   # => [Cat, CAT, cat]
-io.print(re.findall(r"^\w+", "one\ntwo\nthree", re.MULTILINE))  # => [one, two, three]
+io.print(re.findall("cat", "Cat CAT cat", re.IGNORECASE))   # => ['Cat', 'CAT', 'cat']
+io.print(re.findall(r"^\w+", "one\ntwo\nthree", re.MULTILINE))  # => ['one', 'two', 'three']
 ```
 
 You can also set a flag inside the pattern with `(?i)` / `(?m)` / `(?s)`:
@@ -216,7 +216,7 @@ If you'll use a pattern repeatedly, `compile` it once into a `Regex` object and 
 
 ```kirito
 var word = re.compile("[A-Za-z]+", re.IGNORECASE)
-io.print(word.findall("Hello, World!"))    # => [Hello, World]
+io.print(word.findall("Hello, World!"))    # => ['Hello', 'World']
 io.print(word.pattern)                      # => [A-Za-z]+   (the source pattern)
 io.print(word.groups)                       # => 0           (number of capturing groups)
 ```

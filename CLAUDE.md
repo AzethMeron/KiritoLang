@@ -67,15 +67,23 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   **Python-3 division** — `/` always yields `Float`, `//` is
   floor division, `%` modulo, `**` right-assoc exponentiation. Integer arithmetic is fixed-width
   int64 with **well-defined two's-complement wraparound** on overflow (no UB); arbitrary-precision
-  integers are a future enrichment. Resource guards: huge string/list repetition, padding, and
+  integers are a future enrichment. **Float `==`/`!=` is EXACT IEEE-754** (like Python): `0.1 + 0.2
+  == 0.3` is `False`, `NaN != NaN`, `inf == inf`, `0.0 == -0.0` — so equality agrees with `<`/`>`
+  (trichotomy) and with hashing (distinct-but-close floats are distinct Set/Dict keys). For
+  *approximate* comparison every Integer/Float has **`.compare(other, rel_tol = 1e-9, abs_tol = 0.0)
+  -> Bool`** (math.isclose semantics). Resource guards: huge string/list repetition, padding, and
   `range` are bounded (raise instead of OOMing); deeply nested source/data structures raise instead
   of overflowing the native stack.
 - **Modules** via `import("io")`; first stdlib module is `io` (`io.input`, `io.print`).
 - Built-in types, dynamically typed: `None`, `Bool`, `Integer`, `Float`, `String`,
-  and collections `Array`, `List`, `Set`, `Dict`. Values are hashable where it makes
-  sense. Numeric/math depth was a *later* enrichment (the general scripting core came first) and is
-  now delivered: the native `matrix` and `complex` modules (complex numbers + real/complex matrices
-  and vectors).
+  and collections `List`, `Set`, `Dict` (plus an internal `Array` — same value model as `List`, no
+  literal/constructor exposed to Kirito). Values are hashable where it makes
+  sense. **Stringification is Python-like str-vs-repr**: a bare `print(s)`/`String(s)` shows a
+  String's raw text, but a String *nested in a container* prints in **repr form** (quoted + escaped):
+  `print(["a", "b"])` → `['a', 'b']`, `print({"k": "v"})` → `{'k': 'v'}`, so `[""]` (→ `['']`) is
+  distinguishable from `[]`. Numeric/math depth was a *later* enrichment (the general scripting core
+  came first) and is now delivered: the native `matrix` and `complex` modules (complex numbers +
+  real/complex matrices and vectors).
 - **`Bytes`** — an immutable sequence of raw bytes (0–255), like Python's `bytes`: the byte-exact
   counterpart to the Unicode (code-point) `String`. `b[i]` is an Integer byte, slicing yields Bytes,
   iteration yields Integers; `+` concatenates, `*` repeats, lexicographic ordering, hashable. Convert
@@ -175,7 +183,9 @@ a stability fuzzer, and a benchmark). Working today:
   Warnings print `file:line:col: warning: ...` to stderr; the `ki` flag `-w`/`--no-warn` disables
   them. Module-level names (exports) and class members are never flagged.
 - **Builtins**: `range`, `sum`, `min`, `max`, `abs`, `round`, `sorted`, `enumerate`, `zip`, `map`,
-  `filter`, `len`, `type`, `import`, `inspect`, `all`, `any`, `reversed`, `divmod`, `isinstance`,
+  `filter`, `len`, `type`, `import`, `inspect`, `all`, `any`, `reversed`, `divmod`, `isinstance`
+  (the type argument may be a user class, a **built-in type constructor** — `isinstance(1, Integer)` —
+  or a type-name String; typed `catch` likewise matches built-in types, e.g. `catch String as e`),
   `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), `bitand`/`bitor`/`bitxor`/`bitnot`
   and `shl`/`shr` (bitwise ops + shifts on Integers — Kirito has no `&`/`|`/`^`/`~`/`<<`/`>>`
   operators), `format` (Python mini-format-spec:
@@ -227,9 +237,12 @@ a stability fuzzer, and a benchmark). Working today:
     (the engine is generic in T). `Tensor(nested[, dtype][, requiresgrad])`/`zeros`/`ones`/`full`/`eye`/`arange`;
     `t[i,j,...]` (full index → scalar, partial → sub-tensor) + assignment; **NumPy-style indexing**
     (`t[a:b:c]` axis-0 slice, `t[mask]` boolean, `t[[i,j]]` fancy, plus grad-aware `t.slice`/`t.take`);
-    +,-,*,/ **element-wise** with NumPy **broadcasting** (mixed Float/Complex promotes) and scalar ops;
+    +,-,*,/ **element-wise** with NumPy **broadcasting** (mixed Float/Complex promotes) and scalar ops
+    (`/`, `//`, `%` all **raise on a zero divisor**, like scalar arithmetic);
     element-wise comparisons (`eq/ne/lt/le/gt/ge` + the `< <= > >=` operators → 0/1 mask) and logic
-    (`logicaland/or/xor/not`); `%`,`//`,`**` operators; `matmul` (2-D + batched), `dot`,
+    (`logicaland/or/xor/not`) — note the **whole-tensor `==` operator** returns a single Bool (same
+    shape + values within 1e-9; NaN never equal), distinct from the elementwise `.eq()` mask;
+    `%`,`//`,`**` operators; `matmul` (2-D + batched), `dot`,
     `tensordot(a,b,axes)`/`contract` (general axis contraction), `transpose`/`permute`/`reshape`/
     `flatten`, `apply` (element-wise map), `astype`, `item()` (a one-element tensor → a Float/Complex
     scalar), `tolist()` (→ a nested Kirito List); reductions `sum`/`mean`/`prod`/`min`/`max`/

@@ -48,7 +48,7 @@ public:
             std::string s;
             for (std::size_t i = 0; i < elems.size(); ++i) {
                 if (i) s += ", ";
-                s += ctx.arena.deref(elems[i]).str(ctx);
+                s += stringifyChild(ctx, elems[i]);
             }
             return s;
         });
@@ -138,9 +138,9 @@ public:
                 for (const auto& [k, v] : bucket) {
                     if (!first) s += ", ";
                     first = false;
-                    s += ctx.arena.deref(k).str(ctx);
+                    s += stringifyChild(ctx, k);
                     s += ": ";
-                    s += ctx.arena.deref(v).str(ctx);
+                    s += stringifyChild(ctx, v);
                 }
             return s;
         });
@@ -236,7 +236,7 @@ public:
                 for (Handle e : bucket) {
                     if (!first) s += ", ";
                     first = false;
-                    s += ctx.arena.deref(e).str(ctx);
+                    s += stringifyChild(ctx, e);
                 }
             return s;
         });

@@ -15,7 +15,7 @@ int main() {
     // --- List/Set/Dict constructors ---
     {
         KiritoVM vm;
-        CHECK(run(vm, "String(List(\"abc\"))") == "[a, b, c]");
+        CHECK(run(vm, "String(List(\"abc\"))") == "['a', 'b', 'c']");
         CHECK(run(vm, "len(Set([1, 2, 2, 3, 3, 3]))") == "3");
         CHECK(run(vm, "var d = Dict([[1, 2], [3, 4]])\nString(d[3])") == "4");
         CHECK(run(vm, "String(List())") == "[]");
@@ -68,7 +68,7 @@ int main() {
     // --- textwrap ---
     {
         KiritoVM vm;
-        CHECK(run(vm, "var t = import(\"textwrap\")\nString(t.wrap(\"a b c d e\", 3))") == "[a b, c d, e]");
+        CHECK(run(vm, "var t = import(\"textwrap\")\nString(t.wrap(\"a b c d e\", 3))") == "['a b', 'c d', 'e']");
         CHECK(run(vm, "var t = import(\"textwrap\")\nt.dedent(\"    x\\n    y\")") == "x\ny");
     }
 
@@ -84,7 +84,7 @@ int main() {
     {
         KiritoVM vm;
         CHECK(run(vm, "var c = import(\"csv\")\nc.formatrow([\"a\", \"b,c\", \"d\"])") == "a,\"b,c\",d");
-        CHECK(run(vm, "var c = import(\"csv\")\nString(c.parserow(\"x,\\\"y,z\\\",w\"))") == "[x, y,z, w]");
+        CHECK(run(vm, "var c = import(\"csv\")\nString(c.parserow(\"x,\\\"y,z\\\",w\"))") == "['x', 'y,z', 'w']");
     }
 
     // --- heapq ---

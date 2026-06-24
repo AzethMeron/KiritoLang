@@ -21,10 +21,11 @@ assert nan != nan, "NaN compares unequal to itself"
 assert not (nan == 0.0) and not (nan == inf), "NaN is not equal to anything"
 assert nan != 1.0, "NaN is unequal to a finite value"
 
-# --- finite values: exact and epsilon equality still hold ---
+# --- finite values: equality is EXACT IEEE-754 (no epsilon); .compare() gives tolerance ---
 assert 1.0 == 1.0 and 2.5 == 2.5, "exact float equality"
 assert 0.0 == -0.0, "signed zero equality"
-assert 0.1 + 0.2 == 0.3, "epsilon tolerance still applies to finite values"
+assert not (0.1 + 0.2 == 0.3), "0.1+0.2 != 0.3 (exact, not epsilon)"
+assert (0.1 + 0.2).compare(0.3) and (0.1 + 0.2).compare(0.3, abs_tol = 1e-9), ".compare gives tolerance"
 assert not (1.0 == 2.0), "distinct finite values are unequal"
 
 # --- Integer/Float cross comparisons unaffected ---

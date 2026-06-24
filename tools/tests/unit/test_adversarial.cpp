@@ -64,7 +64,7 @@ int main() {
         KiritoVM vm;
         CHECK(evalStr(vm, "var a = [1]\na.append(a)\nString(a)") == "[1, [...]]");
         CHECK(evalStr(vm, "var a = [1]\na.append(a)\na == a") == "True");
-        CHECK(evalStr(vm, "var d = {}\nd[\"k\"] = d\nString(d)") == "{k: {...}}");
+        CHECK(evalStr(vm, "var d = {}\nd[\"k\"] = d\nString(d)") == "{'k': {...}}");
         // a cyclic structure is unhashable rather than looping forever
         CHECK(!err(vm, "var a = []\na.append(a)\nvar d = {}\nd[a] = 1\n").empty());
     }

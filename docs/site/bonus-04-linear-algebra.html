@@ -107,7 +107,7 @@ io.<span class="builtin">print</span>(z.argument())           <span class="com">
 <span class="com"># Euler&#x27;s identity, and roots of negative numbers:</span>
 io.<span class="builtin">print</span>(C.exp(C.of(<span class="num">0</span>, C.pi)))   <span class="com"># ~ -1.0 + 0i</span>
 io.<span class="builtin">print</span>(C.sqrt(C.of(-<span class="num">1</span>, <span class="num">0</span>)))    <span class="com"># 0.0+1.0i  = i</span></code></pre>
-<p>Complex numbers are <strong>unordered</strong> (<code>&lt;</code>, <code>&gt;</code> raise), and equality is tolerance-based like <a class="xref" href="types.html#float"><code>Float</code></a>.</p>
+<p>Complex numbers are <strong>unordered</strong> (<code>&lt;</code>, <code>&gt;</code> raise), and their <code>==</code> is tolerance-based (so two values within a small epsilon compare equal). Note this differs from a scalar <a class="xref" href="types.html#float"><code>Float</code></a>, whose <code>==</code> is <strong>exact</strong> — use a Float&#x27;s <a href="types.html#float"><code>.compare</code></a> method for tolerant Float comparison.</p>
 <h2 id="complex-matrices-and-vectors">Complex matrices and vectors</h2>
 <p><code>complex.Matrix</code> is the complex counterpart of <code>matrix.Matrix</code>, with the extras a complex space needs — <code>conjugate</code>, <code>hermitian</code> (conjugate transpose), and a Gaussian <code>determinant</code> / fast Gauss-Jordan <code>inverse</code>:</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)

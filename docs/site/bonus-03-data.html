@@ -63,7 +63,7 @@ io.<span class="builtin">print</span>((s == <span class="num">20</span>).tolist(
     [[<span class="str">&quot;Ada&quot;</span>, <span class="str">&quot;eng&quot;</span>, <span class="num">120</span>], [<span class="str">&quot;Alan&quot;</span>, <span class="str">&quot;eng&quot;</span>, <span class="num">110</span>], [<span class="str">&quot;Grace&quot;</span>, <span class="str">&quot;ops&quot;</span>, <span class="num">95</span>], [<span class="str">&quot;Edsger&quot;</span>, <span class="str">&quot;ops&quot;</span>, <span class="num">130</span>]],
     columns=[<span class="str">&quot;name&quot;</span>, <span class="str">&quot;dept&quot;</span>, <span class="str">&quot;salary&quot;</span>])
 io.<span class="builtin">print</span>(df.shape())       <span class="com"># [4, 3]   (rows, cols)</span>
-io.<span class="builtin">print</span>(df.columns)       <span class="com"># [name, dept, salary]</span>
+io.<span class="builtin">print</span>(df.columns)       <span class="com"># [&#x27;name&#x27;, &#x27;dept&#x27;, &#x27;salary&#x27;]</span>
 io.<span class="builtin">print</span>(df)               <span class="com"># pretty-prints the table</span></code></pre>
 <h2 id="reading-csv-with-type-inference">Reading CSV (with type inference)</h2>
 <p><a class="xref" href="stdlib.html#sym-readcsv"><code>readcsv</code></a> accepts CSV <strong>text</strong> (or a filename). Each cell is inferred to Integer / Float / Bool / String, and an empty cell becomes <a class="xref" href="types.html#none"><code>None</code></a> (missing):</p>
@@ -73,7 +73,7 @@ io.<span class="builtin">print</span>(df)               <span class="com"># pret
 <span class="kw">var</span> csv = <span class="str">&quot;name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130&quot;</span>
 <span class="kw">var</span> df = tb.readcsv(csv)
 io.<span class="builtin">print</span>(<span class="builtin">type</span>(df[<span class="str">&quot;salary&quot;</span>][<span class="num">0</span>]))   <span class="com"># Integer  (inferred)</span>
-io.<span class="builtin">print</span>(df[<span class="str">&quot;dept&quot;</span>].tolist())     <span class="com"># [eng, eng, ops, ops]</span></code></pre>
+io.<span class="builtin">print</span>(df[<span class="str">&quot;dept&quot;</span>].tolist())     <span class="com"># [&#x27;eng&#x27;, &#x27;eng&#x27;, &#x27;ops&#x27;, &#x27;ops&#x27;]</span></code></pre>
 <h2 id="selecting-and-filtering">Selecting and filtering</h2>
 <p>Index a column by name; pass a list of names for a sub-table; pass a <strong>boolean Series</strong> to keep matching rows. <code>df.iloc[i]</code> / <code>df.loc[label]</code> get a row.</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
@@ -81,8 +81,8 @@ io.<span class="builtin">print</span>(df[<span class="str">&quot;dept&quot;</spa
 <span class="kw">var</span> df = tb.readcsv(<span class="str">&quot;name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130&quot;</span>)
 
 io.<span class="builtin">print</span>(df[<span class="str">&quot;salary&quot;</span>].mean())                       <span class="com"># 113.75</span>
-io.<span class="builtin">print</span>(df[df[<span class="str">&quot;salary&quot;</span>] &gt; <span class="num">100</span>][<span class="str">&quot;name&quot;</span>].tolist())   <span class="com"># [Ada, Alan, Edsger]   (boolean mask)</span>
-io.<span class="builtin">print</span>(df[[<span class="str">&quot;name&quot;</span>, <span class="str">&quot;salary&quot;</span>]].columns)            <span class="com"># [name, salary]        (column subset)</span>
+io.<span class="builtin">print</span>(df[df[<span class="str">&quot;salary&quot;</span>] &gt; <span class="num">100</span>][<span class="str">&quot;name&quot;</span>].tolist())   <span class="com"># [&#x27;Ada&#x27;, &#x27;Alan&#x27;, &#x27;Edsger&#x27;]   (boolean mask)</span>
+io.<span class="builtin">print</span>(df[[<span class="str">&quot;name&quot;</span>, <span class="str">&quot;salary&quot;</span>]].columns)            <span class="com"># [&#x27;name&#x27;, &#x27;salary&#x27;]          (column subset)</span>
 io.<span class="builtin">print</span>(df.iloc[<span class="num">0</span>][<span class="str">&quot;name&quot;</span>])                        <span class="com"># Ada                    (first row)</span></code></pre>
 <h2 id="group-by-and-aggregation-the-workhorse">Group-by and aggregation — the workhorse</h2>
 <p><code>groupby(col)</code> splits the table by a key column; then <code>sum</code>/<code>mean</code>/<code>min</code>/<code>max</code>/<code>std</code>/<code>count</code> reduce each numeric column per group, or <code>agg({col: &quot;reduction&quot;})</code> picks per-column reductions.</p>
@@ -106,7 +106,7 @@ ops       130</code></pre>
 <span class="kw">var</span> df = tb.readcsv(<span class="str">&quot;name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130&quot;</span>)
 
 df[<span class="str">&quot;bonus&quot;</span>] = df[<span class="str">&quot;salary&quot;</span>] * <span class="num">0.1</span>                    <span class="com"># derived column</span>
-io.<span class="builtin">print</span>(df.sortvalues(<span class="str">&quot;salary&quot;</span>, ascending=<span class="kw">False</span>)[<span class="str">&quot;name&quot;</span>].tolist())  <span class="com"># [Edsger, Ada, Alan, Grace]</span>
+io.<span class="builtin">print</span>(df.sortvalues(<span class="str">&quot;salary&quot;</span>, ascending=<span class="kw">False</span>)[<span class="str">&quot;name&quot;</span>].tolist())  <span class="com"># [&#x27;Edsger&#x27;, &#x27;Ada&#x27;, &#x27;Alan&#x27;, &#x27;Grace&#x27;]</span>
 io.<span class="builtin">print</span>(df.describe())                             <span class="com"># numeric summary</span></code></pre>
 <h2 id="missing-data">Missing data</h2>
 <p>Real data has gaps. An empty CSV cell is <a class="xref" href="types.html#none"><code>None</code></a>; numeric aggregations skip it, <code>count()</code> tallies the non-null values (of any type), and <code>dropna</code>/<a class="xref" href="stdlib.html#sym-fillna"><code>fillna</code></a> clean it up.</p>
@@ -116,7 +116,7 @@ io.<span class="builtin">print</span>(df.describe())                            
 <span class="kw">var</span> df = tb.readcsv(<span class="str">&quot;name,age\nAda,36\nBjarne,\nGrace,85&quot;</span>)
 io.<span class="builtin">print</span>(df[<span class="str">&quot;age&quot;</span>].count())          <span class="com"># 2   (the blank is skipped)</span>
 io.<span class="builtin">print</span>(df[<span class="str">&quot;age&quot;</span>].mean())           <span class="com"># 60.5</span>
-io.<span class="builtin">print</span>(df.dropna()[<span class="str">&quot;name&quot;</span>].tolist())          <span class="com"># [Ada, Grace]</span>
+io.<span class="builtin">print</span>(df.dropna()[<span class="str">&quot;name&quot;</span>].tolist())          <span class="com"># [&#x27;Ada&#x27;, &#x27;Grace&#x27;]</span>
 io.<span class="builtin">print</span>(df.fillna(<span class="num">0</span>)[<span class="str">&quot;age&quot;</span>].tolist())          <span class="com"># [36, 0, 85]</span></code></pre>
 <h2 id="joining-and-stacking">Joining and stacking</h2>
 <p><code>merge</code> joins two tables on a key column (<code>how</code> = <code>&quot;inner&quot;</code>/<code>&quot;left&quot;</code>/<code>&quot;right&quot;</code>/<code>&quot;outer&quot;</code>); <a class="xref" href="stdlib.html#sym-concat"><code>concat</code></a> stacks tables vertically.</p>
@@ -126,7 +126,7 @@ io.<span class="builtin">print</span>(df.fillna(<span class="num">0</span>)[<spa
 <span class="kw">var</span> orders = tb.DataFrame([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">2</span>, <span class="num">3</span>]], columns=[<span class="str">&quot;id&quot;</span>, <span class="str">&quot;product_id&quot;</span>])
 <span class="kw">var</span> products = tb.DataFrame([[<span class="num">2</span>, <span class="str">&quot;Mouse&quot;</span>], [<span class="num">3</span>, <span class="str">&quot;Monitor&quot;</span>]], columns=[<span class="str">&quot;product_id&quot;</span>, <span class="str">&quot;name&quot;</span>])
 <span class="kw">var</span> joined = tb.merge(orders, products, on=<span class="str">&quot;product_id&quot;</span>)
-io.<span class="builtin">print</span>(joined[<span class="str">&quot;name&quot;</span>].tolist())    <span class="com"># [Mouse, Monitor]</span></code></pre>
+io.<span class="builtin">print</span>(joined[<span class="str">&quot;name&quot;</span>].tolist())    <span class="com"># [&#x27;Mouse&#x27;, &#x27;Monitor&#x27;]</span></code></pre>
 <h2 id="putting-it-together">Putting it together</h2>
 <p>The <code>examples/</code> directory has three complete programs built on this library: <a href="https://github.com/AzethMeron/KiritoLang/blob/main/examples/tabular_iris.ki"><code>tabular_iris.ki</code></a> (a full exploratory analysis of the iris dataset — group means, a derived feature, a correlation), <a href="https://github.com/AzethMeron/KiritoLang/blob/main/examples/tabular_sales.ki"><code>tabular_sales.ki</code></a> (a generated sales dataset joined to a catalog, then revenue ranked by region and product), and <a href="https://github.com/AzethMeron/KiritoLang/blob/main/examples/tabular_survey.ki"><code>tabular_survey.ki</code></a> (a messy survey CSV cleaned with <code>dropna</code>/<a class="xref" href="stdlib.html#sym-fillna"><code>fillna</code></a>/<code>apply</code>/<code>astype</code>).</p>
 <h2 id="what-you-learned">What you learned</h2>

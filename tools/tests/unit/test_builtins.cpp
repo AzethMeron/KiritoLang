@@ -32,8 +32,8 @@ int main() {
 
     // sorted / enumerate / zip
     CHECK(evalStr(vm, "sorted([3, 1, 2])") == "[1, 2, 3]");
-    CHECK(evalStr(vm, "sorted([\"c\", \"a\", \"b\"])") == "[a, b, c]");
-    CHECK(evalStr(vm, "enumerate([\"a\", \"b\"])") == "[[0, a], [1, b]]");
+    CHECK(evalStr(vm, "sorted([\"c\", \"a\", \"b\"])") == "['a', 'b', 'c']");
+    CHECK(evalStr(vm, "enumerate([\"a\", \"b\"])") == "[[0, 'a'], [1, 'b']]");
     CHECK(evalStr(vm, "zip([1, 2, 3], [4, 5])") == "[[1, 4], [2, 5]]");
 
     // inline anonymous functions (single-line body, explicit return)

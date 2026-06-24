@@ -68,17 +68,19 @@ inline double asDouble(const Object& o) {
                : static_cast<const FloatVal&>(o).value();
 }
 inline bool floatEqual(double l, double r) {
-    // NaN never compares equal (not even to itself); an infinity equals only an identical infinity.
-    // These must be handled before the epsilon test, whose diff/relative terms blow up to inf/NaN
-    // for non-finite operands (e.g. 1.0==inf would otherwise be inf<=inf -> true, inf==inf NaN<=inf
-    // -> false).
-    if (std::isnan(l) || std::isnan(r)) return false;
-    if (l == r) return true;                        // exact: covers inf==inf, -inf==-inf, 0.0==-0.0
-    if (std::isinf(l) || std::isinf(r)) return false;
-    constexpr double absEps = 1e-9, relEps = 1e-9;
-    double diff = std::fabs(l - r);
-    if (diff <= absEps) return true;
-    return diff <= relEps * std::max(std::fabs(l), std::fabs(r));
+    // EXACT IEEE-754 equality (like Python): NaN != NaN (not even itself), inf == inf, 0.0 == -0.0.
+    // `==`/`!=` thus agree with `<`/`>` (trichotomy holds) and with hashing, so distinct-but-close
+    // floats no longer collide as Set/Dict keys. For "approximately equal", use the .compare(other,
+    // rel_tol=, abs_tol=) method on Integer/Float.
+    return l == r;
+}
+// Approximate comparison (math.isclose semantics): |a-b| <= max(rel_tol*max(|a|,|b|), abs_tol).
+// NaN is never close; equal infinities are close. Powers the numeric .compare() method.
+inline bool floatClose(double a, double b, double relTol, double absTol) {
+    if (a == b) return true;                              // exact (covers inf == inf)
+    if (std::isnan(a) || std::isnan(b) || std::isinf(a) || std::isinf(b)) return false;
+    double diff = std::fabs(a - b);
+    return diff <= std::max(relTol * std::max(std::fabs(a), std::fabs(b)), absTol);
 }
 // Two's-complement wraparound for the int64 operators. Signed overflow is UB in C++, so we do the
 // arithmetic in uint64_t (where wraparound is defined) and reinterpret — giving consistent,
@@ -207,9 +209,15 @@ inline bool IntVal::equals(const ObjectArena&, const Object& other) const {
     return false;
 }
 inline Handle IntVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
-    // `Integer * List` is sequence repetition (Python allows either order) — defer to the List.
-    if (op == BinOp::Mul && vm.arena().deref(rhs).kind() == ValueKind::List)
-        return vm.arena().deref(rhs).binary(vm, BinOp::Mul, rhs, self);
+    // `Integer * seq` is sequence repetition (Python allows either order) — defer to the sequence,
+    // whose `*` already takes an Integer count. Covers List/Array/String/Bytes (3 * "ab" == "ababab").
+    if (op == BinOp::Mul) {
+        Object& r = vm.arena().deref(rhs);
+        ValueKind rk = r.kind();
+        if (rk == ValueKind::List || rk == ValueKind::Array || rk == ValueKind::String ||
+            dynamic_cast<const BytesVal*>(&r))  // Bytes is a NativeClass (kind == Instance)
+            return r.binary(vm, BinOp::Mul, rhs, self);
+    }
     return numericBinary(vm, op, self, rhs);
 }
 inline Handle IntVal::unary(KiritoVM& vm, UnOp op, Handle) {
@@ -235,6 +243,44 @@ inline Handle FloatVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) 
 inline Handle FloatVal::unary(KiritoVM& vm, UnOp op, Handle) {
     if (op == UnOp::Neg) return vm.makeFloat(-value_);
     throw KiritoError("Float does not support this unary operator");
+}
+
+// `.compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool` — approximate equality (math.isclose
+// semantics) shared by Integer and Float, since `==` is now exact IEEE-754. The receiver is captured
+// so the GC keeps it alive while the bound method exists; the signature gives keyword args + inspect.
+inline Handle makeNumericCompare(KiritoVM& vm, Handle self) {
+    std::vector<NativeParam> sig;
+    sig.emplace_back("other");
+    sig.emplace_back("rel_tol", "Float", vm.makeFloat(1e-9));
+    sig.emplace_back("abs_tol", "Float", vm.makeFloat(0.0));
+    return vm.alloc(std::make_unique<NativeFunction>(
+        "compare", std::move(sig), "Bool",
+        [self](KiritoVM& v, std::span<const Handle> a) -> Handle {
+            const Object& other = v.arena().deref(a[0]);
+            if (!isNumeric(other))
+                throw KiritoError("compare() expects a number, not '" + other.typeName() + "'");
+            const Object& rel = v.arena().deref(a[1]);
+            const Object& abst = v.arena().deref(a[2]);
+            if (!isNumeric(rel) || !isNumeric(abst))
+                throw KiritoError("compare() rel_tol and abs_tol must be numbers");
+            return v.makeBool(floatClose(asDouble(v.arena().deref(self)), asDouble(other),
+                                         asDouble(rel), asDouble(abst)));
+        },
+        std::vector<Handle>{self}));
+}
+inline Handle IntVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
+    if (name == "compare") return makeNumericCompare(vm, self);
+    return Object::getAttr(vm, self, name);
+}
+inline std::vector<std::string> IntVal::inspectMembers() const {
+    return {"compare(other, rel_tol = 1e-09, abs_tol = 0.0) -> Bool"};
+}
+inline Handle FloatVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
+    if (name == "compare") return makeNumericCompare(vm, self);
+    return Object::getAttr(vm, self, name);
+}
+inline std::vector<std::string> FloatVal::inspectMembers() const {
+    return {"compare(other, rel_tol = 1e-09, abs_tol = 0.0) -> Bool"};
 }
 
 // --- StrVal out-of-line members --------------------------------------------------------------
@@ -1350,6 +1396,24 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
     return Object::getAttr(vm, self, name);
 }
 
+inline std::vector<std::string> StrVal::inspectMembers() const {
+    return {
+        "apply(fn) -> String", "center(width, fillchar) -> String",
+        "count(sub, start, end) -> Integer", "encode(encoding) -> Bytes",
+        "endswith(suffix, start, end) -> Bool", "find(sub, start, end) -> Integer",
+        "format(...) -> String", "index(sub, start, end) -> Integer",
+        "isalnum() -> Bool", "isalpha() -> Bool", "isdigit() -> Bool", "islower() -> Bool",
+        "isspace() -> Bool", "isupper() -> Bool", "join(iterable) -> String",
+        "levenshtein(other) -> Integer", "ljust(width, fillchar) -> String", "lower() -> String",
+        "lstrip(chars) -> String", "partition(sep) -> List", "removeprefix(prefix) -> String",
+        "removesuffix(suffix) -> String", "replace(old, new, count) -> String",
+        "rfind(sub, start, end) -> Integer", "rindex(sub, start, end) -> Integer",
+        "rjust(width, fillchar) -> String", "rpartition(sep) -> List", "rstrip(chars) -> String",
+        "split(sep, maxsplit) -> List", "startswith(prefix, start, end) -> Bool",
+        "strip(chars) -> String", "upper() -> String", "zfill(width) -> String",
+    };
+}
+
 // --- List slice / contains, Dict / Set contains ----------------------------------------------
 
 inline Handle ListVal::slice(KiritoVM& vm, Handle s, Handle e, Handle st) {
@@ -1653,6 +1717,23 @@ inline bool typeMatches(KiritoVM& vm, Handle value, const std::string& typeName)
     return false;
 }
 
+// Resolve a type argument (for `isinstance` and typed `catch`) to a type name: a Class -> its name,
+// a String -> its text, a built-in type constructor (the NativeFunctions named Integer/Float/String/
+// Bool/Bytes/List/Set/Dict) -> that name. Returns "" if the value can't act as a type. This is what
+// lets `isinstance(1, Integer)` and `catch String` work, not just the String-name forms.
+inline std::string resolveTypeName(KiritoVM& vm, Handle typeH) {
+    const Object& t = vm.arena().deref(typeH);
+    if (t.kind() == ValueKind::Class) return static_cast<const ClassValue&>(t).name;
+    if (t.kind() == ValueKind::String) return static_cast<const StrVal&>(t).value();
+    if (t.kind() == ValueKind::NativeFunction) {
+        const std::string& n = static_cast<const NativeFunction&>(t).name();
+        if (n == "Integer" || n == "Float" || n == "String" || n == "Bool" ||
+            n == "Bytes" || n == "List" || n == "Set" || n == "Dict")
+            return n;
+    }
+    return "";
+}
+
 inline Handle KiFunction::call(KiritoVM& vm, std::span<const Handle> args) {
     return callFull(vm, args, {});
 }
@@ -1759,17 +1840,22 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
 // InstanceValues carry a class handle; native C++ objects report ValueKind::Instance too, so a
 // dynamic_cast tells them apart.
 inline bool isInstanceOf(KiritoVM& vm, Handle value, Handle typeH) {
-    if (vm.arena().deref(typeH).kind() != ValueKind::Class) return false;
-    const Object& v = vm.arena().deref(value);
-    const auto* inst = dynamic_cast<const InstanceValue*>(&v);
-    if (!inst) return false;
-    Handle cur = inst->cls;
-    while (true) {
-        if (cur == typeH) return true;
-        const auto& c = static_cast<const ClassValue&>(vm.arena().deref(cur));
-        if (!c.hasBase) return false;
-        cur = c.base;
+    if (vm.arena().deref(typeH).kind() == ValueKind::Class) {
+        const Object& v = vm.arena().deref(value);
+        const auto* inst = dynamic_cast<const InstanceValue*>(&v);
+        if (!inst) return false;
+        Handle cur = inst->cls;
+        while (true) {
+            if (cur == typeH) return true;
+            const auto& c = static_cast<const ClassValue&>(vm.arena().deref(cur));
+            if (!c.hasBase) return false;
+            cur = c.base;
+        }
     }
+    // Not a user class: a built-in type constructor or a type-name String (catch Integer / catch
+    // String / catch "RuntimeError"-style names) — match by name (kind names + NativeClass typeName).
+    std::string name = resolveTypeName(vm, typeH);
+    return !name.empty() && typeMatches(vm, value, name);
 }
 
 // A private member (_name, no trailing underscore) may only be touched from within a method of the
@@ -2253,7 +2339,10 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
     else if (i < spec.size() && isAlign(spec[i])) { align = spec[i]; ++i; }
     if (i < spec.size() && (spec[i] == '+' || spec[i] == '-' || spec[i] == ' ')) { sign = spec[i]; ++i; }
     if (i < spec.size() && spec[i] == '#') { alt = true; ++i; }  // alternate form (base prefix for b/o/x)
-    if (i < spec.size() && spec[i] == '0') { zero = true; if (!align) { align = '='; fill = '0'; } ++i; }
+    // The '0' flag zero-pads to the width. Python applies the '0' fill even when an explicit align is
+    // given (format(7, ">06d") == "000007"); only an explicit FILL char overrides it. Default align
+    // for a bare '0' is sign-aware '='.
+    if (i < spec.size() && spec[i] == '0') { zero = true; if (fill == ' ') fill = '0'; if (!align) align = '='; ++i; }
     while (i < spec.size() && spec[i] >= '0' && spec[i] <= '9') {
         width = width * 10 + static_cast<std::size_t>(spec[i] - '0');
         if (width > kMaxRepeat) throw KiritoError("format width too large");
@@ -2540,8 +2629,11 @@ inline void KiritoVM::installBuiltins() {
             const Object& no = vm.arena().deref(a[1]);
             if (no.kind() != ValueKind::Integer) throw KiritoError("round ndigits must be an Integer");
             int64_t nd = static_cast<const IntVal&>(no).value();
-            double f = std::pow(10.0, static_cast<double>(nd));
-            return vm.makeFloat(std::round(x * f) / f);
+            // Scale with long double so the intermediate x*f doesn't double-round (e.g. 2.675*100 in
+            // plain double becomes 267.5 -> 268; in extended precision it stays 267.4999... -> 267,
+            // i.e. round(2.675, 2) == 2.67). Keeps Kirito's documented half-away-from-zero rounding.
+            long double f = std::pow(10.0L, static_cast<long double>(nd));
+            return vm.makeFloat(static_cast<double>(std::round(static_cast<long double>(x) * f) / f));
         }
         if (std::isnan(x)) throw KiritoError("cannot round NaN to Integer");
         if (std::isinf(x)) throw KiritoError("cannot round infinity to Integer");
@@ -2701,7 +2793,13 @@ inline void KiritoVM::installBuiltins() {
         RootScope rs(vm);
         auto out = std::make_unique<ListVal>();
         auto items = vm.arena().deref(a[0]).iterate(vm);
-        int64_t i = a.size() > 1 ? static_cast<const IntVal&>(vm.arena().deref(a[1])).value() : 0;
+        int64_t i = 0;
+        if (a.size() > 1) {
+            const Object& so = vm.arena().deref(a[1]);
+            if (so.kind() != ValueKind::Integer)
+                throw KiritoError("enumerate() start must be an Integer, got " + so.typeName());
+            i = static_cast<const IntVal&>(so).value();
+        }
         for (Handle h : items.value()) {
             rs.add(h);
             auto pair = std::make_unique<ListVal>();
@@ -2812,13 +2910,12 @@ inline void KiritoVM::installBuiltins() {
     });
     defSig("isinstance", {{"value"}, {"type"}}, "Bool", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 2) throw KiritoError("isinstance expected 2 arguments");
-        // Second arg is a type: either a class value or a String type-name. Either resolves to a
-        // name we match through typeMatches (kind names + inheritance-aware class chain).
-        const Object& t = vm.arena().deref(a[1]);
-        std::string typeName;
-        if (t.kind() == ValueKind::String) typeName = static_cast<const StrVal&>(t).value();
-        else if (t.kind() == ValueKind::Class) typeName = static_cast<const ClassValue&>(t).name;
-        else throw KiritoError("isinstance second argument must be a class or a type-name String");
+        // Second arg is a type: a class value, a built-in type constructor (Integer/Float/String/Bool/
+        // Bytes/List/Set/Dict), or a String type-name. All resolve to a name matched through
+        // typeMatches (kind names + inheritance-aware class chain).
+        std::string typeName = resolveTypeName(vm, a[1]);
+        if (typeName.empty())
+            throw KiritoError("isinstance second argument must be a class, a built-in type, or a type-name String");
         return vm.makeBool(typeMatches(vm, a[0], typeName));
     });
     defSig("ord", {{"char", "String"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {

@@ -33,11 +33,11 @@ int main() {
     // --- DataFrame construction + selection ---
     const char* mk = "var df = pd.DataFrame([[\"Ada\", 36], [\"Alan\", 41], [\"Grace\", 85]], columns=[\"name\", \"age\"])\n";
     CHECK(run(std::string(mk) + "df.shape()") == "[3, 2]");
-    CHECK(run(std::string(mk) + "df.columns") == "[name, age]");
+    CHECK(run(std::string(mk) + "df.columns") == "['name', 'age']");
     CHECK(run(std::string(mk) + "df[\"age\"].tolist()") == "[36, 41, 85]");
     CHECK(run(std::string(mk) + "df.iloc[1][\"name\"]") == "Alan");
-    CHECK(run(std::string(mk) + "df[df[\"age\"] > 40][\"name\"].tolist()") == "[Alan, Grace]");
-    CHECK(run(std::string(mk) + "df.sortvalues(\"age\", ascending=False)[\"name\"].tolist()") == "[Grace, Alan, Ada]");
+    CHECK(run(std::string(mk) + "df[df[\"age\"] > 40][\"name\"].tolist()") == "['Alan', 'Grace']");
+    CHECK(run(std::string(mk) + "df.sortvalues(\"age\", ascending=False)[\"name\"].tolist()") == "['Grace', 'Alan', 'Ada']");
 
     // --- CSV round-trip + type inference ---
     CHECK(run("type(pd.readcsv(\"a,b\\n1,2.5\")[\"a\"][0])") == "Integer");
@@ -55,7 +55,7 @@ int main() {
     const char* jn = "var l = pd.DataFrame([[1, \"x\"], [2, \"y\"]], columns=[\"id\", \"a\"])\n"
                      "var r = pd.DataFrame([[1, \"p\"], [3, \"q\"]], columns=[\"id\", \"b\"])\n";
     CHECK(run(std::string(jn) + "pd.merge(l, r, on=\"id\").shape()") == "[1, 3]");
-    CHECK(run(std::string(jn) + "pd.merge(l, r, on=\"id\", how=\"left\")[\"b\"].tolist()") == "[p, None]");
+    CHECK(run(std::string(jn) + "pd.merge(l, r, on=\"id\", how=\"left\")[\"b\"].tolist()") == "['p', None]");
     CHECK(run("pd.concat([pd.DataFrame([[1]], columns=[\"x\"]), pd.DataFrame([[2]], columns=[\"x\"])])[\"x\"].tolist()") == "[1, 2]");
 
     // --- missing-data on a frame ---
@@ -80,7 +80,7 @@ int main() {
               "pd.DataFrame([[1,\"p\"],[1,\"q\"],[2,\"r\"]], columns=[\"id\",\"y\"]), on=\"id\").shape()") == "[3, 3]");
     CHECK(run("len(pd.merge(pd.DataFrame([[1]], columns=[\"id\"]), pd.DataFrame([[9]], columns=[\"id\"]), on=\"id\"))") == "0");
     // sortvalues is stable on ties
-    CHECK(run("pd.DataFrame([[1,\"a\"],[1,\"b\"],[1,\"c\"]], columns=[\"k\",\"t\"]).sortvalues(\"k\")[\"t\"].tolist()") == "[a, b, c]");
+    CHECK(run("pd.DataFrame([[1,\"a\"],[1,\"b\"],[1,\"c\"]], columns=[\"k\",\"t\"]).sortvalues(\"k\")[\"t\"].tolist()") == "['a', 'b', 'c']");
 
     // --- adversarial: malformed input and out-of-domain operations raise (never crash) ---
     {

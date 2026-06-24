@@ -35,8 +35,8 @@ counter = counter + 1   # update — counter is now 2
 io.print(counter)       # => 2
 ```
 
-Using `=` on a name that was never declared is an error (a `NameError`), not a silent new variable —
-this catches typos early:
+Using `=` on a name that was never declared is an error (`name 'total' is not defined`), not a silent
+new variable — this catches typos early:
 
 <!--norun (demonstrates an intentional error)-->
 ```kirito
@@ -92,6 +92,11 @@ var io = import("io")
 io.print(Bool(0), Bool(42), Bool(""), Bool("hi"), Bool([]))
 # => False True False True False
 ```
+
+**`Bool` is its own type, not a number.** Unlike Python, `True` is *not* `1`: `True == 1` is `False`,
+and Bools are deliberately **not numeric** — `True + 1`, `abs(True)`, `sum([True, False])`, and
+`sorted([True, False])` all raise a type error rather than treating `True`/`False` as `1`/`0`. When
+you really want to count truth values, convert explicitly with `Integer(flag)` (`Integer(True) == 1`).
 
 ## Two number types
 
@@ -154,6 +159,35 @@ var io = import("io")
 var biggest = 9223372036854775807        # the largest Integer
 io.print(biggest + 1)                     # => -9223372036854775808  (wraps around)
 ```
+
+## Float equality is exact — use `.compare` for tolerance
+
+`==` on Floats is **exact IEEE-754 bit equality**, just like `<` and `>`. Because the values you write
+in decimal can't always be represented exactly in binary, sums that *look* equal often aren't:
+
+```kirito
+var io = import("io")
+io.print(0.1 + 0.2)               # => 0.3      (display is rounded to be readable)
+io.print(0.1 + 0.2 == 0.3)        # => False    (but the stored bits differ!)
+```
+
+The display is clean, but `0.1 + 0.2` is stored as `0.30000000000000004`, which is not the same double
+as `0.3`. This is not a Kirito quirk — it is how binary floating point works everywhere. When you want
+to compare Floats *up to a small tolerance*, call `.compare` on either number (the same idea as
+Python's `math.isclose`):
+
+```kirito
+var io = import("io")
+io.print((0.1 + 0.2).compare(0.3))                 # => True   (close enough)
+io.print((1.0).compare(1.5))                       # => False  (too far apart)
+io.print((1.0).compare(1.5, abs_tol = 1.0))        # => True   (widened tolerance)
+```
+
+`x.compare(other, rel_tol = 1e-9, abs_tol = 0.0)` is `True` when `x` and `other` are within either a
+relative tolerance (`rel_tol`, scaled to the larger magnitude) or an absolute one (`abs_tol`, useful
+near zero). It also works between an Integer and a Float. Reserve `==` on Floats for values you know
+are bit-identical (e.g. produced by the same computation); use `.compare` for everything that came
+from separate arithmetic.
 
 ## Rounding, absolute value, and the `math` module
 
@@ -224,4 +258,6 @@ Integer("not a number")         # error: cannot convert String to Integer
 - Assignment binds names to values — mutable values are shared, not copied; truthiness rules.
 - `Integer` vs `Float`, why `/` is always a Float while `//` floors, floor `//`/`%` semantics,
   right-associative `**`; hex/octal/binary/scientific literals; defined integer overflow.
+- Float `==` is **exact** (so `0.1 + 0.2 == 0.3` is `False`); use `x.compare(other, rel_tol, abs_tol)`
+  for tolerant comparison.
 - `abs`/`round`/`divmod`, the `math` module, named bitwise builtins, and the type-name converters.

@@ -29,7 +29,7 @@ catch as e:
     // list methods
     CHECK(evalStr(vm, "var a = [3, 1, 2]\na.sort()\na") == "[1, 2, 3]");
     CHECK(evalStr(vm, "var a = [\"banana\", \"apple\", \"cherry\"]\na.sort()\na") ==
-          "[apple, banana, cherry]");
+          "['apple', 'banana', 'cherry']");
     CHECK(evalStr(vm, "var a = [1, 2, 3]\na.reverse()\na") == "[3, 2, 1]");
     CHECK(evalStr(vm, "var a = [1, 2, 4]\na.insert(2, 3)\na") == "[1, 2, 3, 4]");
     CHECK(evalStr(vm, "var a = [1, 2, 3]\na.remove(2)\na") == "[1, 3]");

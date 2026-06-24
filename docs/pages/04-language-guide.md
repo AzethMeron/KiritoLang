@@ -15,8 +15,9 @@ if x > 0:
 
 ## Variables and assignment
 
-`var` declares a name in the current scope; bare `=` rebinds the nearest existing binding (a
-`NameError` if it doesn't exist). Assignment binds a **name to a value** — it does not copy.
+`var` declares a name in the current scope; bare `=` rebinds the nearest existing binding (the error
+`name 'X' is not defined` if it doesn't exist). Assignment binds a **name to a value** — it does not
+copy.
 
 ```kirito
 var a = 1

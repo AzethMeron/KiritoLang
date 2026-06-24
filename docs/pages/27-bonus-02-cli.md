@@ -175,7 +175,7 @@ prints:
 command = build
 level   = 2
 verbose = True
-rest    = [extra1, extra2]
+rest    = ['extra1', 'extra2']
 ```
 
 So `--level 2`, `--level=2`, a short `-l 2`, and a short `-v` flag all work; anything not claimed by a

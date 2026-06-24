@@ -237,13 +237,14 @@ inline void escapeString(const std::string& s, std::string& out) {
     out += '"';
 }
 
-// JSON float text. Finite values use the shared formatter; non-finite values use the Python-`json`
-// spelling (NaN / Infinity / -Infinity) which our parser accepts back, so dumps->loads round-trips
-// (plain `floatToString` would emit lowercase nan/inf, which JSON readers — including ours — reject).
+// JSON float text. Finite values use the SHORTEST round-tripping form (so dumps->loads recovers the
+// exact double — important now that Float == is exact; the lossy display %.15g would not survive the
+// cycle). Non-finite values use the Python-`json` spelling (NaN / Infinity / -Infinity) which our
+// parser accepts back (plain lowercase nan/inf would be rejected by JSON readers, including ours).
 inline std::string jsonFloat(double d) {
     if (std::isnan(d)) return "NaN";
     if (std::isinf(d)) return d < 0 ? "-Infinity" : "Infinity";
-    return floatToString(d);
+    return floatToRoundtrip(d);
 }
 
 inline void write(KiritoVM& vm, Handle h, std::string& out, std::unordered_set<const Object*>& active) {

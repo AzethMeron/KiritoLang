@@ -62,7 +62,7 @@ io.print(sorted(scores))                 # => [8, 17, 42, 53, 99]   (original un
 io.print(sorted(scores, reverse=True))   # => [99, 53, 42, 17, 8]
 
 var words = ["banana", "fig", "cherry"]
-io.print(sorted(words, key=len))         # => [fig, banana, cherry]  (by length)
+io.print(sorted(words, key=len))         # => ['fig', 'banana', 'cherry']  (by length)
 ```
 
 `key` is a function applied to each element to produce its sort key (computed once per element). You

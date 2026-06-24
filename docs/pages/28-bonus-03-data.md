@@ -42,7 +42,7 @@ var df = tb.DataFrame(
     [["Ada", "eng", 120], ["Alan", "eng", 110], ["Grace", "ops", 95], ["Edsger", "ops", 130]],
     columns=["name", "dept", "salary"])
 io.print(df.shape())       # [4, 3]   (rows, cols)
-io.print(df.columns)       # [name, dept, salary]
+io.print(df.columns)       # ['name', 'dept', 'salary']
 io.print(df)               # pretty-prints the table
 ```
 
@@ -58,7 +58,7 @@ var tb = import("tabular")
 var csv = "name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130"
 var df = tb.readcsv(csv)
 io.print(type(df["salary"][0]))   # Integer  (inferred)
-io.print(df["dept"].tolist())     # [eng, eng, ops, ops]
+io.print(df["dept"].tolist())     # ['eng', 'eng', 'ops', 'ops']
 ```
 
 ## Selecting and filtering
@@ -72,8 +72,8 @@ var tb = import("tabular")
 var df = tb.readcsv("name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130")
 
 io.print(df["salary"].mean())                       # 113.75
-io.print(df[df["salary"] > 100]["name"].tolist())   # [Ada, Alan, Edsger]   (boolean mask)
-io.print(df[["name", "salary"]].columns)            # [name, salary]        (column subset)
+io.print(df[df["salary"] > 100]["name"].tolist())   # ['Ada', 'Alan', 'Edsger']   (boolean mask)
+io.print(df[["name", "salary"]].columns)            # ['name', 'salary']          (column subset)
 io.print(df.iloc[0]["name"])                        # Ada                    (first row)
 ```
 
@@ -113,7 +113,7 @@ var tb = import("tabular")
 var df = tb.readcsv("name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130")
 
 df["bonus"] = df["salary"] * 0.1                    # derived column
-io.print(df.sortvalues("salary", ascending=False)["name"].tolist())  # [Edsger, Ada, Alan, Grace]
+io.print(df.sortvalues("salary", ascending=False)["name"].tolist())  # ['Edsger', 'Ada', 'Alan', 'Grace']
 io.print(df.describe())                             # numeric summary
 ```
 
@@ -129,7 +129,7 @@ var tb = import("tabular")
 var df = tb.readcsv("name,age\nAda,36\nBjarne,\nGrace,85")
 io.print(df["age"].count())          # 2   (the blank is skipped)
 io.print(df["age"].mean())           # 60.5
-io.print(df.dropna()["name"].tolist())          # [Ada, Grace]
+io.print(df.dropna()["name"].tolist())          # ['Ada', 'Grace']
 io.print(df.fillna(0)["age"].tolist())          # [36, 0, 85]
 ```
 
@@ -145,7 +145,7 @@ var tb = import("tabular")
 var orders = tb.DataFrame([[1, 2], [2, 3]], columns=["id", "product_id"])
 var products = tb.DataFrame([[2, "Mouse"], [3, "Monitor"]], columns=["product_id", "name"])
 var joined = tb.merge(orders, products, on="product_id")
-io.print(joined["name"].tolist())    # [Mouse, Monitor]
+io.print(joined["name"].tolist())    # ['Mouse', 'Monitor']
 ```
 
 ## Putting it together

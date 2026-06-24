@@ -105,7 +105,7 @@ int main() {
         KiritoVM vm;
         CHECK(run(vm, "var a = [1, 2]\na.append(a)\nString(a)") == "[1, 2, [...]]");
         CHECK(run(vm, "var a = []\na.append(a)\nString(a == a)") == "True");
-        CHECK(run(vm, "var d = {}\nd[\"k\"] = d\nString(d)") == "{k: {...}}");
+        CHECK(run(vm, "var d = {}\nd[\"k\"] = d\nString(d)") == "{'k': {...}}");
     }
 
     // ===== switch: exact type matching, single subject evaluation =====

@@ -39,7 +39,7 @@ int main() {
     // string methods are code-point aware
     CHECK(run(vm, "\"miąższ\".upper()") == "MIĄŻSZ");
     CHECK(run(vm, "\"CHRZĄSZCZ\".lower()") == "chrząszcz");
-    CHECK(run(vm, "String(\"chrząszcz brzmi\".split(\" \"))") == "[chrząszcz, brzmi]");
+    CHECK(run(vm, "String(\"chrząszcz brzmi\".split(\" \"))") == "['chrząszcz', 'brzmi']");
     CHECK(run(vm, "\"-\".join([\"żółć\", \"miąższ\"])") == "żółć-miąższ");
     CHECK(run(vm, "\"szczebrzeszynie\".count(\"sz\")") == "2");
     CHECK(run(vm, "String(\"chrząszcz\".startswith(\"chrzą\"))") == "True");

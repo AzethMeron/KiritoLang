@@ -168,8 +168,8 @@ int main() {
         CHECK(evalStr(vm, "'AB' + \"\"\"CD\"\"\"") == "ABCD");
         CHECK(evalStr(vm, "'ab' * 3") == "ababab");
         CHECK(evalStr(vm, "'Hello'.upper()") == "HELLO");
-        CHECK(evalStr(vm, "\"\"\"Hello World\"\"\".split()") == "[Hello, World]");
-        CHECK(evalStr(vm, "r'a,b,c'.split(',')") == "[a, b, c]");
+        CHECK(evalStr(vm, "\"\"\"Hello World\"\"\".split()") == "['Hello', 'World']");
+        CHECK(evalStr(vm, "r'a,b,c'.split(',')") == "['a', 'b', 'c']");
         CHECK(evalStr(vm, "'  pad  '.strip()") == "pad");
         CHECK(evalStr(vm, "'abc'.startswith('ab')") == "True");
         CHECK(evalStr(vm, "'-'.join(['a', 'b', 'c'])") == "a-b-c");

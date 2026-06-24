@@ -79,7 +79,7 @@ var collections = import("collections")
 
 var votes = collections.Counter(["yes", "no", "yes", "yes", "no"])
 io.print(votes["yes"])                 # => 3   (index by item to get its count)
-io.print(votes.mostcommon())           # => [[yes, 3], [no, 2]]  (pairs, most frequent first)
+io.print(votes.mostcommon())           # => [['yes', 3], ['no', 2]]  (pairs, most frequent first)
 ```
 
 ## `itertools` and `functools` — building blocks for iteration and functions

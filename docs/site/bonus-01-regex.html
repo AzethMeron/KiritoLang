@@ -81,14 +81,14 @@ io.<span class="builtin">print</span>(re.search(<span class="str">&quot;&lt;.*?&
 <p>These match a <em>position</em>, not a character: <code>^</code> start, <code>$</code> end, <code>\b</code> a word boundary.</p>
 <pre><code>io.<span class="builtin">print</span>(re.search(<span class="str">&quot;^id&quot;</span>, <span class="str">&quot;id 99&quot;</span>).group())           <span class="com"># =&gt; id   (only because it&#x27;s at the start)</span>
 io.<span class="builtin">print</span>(re.search(<span class="str">&quot;99$&quot;</span>, <span class="str">&quot;id 99&quot;</span>).group())           <span class="com"># =&gt; 99   (only at the end)</span>
-io.<span class="builtin">print</span>(re.findall(r<span class="str">&quot;\bcat\b&quot;</span>, <span class="str">&quot;cat scatter cat&quot;</span>))  # =&gt; [cat, cat]  (whole word only, <span class="kw">not</span> <span class="str">&quot;scatter&quot;</span>)</code></pre>
+io.<span class="builtin">print</span>(re.findall(r<span class="str">&quot;\bcat\b&quot;</span>, <span class="str">&quot;cat scatter cat&quot;</span>))  # =&gt; [&#x27;cat&#x27;, &#x27;cat&#x27;]  (whole word only, <span class="kw">not</span> <span class="str">&quot;scatter&quot;</span>)</code></pre>
 <h2 id="capturing-groups">Capturing groups</h2>
 <p>Parentheses <code>( )</code> create a <strong>group</strong> — a sub-part of the match you can pull out afterwards with <code>.group(n)</code> (group 0 is the whole match). <code>.groups()</code> returns them all, and <code>.span()</code> gives the match&#x27;s <code>[start, end]</code> in code-point indices:</p>
 <pre><code><span class="kw">var</span> m = re.search(r<span class="str">&quot;(\d{4})-(\d{2})-(\d{2})&quot;</span>, <span class="str">&quot;log 2024-06-07 ok&quot;</span>)
 io.<span class="builtin">print</span>(m.group())     <span class="com"># =&gt; 2024-06-07   (group 0: the whole match)</span>
 io.<span class="builtin">print</span>(m.group(<span class="num">1</span>))    <span class="com"># =&gt; 2024         (first parenthesized group)</span>
 io.<span class="builtin">print</span>(m.group(<span class="num">2</span>))    <span class="com"># =&gt; 06</span>
-io.<span class="builtin">print</span>(m.groups())    <span class="com"># =&gt; [2024, 06, 07]</span>
+io.<span class="builtin">print</span>(m.groups())    <span class="com"># =&gt; [&#x27;2024&#x27;, &#x27;06&#x27;, &#x27;07&#x27;]</span>
 io.<span class="builtin">print</span>(m.span())      <span class="com"># =&gt; [4, 14]</span></code></pre>
 <p>A group made optional with <code>?</code> may not participate; then its <code>group(n)</code> is <a class="xref" href="types.html#none"><code>None</code></a>:</p>
 <pre><code><span class="kw">var</span> partial = re.search(r<span class="str">&quot;(\d+)?-(\d+)&quot;</span>, <span class="str">&quot;-5&quot;</span>)
@@ -99,15 +99,15 @@ io.<span class="builtin">print</span>(partial.group(<span class="num">2</span>))
 <pre><code><span class="kw">var</span> who = re.search(r<span class="str">&quot;(?P&lt;user&gt;\w+)@(?P&lt;host&gt;[\w.]+)&quot;</span>, <span class="str">&quot;write ada@kirito.dev today&quot;</span>)
 io.<span class="builtin">print</span>(who.group(<span class="str">&quot;user&quot;</span>))    <span class="com"># =&gt; ada</span>
 io.<span class="builtin">print</span>(who.group(<span class="str">&quot;host&quot;</span>))    <span class="com"># =&gt; kirito.dev</span>
-io.<span class="builtin">print</span>(who.groupdict())      <span class="com"># =&gt; {host: kirito.dev, user: ada}  (key order may vary)</span></code></pre>
+io.<span class="builtin">print</span>(who.groupdict())      <span class="com"># =&gt; {&#x27;host&#x27;: &#x27;kirito.dev&#x27;, &#x27;user&#x27;: &#x27;ada&#x27;}  (key order may vary)</span></code></pre>
 <h2 id="alternation">Alternation</h2>
 <p><code>|</code> means &quot;either side&quot;. Group it with <code>( )</code> to bound the choice:</p>
 <pre><code>io.<span class="builtin">print</span>(re.search(<span class="str">&quot;cat|dog|bird&quot;</span>, <span class="str">&quot;I have a dog&quot;</span>).group())   <span class="com"># =&gt; dog</span>
-io.<span class="builtin">print</span>(re.findall(<span class="str">&quot;(jan|feb|mar)&quot;</span>, <span class="str">&quot;feb and mar&quot;</span>))           <span class="com"># =&gt; [feb, mar]</span></code></pre>
+io.<span class="builtin">print</span>(re.findall(<span class="str">&quot;(jan|feb|mar)&quot;</span>, <span class="str">&quot;feb and mar&quot;</span>))           <span class="com"># =&gt; [&#x27;feb&#x27;, &#x27;mar&#x27;]</span></code></pre>
 <h2 id="finding-every-match">Finding every match</h2>
 <p><code>findall</code> returns the matches as a List; <code>finditer</code> returns the Match objects (for when you need positions or groups of each):</p>
-<pre><code>io.<span class="builtin">print</span>(re.findall(r<span class="str">&quot;\d+&quot;</span>, <span class="str">&quot;3 cats, 12 dogs, 1 fox&quot;</span>))     <span class="com"># =&gt; [3, 12, 1]   (0 groups -&gt; whole matches)</span>
-io.<span class="builtin">print</span>(re.findall(r<span class="str">&quot;(\w+)=(\d+)&quot;</span>, <span class="str">&quot;x=1 y=22&quot;</span>))           <span class="com"># =&gt; [[x, 1], [y, 22]]  (&gt;1 group -&gt; tuples)</span>
+<pre><code>io.<span class="builtin">print</span>(re.findall(r<span class="str">&quot;\d+&quot;</span>, <span class="str">&quot;3 cats, 12 dogs, 1 fox&quot;</span>))     <span class="com"># =&gt; [&#x27;3&#x27;, &#x27;12&#x27;, &#x27;1&#x27;]   (0 groups -&gt; whole matches)</span>
+io.<span class="builtin">print</span>(re.findall(r<span class="str">&quot;(\w+)=(\d+)&quot;</span>, <span class="str">&quot;x=1 y=22&quot;</span>))           <span class="com"># =&gt; [[&#x27;x&#x27;, &#x27;1&#x27;], [&#x27;y&#x27;, &#x27;22&#x27;]]  (&gt;1 group -&gt; tuples)</span>
 <span class="kw">for</span> hit <span class="kw">in</span> re.finditer(r<span class="str">&quot;\d+&quot;</span>, <span class="str">&quot;a1 b22&quot;</span>):
     io.<span class="builtin">print</span>(hit.group(), <span class="str">&quot;at&quot;</span>, hit.start())                <span class="com"># =&gt; 1 at 1 / 22 at 4</span></code></pre>
 <h2 id="replacing-with-sub">Replacing with sub</h2>
@@ -121,19 +121,19 @@ io.<span class="builtin">print</span>(re.sub(r<span class="str">&quot;\d+&quot;<
 <p>Pass a count to limit how many are replaced: <code>re.sub(&quot;a&quot;, &quot;X&quot;, &quot;aaaa&quot;, 2)</code> → <code>XXaa</code>.</p>
 <h2 id="splitting">Splitting</h2>
 <p><code>split</code> breaks text at each match. If the pattern has groups, the captured separators are kept:</p>
-<pre><code>io.<span class="builtin">print</span>(re.split(r<span class="str">&quot;,\s*&quot;</span>, <span class="str">&quot;a, b,c ,  d&quot;</span>))     <span class="com"># =&gt; [a, b, c , d]</span>
-io.<span class="builtin">print</span>(re.split(r<span class="str">&quot;(\s+)&quot;</span>, <span class="str">&quot;one two&quot;</span>))         <span class="com"># =&gt; [one,  , two]   (separator retained)</span></code></pre>
+<pre><code>io.<span class="builtin">print</span>(re.split(r<span class="str">&quot;,\s*&quot;</span>, <span class="str">&quot;a, b,c ,  d&quot;</span>))     <span class="com"># =&gt; [&#x27;a&#x27;, &#x27;b&#x27;, &#x27;c &#x27;, &#x27;d&#x27;]</span>
+io.<span class="builtin">print</span>(re.split(r<span class="str">&quot;(\s+)&quot;</span>, <span class="str">&quot;one two&quot;</span>))         <span class="com"># =&gt; [&#x27;one&#x27;, &#x27; &#x27;, &#x27;two&#x27;]   (separator retained)</span></code></pre>
 <h2 id="flags">Flags</h2>
 <p>Flags change how a pattern matches. Combine them with <code>+</code>:</p>
 <ul><li><code id="sym-re.IGNORECASE">re.IGNORECASE</code> (<code>re.I</code>) — case-insensitive.</li><li><code id="sym-re.MULTILINE">re.MULTILINE</code> (<code>re.M</code>) — <code>^</code> and <code>$</code> match at every line, not just the whole string.</li><li><code id="sym-re.DOTALL">re.DOTALL</code> (<code>re.S</code>) — <code>.</code> also matches newlines.</li></ul>
-<pre><code>io.<span class="builtin">print</span>(re.findall(<span class="str">&quot;cat&quot;</span>, <span class="str">&quot;Cat CAT cat&quot;</span>, re.IGNORECASE))   <span class="com"># =&gt; [Cat, CAT, cat]</span>
-io.<span class="builtin">print</span>(re.findall(r<span class="str">&quot;^\w+&quot;</span>, <span class="str">&quot;one\ntwo\nthree&quot;</span>, re.MULTILINE))  <span class="com"># =&gt; [one, two, three]</span></code></pre>
+<pre><code>io.<span class="builtin">print</span>(re.findall(<span class="str">&quot;cat&quot;</span>, <span class="str">&quot;Cat CAT cat&quot;</span>, re.IGNORECASE))   <span class="com"># =&gt; [&#x27;Cat&#x27;, &#x27;CAT&#x27;, &#x27;cat&#x27;]</span>
+io.<span class="builtin">print</span>(re.findall(r<span class="str">&quot;^\w+&quot;</span>, <span class="str">&quot;one\ntwo\nthree&quot;</span>, re.MULTILINE))  <span class="com"># =&gt; [&#x27;one&#x27;, &#x27;two&#x27;, &#x27;three&#x27;]</span></code></pre>
 <p>You can also set a flag inside the pattern with <code>(?i)</code> / <code>(?m)</code> / <code>(?s)</code>:</p>
 <pre><code>io.<span class="builtin">print</span>(re.search(<span class="str">&quot;(?i)hello&quot;</span>, <span class="str">&quot;HELLO there&quot;</span>).group())     <span class="com"># =&gt; HELLO</span></code></pre>
 <h2 id="compile-once-reuse-many-times">Compile once, reuse many times</h2>
 <p>If you&#x27;ll use a pattern repeatedly, <a class="xref" href="stdlib.html#sym-compile"><code>compile</code></a> it once into a <code>Regex</code> object and call methods on that — it parses the pattern a single time:</p>
 <pre><code><span class="kw">var</span> word = re.compile(<span class="str">&quot;[A-Za-z]+&quot;</span>, re.IGNORECASE)
-io.<span class="builtin">print</span>(word.findall(<span class="str">&quot;Hello, World!&quot;</span>))    <span class="com"># =&gt; [Hello, World]</span>
+io.<span class="builtin">print</span>(word.findall(<span class="str">&quot;Hello, World!&quot;</span>))    <span class="com"># =&gt; [&#x27;Hello&#x27;, &#x27;World&#x27;]</span>
 io.<span class="builtin">print</span>(word.pattern)                      <span class="com"># =&gt; [A-Za-z]+   (the source pattern)</span>
 io.<span class="builtin">print</span>(word.groups)                       <span class="com"># =&gt; 0           (number of capturing groups)</span></code></pre>
 <p>And when you need to match a <em>literal</em> string that might contain regex metacharacters, <a class="xref" href="stdlib.html#sym-escape"><code>escape</code></a> it:</p>

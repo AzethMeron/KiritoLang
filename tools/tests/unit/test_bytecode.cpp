@@ -77,7 +77,7 @@ int main() {
     CHECK(val("try:\n    throw \"boom\"\ncatch as e:\n    e") == "boom");
     CHECK(val("try:\n    var x=1/0\ncatch as e:\n    \"caught\"") == "caught");
     CHECK(val("var f=Function():\n    try:\n        return 1\n    finally:\n        return 2\nf()") == "2");
-    CHECK(val("var o=[]\ntry:\n    try:\n        throw \"x\"\n    catch as e:\n        o.append(\"c\")\n        throw \"r\"\n    finally:\n        o.append(\"f\")\ncatch as e:\n    o.append(e)\no") == "[c, f, r]");
+    CHECK(val("var o=[]\ntry:\n    try:\n        throw \"x\"\n    catch as e:\n        o.append(\"c\")\n        throw \"r\"\n    finally:\n        o.append(\"f\")\ncatch as e:\n    o.append(e)\no") == "['c', 'f', 'r']");
 
     // --- with: enter/exit on every path ---
     CHECK(val("class CM:\n    var _enter_=Function(self): return 5\n    var _exit_=Function(self): return None\nvar r=0\nwith CM() as c:\n    r=c\nr") == "5");

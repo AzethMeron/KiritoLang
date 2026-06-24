@@ -446,11 +446,16 @@ assert type(st.median([1, 2, 3])) == "Float" and st.median([1, 2, 3]) == 2.0, "m
 assert st.median([1, 2, 3, 4]) == 2.5 and type(st.median([1, 2, 3, 4])) == "Float", "median even -> Float average"
 assert st.median([3, 1, 2]) == 2.0, "median sorts internally"
 
-# --- mode: single, first-to-reach-max tie-break, and the EMPTY -> None (Python raises). -----------
+# --- mode: single, first-to-reach-max tie-break, and the EMPTY -> raises (parity with Python). -----
 assert st.mode([1, 1, 2, 3]) == 1, "mode picks the most common"
 assert st.mode([4, 4, 5, 5]) == 4, "FINDING-PARITY: tie -> the value that reaches the max count FIRST (Python's mode is also single but errors on multimodal in <3.8)"
-# FINDING (parity): Python's statistics.mode([]) raises StatisticsError; Kirito returns None.
-assert st.mode([]) == None, "FINDING: mode of an empty list returns None (Python would RAISE)"
+# Parity with Python: statistics.mode([]) raises (StatisticsError there, a clear message here).
+var modeEmptyRaised = False
+try:
+    discard st.mode([])
+catch as e:
+    modeEmptyRaised = True
+assert modeEmptyRaised, "mode of an empty list raises (parity with Python)"
 assert st.multimode([]) == [], "multimode of empty -> [] (consistent)"
 assert st.multimode([1, 2, 3]) == [1, 2, 3], "all-distinct: every value is a mode"
 

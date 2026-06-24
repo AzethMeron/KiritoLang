@@ -36,7 +36,7 @@ int main() {
     CHECK(ev("s.major(\"3.4.5\")") == "3");
     CHECK(ev("s.minor(\"3.4.5\")") == "4");
     CHECK(ev("s.patch(\"3.4.5\")") == "5");
-    CHECK(ev("s.prerelease(\"1.0.0-rc.2\")") == "[rc, 2]");
+    CHECK(ev("s.prerelease(\"1.0.0-rc.2\")") == "['rc', '2']");
     CHECK(ev("s.prerelease(\"1.0.0\")") == "None");
     CHECK_THROWS(KiritoVM().runSource("import(\"semver\").parse(\"nope\")\n"));
 
@@ -126,10 +126,10 @@ int main() {
     CHECK(ev("s.maxsatisfying([\"v1.0.0\", \"v1.5.0\", \"not-a-version\"], \"*\")") == "v1.5.0");
 
     // ---------- sort / rsort (numeric ordering; invalids dropped) ----------
-    CHECK(ev("s.sort([\"1.10.0\", \"1.2.0\", \"1.1.0\"])") == "[1.1.0, 1.2.0, 1.10.0]");
-    CHECK(ev("s.rsort([\"1.1.0\", \"1.10.0\", \"1.2.0\"])") == "[1.10.0, 1.2.0, 1.1.0]");
-    CHECK(ev("s.sort([\"2.0.0\", \"1.0.0-rc.1\", \"1.0.0\"])") == "[1.0.0-rc.1, 1.0.0, 2.0.0]");
-    CHECK(ev("s.sort([\"1.0.0\", \"garbage\", \"0.9.0\"])") == "[0.9.0, 1.0.0]");
+    CHECK(ev("s.sort([\"1.10.0\", \"1.2.0\", \"1.1.0\"])") == "['1.1.0', '1.2.0', '1.10.0']");
+    CHECK(ev("s.rsort([\"1.1.0\", \"1.10.0\", \"1.2.0\"])") == "['1.10.0', '1.2.0', '1.1.0']");
+    CHECK(ev("s.sort([\"2.0.0\", \"1.0.0-rc.1\", \"1.0.0\"])") == "['1.0.0-rc.1', '1.0.0', '2.0.0']");
+    CHECK(ev("s.sort([\"1.0.0\", \"garbage\", \"0.9.0\"])") == "['0.9.0', '1.0.0']");
 
     // ---------- diff / inc ----------
     CHECK(ev("s.diff(\"1.2.3\", \"2.0.0\")") == "major");

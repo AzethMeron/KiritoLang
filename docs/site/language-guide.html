@@ -45,7 +45,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <span class="kw">if</span> x &gt; <span class="num">0</span>:
     io.<span class="builtin">print</span>(<span class="str">&quot;positive&quot;</span>)    <span class="com"># indented block</span></code></pre>
 <h2 id="variables-and-assignment">Variables and assignment</h2>
-<p><code>var</code> declares a name in the current scope; bare <code>=</code> rebinds the nearest existing binding (a <code>NameError</code> if it doesn&#x27;t exist). Assignment binds a <strong>name to a value</strong> — it does not copy.</p>
+<p><code>var</code> declares a name in the current scope; bare <code>=</code> rebinds the nearest existing binding (the error <code>name &#x27;X&#x27; is not defined</code> if it doesn&#x27;t exist). Assignment binds a <strong>name to a value</strong> — it does not copy.</p>
 <pre><code><span class="kw">var</span> a = <span class="num">1</span>
 a = a + <span class="num">1</span>          <span class="com"># rebinds a</span>
 <span class="kw">var</span> b = a          <span class="com"># b and a are independent bindings to the same value</span></code></pre>

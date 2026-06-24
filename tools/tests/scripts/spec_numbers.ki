@@ -48,7 +48,7 @@ assert shl(1, 64) == 0 and shr(1, 64) == 0 and shr(-1, 100) == -1, "shift past w
 
 # --- floats ---
 assert 1.5e3 == 1500.0 and 2e-3 == 0.002 and 1E2 == 100.0, "scientific notation"
-assert 0.1 + 0.2 == 0.3, "float equality uses tolerance"
+assert not (0.1 + 0.2 == 0.3) and (0.1 + 0.2).compare(0.3), "float == is exact; .compare for tolerance"
 assert round(2.71828, 2) == 2.72 and round(2.5) == 3 and round(3.5) == 4, "round half away from zero"
 assert round(-2.5) == -3, "round negative half away"
 assert abs(-3.5) == 3.5, "abs float"

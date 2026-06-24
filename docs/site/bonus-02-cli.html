@@ -149,7 +149,7 @@ io.<span class="builtin">print</span>(f<span class="str">&quot;rest    = {rest}&
 <pre><code>command = build
 level   = 2
 verbose = True
-rest    = [extra1, extra2]</code></pre>
+rest    = [&#x27;extra1&#x27;, &#x27;extra2&#x27;]</code></pre>
 <p>So <code>--level 2</code>, <code>--level=2</code>, a short <code>-l 2</code>, and a short <code>-v</code> flag all work; anything not claimed by a declared positional lands in <code>rest</code>.</p>
 <h2 id="automatic-help">Automatic <code>--help</code></h2>
 <p>You get a usage screen for free. When <code>-h</code> or <code>--help</code> appears anywhere, <code>parse</code> <strong>prints the help and returns <a class="xref" href="types.html#none"><code>None</code></a></strong> — your program checks for that and stops:</p>

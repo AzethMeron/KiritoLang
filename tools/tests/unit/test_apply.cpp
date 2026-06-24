@@ -19,7 +19,7 @@ int main() {
     CHECK(ev(vm, "type([1].apply(Function(x): return x))") == "List");
     CHECK(ev(vm, "[].apply(Function(x): return x)") == "[]");                 // empty
     CHECK(ev(vm, "[1, 2, 3].apply(Function(x): return x * 2)") == "[2, 4, 6]");  // order preserved
-    CHECK(ev(vm, "[\"a\", \"b\"].apply(Function(s): return s + \"!\")") == "[a!, b!]");
+    CHECK(ev(vm, "[\"a\", \"b\"].apply(Function(s): return s + \"!\")") == "['a!', 'b!']");
     // the source list is unchanged (apply returns a new List)
     CHECK(ev(vm, "var xs = [1, 2, 3]\nvar ys = xs.apply(Function(x): return x + 10)\nString(xs) + \" \" + String(ys)") == "[1, 2, 3] [11, 12, 13]");
     // a closure captured in the mapped function

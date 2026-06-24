@@ -107,7 +107,9 @@ io.print(C.exp(C.of(0, C.pi)))   # ~ -1.0 + 0i
 io.print(C.sqrt(C.of(-1, 0)))    # 0.0+1.0i  = i
 ```
 
-Complex numbers are **unordered** (`<`, `>` raise), and equality is tolerance-based like `Float`.
+Complex numbers are **unordered** (`<`, `>` raise), and their `==` is tolerance-based (so two values
+within a small epsilon compare equal). Note this differs from a scalar `Float`, whose `==` is
+**exact** — use a Float's [`.compare`](types.html#float) method for tolerant Float comparison.
 
 ## Complex matrices and vectors
 

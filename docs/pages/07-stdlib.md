@@ -138,7 +138,8 @@ Constants and the usual numeric functions. Argument errors raise; results are `F
 - `lcm(a: Integer, b: Integer) → Integer` — least common multiple.
 - `factorial(n: Integer) → Integer` — `n!` (raises on negatives / Integer overflow).
 - `comb(n: Integer, k: Integer) → Integer` — combinations “n choose k”.
-- `perm(n: Integer, k: Integer) → Integer` — permutations.
+- `perm(n: Integer, k = None) → Integer` — permutations of `n` taken `k` at a time; with `k` omitted
+  (or `None`) it returns `n!`.
 - `prod(iterable, start = 1) → Number` — product of the elements times `start` (Integer if all Integer, else Float).
 
 ---
@@ -512,6 +513,11 @@ JSON parsing and serialization (flat data interchange — for reference/cycle-pr
 - `stringify(value, indent: Integer = 0) → String` — serialize a value to JSON; compact by default, pretty-printed when the indent width is greater than zero.
 - `dumps(value, indent: Integer = 0) → String` — an alias of `stringify`.
 
+Floats **round-trip exactly**: `loads(dumps(x))` recovers the identical double for any Float `x`
+(`dumps` emits enough digits, e.g. `0.1 + 0.2` → `"0.30000000000000004"`). Note that Float `==` is
+**exact** bit equality (no tolerance) — see [Float](types.html#float) — so a recovered value compares
+`==` to the original.
+
 ---
 
 ## serialize
@@ -556,12 +562,13 @@ Compact **binary** serialization (the binary counterpart of `serialize`), preser
 cycles. `dumps` returns the blob as [`Bytes`](types.html#bytes); `loads` reconstructs from it.
 
 - `dumps(value) → Bytes` — serialize to a compact binary blob.
-- `loads(data)` — reconstruct the value graph; `data` is the `Bytes` from `dumps` (a `String` of the
-  same bytes is accepted too).
+- `loads(data)` — reconstruct the value graph; pass the **`Bytes`** returned by `dumps` directly (do
+  **not** wrap it in `String(...)` — the blob is raw binary, and a String round-trip corrupts it).
 - `save(value, path) → None` — serialize `value` straight to a file.
 - `load(path)` — reconstruct a value from a file written by `save`.
 
-Persist a blob yourself with binary file I/O, e.g. `io.open(path, "wb").write(dump.dumps(x))`.
+Persist a blob yourself with binary file I/O, e.g. `io.open(path, "wb").write(dump.dumps(x))`. To
+round-trip in memory: `dump.loads(dump.dumps(x))`.
 
 ---
 
@@ -737,6 +744,7 @@ same type as its input.
 
 Pair with `net.get(url).content` (raw `Bytes`) to fetch and unpack a `.gz` resource:
 
+<!--norun (requires network access and an HTTPS/TLS build)-->
 ```kirito
 var net = import("net")
 var gzip = import("gzip")
@@ -833,12 +841,12 @@ var re = import("regex")
 var m = re.search("(?P<user>\\w+)@(?P<host>[\\w.]+)", "contact ada@kirito.dev now")
 io.print(m.group())            # => ada@kirito.dev
 io.print(m.group("user"))      # => ada
-io.print(m.groupdict())        # => {user: ada, host: kirito.dev}  (order may vary)
+io.print(m.groupdict())        # => {'user': 'ada', 'host': 'kirito.dev'}  (order may vary)
 
-io.print(re.findall("\\d+", "12 and 345"))               # => [12, 345]
+io.print(re.findall("\\d+", "12 and 345"))               # => ['12', '345']
 io.print(re.sub("\\s+", "_", "a   b  c"))                 # => a_b_c
 var rx = re.compile("cat|dog", re.IGNORECASE)
-io.print(rx.findall("Cat dog CAT"))                        # => [Cat, dog, CAT]
+io.print(rx.findall("Cat dog CAT"))                        # => ['Cat', 'dog', 'CAT']
 ```
 
 ---
@@ -884,8 +892,10 @@ a Queue into `spawn` (or through another Queue) references the **same** underlyi
 - `q.putnowait(item)` / `q.getnowait()` — non-blocking `put` / `get`.
 - `q.qsize() → Integer`, `q.empty() → Bool`, `q.full() → Bool`.
 - `q.close() → None` — mark the queue closed. Pending and subsequent `put`s raise; `get` drains the
-  remaining items and then raises — the idiom a consumer loop uses to stop:
+  remaining items and then raises — the idiom a consumer loop uses to stop (here `q` is a `Queue` and
+  `handle` a function from the surrounding program):
 
+<!--norun (consumer-loop idiom fragment; q/handle come from the surrounding program)-->
 ```kirito
 var running = True
 while running:
@@ -1129,7 +1139,7 @@ var io = import("io")
 var tb = import("tabular")
 
 var df = tb.readcsv("name,dept,salary\nAda,eng,120\nAlan,eng,110\nGrace,ops,95\nEdsger,ops,130")
-io.print(df[df["salary"] > 100]["name"].tolist())     # [Ada, Alan, Edsger]
+io.print(df[df["salary"] > 100]["name"].tolist())     # ['Ada', 'Alan', 'Edsger']
 io.print(df.groupby("dept").mean()["salary"].tolist()) # [115.0, 112.5]
 io.print(df.sortvalues("salary", ascending=False)["name"].tolist())
 ```

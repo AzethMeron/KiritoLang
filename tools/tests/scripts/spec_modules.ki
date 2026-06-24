@@ -4,7 +4,7 @@ var io = import("io")
 # --- math ---
 var m = import("math")
 assert m.floor(3.7) == 3 and m.ceil(3.2) == 4 and m.trunc(-3.7) == -3.0, "floor/ceil/trunc"
-assert m.sqrt(16.0) == 4.0 and m.cbrt(27.0) == 3.0, "sqrt/cbrt"
+assert m.sqrt(16.0) == 4.0 and m.cbrt(27.0).compare(3.0), "sqrt/cbrt"
 assert abs(m.pow(2.0, 10.0) - 1024.0) < 0.0001, "math.pow"
 assert m.gcd(12, 8) == 4 and m.lcm(4, 6) == 12, "gcd/lcm"
 assert m.factorial(5) == 120, "factorial"

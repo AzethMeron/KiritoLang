@@ -27,10 +27,10 @@ static std::string ev(const std::string& expr) {
 
 int main() {
     // ---------- parseSpec: owner/repo[@ref]; ref is None / a literal ref / a constraint ----------
-    CHECK(ev("String(kpm.parseSpec(\"owner/repo\"))") == "[owner, repo, None]");
-    CHECK(ev("String(kpm.parseSpec(\"owner/repo@main\"))") == "[owner, repo, main]");
-    CHECK(ev("String(kpm.parseSpec(\"o/r@^1.2.0\"))") == "[o, r, ^1.2.0]");
-    CHECK(ev("String(kpm.parseSpec(\"o/r@feature/x\"))") == "[o, r, feature/x]");  // slash in ref kept
+    CHECK(ev("String(kpm.parseSpec(\"owner/repo\"))") == "['owner', 'repo', None]");
+    CHECK(ev("String(kpm.parseSpec(\"owner/repo@main\"))") == "['owner', 'repo', 'main']");
+    CHECK(ev("String(kpm.parseSpec(\"o/r@^1.2.0\"))") == "['o', 'r', '^1.2.0']");
+    CHECK(ev("String(kpm.parseSpec(\"o/r@feature/x\"))") == "['o', 'r', 'feature/x']");  // slash in ref kept
     {
         KiritoVM vm;
         vm.addLibPath(kpmDir());

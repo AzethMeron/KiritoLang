@@ -99,6 +99,27 @@ inline void utf8Encode(unsigned cp, std::string& out) {
 inline std::string floatToString(double d) {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "%.15g", d);
+    // Round-trip-overflow guard: %.15g rounds DBL_MAX *up* to 1.79769313486232e+308, which re-parses
+    // to +inf (and even fails String->Float). For a finite value whose 15-digit form overflows, fall
+    // back to the exact 17-digit form (always round-trips, never overflows). Normal values keep %.15g.
+    if (std::isfinite(d) && !std::isfinite(std::strtod(buf, nullptr)))
+        std::snprintf(buf, sizeof(buf), "%.17g", d);
+    std::string s(buf);
+    if (s.find_first_of(".eEni") == std::string::npos) s += ".0";
+    return s;
+}
+
+// Render a double in its SHORTEST form that still round-trips exactly (parse(repr(d)) == d), like
+// Python's repr/json. Used where a float must survive a serialize/parse cycle (json) — unlike the
+// display floatToString, which favours a clean %.15g and so isn't always round-trippable. Clean for
+// ordinary values (0.1 -> "0.1") yet exact for awkward ones (0.1+0.2 -> "0.30000000000000004").
+inline std::string floatToRoundtrip(double d) {
+    if (!std::isfinite(d)) return floatToString(d);
+    char buf[32];
+    for (int prec = 15; prec <= 17; ++prec) {
+        std::snprintf(buf, sizeof(buf), "%.*g", prec, d);
+        if (std::strtod(buf, nullptr) == d) break;  // shortest precision that round-trips
+    }
     std::string s(buf);
     if (s.find_first_of(".eEni") == std::string::npos) s += ".0";
     return s;
@@ -179,6 +200,7 @@ public:
     std::optional<std::vector<Handle>> iterate(KiritoVM&) override;
     bool contains(KiritoVM&, Handle value) override;
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
+    std::vector<std::string> inspectMembers() const override;  // String's methods (runtime.hpp)
 
 private:
     std::string value_;
@@ -203,12 +225,15 @@ public:
 
     Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;
     Handle unary(KiritoVM&, UnOp, Handle self) override;
+    Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;  // .compare() (runtime.hpp)
+    std::vector<std::string> inspectMembers() const override;
 
 private:
     int64_t value_;
 };
 
-// Double-precision floating point. Equality is epsilon-based (see runtime.hpp).
+// Double-precision floating point. Equality is EXACT IEEE-754 (see floatEqual in runtime.hpp); use
+// the .compare(other, rel_tol=, abs_tol=) method for approximate comparison.
 class FloatVal : public Object {
 public:
     explicit FloatVal(double v) : value_(v) {}
@@ -224,10 +249,43 @@ public:
 
     Handle binary(KiritoVM&, BinOp, Handle self, Handle rhs) override;
     Handle unary(KiritoVM&, UnOp, Handle self) override;
+    Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;  // .compare() (runtime.hpp)
+    std::vector<std::string> inspectMembers() const override;
 
 private:
     double value_;
 };
+
+// Python-style repr of a String: quoted and escaped, so it reads back unambiguously when shown inside
+// a container ([""] vs [] must differ; ["a", "b"] not [a, b]). Prefers single quotes, switching to
+// double only when the text has a single quote but no double (matching Python's str repr).
+inline std::string reprString(const std::string& s) {
+    char quote = '\'';
+    if (s.find('\'') != std::string::npos && s.find('"') == std::string::npos) quote = '"';
+    std::string out;
+    out += quote;
+    for (char c : s) {
+        unsigned char uc = static_cast<unsigned char>(c);
+        if (c == quote || c == '\\') { out += '\\'; out += c; }
+        else if (c == '\n') out += "\\n";
+        else if (c == '\t') out += "\\t";
+        else if (c == '\r') out += "\\r";
+        else if (uc < 0x20) { char b[8]; std::snprintf(b, sizeof(b), "\\x%02x", uc); out += b; }
+        else out += c;
+    }
+    out += quote;
+    return out;
+}
+
+// Stringify a value as it should appear as an *element* of a container: a String is repr'd (quoted),
+// everything else uses its normal str() — and nested containers recurse through this same helper for
+// their own elements, so quoting is consistent at every depth. This is the str()-vs-repr distinction:
+// a bare `print(s)` shows the raw text, but `print([s])` shows the quoted form, exactly like Python.
+inline std::string stringifyChild(StringifyCtx& ctx, Handle h) {
+    const Object& o = ctx.arena.deref(h);
+    if (o.kind() == ValueKind::String) return reprString(static_cast<const StrVal&>(o).value());
+    return o.str(ctx);
+}
 
 }  // namespace kirito
 

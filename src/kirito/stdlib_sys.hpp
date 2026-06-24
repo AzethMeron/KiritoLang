@@ -179,9 +179,15 @@ public:
         });
 
         m.fn("exit", {{"code", "Integer", vm.makeInt(0)}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            Args args(vm, a, "exit");
-            int code = args.empty() || !args[0].isInt() ? 0 : static_cast<int>(args[0].asInt());
-            std::exit(code);
+            // Python semantics: None/no-arg -> 0; an Integer -> that status; anything else is treated as
+            // an error message printed to stderr with status 1 (rather than silently exiting 0, which
+            // would mask a failure).
+            if (a.empty()) std::exit(0);
+            const Object& o = vm.arena().deref(a[0]);
+            if (o.kind() == ValueKind::None) std::exit(0);
+            if (o.kind() == ValueKind::Integer) std::exit(static_cast<int>(static_cast<const IntVal&>(o).value()));
+            std::fprintf(stderr, "%s\n", vm.stringify(a[0]).c_str());
+            std::exit(1);
             return none(vm);  // unreachable
         });
     }

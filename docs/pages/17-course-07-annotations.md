@@ -52,6 +52,26 @@ var describe = Function(creature : Animal) -> String:
 io.print(describe(Dog("Rex")))     # => Rex   (a Dog satisfies the Animal annotation)
 ```
 
+## `Integer` and `Float` are distinct — no implicit widening
+
+An annotation checks the value's **exact type** (or a subclass). `Integer` and `Float` are separate
+types, so an Integer does **not** satisfy a `Float` annotation — pass a Float, or convert with
+`Float(n)`:
+
+```kirito
+var io = import("io")
+
+var half = Function(x : Float) -> Float:
+    return x / 2.0
+
+io.print(half(3.0))         # => 1.5
+io.print(half(Float(3)))    # => 1.5   (convert an Integer first)
+```
+
+Calling `half(3)` with a bare Integer raises `argument 'x' must be Float, got Integer`. (Inside
+arithmetic, mixing an Integer and a Float still promotes to Float — it is only the annotation *check*
+that is strict.)
+
 ## `Any` and no annotation accept everything
 
 Leaving a parameter unannotated, or annotating it `Any`, accepts any value — use this when a function

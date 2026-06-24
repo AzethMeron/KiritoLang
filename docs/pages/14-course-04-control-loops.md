@@ -28,11 +28,15 @@ if age >= 18 and has_ticket:
     io.print("admitted")           # => admitted
 
 io.print(not False)                 # => True
-io.print(True or undefined_func())  # => True  (the right side is never evaluated)
+
+var boom = Function():
+    return 1 // 0                   # would crash if ever called
+io.print(True or boom())            # => True  (the right side is never evaluated)
 ```
 
 Short-circuiting is not just an optimization — it lets you guard a risky operation with a cheap check
-on its left: `if count > 0 and total / count > threshold:`.
+on its left: `if count > 0 and total / count > threshold:`. Above, `True or ...` already knows the
+answer, so `boom()` — which would divide by zero — is never reached.
 
 ## `if` / `elif` / `else`
 

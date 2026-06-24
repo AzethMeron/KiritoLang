@@ -205,7 +205,9 @@ public:
                 return static_cast<const IntVal&>(o).value();
             };
             int64_t n = geti(a[0], comb ? "comb" : "perm");
-            int64_t k = a.size() > 1 ? geti(a[1], comb ? "comb" : "perm") : n;
+            // perm(n) (k omitted / None) means perm(n, n) == n!  (Python); comb always needs both.
+            bool haveK = a.size() > 1 && vm.arena().deref(a[1]).kind() != ValueKind::None;
+            int64_t k = haveK ? geti(a[1], comb ? "comb" : "perm") : n;
             if (n < 0 || k < 0) throw KiritoError("comb/perm require non-negative Integers");
             if (k > n) return val(vm, 0);
             if (comb && k > n - k) k = n - k;  // symmetry: fewer multiplications
@@ -233,7 +235,7 @@ public:
             return val(vm, static_cast<int64_t>(r));
         };
         m.fn("comb", {{"n", "Integer"}, {"k", "Integer"}}, "Integer", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, true); });
-        m.fn("perm", {{"n", "Integer"}, {"k", "Integer"}}, "Integer", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, false); });
+        m.fn("perm", {{"n", "Integer"}, {"k", "", vm.none()}}, "Integer", [combPerm](KiritoVM& vm, std::span<const Handle> a) { return combPerm(vm, a, false); });  // k optional: perm(n)=n!
     }
 };
 

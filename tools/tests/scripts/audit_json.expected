@@ -18,8 +18,8 @@ a/b
 😀
 []
 {}
-{: 0}
-{a: [1, {c: None, b: True}]}
+{'': 0}
+{'a': [1, {'c': None, 'b': True}]}
 [1, 2]
 null
 true

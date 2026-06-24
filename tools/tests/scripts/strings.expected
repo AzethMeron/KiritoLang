@@ -4,7 +4,7 @@ Hello
 World
 dlroW ,olleH
 12
-[a, b, c, d]
+['a', 'b', 'c', 'd']
 x-y-z
 3
 True

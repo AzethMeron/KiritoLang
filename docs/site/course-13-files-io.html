@@ -81,7 +81,7 @@ io.<span class="builtin">print</span>(io.exists(here))          <span class="com
 io.<span class="builtin">print</span>(io.isdir(here))           <span class="com"># =&gt; True</span>
 io.<span class="builtin">print</span>(io.basename(<span class="str">&quot;/a/b/c.txt&quot;</span>))    <span class="com"># =&gt; c.txt</span>
 io.<span class="builtin">print</span>(io.dirname(<span class="str">&quot;/a/b/c.txt&quot;</span>))     <span class="com"># =&gt; /a/b</span>
-io.<span class="builtin">print</span>(io.splitext(<span class="str">&quot;report.csv&quot;</span>))    <span class="com"># =&gt; [report, .csv]</span>
+io.<span class="builtin">print</span>(io.splitext(<span class="str">&quot;report.csv&quot;</span>))    <span class="com"># =&gt; [&#x27;report&#x27;, &#x27;.csv&#x27;]</span>
 io.<span class="builtin">print</span>(io.join(<span class="str">&quot;dir&quot;</span>, <span class="str">&quot;sub&quot;</span>, <span class="str">&quot;file.txt&quot;</span>))   <span class="com"># =&gt; dir/sub/file.txt  (platform separator)</span></code></pre>
 <p>Others include <a class="xref" href="stdlib.html#sym-listdir"><code>listdir</code></a>, <a class="xref" href="stdlib.html#sym-mkdir"><code>mkdir</code></a>, <a class="xref" href="stdlib.html#sym-rename"><code>rename</code></a>, <code>remove</code>, <a class="xref" href="stdlib.html#sym-getsize"><code>getsize</code></a>, <a class="xref" href="stdlib.html#sym-isfile"><code>isfile</code></a>, and <a class="xref" href="stdlib.html#sym-walk"><code>walk</code></a> (recursive).</p>
 <h2 id="in-memory-buffers-bytesio">In-memory buffers: <code>BytesIO</code></h2>

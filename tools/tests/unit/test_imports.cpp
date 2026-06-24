@@ -75,7 +75,7 @@ int main() {
         KiritoVM v3;
         v3.addLibPath(dir.string());
         v3.setArgs({"alpha", "beta"});
-        CHECK(v3.stringify(v3.runSource("arglist")) == "[alpha, beta]");
+        CHECK(v3.stringify(v3.runSource("arglist")) == "['alpha', 'beta']");
         CHECK(v3.stringify(v3.runSource("argmain")) == "True");
         { std::ofstream f(dir / "argmod.ki"); f << "var seenMain = argmain\nvar seenArgs = arglist\n"; }
         CHECK(v3.stringify(v3.runSource("import(\"argmod\").seenMain")) == "False");
@@ -100,7 +100,7 @@ int main() {
         CHECK(v.stringify(v.runSource("arglist[4]")) == "--flag");     // option-looking arg is just a string
         // re-setting replaces the argument list for subsequent runs
         v.setArgs({"only"});
-        CHECK(v.stringify(v.runSource("arglist")) == "[only]");
+        CHECK(v.stringify(v.runSource("arglist")) == "['only']");
     }
 
     // nested imports: a module imported by an imported module is also not main and sees no args.

@@ -176,8 +176,9 @@ assert type(3.14) == "Float", "Float literal"
 assert 1.5e3 == 1500.0 and 2e-3 == 0.002, "scientific notation"
 assert type(1 + 1.5) == "Float", "Int + Float -> Float"
 
-# Doc claim: tolerance equality on Float
-assert 0.1 + 0.2 == 0.3, "0.1+0.2 == 0.3 (tolerance eq)"
+# Float == is EXACT IEEE-754 (0.1+0.2 != 0.3); .compare() gives tolerance
+assert not (0.1 + 0.2 == 0.3), "0.1+0.2 != 0.3 (exact eq)"
+assert (0.1 + 0.2).compare(0.3), "0.1+0.2 ~ 0.3 (.compare tolerance)"
 # 1.0 == 1 (cross-type)
 assert 1.0 == 1, "1.0 == 1 cross-type"
 
@@ -195,8 +196,8 @@ assert -inf == -inf, "-inf == -inf"
 assert not (inf == 1e300), "inf != finite"
 assert not (inf == -inf), "inf != -inf"
 
-# Doc claim: ordering is exact, equality is fuzzy. Within tolerance, == and > can both be true.
-assert (0.1 + 0.2 == 0.3) and (0.1 + 0.2 > 0.3), "doc claim: == fuzzy, > exact"
+# Float == is now EXACT IEEE-754, so it AGREES with ordering (trichotomy holds): not both == and >.
+assert not (0.1 + 0.2 == 0.3) and (0.1 + 0.2 > 0.3), "== agrees with > (exact, trichotomy)"
 
 # Doc claim: hashing by exact value -- 1.0 and 1 are the same Dict key
 var dF = {1: "int"}

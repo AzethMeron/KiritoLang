@@ -78,7 +78,7 @@ io.<span class="builtin">print</span>(<span class="builtin">sorted</span>(scores
 io.<span class="builtin">print</span>(<span class="builtin">sorted</span>(scores, reverse=<span class="kw">True</span>))   <span class="com"># =&gt; [99, 53, 42, 17, 8]</span>
 
 <span class="kw">var</span> words = [<span class="str">&quot;banana&quot;</span>, <span class="str">&quot;fig&quot;</span>, <span class="str">&quot;cherry&quot;</span>]
-io.<span class="builtin">print</span>(<span class="builtin">sorted</span>(words, key=<span class="builtin">len</span>))         <span class="com"># =&gt; [fig, banana, cherry]  (by length)</span></code></pre>
+io.<span class="builtin">print</span>(<span class="builtin">sorted</span>(words, key=<span class="builtin">len</span>))         <span class="com"># =&gt; [&#x27;fig&#x27;, &#x27;banana&#x27;, &#x27;cherry&#x27;]  (by length)</span></code></pre>
 <p><code>key</code> is a function applied to each element to produce its sort key (computed once per element). You can sort by several keys at once by returning a List as the key — it compares element by element.</p>
 <h3 id="lists-are-shared-not-copied">Lists are shared, not copied</h3>
 <p>Recall the binding model from Lesson 2: assigning a list to a second name shares it. When you want an independent list, use <code>.copy()</code> (a shallow copy) or <code>copy.deepcopy</code> for nested structures:</p>

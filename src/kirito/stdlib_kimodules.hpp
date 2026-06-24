@@ -55,11 +55,15 @@ var islice = Function(iterable, start, stop, step = 1):
     return out
 
 var accumulate = Function(iterable, func = None):
+    # `first` (not `total == None`) marks the leading element, so accumulate([None, 1, 2]) folds the
+    # leading None instead of treating it as "not started yet".
     var out = []
+    var first = True
     var total = None
     for x in iterable:
-        if total == None:
+        if first:
             total = x
+            first = False
         elif func == None:
             total = total + x
         else:
@@ -224,16 +228,17 @@ var groupby = Function(iterable, key = None):
 // --- functools ---------------------------------------------------------------------------------
 inline constexpr std::string_view functools = R"KI(
 var reduce = Function(func, iterable, initial = None):
+    # `have` tracks whether we hold an accumulator yet — NOT `acc == None`, so a fold that legitimately
+    # produces None (reduce(fn, [1,2,3]) where fn returns None) is not mistaken for an empty sequence.
     var acc = initial
-    var first = True
+    var have = initial != None
     for x in iterable:
-        if first and initial == None:
-            acc = x
-            first = False
-        else:
+        if have:
             acc = func(acc, x)
-            first = False
-    if acc == None and initial == None:
+        else:
+            acc = x
+            have = True
+    if not have:
         throw "reduce of empty sequence with no initial value"
     return acc
 
@@ -345,6 +350,8 @@ var median = Function(data) -> Float:
     return (Float(s[n // 2 - 1]) + Float(s[n // 2])) / 2.0
 
 var mode = Function(data):
+    if len(data) == 0:
+        throw "no mode for empty data"
     var counts = {}
     var best = None
     var bestCount = 0
@@ -592,6 +599,8 @@ var decode = Function(s):
     for ch in s:
         if ch == "=":
             break
+        if ch not in _index:
+            throw "invalid base64 character: '" + ch + "'"
         buffer = buffer * 64 + _index[ch]
         bits = bits + 6
         if bits >= 8:
@@ -907,10 +916,12 @@ class Enum:
     var _init_ = Function(self, names):
         self._byName = {}
         self._byValue = {}
+        self._order = []                 # definition order (a Dict's keys() is unordered)
         var i = 0
         for name in names:
             self._byName[name] = i
             self._byValue[i] = name
+            self._order.append(name)
             i = i + 1
     var get = Function(self, name):
         if name not in self._byName:
@@ -919,9 +930,12 @@ class Enum:
     var nameof = Function(self, value):
         return self._byValue[value]
     var names = Function(self):
-        return self._byName.keys()
+        return self._order.copy()        # in definition order, not hash order
     var values = Function(self):
-        return self._byValue.keys()
+        var out = []
+        for name in self._order:
+            out.append(self._byName[name])
+        return out
     var _getitem_ = Function(self, name):
         return self.get(name)
     var _contains_ = Function(self, name):
@@ -2094,15 +2108,37 @@ inline constexpr std::string_view xml = R"KI(
 # via an `Element` tree: `.tag`, `.attrib`, `.text`, `.children`, with `find`/`findall`/`get`.
 
 # --- entity (un)escaping ------------------------------------------------------------------------
+# Strict numeric-entity parsers: return -1 (not garbage, not an exception) on an empty or malformed
+# body, or one past the max code point — so a bad numeric entity can be kept verbatim (XML leniency).
 var _parsehex = Function(s):
+    if len(s) == 0:
+        return -1
     var v = 0
     for c in s:
-        var d = 0
+        var d = -1
         if c >= "0" and c <= "9":
             d = ord(c) - ord("0")
-        else:
-            d = ord(c.lower()) - ord("a") + 10
+        elif c >= "a" and c <= "f":
+            d = ord(c) - ord("a") + 10
+        elif c >= "A" and c <= "F":
+            d = ord(c) - ord("A") + 10
+        if d < 0:
+            return -1
         v = v * 16 + d
+        if v > 1114111:
+            return -1
+    return v
+
+var _parsedec = Function(s):
+    if len(s) == 0:
+        return -1
+    var v = 0
+    for c in s:
+        if c < "0" or c > "9":
+            return -1
+        v = v * 10 + (ord(c) - ord("0"))
+        if v > 1114111:
+            return -1
     return v
 
 var _decode = Function(s):
@@ -2131,12 +2167,15 @@ var _decode = Function(s):
             elif ent == "apos":
                 out = out + "'"
             elif len(ent) > 0 and ent[0] == "#":
-                var code = 0
+                var code = -1
                 if len(ent) > 1 and (ent[1] == "x" or ent[1] == "X"):
                     code = _parsehex(ent[2:])
                 else:
-                    code = Integer(ent[1:])
-                out = out + chr(code)
+                    code = _parsedec(ent[1:])
+                if code >= 0:
+                    out = out + chr(code)
+                else:
+                    out = out + s[i:semi + 1]   # malformed numeric entity: keep verbatim (lenient)
             else:
                 out = out + s[i:semi + 1]   # unknown entity: keep verbatim
             i = semi + 1

@@ -21,15 +21,16 @@ assert String(math.nan) == "nan", "nan repr"
 assert String(True) == "True" and String(False) == "False", "bool repr"
 assert String(None) == "None", "None repr"
 
-# --- strings: stringify is identity; nested-in-collection is UNQUOTED ---
+# --- strings: stringify is identity; nested-in-collection is QUOTED (repr) like Python ---
 assert String("hello") == "hello" and String("") == "", "string identity repr"
-assert String(["a", "b"]) == "[a, b]", "strings unquoted inside a List"
-assert String([1, "two", 3.0, True, None]) == "[1, two, 3.0, True, None]", "mixed list repr"
+assert String(["a", "b"]) == "['a', 'b']", "strings quoted (repr) inside a List"
+assert String([1, "two", 3.0, True, None]) == "[1, 'two', 3.0, True, None]", "mixed list repr"
+assert String(["it's", "say \"hi\""]) == "[\"it's\", 'say \"hi\"']", "repr picks the quote like Python"
 
 # --- collections ---
 assert String([]) == "[]" and String([1]) == "[1]" and String([1, 2, 3]) == "[1, 2, 3]", "list repr"
 assert String([[1, 2], [3]]) == "[[1, 2], [3]]", "nested list repr"
-assert String({"a": 1}) == "{a: 1}", "single-key dict repr"
+assert String({"a": 1}) == "{'a': 1}", "single-key dict repr (key quoted)"
 assert String({}) == "{}", "empty dict repr"
 # set repr is unordered; check shape rather than exact order
 assert String(Set()) == "Set()" or String(Set()) == "{}", "empty set repr"
@@ -53,6 +54,6 @@ c.append(c)
 assert String(c) == "[[...]]", "self-referential list repr"
 var dc = {}
 dc["k"] = dc
-assert String(dc) == "{k: {...}}", "self-referential dict repr"
+assert String(dc) == "{'k': {...}}", "self-referential dict repr (key quoted)"
 
 io.print("OK")

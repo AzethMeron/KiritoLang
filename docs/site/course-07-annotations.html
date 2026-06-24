@@ -67,6 +67,16 @@ io.<span class="builtin">print</span>(repeat(<span class="str">&quot;ab&quot;</s
     <span class="kw">return</span> creature.name
 
 io.<span class="builtin">print</span>(describe(Dog(<span class="str">&quot;Rex&quot;</span>)))     <span class="com"># =&gt; Rex   (a Dog satisfies the Animal annotation)</span></code></pre>
+<h2 id="integer-and-float-are-distinct-no-implicit-widening"><a class="xref" href="types.html#integer"><code>Integer</code></a> and <a class="xref" href="types.html#float"><code>Float</code></a> are distinct — no implicit widening</h2>
+<p>An annotation checks the value&#x27;s <strong>exact type</strong> (or a subclass). <a class="xref" href="types.html#integer"><code>Integer</code></a> and <a class="xref" href="types.html#float"><code>Float</code></a> are separate types, so an Integer does <strong>not</strong> satisfy a <a class="xref" href="types.html#float"><code>Float</code></a> annotation — pass a Float, or convert with <a class="xref" href="types.html#float"><code>Float(n)</code></a>:</p>
+<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+
+<span class="kw">var</span> half = <span class="kw">Function</span>(x : <span class="builtin">Float</span>) -&gt; <span class="builtin">Float</span>:
+    <span class="kw">return</span> x / <span class="num">2.0</span>
+
+io.<span class="builtin">print</span>(half(<span class="num">3.0</span>))         <span class="com"># =&gt; 1.5</span>
+io.<span class="builtin">print</span>(half(<span class="builtin">Float</span>(<span class="num">3</span>)))    <span class="com"># =&gt; 1.5   (convert an Integer first)</span></code></pre>
+<p>Calling <code>half(3)</code> with a bare Integer raises <code>argument &#x27;x&#x27; must be Float, got Integer</code>. (Inside arithmetic, mixing an Integer and a Float still promotes to Float — it is only the annotation <em>check</em> that is strict.)</p>
 <h2 id="any-and-no-annotation-accept-everything"><a class="xref" href="course-07-annotations.html#sym-Any"><code>Any</code></a> and no annotation accept everything</h2>
 <p>Leaving a parameter unannotated, or annotating it <a class="xref" href="course-07-annotations.html#sym-Any"><code>Any</code></a>, accepts any value — use this when a function genuinely is generic:</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)

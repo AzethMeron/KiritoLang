@@ -68,8 +68,8 @@ int main() {
         CHECK(ev(vm, "import(\"regex\").compile(\"a+\").search(\"xaaax\", 1).group()") == "aaa");
         CHECK(ev(vm, "import(\"regex\").compile(\"a+\").search(\"aaaa\", 0, 2).group()") == "aa");
         CHECK(ev(vm, "import(\"regex\").compile(\"a$\").search(\"aXa\", 0, 1).group()") == "a");
-        CHECK(ev(vm, "import(\"regex\").compile(\"\\\\w\").findall(\"abcd\", 1, 3)") == "[b, c]");
-        CHECK(ev(vm, "import(\"regex\").compile(\"(?P<n>\\\\d)\").groupindex") == "{n: 1}");
+        CHECK(ev(vm, "import(\"regex\").compile(\"\\\\w\").findall(\"abcd\", 1, 3)") == "['b', 'c']");
+        CHECK(ev(vm, "import(\"regex\").compile(\"(?P<n>\\\\d)\").groupindex") == "{'n': 1}");
         CHECK(ev(vm, "import(\"regex\").compile(\"(.)\").search(\"ab\").string") == "ab");
     }
     // ---- File.seek honours whence and returns the new position; len(BytesIO) works ----
@@ -167,7 +167,7 @@ int main() {
             "var p2 = io.join(sys.gettempdir(), \"audit_closed2.txt\")\n"
             "var threw3 = False\ntry:\n    discard io.open(p2, \"w\").read()\ncatch as e:\n    threw3 = True\n"
             "r.close()\nvar threw4 = False\ntry:\n    discard r.read()\ncatch as e:\n    threw4 = True\n"
-            "[threw, threw2, threw3, threw4, io.open(p).read()]") == "[True, True, True, True, keep]");
+            "[threw, threw2, threw3, threw4, io.open(p).read()]") == "[True, True, True, True, 'keep']");
     }
     // ---- base64.encode accepts String (UTF-8), Bytes, and List uniformly ----
     {
@@ -194,8 +194,8 @@ int main() {
     {
         KiritoVM vm;
         const std::string c = "var c = import(\"collections\").Counter([\"a\", \"b\", \"a\", \"c\", \"a\", \"b\"])\n";
-        CHECK(ev(vm, c + "c.mostcommon(1)") == "[[a, 3]]");
-        CHECK(ev(vm, c + "c.mostcommon(2)") == "[[a, 3], [b, 2]]");
+        CHECK(ev(vm, c + "c.mostcommon(1)") == "[['a', 3]]");
+        CHECK(ev(vm, c + "c.mostcommon(2)") == "[['a', 3], ['b', 2]]");
         CHECK(ev(vm, c + "len(c.mostcommon())") == "3");
     }
     // ---- bisect / insort convenience aliases (= the *right variants) ----

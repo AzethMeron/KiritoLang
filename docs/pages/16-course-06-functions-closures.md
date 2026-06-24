@@ -121,7 +121,7 @@ var io = import("io")
 var numbers = [1, 2, 3, 4, 5, 6]
 io.print(map(Function(n): return n * n, numbers))          # => [1, 4, 9, 16, 25, 36]
 io.print(filter(Function(n): return n % 2 == 0, numbers))  # => [2, 4, 6]
-io.print(sorted(["bb", "a", "ccc"], key=len))              # => [a, bb, ccc]
+io.print(sorted(["bb", "a", "ccc"], key=len))              # => ['a', 'bb', 'ccc']
 ```
 
 ## Closures: functions that remember

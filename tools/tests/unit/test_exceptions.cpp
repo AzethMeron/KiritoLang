@@ -40,7 +40,7 @@ try:
 finally:
     log.append("fin")
 log
-)") == "[try, fin]");
+)") == "['try', 'fin']");
 
     // finally runs after a handled exception
     CHECK(evalStr(vm, R"(
@@ -52,7 +52,7 @@ catch:
 finally:
     log.append("fin")
 log
-)") == "[catch, fin]");
+)") == "['catch', 'fin']");
 
     // a return inside try still runs finally, then returns
     CHECK(evalStr(vm, R"(
@@ -132,7 +132,7 @@ while i < 5:
         log.append("f")
     i = i + 1
 log
-)") == "[0, f, 1, f, f]");
+)") == "[0, 'f', 1, 'f', 'f']");
 
     // continue inside try runs finally each iteration
     CHECK(evalStr(vm, R"(
@@ -184,7 +184,7 @@ catch as e:
 finally:
     log.append("f1")
 log
-)") == "[f3, f2, caught, f1]");
+)") == "['f3', 'f2', 'caught', 'f1']");
 
     // matching by class hierarchy: a derived class is caught by a base handler, but not vice versa
     CHECK(evalStr(vm, R"(

@@ -3,40 +3,40 @@ None
 b
 abc
 None
-[12, 345]
-[a, b, c]
+['12', '345']
+['a', 'b', 'c']
 x_y
 a\.b\*c\+d\?\(e\)
 hello\.世界
 (?P<x>\w+)=(\d+)
 2
-{x: 1}
+{'x': 1}
 b
 abc
-[a, b]
-[a, b]
-[[a, b], [c, d]]
+['a', 'b']
+['a', 'b']
+[['a', 'b'], ['c', 'd']]
 2
 1
 22
 ada@kirito.dev
 ada
 ada
-[ada, kirito.dev]
-[ada, kirito.dev]
-{h: kirito.dev, u: ada}
+['ada', 'kirito.dev']
+['ada', 'kirito.dev']
+{'h': 'kirito.dev', 'u': 'ada'}
 0
 14
 [0, 14]
 ada@kirito.dev
 None
 [-1, -1]
-[a, DEF]
+['a', 'DEF']
 {}
-{y: MISSING, x: a}
-[a, MISSING]
-[a, b, c,d]
-[a,  , b,   , c]
+{'y': 'MISSING', 'x': 'a'}
+['a', 'MISSING']
+['a', 'b', 'c,d']
+['a', ' ', 'b', '  ', 'c']
 1:a 2:b
 1=a
 x [12] y
@@ -53,7 +53,7 @@ b
 a
 b
 b
-[ab, cd, ef]
+['ab', 'cd', 'ef']
 aaa
 a
 aaa
@@ -91,8 +91,8 @@ nstr:
 rtp:
 nsg:
 ngn:
-[, , , ]
-[a, b, c, ]
+['', '', '', '']
+['a', 'b', 'c', '']
 3
 4
 OK audit-regex

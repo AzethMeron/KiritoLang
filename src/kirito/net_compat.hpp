@@ -27,6 +27,7 @@
 #  include <sys/socket.h>
 #  include <unistd.h>
 #  include <cerrno>
+#  include <csignal>
 #  include <cstring>
 #endif
 
@@ -52,12 +53,25 @@ inline constexpr socket_t kInvalidSocket = -1;
 inline bool isValid(socket_t s) { return s >= 0; }
 inline void closeSocket(socket_t s) { ::close(s); }
 inline std::string lastError() { return std::strerror(errno); }
-inline bool startup() { return true; }
+// Ignore SIGPIPE process-wide so that writing to a peer that has closed its end returns EPIPE
+// (a catchable error) instead of killing the whole process with an uncatchable signal — the
+// everyday "client disconnected mid-response" case for the bundled servers. Belt-and-suspenders
+// alongside MSG_NOSIGNAL below (which platforms like macOS without that flag rely on).
+inline bool startup() {
+    static bool once = [] { ::signal(SIGPIPE, SIG_IGN); return true; }();
+    return once;
+}
+#endif
+
+// MSG_NOSIGNAL keeps send() from raising SIGPIPE on a broken pipe; it is absent on some platforms
+// (e.g. macOS — covered there by the SIGPIPE-ignore in startup()), so fall back to 0.
+#ifndef MSG_NOSIGNAL
+#  define MSG_NOSIGNAL 0
 #endif
 
 // recv/send return ssize_t on POSIX and int on Windows; normalize to long long.
 inline long long sendBytes(socket_t s, const char* buf, std::size_t n) {
-    return static_cast<long long>(::send(s, buf, static_cast<int>(n), 0));
+    return static_cast<long long>(::send(s, buf, static_cast<int>(n), MSG_NOSIGNAL));
 }
 inline long long recvBytes(socket_t s, char* buf, std::size_t n) {
     return static_cast<long long>(::recv(s, buf, static_cast<int>(n), 0));

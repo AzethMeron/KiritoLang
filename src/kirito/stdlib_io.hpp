@@ -189,15 +189,18 @@ public:
         if (name == "seek")
             return bind("seek", {"offset", "whence"}, [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 file(vm, self).requireOpen();
-                int64_t off = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
-                int64_t whence = (a.size() > 1) ? static_cast<const IntVal&>(vm.arena().deref(a[1])).value() : 0;
-                std::ios_base::seekdir dir = std::ios::beg;            // 0=set, 1=cur, 2=end
-                if (whence == 1) dir = std::ios::cur;
-                else if (whence == 2) dir = std::ios::end;
+                int64_t off = argInt(vm, a[0], "seek");
+                int64_t whence = (a.size() > 1) ? argInt(vm, a[1], "seek") : 0;  // 0=set, 1=cur, 2=end
                 auto& s = file(vm, self).stream;
                 s.clear();
-                s.seekg(static_cast<std::streamoff>(off), dir);
-                s.seekp(static_cast<std::streamoff>(off), dir);
+                // Resolve to an ABSOLUTE target first, then position both pointers there. An fstream's
+                // get/put pointers share one position, so two *relative* seeks (seekg+seekp with cur)
+                // would move it twice — compute the absolute offset once to avoid that double-count.
+                std::streamoff target = off;
+                if (whence == 1) target = static_cast<std::streamoff>(s.tellg()) + off;
+                else if (whence == 2) { s.seekg(0, std::ios::end); target = static_cast<std::streamoff>(s.tellg()) + off; }
+                s.seekg(target, std::ios::beg);
+                s.seekp(target, std::ios::beg);
                 return vm.makeInt(static_cast<int64_t>(s.tellg()));    // Python returns the new position
             });
         if (name == "_enter_")
@@ -297,8 +300,8 @@ public:
         if (name == "seek")
             return bind("seek", {"offset", "whence"}, [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 auto& b = io(vm, self);
-                int64_t off = static_cast<const IntVal&>(vm.arena().deref(a[0])).value();
-                int whence = a.size() > 1 ? static_cast<int>(static_cast<const IntVal&>(vm.arena().deref(a[1])).value()) : 0;
+                int64_t off = argInt(vm, a[0], "seek");
+                int whence = a.size() > 1 ? static_cast<int>(argInt(vm, a[1], "seek")) : 0;
                 int64_t base = whence == 1 ? static_cast<int64_t>(b.pos)
                              : whence == 2 ? static_cast<int64_t>(b.buf.size()) : 0;
                 int64_t np = base + off;

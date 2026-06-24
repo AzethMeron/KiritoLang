@@ -89,10 +89,15 @@ public:
         return format(std::get<FT>(store), [](double x) { return floatToString(x); });
     }
     bool equals(const ObjectArena&, const Object& other) const override {
+        // Whole-tensor `==` is tolerant (1e-9) — tensors hold computed floats, so an exact compare
+        // would almost never hold (a solve/inv result vs its literal). But NaN is never equal (not
+        // even to itself), matching scalar Float ==: a tensor holding a NaN never equals itself.
         const auto* o = dynamic_cast<const TensorVal*>(&other);
         if (!o || o->shape() != shape()) return false;
         for (std::size_t i = 0; i < size(); ++i) {
             cdouble a = elemAsComplex(i), b = o->elemAsComplex(i);
+            if (std::isnan(a.real()) || std::isnan(a.imag()) ||
+                std::isnan(b.real()) || std::isnan(b.imag())) return false;
             if (std::abs(a - b) > 1e-9) return false;
         }
         return true;
@@ -871,10 +876,12 @@ inline Handle g_powT(KiritoVM& vm, Handle ah, Handle bh) {
 // elementwise non-grad Float binary (mod / floordiv)
 inline Handle ewFloat(KiritoVM& vm, const FT& a, const FT& b, char kind) {
     return make(vm, tensor::elementwise(a, b, [kind](double x, double y) {
+        if (y == 0.0) throw KiritoError(kind == '%' ? "tensor modulo by zero" : "tensor floor-division by zero");
         return kind == '%' ? std::fmod(x, y) : std::floor(x / y);
     }));
 }
 inline Handle ewFloatScalar(KiritoVM& vm, const FT& a, double s, char kind) {
+    if (s == 0.0) throw KiritoError(kind == '%' ? "tensor modulo by zero" : "tensor floor-division by zero");
     return make(vm, tensor::mapUnary(a, [kind, s](double x) {
         return kind == '%' ? std::fmod(x, s) : std::floor(x / s);
     }));
@@ -1606,6 +1613,8 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         auto& t = self_t(vm, self);
         const auto* o = dynamic_cast<const TensorVal*>(&vm.arena().deref(a[0]));
         if (!o) throw KiritoError("dot expects a Tensor");
+        tns::warnDetach(vm, "dot()", t);
+        tns::warnDetach(vm, "dot()", *o);
         return tns::wrap([&]() -> Handle {
             if (!t.isComplex() && !o->isComplex()) return vm.makeFloat(tensor::dot(std::get<FT>(t.store), std::get<FT>(o->store)));
             CT x = t.isComplex() ? std::get<CT>(t.store) : tns::toComplex(std::get<FT>(t.store));

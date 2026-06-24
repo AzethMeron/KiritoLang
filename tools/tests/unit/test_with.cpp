@@ -29,7 +29,7 @@ var log = []
 with Resource(log) as r:
     log.append("body")
 log
-)") == "[enter, body, exit]");
+)") == "['enter', 'body', 'exit']");
 
     // exit runs even when the body raises, and the exception still propagates to an outer handler
     CHECK(evalStr(vm, std::string(kResource) + R"(
@@ -41,7 +41,7 @@ try:
 catch as e:
     log.append("caught " + e)
 log
-)") == "[enter, body, exit, caught boom]");
+)") == "['enter', 'body', 'exit', 'caught boom']");
 
     // the bound value is the manager (enter returned self)
     CHECK(evalStr(vm, std::string(kResource) + R"(
@@ -49,7 +49,7 @@ var log = []
 with Resource(log) as r:
     r.log.append("via-r")
 log
-)") == "[enter, via-r, exit]");
+)") == "['enter', 'via-r', 'exit']");
 
     return RUN_TESTS();
 }

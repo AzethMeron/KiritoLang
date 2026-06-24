@@ -2,7 +2,10 @@
 
 Kirito is **dynamically typed** (a name can refer to a value of any type) but **strongly typed**
 (values are never silently coerced — `1 + "x"` is an error, not `"1x"`). `type(x)` returns a value's
-type name as a String; `isinstance(x, T)` tests membership (inheritance-aware).
+type name as a String; `isinstance(x, T)` tests membership (inheritance-aware). `T` may be a built-in
+type **constructor** (`isinstance(1, Integer)`, `isinstance("x", String)`) or the equivalent type-name
+String (`isinstance(1, "Integer")`) — both work. The same goes for a typed `catch`: `catch String as
+e` and `catch SomeClass as e` both match by type.
 
 These are the built-in types. Collections (`List`, `Set`, `Dict`) hold values by reference, so two
 names can share one collection and see each other's mutations.
@@ -21,6 +24,12 @@ names can share one collection and see each other's mutations.
 
 Each type's constructor (e.g. `Integer(x)`, `List(iter)`) is a built-in function — see
 [Built-in Functions](builtins.html#types-and-conversion).
+
+> The examples below use `io.print`; assume `var io = import("io")` at the top of each snippet.
+> When a collection is **printed or nested inside another container**, its String elements show in
+> quoted *repr* form — `io.print(["a", "b"])` prints `['a', 'b']` and `io.print({"k": "v"})` prints
+> `{'k': 'v'}` (so an empty String element `['']` is visibly distinct from `[]`). A *bare* String
+> printed on its own is unquoted: `io.print("hi")` prints `hi`.
 
 ## None
 
@@ -54,6 +63,8 @@ The arithmetic operators are `+`, `-`, `*`, the three division forms below, and 
 - Kirito has no bitwise *operators*; the builtins `bitand` / `bitor` / `bitxor` / `bitnot` and
   `shl` / `shr` provide bitwise and/or/xor/not and left/right shifts on Integers
   (`bitand(0xFF, 0x0F) == 15`, `shl(1, 8) == 256`).
+- `n.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` — an approximate-equality test (the
+  `math.isclose` semantics shared with [Float](#float)); handy when comparing against a Float result.
 
 ```kirito
 var n = 255
@@ -69,36 +80,45 @@ digit on **both** sides of the point (`0.5` and `1.0`, not `.5` or `1.`), and di
 (`1_000`) aren't supported. Mixing an Integer and a Float promotes to Float. `round(x[, ndigits])`, `abs(x)`, and the `math` module operate on Floats.
 Float `nan`/`inf` arise from `math` (`math.inf`, `math.nan`).
 
-### Float equality — the comparison algorithm
+### Float equality is exact — `.compare` for tolerance
 
-`==` / `!=` on Floats (and on an Integer compared with a Float) are **tolerance-based**, not raw bit
-equality, so values that are equal up to rounding compare equal. Given two doubles `l` and `r`, the
-test is applied in this exact order:
+`==` / `!=` on Floats (and on an Integer compared with a Float) are **exact IEEE-754 bit equality** —
+the same comparison the ordering operators use. There is no built-in tolerance, so values that merely
+*round* to the same decimal can still differ:
 
-1. **NaN is never equal** — if either operand is `NaN`, the result is `False` (even `nan == nan`).
-2. **Exact match wins** — if `l == r` bit-for-bit, the result is `True`. This covers `inf == inf`,
-   `-inf == -inf`, and `0.0 == -0.0`.
-3. **Infinities are exact-only** — if either operand is an infinity (and step 2 didn't match), the
-   result is `False`. So an infinity equals *only* an identical infinity, never a finite value.
-4. **Finite values: absolute-or-relative epsilon** — with `absEps = relEps = 1e-9`, `l` and `r` are
-   equal when
+```kirito
+io.print(0.1 + 0.2)               # 0.3       (display rounds to %.15g)
+io.print(0.1 + 0.2 == 0.3)        # False     (the stored doubles differ)
+io.print(0.3 == 0.3)              # True       (bit-identical)
+```
 
-   ```
-   |l - r| <= absEps                       (near zero: an absolute tolerance)
-       or  |l - r| <= relEps * max(|l|, |r|)   (large magnitudes: a relative tolerance)
-   ```
+The display is clean (`0.1 + 0.2` prints `0.3`), but it is stored as `0.30000000000000004`, a
+different double from `0.3`. This is how binary floating point works everywhere, not a Kirito quirk.
 
-   The absolute term keeps values near `0` from being judged unequal by a relative test (which would
-   collapse to `0`), while the relative term scales the tolerance for large numbers.
+This design keeps `==`/`!=` **consistent** with the rest of the model:
 
-Only equality is fuzzy. The **ordering** operators (`<`, `<=`, `>`, `>=`) use exact IEEE-754
-comparison — so for two floats within the tolerance, `a == b` and `a > b` can *both* be true.
-**Hashing is by exact value** (a float equal to an integer value hashes like that integer, so `1.0`
-and `1` are the same `Dict`/`Set` key). A tolerance-based equality is not transitive, so no hash can
-agree with it: two *distinct* floats that compare `==` within the tolerance (say `0.1 + 0.2` and
-`0.3`) generally hash differently and act as **separate** `Set`/`Dict` keys. Use exact-valued keys
-(Integers, Strings, or floats produced by the same computation), and do not rely on the tolerance to
-merge near-equal keys — nor on `==` to distinguish two deliberately-very-close-but-distinct floats.
+- **Trichotomy** — `==` agrees with `<`/`>`: for any two non-NaN Floats exactly one of `a < b`,
+  `a == b`, `a > b` holds (a tolerant `==` would break this — two close values could be both `==` and
+  `<`).
+- **Hashing agrees with equality** — two Floats are the same `Dict`/`Set` key **iff** they are `==`.
+  So `0.1 + 0.2` and `0.3`, being distinct, are *distinct* keys. A Float equal to an integer value
+  still hashes like that integer (`1.0` and `1` are one key).
+- **NaN is never equal to anything**, including itself: `nan == nan` is `False`, `nan != nan` is
+  `True`. `inf == inf` and `0.0 == -0.0` are `True`.
+
+For *approximate* comparison, call `.compare` on either number — the `math.isclose` semantics:
+
+```kirito
+io.print((0.1 + 0.2).compare(0.3))            # True   (close enough)
+io.print((1.0).compare(1.5))                  # False  (too far apart)
+io.print((1.0).compare(1.5, abs_tol = 1.0))   # True   (widened absolute tolerance)
+```
+
+`x.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` is `True` when `|x - other|` is within the
+relative tolerance (scaled to the larger magnitude) **or** the absolute one (`abs_tol`, for values
+near zero). It is defined on both `Integer` and `Float`. Use `==` only for Floats you know are
+bit-identical (produced by the same computation); use `.compare` for anything from separate
+arithmetic.
 
 ## String
 
@@ -224,7 +244,8 @@ set algebra (also via operators where natural).
 ```kirito
 var a = {1, 2, 3}
 var b = {3, 4}
-io.print(a.union(b), a.intersection(b))   # {1, 2, 3, 4} {3}
+io.print(a.union(b), a.intersection(b))   # a 4-element set and {3} (a Set is unordered, so the
+                                          # printed element order is unspecified)
 ```
 
 ### Set methods
@@ -271,7 +292,7 @@ io.print(d.get("z", 0))    # 0 (default)
 | `d.get(key[, default])` | Value for `key`, or `default` (or `None`) if missing. |
 | `d.pop(key[, default])` | Remove and return `key`'s value. |
 | `d.remove(key)` | Delete `key` (raises if absent; like `pop` but returns nothing). |
-| `d.popitem()` | Remove and return the last `[key, value]` pair. |
+| `d.popitem()` | Remove and return an arbitrary `[key, value]` pair (a Dict is unordered — no "last" pair to rely on). |
 | `d.setdefault(key[, default])` | Get `key`, inserting `default` first if absent. |
 | `d.update(other)` | Merge another Dict (or `[key, value]` pairs) in. |
 | `d.apply(fn)` | A new Dict with the same keys and `fn` applied to each value (like `tensor.apply`). |

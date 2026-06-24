@@ -52,7 +52,12 @@ assert st.mode([1, 1, 2, 2]) == 1, "tied mode goes to the value that reaches max
 assert st.mode([1]) == 1, "mode of single element"
 assert st.mode([3, 3, 1, 1, 2]) == 3, "tied: 3 hits count=2 before 1 does"
 assert st.mode(["a", "b", "a", "c"]) == "a", "mode works on Strings"
-assert st.mode([]) == None, "mode of empty -> None (no entries, no winner)"
+var modeEmptyRaised = False
+try:
+    discard st.mode([])
+catch as e:
+    modeEmptyRaised = True
+assert modeEmptyRaised, "mode of empty -> raises (like Python's StatisticsError)"
 
 # --- multimode ----------------------------------------------------------------------------------
 assert st.multimode([1, 2, 2, 3]) == [2], "single-mode multimode returns one-element list"

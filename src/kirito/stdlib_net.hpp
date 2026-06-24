@@ -155,12 +155,32 @@ inline Url parseUrl(const std::string& url) {
     std::size_t slash = rest.find('/');
     std::string hostport = slash == std::string::npos ? rest : rest.substr(0, slash);
     u.path = slash == std::string::npos ? "/" : rest.substr(slash);
-    std::size_t colon = hostport.find(':');
-    if (colon == std::string::npos) {
-        u.host = hostport;
+    std::string portStr;
+    // An IPv6 literal is bracketed (http://[::1]:8080/path); the optional :port follows the ']'. A
+    // bare host:port splits on the single colon. (Without the bracket case, the first ':' of an IPv6
+    // address would be mistaken for the port separator.)
+    if (!hostport.empty() && hostport.front() == '[') {
+        std::size_t rb = hostport.find(']');
+        if (rb == std::string::npos) throw KiritoError("malformed IPv6 URL (missing ']'): " + url);
+        u.host = hostport.substr(1, rb - 1);
+        if (rb + 1 < hostport.size()) {
+            if (hostport[rb + 1] != ':') throw KiritoError("malformed IPv6 URL (junk after ']'): " + url);
+            portStr = hostport.substr(rb + 2);
+        }
     } else {
+        std::size_t colon = hostport.find(':');
         u.host = hostport.substr(0, colon);
-        u.port = std::stoi(hostport.substr(colon + 1));
+        if (colon != std::string::npos) portStr = hostport.substr(colon + 1);
+    }
+    if (!portStr.empty()) {
+        // Validate explicitly so a non-numeric/out-of-range port gives a clear error rather than a raw
+        // std::stoi exception ("stoi") or silent truncation.
+        if (portStr.find_first_not_of("0123456789") != std::string::npos)
+            throw KiritoError("invalid port in URL '" + url + "': '" + portStr + "'");
+        long pn = 0;
+        for (char c : portStr) { pn = pn * 10 + (c - '0'); if (pn > 65535) break; }
+        if (pn < 1 || pn > 65535) throw KiritoError("port out of range in URL '" + url + "': " + portStr);
+        u.port = static_cast<int>(pn);
     }
     return u;
 }
@@ -375,16 +395,30 @@ inline HttpResult parseRaw(const std::string& raw) {
     return r;
 }
 
-// Open a connected TCP socket to the URL's host:port, or throw.
+// Open a connected TCP socket to the URL's host:port, or throw. Family-agnostic (AF_UNSPEC): tries
+// each address getaddrinfo returns, so an IPv6 host — http://[::1]:8080/ — connects as readily as IPv4.
 inline netcompat::socket_t dialTcp(const Url& u) {
-    sockaddr_in addr{};
-    if (!resolve(u.host, u.port, addr)) throw KiritoError("could not resolve host '" + u.host + "'");
-    netcompat::socket_t fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (!netcompat::isValid(fd)) throw KiritoError("socket() failed");
-    if (::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+    netcompat::startup();
+    addrinfo hints{};
+    hints.ai_family = AF_UNSPEC;          // IPv4 or IPv6, whichever the host has
+    hints.ai_socktype = SOCK_STREAM;
+    addrinfo* res = nullptr;
+    std::string portStr = std::to_string(u.port);
+    if (::getaddrinfo(u.host.c_str(), portStr.c_str(), &hints, &res) != 0 || !res)
+        throw KiritoError("could not resolve host '" + u.host + "'");
+    netcompat::socket_t fd = netcompat::kInvalidSocket;
+    std::string lastErr;
+    for (addrinfo* ai = res; ai; ai = ai->ai_next) {
+        fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (!netcompat::isValid(fd)) { lastErr = netcompat::lastError(); continue; }
+        if (::connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) break;  // connected
+        lastErr = netcompat::lastError();
         netcompat::closeSocket(fd);
-        throw KiritoError("could not connect to " + u.host + ": " + netcompat::lastError());
+        fd = netcompat::kInvalidSocket;
     }
+    ::freeaddrinfo(res);
+    if (!netcompat::isValid(fd))
+        throw KiritoError("could not connect to " + u.host + ": " + (lastErr.empty() ? "no usable address" : lastErr));
     return fd;
 }
 
@@ -594,6 +628,9 @@ inline Handle netRequest(KiritoVM& vm, const std::string& method0, const std::st
                 body += net::percentEncode(k.str()) + "=" + net::percentEncode(v.str());
             }
             contentType = "application/x-www-form-urlencoded";
+        } else if (const auto* db = dynamic_cast<const BytesVal*>(&d)) {
+            body = db->data;  // raw bytes, not the b'...' repr (Bytes is a NativeClass, kind Instance)
+            contentType = "application/octet-stream";
         } else {
             body = Value(vm, dataH).str();
             contentType = "text/plain";
@@ -814,7 +851,20 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             sockaddr_in addr{};
             addr.sin_family = AF_INET;
             addr.sin_port = htons(static_cast<uint16_t>(asInt(vm, a[1])));
-            ::inet_pton(AF_INET, asStr(vm, a[0]).c_str(), &addr.sin_addr);
+            // Resolve the host so bind("localhost", ...) binds the loopback, not every interface. An
+            // empty host is the explicit "all interfaces" idiom; a valid IPv4 literal binds that IP; any
+            // other name is resolved (so a hostname can't silently fall through to 0.0.0.0).
+            std::string host = asStr(vm, a[0]);
+            if (host.empty()) {
+                addr.sin_addr.s_addr = INADDR_ANY;
+            } else if (::inet_pton(AF_INET, host.c_str(), &addr.sin_addr) != 1) {
+                addrinfo hints{}; hints.ai_family = AF_INET; hints.ai_socktype = SOCK_STREAM;
+                addrinfo* res = nullptr;
+                if (::getaddrinfo(host.c_str(), nullptr, &hints, &res) != 0 || !res)
+                    throw KiritoError("bind: cannot resolve host '" + host + "'");
+                addr.sin_addr = reinterpret_cast<sockaddr_in*>(res->ai_addr)->sin_addr;
+                ::freeaddrinfo(res);
+            }
             if (::bind(s.fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0)
                 throw KiritoError("bind failed: " + netcompat::lastError());
             return vm.none();

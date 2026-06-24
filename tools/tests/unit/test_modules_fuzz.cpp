@@ -26,9 +26,9 @@ int main() {
     CHECK(run(vm, "var z = import(\"zlib\")\nz.inflate(z.deflate(\"\")) == \"\"") == "True");
     CHECK(run(vm, "var z = import(\"zlib\")\nvar s = \"a\" * 1000\nz.decompress(z.compress(s)) == s") == "True");
     // serialize / json / dump round-trips
-    CHECK(run(vm, "var s = import(\"serialize\")\ns.loads(s.dumps({\"a\": [1, 2, 3], \"b\": None}))") == "{a: [1, 2, 3], b: None}");
-    CHECK(run(vm, "var j = import(\"json\")\nj.loads(j.dumps([1, 2.5, \"x\", True, None]))") == "[1, 2.5, x, True, None]");
-    CHECK(run(vm, "var d = import(\"dump\")\nd.loads(d.dumps({\"k\": [1, [2, [3]]]}))") == "{k: [1, [2, [3]]]}");
+    CHECK(run(vm, "var s = import(\"serialize\")\ns.loads(s.dumps({\"a\": [1, 2, 3], \"b\": None}))") == "{'a': [1, 2, 3], 'b': None}");
+    CHECK(run(vm, "var j = import(\"json\")\nj.loads(j.dumps([1, 2.5, \"x\", True, None]))") == "[1, 2.5, 'x', True, None]");
+    CHECK(run(vm, "var d = import(\"dump\")\nd.loads(d.dumps({\"k\": [1, [2, [3]]]}))") == "{'k': [1, [2, [3]]]}");
     // hash: known digests
     CHECK(run(vm, "import(\"hash\").sha256(\"abc\")") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
     CHECK(run(vm, "import(\"hash\").md5(\"\")") == "d41d8cd98f00b204e9800998ecf8427e");

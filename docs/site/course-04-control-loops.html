@@ -55,8 +55,11 @@ io.<span class="builtin">print</span>(<span class="num">5</span> &gt;= <span cla
     io.<span class="builtin">print</span>(<span class="str">&quot;admitted&quot;</span>)           <span class="com"># =&gt; admitted</span>
 
 io.<span class="builtin">print</span>(<span class="kw">not</span> <span class="kw">False</span>)                 <span class="com"># =&gt; True</span>
-io.<span class="builtin">print</span>(<span class="kw">True</span> <span class="kw">or</span> undefined_func())  <span class="com"># =&gt; True  (the right side is never evaluated)</span></code></pre>
-<p>Short-circuiting is not just an optimization — it lets you guard a risky operation with a cheap check on its left: <a class="xref" href="course-04-control-loops.html#sym-if"><code>if count &gt; 0 and total / count &gt; threshold:</code></a>.</p>
+
+<span class="kw">var</span> boom = <span class="kw">Function</span>():
+    <span class="kw">return</span> <span class="num">1</span> // <span class="num">0</span>                   <span class="com"># would crash if ever called</span>
+io.<span class="builtin">print</span>(<span class="kw">True</span> <span class="kw">or</span> boom())            <span class="com"># =&gt; True  (the right side is never evaluated)</span></code></pre>
+<p>Short-circuiting is not just an optimization — it lets you guard a risky operation with a cheap check on its left: <a class="xref" href="course-04-control-loops.html#sym-if"><code>if count &gt; 0 and total / count &gt; threshold:</code></a>. Above, <code>True or ...</code> already knows the answer, so <code>boom()</code> — which would divide by zero — is never reached.</p>
 <h2 id="if-elif-else"><a class="xref" href="course-04-control-loops.html#sym-if"><code>if</code></a> / <code>elif</code> / <code>else</code></h2>
 <p>Indentation defines the block. Be consistent (pick spaces or tabs and stick with it — Kirito rejects ambiguous mixing):</p>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)

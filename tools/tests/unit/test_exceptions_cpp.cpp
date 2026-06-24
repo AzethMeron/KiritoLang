@@ -150,7 +150,7 @@ try:
 catch as e:
     log.append("outer-catch")
 log
-)") == "[inner-finally, outer-catch]");
+)") == "['inner-finally', 'outer-catch']");
     }
 
     return RUN_TESTS();

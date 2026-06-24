@@ -193,8 +193,11 @@ inline std::string encode(const std::string& s, const std::string& enc) {
         std::string out;
         for (std::size_t st : utf8Starts(s)) {
             unsigned cp = utf8DecodeAt(s, st);
-            if (cp >= cap)
-                throw KiritoError("'" + enc + "' codec can't encode code point U+" + std::to_string(cp));
+            if (cp >= cap) {
+                char hex[16];
+                std::snprintf(hex, sizeof(hex), "%04X", cp);  // U+ is conventionally hexadecimal
+                throw KiritoError("'" + enc + "' codec can't encode code point U+" + hex);
+            }
             out += static_cast<char>(static_cast<unsigned char>(cp));
         }
         return out;

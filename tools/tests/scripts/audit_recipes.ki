@@ -105,8 +105,8 @@ assert padCounts.get("", 0) == 4, "recipe2 edge: empty tokens from runs of space
 var people = [["Ann", 30], ["Bo", 25], ["Cy", 41]]
 var byAge = sorted(people, Function(p): return p[1])
 assert byAge == [["Bo", 25], ["Ann", 30], ["Cy", 41]], "recipe3: sort by p[1]"
-# Doc shows `String(byAge)` => bracket form.
-assert String(byAge) == "[[Bo, 25], [Ann, 30], [Cy, 41]]", "recipe3: stringified form"
+# Doc shows `String(byAge)` => bracket form (nested strings are repr-quoted, like Python).
+assert String(byAge) == "[['Bo', 25], ['Ann', 30], ['Cy', 41]]", "recipe3: stringified form"
 
 # Adversarial: empty input.
 assert sorted([], Function(p): return p) == [], "recipe3 edge: sorting empty list"

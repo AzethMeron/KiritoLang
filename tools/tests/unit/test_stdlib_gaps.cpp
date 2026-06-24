@@ -52,8 +52,8 @@ int main() {
         CHECK(run(vm, "\"hi\".center(6, \"*\")") == "**hi**");
         CHECK(run(vm, "\"42\".zfill(5)") == "00042");
         CHECK(run(vm, "\"-42\".zfill(5)") == "-0042");
-        CHECK(run(vm, "String(\"a=b=c\".partition(\"=\"))") == "[a, =, b=c]");
-        CHECK(run(vm, "String(\"a=b=c\".rpartition(\"=\"))") == "[a=b, =, c]");
+        CHECK(run(vm, "String(\"a=b=c\".partition(\"=\"))") == "['a', '=', 'b=c']");
+        CHECK(run(vm, "String(\"a=b=c\".rpartition(\"=\"))") == "['a=b', '=', 'c']");
     }
 
     // --- itertools additions ---
@@ -127,7 +127,7 @@ int main() {
         KiritoVM vm;
         CHECK(run(vm, "import(\"io\").basename(\"/a/b/c.txt\")") == "c.txt");
         CHECK(run(vm, "import(\"io\").dirname(\"/a/b/c.txt\")") == "/a/b");
-        CHECK(run(vm, "String(import(\"io\").splitext(\"file.tar.gz\"))") == "[file.tar, .gz]");
+        CHECK(run(vm, "String(import(\"io\").splitext(\"file.tar.gz\"))") == "['file.tar', '.gz']");
         CHECK(run(vm, "import(\"io\").join(\"a\", \"b\", \"c\")") == "a/b/c");
     }
 

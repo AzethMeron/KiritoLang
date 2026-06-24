@@ -33,9 +33,11 @@ parameter name.
   another `Bytes`. No argument (or `None`) gives empty `Bytes`.
 - `fromhex(s) → Bytes` — parse a hex `String` (spaces allowed) into `Bytes` — the free-function form of
   `Bytes.fromhex`. E.g. `fromhex("48 69").decode() == "Hi"`.
-- `isinstance(value, type) → Bool` — whether `value` is an instance of `type` — a class value or a
-  type-name `String` (`isinstance(x, "Integer")`). Inheritance-aware: a subclass instance satisfies a
-  base type.
+- `isinstance(value, type) → Bool` — whether `value` is an instance of `type`. `type` may be a
+  **built-in type constructor** (`isinstance(1, Integer)`, `isinstance("x", String)`), a user class
+  value, or the equivalent type-name `String` (`isinstance(x, "Integer")`) — all three forms work.
+  Inheritance-aware: a subclass instance satisfies a base type. (A typed `catch` accepts the same
+  forms: `catch String as e`, `catch SomeClass as e`.)
 
 ## Sequences and iteration
 
@@ -86,6 +88,10 @@ parameter name.
 - `ord(char) → Integer` — the Unicode code point of a single-character String.
 - `chr(codepoint) → String` — the single-character String for a code point.
 - `format(value[, spec]) → String` — format a value with a mini-format-spec (see below).
+
+> Float `==` is **exact** IEEE-754 bit equality (so `0.1 + 0.2 == 0.3` is `False`). For an approximate
+> check, use the **`.compare`** method on a number: `x.compare(other, rel_tol = 1e-9, abs_tol = 0.0)`
+> (`math.isclose` semantics) — see [Float](types.html#float).
 
 ## Formatting with `format`
 

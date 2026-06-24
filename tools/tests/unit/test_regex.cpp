@@ -39,7 +39,7 @@ int main() {
         KiritoVM vm;
         CHECK(re(vm, "re.search(\"(\\\\d+)-(\\\\d+)\", \"id 12-345 x\").group(1)") == "12");
         CHECK(re(vm, "re.search(\"(\\\\d+)-(\\\\d+)\", \"id 12-345 x\").group(2)") == "345");
-        CHECK(re(vm, "re.search(\"(\\\\d+)-(\\\\d+)\", \"id 12-345 x\").groups()") == "[12, 345]");
+        CHECK(re(vm, "re.search(\"(\\\\d+)-(\\\\d+)\", \"id 12-345 x\").groups()") == "['12', '345']");
         CHECK(re(vm, "re.search(\"(\\\\d+)-(\\\\d+)\", \"id 12-345 x\").span()") == "[3, 9]");
         CHECK(re(vm, "re.search(\"(\\\\d+)-(\\\\d+)\", \"id 12-345 x\").span(2)") == "[6, 9]");
         // named groups + groupdict
@@ -70,11 +70,11 @@ int main() {
         KiritoVM vm;
         CHECK(re(vm, "re.search(\"[^0-9]+\", \"123abc456\").group()") == "abc");
         CHECK(re(vm, "re.search(\"[a-fA-F0-9]+\", \"xyz 0FxA z\").group()") == "0F");  // 'x' isn't a hex digit
-        CHECK(re(vm, "re.findall(\"[a-fA-F0-9]+\", \"xyz 0FxA z\")") == "[0F, A]");
-        CHECK(re(vm, "re.findall(\"\\\\bword\\\\b\", \"word words word\")") == "[word, word]");
+        CHECK(re(vm, "re.findall(\"[a-fA-F0-9]+\", \"xyz 0FxA z\")") == "['0F', 'A']");
+        CHECK(re(vm, "re.findall(\"\\\\bword\\\\b\", \"word words word\")") == "['word', 'word']");
         CHECK(re(vm, "re.search(\"^abc$\", \"abc\").group()") == "abc");
         CHECK(re(vm, "re.search(\"^abc$\", \"xabc\")") == "None");
-        CHECK(re(vm, "re.findall(\"(?m)^\\\\w+\", \"one\\ntwo\\nthree\")") == "[one, two, three]");
+        CHECK(re(vm, "re.findall(\"(?m)^\\\\w+\", \"one\\ntwo\\nthree\")") == "['one', 'two', 'three']");
         CHECK(re(vm, "re.search(\".\", \"\\n\")") == "None");                   // . excludes newline
         CHECK(re(vm, "re.search(\"(?s).\", \"\\n\").group()") == "\n");          // DOTALL
     }
@@ -83,18 +83,18 @@ int main() {
     {
         KiritoVM vm;
         CHECK(re(vm, "re.search(\"hello\", \"HELLO\", re.IGNORECASE).group()") == "HELLO");
-        CHECK(re(vm, "re.compile(\"cat\", re.I).findall(\"Cat CAT cat\")") == "[Cat, CAT, cat]");
+        CHECK(re(vm, "re.compile(\"cat\", re.I).findall(\"Cat CAT cat\")") == "['Cat', 'CAT', 'cat']");
         CHECK(re(vm, "re.search(\"(?i)abc\", \"ABC\").group()") == "ABC");       // inline flag
     }
 
     // -------------------------------------------------- findall variants
     {
         KiritoVM vm;
-        CHECK(re(vm, "re.findall(\"\\\\w+\", \"a bb ccc\")") == "[a, bb, ccc]");          // 0 groups -> whole
-        CHECK(re(vm, "re.findall(\"(\\\\w)\\\\w*\", \"foo bar\")") == "[f, b]");           // 1 group -> that group
-        CHECK(re(vm, "re.findall(\"(\\\\w+)=(\\\\d+)\", \"a=1 b=22\")") == "[[a, 1], [b, 22]]");  // >1 -> tuples
+        CHECK(re(vm, "re.findall(\"\\\\w+\", \"a bb ccc\")") == "['a', 'bb', 'ccc']");          // 0 groups -> whole
+        CHECK(re(vm, "re.findall(\"(\\\\w)\\\\w*\", \"foo bar\")") == "['f', 'b']");           // 1 group -> that group
+        CHECK(re(vm, "re.findall(\"(\\\\w+)=(\\\\d+)\", \"a=1 b=22\")") == "[['a', '1'], ['b', '22']]");  // >1 -> tuples
         CHECK(re(vm, "len(re.finditer(\"\\\\d+\", \"1 22 333\"))") == "3");
-        CHECK(re(vm, "re.findall(\"\\\\d*\", \"a1b\")") == "[, 1, , ]");                   // empty matches, Python-style
+        CHECK(re(vm, "re.findall(\"\\\\d*\", \"a1b\")") == "['', '1', '', '']");                   // empty matches, Python-style
     }
 
     // -------------------------------------------------- sub (string & callable repl) and split
@@ -108,9 +108,9 @@ int main() {
         // callable replacement
         CHECK(re(vm, "re.sub(\"\\\\d+\", Function(m): return \"<\" + m.group() + \">\", \"a1b22\")") == "a<1>b<22>");
         // split
-        CHECK(re(vm, "re.split(\",\\\\s*\", \"a, b,c ,  d\")") == "[a, b, c , d]");
-        CHECK(re(vm, "re.split(\"(\\\\s+)\", \"a b\")") == "[a,  , b]");          // captured separator kept
-        CHECK(re(vm, "re.split(\"x\", \"axbxc\", 1)") == "[a, bxc]");             // maxsplit
+        CHECK(re(vm, "re.split(\",\\\\s*\", \"a, b,c ,  d\")") == "['a', 'b', 'c ', 'd']");
+        CHECK(re(vm, "re.split(\"(\\\\s+)\", \"a b\")") == "['a', ' ', 'b']");          // captured separator kept
+        CHECK(re(vm, "re.split(\"x\", \"axbxc\", 1)") == "['a', 'bxc']");             // maxsplit
     }
 
     // -------------------------------------------------- escape + Regex attributes

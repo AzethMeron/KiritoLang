@@ -18,7 +18,7 @@ int main() {
     CHECK(evalStr(vm, "var a = []\na.sort()\na") == "[]");
     CHECK(evalStr(vm, "var a = [42]\na.sort()\na") == "[42]");
     CHECK(evalStr(vm, "var a = [\"banana\", \"apple\", \"cherry\"]\na.sort()\na") ==
-          "[apple, banana, cherry]");
+          "['apple', 'banana', 'cherry']");
     CHECK(evalStr(vm, "var a = [3.5, 1.2, 2.8]\na.sort()\na") == "[1.2, 2.8, 3.5]");
 
     // reverse
@@ -29,28 +29,28 @@ int main() {
 var a = ["bb", "a", "ccc", "dd", "e"]
 a.sort(Function(w): return len(w))
 a
-)") == "[a, e, bb, dd, ccc]");
+)") == "['a', 'e', 'bb', 'dd', 'ccc']");
 
     // key + reverse
     CHECK(evalStr(vm, R"(
 var a = ["a", "ccc", "bb"]
 a.sort(Function(w): return len(w), True)
 a
-)") == "[ccc, bb, a]");
+)") == "['ccc', 'bb', 'a']");
 
     // STABILITY: equal keys preserve original relative order
     CHECK(evalStr(vm, R"(
 var pairs = [[1, "a"], [2, "b"], [1, "c"], [2, "d"], [1, "e"]]
 pairs.sort(Function(p): return p[0])
 pairs
-)") == "[[1, a], [1, c], [1, e], [2, b], [2, d]]");
+)") == "[[1, 'a'], [1, 'c'], [1, 'e'], [2, 'b'], [2, 'd']]");
 
     // stability under reverse: equal keys still keep original order (Python semantics)
     CHECK(evalStr(vm, R"(
 var pairs = [[1, "a"], [1, "b"], [1, "c"]]
 pairs.sort(Function(p): return p[0], True)
 pairs
-)") == "[[1, a], [1, b], [1, c]]");
+)") == "[[1, 'a'], [1, 'b'], [1, 'c']]");
 
     // sorted() builtin: new list, original unchanged
     CHECK(evalStr(vm, R"(
@@ -59,7 +59,7 @@ var b = sorted(a)
 String(a) + " / " + String(b)
 )") == "[3, 1, 2] / [1, 2, 3]");
     CHECK(evalStr(vm, "sorted([3, 1, 2], None, True)") == "[3, 2, 1]");
-    CHECK(evalStr(vm, "sorted([\"xx\", \"y\", \"zzz\"], Function(s): return len(s))") == "[y, xx, zzz]");
+    CHECK(evalStr(vm, "sorted([\"xx\", \"y\", \"zzz\"], Function(s): return len(s))") == "['y', 'xx', 'zzz']");
 
     // sorting a large random list yields a correctly ordered result (verified by scanning)
     CHECK(evalStr(vm, R"(

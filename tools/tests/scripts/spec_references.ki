@@ -50,7 +50,7 @@ assert keep[0] == [0, 0, "s0"] and keep[4][0] == 4000, "kept values intact after
 # --- cyclic structures: stringify is cycle-safe, equality on identity ---
 var cyc = {"self": None}
 cyc["self"] = cyc
-assert String(cyc) == "{self: {...}}", "cyclic dict stringify"
+assert String(cyc) == "{'self': {...}}", "cyclic dict stringify (key quoted)"
 var lcyc = [1]
 lcyc.append(lcyc)
 assert lcyc[1][1][1][0] == 1, "cyclic list is navigable"
