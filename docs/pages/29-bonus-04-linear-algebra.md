@@ -107,9 +107,11 @@ io.print(C.exp(C.of(0, C.pi)))   # ~ -1.0 + 0i
 io.print(C.sqrt(C.of(-1, 0)))    # 0.0+1.0i  = i
 ```
 
-Complex numbers are **unordered** (`<`, `>` raise), and their `==` is tolerance-based (so two values
-within a small epsilon compare equal). Note this differs from a scalar `Float`, whose `==` is
-**exact** — use a Float's [`.compare`](types.html#float) method for tolerant Float comparison.
+Complex numbers are **unordered** (`<`, `>` raise), and — like every numeric type in Kirito — their
+`==` is **exact** (real and imaginary parts compared bit-for-bit; `NaN` never equals anything). For a
+tolerant comparison of computed values use the **`.compare(other, rel_tol = 1e-9, abs_tol = 0.0)`**
+method, which `Complex`, real/complex `Matrix`, and `Tensor` all carry (so `(a - b).modulus()` checks
+and `result == expected` on computed floats become `result.compare(expected)`).
 
 ## Complex matrices and vectors
 

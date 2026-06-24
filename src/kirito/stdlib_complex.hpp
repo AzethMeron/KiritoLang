@@ -28,10 +28,17 @@ namespace kirito {
 
 using cdouble = std::complex<double>;
 
-// Approximate equality (relative+absolute), local so this header needn't depend on runtime.hpp's
-// floatEqual (which is included after the stdlib headers in the umbrella).
-inline bool cEq(double a, double b) {
-    return std::fabs(a - b) <= 1e-9 * (1.0 + std::fabs(a) + std::fabs(b));
+// Tolerant complex comparison (cmath.isclose): |a-b| <= max(rel_tol*max(|a|,|b|), abs_tol), with |.|
+// the complex magnitude. NaN is never close; a non-equal infinity is never close. Powers the tolerant
+// `.compare()` on Complex / ComplexMatrix / Tensor (their `==` is EXACT). Local so this header needn't
+// depend on runtime.hpp's floatClose (which is included after the stdlib headers in the umbrella).
+inline bool cClose(cdouble a, cdouble b, double relTol, double absTol) {
+    if (a == b) return true;  // exact (covers identical infinities)
+    if (std::isnan(a.real()) || std::isnan(a.imag()) || std::isnan(b.real()) || std::isnan(b.imag()) ||
+        std::isinf(a.real()) || std::isinf(a.imag()) || std::isinf(b.real()) || std::isinf(b.imag()))
+        return false;
+    double diff = std::abs(a - b);
+    return diff <= std::max(relTol * std::max(std::abs(a), std::abs(b)), absTol);
 }
 
 // Render a complex value as "a+bi" / "a-bi" (negative zero on the imaginary part normalized away).
@@ -56,18 +63,21 @@ public:
     bool truthy() const override { return z != cdouble(0.0, 0.0); }
     std::string str(StringifyCtx&) const override { return complexToString(z); }
     bool equals(const ObjectArena&, const Object& other) const override {
+        // EXACT IEEE-754, like scalar Float == (std::complex::== compares real and imag bit-exactly,
+        // so NaN never equals anything). For approximate comparison use the .compare() method.
         if (const auto* c = dynamic_cast<const ComplexVal*>(&other))
-            return cEq(z.real(), c->z.real()) && cEq(z.imag(), c->z.imag());
+            return z == c->z;
         // A Complex equals a real number when its imaginary part is zero (so Complex(2,0) == 2).
         if (other.kind() == ValueKind::Integer)
-            return z.imag() == 0.0 && cEq(z.real(), static_cast<double>(static_cast<const IntVal&>(other).value()));
+            return z.imag() == 0.0 && z.real() == static_cast<double>(static_cast<const IntVal&>(other).value());
         if (other.kind() == ValueKind::Float)
-            return z.imag() == 0.0 && cEq(z.real(), static_cast<const FloatVal&>(other).value());
+            return z.imag() == 0.0 && z.real() == static_cast<const FloatVal&>(other).value();
         return false;
     }
 
     std::vector<std::string> inspectMembers() const override {
-        return {"re: Float", "im: Float", "conjugate() -> Complex", "modulus() -> Float",
+        return {"re: Float", "im: Float", "compare(other, rel_tol = 1e-09, abs_tol = 0.0) -> Bool",
+                "conjugate() -> Complex", "modulus() -> Float",
                 "argument() -> Float", "norm2() -> Float", "is_zero() -> Bool"};
     }
 
@@ -104,8 +114,8 @@ inline Handle ComplexVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
             if (b == cdouble(0.0, 0.0)) throw KiritoError("complex division by zero");
             return cpx::make(vm, z / b);
         case BinOp::Pow: return cpx::make(vm, std::pow(z, b));
-        case BinOp::Eq: return vm.makeBool(cEq(z.real(), b.real()) && cEq(z.imag(), b.imag()));
-        case BinOp::Ne: return vm.makeBool(!(cEq(z.real(), b.real()) && cEq(z.imag(), b.imag())));
+        case BinOp::Eq: return vm.makeBool(z == b);   // EXACT (std::complex::==); .compare() for tolerance
+        case BinOp::Ne: return vm.makeBool(z != b);
         default: break;
     }
     throw KiritoError("Complex does not support this operator");
@@ -125,6 +135,23 @@ inline Handle ComplexVal::getAttr(KiritoVM& vm, Handle self, std::string_view na
     };
     if (name == "re" || name == "real") return vm.makeFloat(z.real());
     if (name == "im" || name == "imag") return vm.makeFloat(z.imag());
+    // .compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool — tolerant comparison (cmath.isclose), since
+    // `==` is now exact. Signatured so it takes keyword args/defaults and shows under inspect.
+    if (name == "compare") {
+        std::vector<NativeParam> sig;
+        sig.emplace_back("other");
+        sig.emplace_back("rel_tol", "Float", vm.makeFloat(1e-9));
+        sig.emplace_back("abs_tol", "Float", vm.makeFloat(0.0));
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "compare", std::move(sig), "Bool",
+            [self](KiritoVM& v, std::span<const Handle> a) -> Handle {
+                cdouble me = static_cast<ComplexVal&>(v.arena().deref(self)).z;
+                cdouble other = cpx::asComplex(v, a[0], "compare");
+                return v.makeBool(cClose(me, other, Value(v, a[1]).asFloat("rel_tol"),
+                                         Value(v, a[2]).asFloat("abs_tol")));
+            },
+            std::vector<Handle>{self}));
+    }
     if (name == "conjugate") return bind("conjugate", [self, self_z](KiritoVM& vm, std::span<const Handle>) { return cpx::make(vm, std::conj(self_z(vm, self))); });
     if (name == "modulus" || name == "magnitude" || name == "abs")
         return bind("modulus", [self, self_z](KiritoVM& vm, std::span<const Handle>) { return vm.makeFloat(std::abs(self_z(vm, self))); });
@@ -189,15 +216,17 @@ public:
         return s + "]";
     }
     bool equals(const ObjectArena&, const Object& other) const override {
+        // EXACT (same shape, every element bit-equal), like scalar Complex/Float ==. NaN never equal.
+        // For a tolerant compare of computed matrices use `.compare(other, rel_tol, abs_tol)`.
         const auto* m = dynamic_cast<const ComplexMatrixVal*>(&other);
         if (!m || m->t.shape != t.shape) return false;
         for (std::size_t i = 0; i < t.data.size(); ++i)
-            if (!cEq(t.data[i].real(), m->t.data[i].real()) || !cEq(t.data[i].imag(), m->t.data[i].imag()))
-                return false;
+            if (t.data[i] != m->t.data[i]) return false;
         return true;
     }
     std::vector<std::string> inspectMembers() const override {
         return {"rows() -> Integer", "cols() -> Integer", "shape() -> List",
+                "compare(other, rel_tol = 1e-09, abs_tol = 0.0) -> Bool",
                 "get(row, col) -> Complex", "set(row, col, value)", "row(i) -> List",
                 "transpose() -> ComplexMatrix", "conjugate() -> ComplexMatrix",
                 "hermitian() -> ComplexMatrix", "determinant() -> Complex",
@@ -311,6 +340,27 @@ inline Handle ComplexMatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_v
         list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.cols())));
         return vm.alloc(std::move(list));
     });
+    // compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool — tolerant whole-matrix comparison (cClose
+    // per element), since `==` is now exact. Signatured: keyword args/defaults + inspect.
+    if (name == "compare") {
+        std::vector<NativeParam> sig;
+        sig.emplace_back("other");
+        sig.emplace_back("rel_tol", "Float", vm.makeFloat(1e-9));
+        sig.emplace_back("abs_tol", "Float", vm.makeFloat(0.0));
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "compare", std::move(sig), "Bool",
+            [self](KiritoVM& v, std::span<const Handle> a) -> Handle {
+                auto& m = static_cast<ComplexMatrixVal&>(v.arena().deref(self));
+                const auto* o = dynamic_cast<const ComplexMatrixVal*>(&v.arena().deref(a[0]));
+                if (!o) throw KiritoError("compare expects a ComplexMatrix");
+                if (o->t.shape != m.t.shape) return v.makeBool(false);
+                double rel = Value(v, a[1]).asFloat("rel_tol"), abst = Value(v, a[2]).asFloat("abs_tol");
+                for (std::size_t i = 0; i < m.t.data.size(); ++i)
+                    if (!cClose(m.t.data[i], o->t.data[i], rel, abst)) return v.makeBool(false);
+                return v.makeBool(true);
+            },
+            std::vector<Handle>{self}));
+    }
     if (name == "get") return bind("get", {"row", "col"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]), c = idx(vm, a[1]);

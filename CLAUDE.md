@@ -71,7 +71,10 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   == 0.3` is `False`, `NaN != NaN`, `inf == inf`, `0.0 == -0.0` — so equality agrees with `<`/`>`
   (trichotomy) and with hashing (distinct-but-close floats are distinct Set/Dict keys). For
   *approximate* comparison every Integer/Float has **`.compare(other, rel_tol = 1e-9, abs_tol = 0.0)
-  -> Bool`** (math.isclose semantics). Resource guards: huge string/list repetition, padding, and
+  -> Bool`** (math.isclose semantics). **This rule is language-wide: `==` is ALWAYS exact and the
+  only tolerant comparison is `.compare` — every native numeric type (`Complex`, real `Matrix`,
+  `Tensor`, `ComplexMatrix`/complex `Matrix`) compares bit-exactly with `==` and carries the same
+  `.compare(other, rel_tol, abs_tol)` method.** Resource guards: huge string/list repetition, padding, and
   `range` are bounded (raise instead of OOMing); deeply nested source/data structures raise instead
   of overflowing the native stack.
 - **Modules** via `import("io")`; first stdlib module is `io` (`io.input`, `io.print`).
@@ -241,7 +244,8 @@ a stability fuzzer, and a benchmark). Working today:
     (`/`, `//`, `%` all **raise on a zero divisor**, like scalar arithmetic);
     element-wise comparisons (`eq/ne/lt/le/gt/ge` + the `< <= > >=` operators → 0/1 mask) and logic
     (`logicaland/or/xor/not`) — note the **whole-tensor `==` operator** returns a single Bool (same
-    shape + values within 1e-9; NaN never equal), distinct from the elementwise `.eq()` mask;
+    shape + every element **bit-exact**, NaN never equal — use `.compare(other, rel_tol, abs_tol)` for
+    a tolerant whole-tensor check), distinct from the elementwise `.eq()` mask;
     `%`,`//`,`**` operators; `matmul` (2-D + batched), `dot`,
     `tensordot(a,b,axes)`/`contract` (general axis contraction), `transpose`/`permute`/`reshape`/
     `flatten`, `apply` (element-wise map), `astype`, `item()` (a one-element tensor → a Float/Complex

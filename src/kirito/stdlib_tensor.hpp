@@ -89,22 +89,19 @@ public:
         return format(std::get<FT>(store), [](double x) { return floatToString(x); });
     }
     bool equals(const ObjectArena&, const Object& other) const override {
-        // Whole-tensor `==` is tolerant (1e-9) — tensors hold computed floats, so an exact compare
-        // would almost never hold (a solve/inv result vs its literal). But NaN is never equal (not
-        // even to itself), matching scalar Float ==: a tensor holding a NaN never equals itself.
+        // Whole-tensor `==` is EXACT (same shape, every element bit-equal), like scalar Float ==.
+        // Naturally NaN-aware (NaN != NaN). Tensors hold computed floats, so for a tolerant compare
+        // (a solve/inv result vs its literal) use the `.compare(other, rel_tol, abs_tol)` method.
         const auto* o = dynamic_cast<const TensorVal*>(&other);
         if (!o || o->shape() != shape()) return false;
-        for (std::size_t i = 0; i < size(); ++i) {
-            cdouble a = elemAsComplex(i), b = o->elemAsComplex(i);
-            if (std::isnan(a.real()) || std::isnan(a.imag()) ||
-                std::isnan(b.real()) || std::isnan(b.imag())) return false;
-            if (std::abs(a - b) > 1e-9) return false;
-        }
+        for (std::size_t i = 0; i < size(); ++i)
+            if (elemAsComplex(i) != o->elemAsComplex(i)) return false;
         return true;
     }
     std::vector<std::string> inspectMembers() const override {
         return {"shape() -> List", "ndim() -> Integer", "size() -> Integer", "dtype() -> String",
                 "item() -> Number", "tolist() -> List",
+                "compare(other, rel_tol = 1e-09, abs_tol = 0.0) -> Bool",
                 "reshape(shape) -> Tensor", "transpose() -> Tensor", "permute(axes) -> Tensor",
                 "flatten() -> Tensor", "apply(fn) -> Tensor", "astype(dtype) -> Tensor",
                 "matmul(other) -> Tensor", "dot(other) -> Number",
@@ -1520,6 +1517,28 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         if (ax < 0 || ax >= nd) throw KiritoError("axis out of range");
         return ax;                                  // always a valid 0..nd-1 once an axis is given
     };
+    // compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool — tolerant whole-tensor comparison (same
+    // shape + every element within tolerance, cmath.isclose), since `==` is now exact. Signatured for
+    // keyword args/defaults + inspect.
+    if (name == "compare") {
+        std::vector<NativeParam> sig;
+        sig.emplace_back("other");
+        sig.emplace_back("rel_tol", "Float", vm.makeFloat(1e-9));
+        sig.emplace_back("abs_tol", "Float", vm.makeFloat(0.0));
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "compare", std::move(sig), "Bool",
+            [self](KiritoVM& v, std::span<const Handle> a) -> Handle {
+                auto& t = static_cast<TensorVal&>(v.arena().deref(self));
+                const auto* o = dynamic_cast<const TensorVal*>(&v.arena().deref(a[0]));
+                if (!o) throw KiritoError("compare expects a Tensor");
+                if (o->shape() != t.shape()) return v.makeBool(false);
+                double rel = Value(v, a[1]).asFloat("rel_tol"), abst = Value(v, a[2]).asFloat("abs_tol");
+                for (std::size_t i = 0; i < t.size(); ++i)
+                    if (!cClose(t.elemAsComplex(i), o->elemAsComplex(i), rel, abst)) return v.makeBool(false);
+                return v.makeBool(true);
+            },
+            std::vector<Handle>{self}));
+    }
     // item() — extract a one-element tensor's single value as a plain Float (or Complex).
     if (name == "item") return bind("item", {}, [self, self_t](KiritoVM& vm, std::span<const Handle>) -> Handle {
         auto& t = self_t(vm, self);

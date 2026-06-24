@@ -77,8 +77,8 @@ io.print(matrix.Matrix([[1, 0], [0, 1]]) * matrix.Matrix([[5], [6]]) == matrix.M
 # norm on a (general) matrix is the Frobenius norm
 io.print(close(matrix.Matrix([[1, 2], [3, 4]]).norm(), 5.477225575051661))   # sqrt(30)
 
-# equality is tolerant
-io.print(matrix.Matrix([[1.0]]) == matrix.Matrix([[1.0000000001]]))
+# equality is EXACT (1.0 != 1.0000000001); tolerant comparison is via .compare
+io.print((matrix.Matrix([[1.0]]) == matrix.Matrix([[1.0000000001]])) == False and matrix.Matrix([[1.0]]).compare(matrix.Matrix([[1.0000000001]])))
 # shape mismatch -> unequal
 io.print(matrix.zeros(2, 3) != matrix.zeros(3, 2))
 

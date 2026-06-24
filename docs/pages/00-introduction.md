@@ -4,8 +4,9 @@
 with the ergonomics of a high-level scripting language and a C++ soul. Source files use the `.ki`
 extension.
 
-It is implemented as a **tree-walking interpreter** in modern C++20, shipped header-only, so it both
-runs standalone (`ki`) and embeds into any C++ application as a library — a single `KiritoVM` object
+It is implemented in modern C++20 as a **bytecode compiler + stack VM** behind a stable AST boundary
+(the original tree-walking evaluator was removed in v1.7.0), shipped header-only, so it both runs
+standalone (`ki`) and embeds into any C++ application as a library — a single `KiritoVM` object
 encapsulates an entire, isolated interpreter "process".
 
 ## Why Kirito

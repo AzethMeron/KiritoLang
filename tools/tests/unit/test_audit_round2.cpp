@@ -165,5 +165,26 @@ msg.find("base64") >= 0
     CHECK(ev(vm, "import(\"xml\").fromstring(\"<a>&#999999999;</a>\").text") == "&#999999999;");
     CHECK(ev(vm, "import(\"xml\").fromstring(\"<a>&#65;&#x42;</a>\").text") == "AB");
 
+    // --- ALL native numeric types: `==` is EXACT, tolerance only via `.compare` -------------------
+    // Complex (scalar)
+    CHECK(ev(vm, "var C = import(\"complex\")\nC.of(1.0, 0) == C.of(1.0000000001, 0)") == "False");
+    CHECK(ev(vm, "var C = import(\"complex\")\nC.of(1.0, 0).compare(C.of(1.0000000001, 0))") == "True");
+    CHECK(ev(vm, "var C = import(\"complex\")\nC.of(1, 2) == C.of(1, 2)") == "True");
+    CHECK(ev(vm, "var C = import(\"complex\")\nC.of(0, 1).compare(C.of(0, 1.0000000001), abs_tol = 1e-6)") == "True");
+    CHECK(ev(vm, "inspect(import(\"complex\").of(1.0, 1.0)).find(\"compare(\") >= 0") == "True");
+    // real Matrix
+    CHECK(ev(vm, "var M = import(\"matrix\")\nM.Matrix([[1.0]]) == M.Matrix([[1.0000000001]])") == "False");
+    CHECK(ev(vm, "var M = import(\"matrix\")\nM.Matrix([[1.0]]).compare(M.Matrix([[1.0000000001]]))") == "True");
+    CHECK(ev(vm, "var M = import(\"matrix\")\nM.identity(2) == M.identity(2)") == "True");
+    CHECK(ev(vm, "inspect(import(\"matrix\").identity(2)).find(\"compare(\") >= 0") == "True");
+    // Tensor (whole ==)
+    CHECK(ev(vm, "var T = import(\"tensor\")\nT.Tensor([1.0]) == T.Tensor([1.0000000001])") == "False");
+    CHECK(ev(vm, "var T = import(\"tensor\")\nT.Tensor([1.0]).compare(T.Tensor([1.0000000001]))") == "True");
+    CHECK(ev(vm, "var T = import(\"tensor\")\nT.Tensor([1, 2, 3]) == T.Tensor([1, 2, 3])") == "True");
+    CHECK(ev(vm, "inspect(import(\"tensor\").eye(2)).find(\"compare(\") >= 0") == "True");
+    // ComplexMatrix
+    CHECK(ev(vm, "var C = import(\"complex\")\nC.Matrix([[C.of(1,0)]]) == C.Matrix([[C.of(1.0000000001,0)]])") == "False");
+    CHECK(ev(vm, "var C = import(\"complex\")\nC.Matrix([[C.of(1,0)]]).compare(C.Matrix([[C.of(1.0000000001,0)]]))") == "True");
+
     return RUN_TESTS();
 }

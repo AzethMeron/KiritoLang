@@ -2,7 +2,7 @@
 
 Kirito's whole object model is one uniform `Object` protocol. Built-ins, your C++ types, and
 Kirito-level classes all derive from the same base and dispatch through the same slots — so anything
-you add is indistinguishable from a built-in to the evaluator. You extend Kirito by subclassing two
+you add is indistinguishable from a built-in to the VM. You extend Kirito by subclassing two
 convenience bases and registering with one call.
 
 Throughout this page `vm` is your interpreter VM — normally `dispatcher.mainVM()` from a
@@ -17,7 +17,7 @@ the same on either.
 
 ## Working with built-in types — the `Value` API
 
-`#include "kirito.hpp"` brings in `value.hpp`. Three facts about how the evaluator calls a native
+`#include "kirito.hpp"` brings in `value.hpp`. Three facts about how the VM calls a native
 function make every line of the example below concrete:
 
 - **A native function has the signature `Handle fn(KiritoVM& vm, std::span<const Handle> raw)`.**

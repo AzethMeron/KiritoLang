@@ -58,16 +58,19 @@ public:
         return s + "]";
     }
     bool equals(const ObjectArena&, const Object& other) const override {
+        // EXACT (same shape, every element bit-equal), like scalar Float ==. NaN never equal.
+        // Matrices hold computed floats, so for a tolerant compare use `.compare(other, rel_tol, abs_tol)`.
         const auto* m = dynamic_cast<const MatrixVal*>(&other);
         if (!m || m->t.shape != t.shape) return false;
         for (std::size_t i = 0; i < t.data.size(); ++i)
-            if (std::fabs(t.data[i] - m->t.data[i]) > 1e-9) return false;
+            if (t.data[i] != m->t.data[i]) return false;
         return true;
     }
 
     std::vector<std::string> inspectMembers() const override {
         return {
             "rows() -> Integer", "cols() -> Integer", "shape() -> List",
+            "compare(other, rel_tol = 1e-09, abs_tol = 0.0) -> Bool",
             "get(row, col) -> Float", "set(row, col, value)", "row(i) -> List",
             "transpose() -> Matrix", "determinant() -> Float", "inverse() -> Matrix",
             "trace() -> Float", "sum() -> Float", "apply(fn) -> Matrix",
@@ -178,6 +181,32 @@ inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         list->elems.push_back(vm.makeInt(static_cast<int64_t>(m.cols())));
         return vm.alloc(std::move(list));
     });
+    // compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool — tolerant whole-matrix comparison
+    // (cmath.isclose per element), since `==` is now exact. Signatured: keyword args/defaults + inspect.
+    if (name == "compare") {
+        std::vector<NativeParam> sig;
+        sig.emplace_back("other");
+        sig.emplace_back("rel_tol", "Float", vm.makeFloat(1e-9));
+        sig.emplace_back("abs_tol", "Float", vm.makeFloat(0.0));
+        return vm.alloc(std::make_unique<NativeFunction>(
+            "compare", std::move(sig), "Bool",
+            [self](KiritoVM& v, std::span<const Handle> a) -> Handle {
+                auto& m = static_cast<MatrixVal&>(v.arena().deref(self));
+                const auto* o = dynamic_cast<const MatrixVal*>(&v.arena().deref(a[0]));
+                if (!o) throw KiritoError("compare expects a Matrix");
+                if (o->t.shape != m.t.shape) return v.makeBool(false);
+                double rel = Value(v, a[1]).asFloat("rel_tol"), abst = Value(v, a[2]).asFloat("abs_tol");
+                for (std::size_t i = 0; i < m.t.data.size(); ++i) {
+                    double x = m.t.data[i], y = o->t.data[i];
+                    if (x == y) continue;
+                    if (std::isnan(x) || std::isnan(y) || std::isinf(x) || std::isinf(y)) return v.makeBool(false);
+                    if (std::fabs(x - y) > std::max(rel * std::max(std::fabs(x), std::fabs(y)), abst))
+                        return v.makeBool(false);
+                }
+                return v.makeBool(true);
+            },
+            std::vector<Handle>{self}));
+    }
     if (name == "get") return bind("get", {"row", "col"}, [self, self_m, idx](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& m = self_m(vm, self);
         std::size_t r = idx(vm, a[0]), c = idx(vm, a[1]);

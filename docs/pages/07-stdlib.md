@@ -187,7 +187,10 @@ Matrices are arbitrary-shape (any rows × cols). Shape-specific operations (`det
 - `m[i, j] → Float` — element access.
 - `m[i] → List` — the whole row `i` as a List of Floats.
 - `m[i, j] = v` — element assignment.
-- `m1 == m2 → Bool` — element-wise equality (within a small tolerance).
+- `m1 == m2 → Bool` — **exact** equality (same shape, every element bit-equal; `NaN` never equal). For
+  computed matrices use the tolerant `.compare` below.
+- `m.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` — tolerant comparison (math.isclose per
+  element); the way to test `A * A.inverse() ≈ I`.
 - `m.get(i, j) → Float` — explicit element access (the method form of `m[i, j]`).
 - `m.set(i, j, v) → None` — explicit element assignment (the method form of `m[i, j] = v`).
 - `m.rows() → Integer` — the number of rows.
@@ -230,8 +233,10 @@ the real axis, so any function or operator below also accepts plain `Integer`/`F
 - `z.re → Float`, `z.im → Float` — the real and imaginary parts (also `z.real`/`z.imag`).
 - `z1 + z2`, `z1 - z2`, `z1 * z2`, `z1 / z2`, `z1 ** z2`, `-z` — arithmetic. A `Complex` must be the
   left operand when mixing with a number (`z + 2`, not `2 + z`). Division by zero raises.
-- `z1 == z2 → Bool` — equality within a small tolerance; a `Complex` with zero imaginary part also
-  equals the matching real number (`Complex(2, 0) == 2`).
+- `z1 == z2 → Bool` — **exact** equality (real and imaginary parts bit-equal; `NaN` never equal); a
+  `Complex` with zero imaginary part also equals the matching real number (`Complex(2, 0) == 2`).
+- `z.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` — tolerant comparison (math.isclose on the
+  complex magnitude); use it for computed values, e.g. `(1+i)**2 ≈ 2i`.
 - Complex numbers are **unordered**: `<`, `<=`, `>`, `>=` raise.
 - `z.conjugate() → Complex` — the complex conjugate.
 - `z.modulus() → Float` — the magnitude `|z|` (also `z.magnitude()` / `z.abs()`).
@@ -288,7 +293,8 @@ square matrix and raise otherwise.
 
 - `m[i, j] → Complex`, `m[i] → List`, `m[i, j] = v` — element / row access and assignment.
 - `m.get(i, j)`, `m.set(i, j, v)`, `m.row(i)`, `m.rows()`, `m.cols()`, `m.shape()`.
-- `m1 == m2 → Bool` — element-wise equality (within a small tolerance).
+- `m1 == m2 → Bool` — **exact** equality; `m.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool`
+  is the tolerant form for computed matrices.
 - `m + n`, `m - n`, `m * n` — addition/subtraction and matrix or scalar (`Complex`/number) multiply.
 - `m.transpose() → ComplexMatrix` — the transpose.
 - `m.conjugate() → ComplexMatrix` — element-wise complex conjugate.
@@ -347,7 +353,9 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
   Mixing a `Float` and a `Complex` tensor promotes the result to `Complex`. A scalar operand applies
   element-wise (`t * 2`).
 - `-t` — element-wise negation.
-- `a == b → Bool` — equal shape and element-wise equality (within a tolerance).
+- `a == b → Bool` — equal shape and **exact** element-wise equality (`NaN` never equal); distinct
+  from the elementwise `.eq()` mask. Use `a.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` for
+  a tolerant whole-tensor check (a `solve`/`inv` result vs its literal).
 - `t.matmul(other) → Tensor` — matrix product (2-D), or **batched** over the leading dimensions for
   rank ≥ 2.
 - `t.dot(other) → Number` — the dot product of two 1-D tensors.

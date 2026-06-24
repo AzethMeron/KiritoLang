@@ -254,10 +254,12 @@ check((C.sqrt(C.of(-4, 0)) - C.of(0, 2)).modulus() < 0.000000001)        # sqrt(
 check(approx(C.pow(C.of(-8, 0), C.of(1.0 / 3, 0)).im, 1.7320508075688772))  # principal cube root is complex
 n = n + 3
 
-# is_zero() (magnitude < 1e-10) is STRICTER than == C.zero (1e-9 abs tolerance): pinned mismatch
-check((C.of(0.0000000001, 0) == C.zero) == True)        # 1e-10: equal under ==
-check(C.of(0.0000000001, 0).is_zero() == False)          # but is_zero() says no
-n = n + 2
+# Complex `==` is EXACT now, so 1e-10 != 0 (no tolerance); is_zero() (magnitude < 1e-10) also says no;
+# the tolerant `.compare(abs_tol=...)` is how you ask "approximately zero".
+check((C.of(0.0000000001, 0) == C.zero) == False)        # 1e-10: NOT equal under exact ==
+check(C.of(0.0000000001, 0).is_zero() == False)          # is_zero() also says no
+check(C.of(0.0000000001, 0).compare(C.zero, abs_tol = 0.001) == True)   # but .compare with tolerance does
+n = n + 3
 
 # Complex == real works in BOTH directions; ordering raises; division by zero raises
 check(C.of(2, 0) == 2 and 2 == C.of(2, 0))

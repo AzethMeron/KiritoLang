@@ -9,6 +9,13 @@ Source files use the `.ki` extension. The whole interpreter is header-only — a
 `#include "kirito.hpp"` — so Kirito runs both as a standalone interpreter (`ki`) and as a library
 embedded in any C++ project. One `KiritoVM` object is one fully isolated interpreter "process".
 
+> **Execution engine — bytecode, not a tree-walker.** Kirito compiles each body to bytecode and runs
+> it on a stack VM behind the stable AST boundary. It is **no longer a tree-walking interpreter** —
+> the original tree-walking evaluator was removed and the bytecode compiler + VM is now the sole
+> engine. The last release built on the tree-walking evaluator is
+> [**v1.6.2**](https://github.com/AzethMeron/KiritoLang/releases/tag/1.6.2); everything from **v1.7.0**
+> onward runs the bytecode VM.
+
 ```kirito
 var io = import("io")
 
@@ -73,48 +80,57 @@ And why did i call it after MC of SAO? Dunno, just thought it's funny. Also I do
 
 Kirito is young and makes deliberate trade-offs. The notable current limits:
 
-- **It is a tree-walking interpreter, so compute-bound code is slow.** Interpreter-bound tight loops
-  run hundreds of times slower than C++, ~9× slower than CPython, and ~15× slower than Lua 5.1; work
-  that delegates to the C++ standard library (sorting, hashing, string ops) closes most of the gap —
-  within ~3–5× of CPython, and on par with or faster than Lua 5.1.
-  See [Benchmarks](#benchmarks). A bytecode VM behind the stable AST boundary is the planned path to
-  closing this — the architecture is designed for it.
+- **Compute-bound code is still slower than a native VM.** Kirito runs a bytecode VM (no longer a
+  tree-walker), but interpreter-bound tight loops remain a few × slower than CPython and Lua 5.1, and
+  far slower than C++; work that delegates to the C++ standard library (sorting, hashing, string ops)
+  closes most of the gap and can match or beat Lua 5.1. See [Benchmarks](#benchmarks).
+  Slot-addressed locals are the next planned speedup.
 - **Integers are fixed-width `int64`** with well-defined two's-complement wraparound on overflow;
   arbitrary-precision integers are a future enrichment.
-- **Float equality is tolerance-based** (absolute + relative epsilon) for finite values, so very
-  close floats compare equal; `inf`/`-inf`/`NaN` follow strict IEEE rules (NaN never equals anything,
-  an infinity equals only an identical infinity).
+- **Equality (`==`) is always exact; tolerance is only ever via `.compare`.** Float/Integer `==` is
+  exact IEEE-754 (like Python): `0.1 + 0.2 == 0.3` is `False`, `NaN` never equals anything (not even
+  itself), an infinity equals only an identical infinity — so `==`/`!=` agree with `<`/`>` and with
+  hashing. The same rule holds for every native numeric type — **`Complex`, `Matrix`, `Tensor`,
+  `ComplexMatrix`** all compare bit-exactly with `==`. For *approximate* comparison they each carry
+  **`.compare(other, rel_tol = 1e-9, abs_tol = 0.0)`** (math.isclose semantics) — the single,
+  explicit way to ask "are these close?".
 - **Unicode case mapping** (`upper`/`lower`) covers ASCII, Latin-1 and Latin Extended-A, not the full
   Unicode case-folding tables.
 - **Not yet implemented:** comprehensions, generators, and variadic parameters. (Complex numbers
   *are* supported — the native `complex` module.)
-- **A `KiritoVM` is single-threaded** — there are no language-level concurrency primitives, by design
-  (one VM is one fully-encapsulated, serializable process).
+- **A single `KiritoVM` is single-threaded** — one VM is one fully-encapsulated, serializable process
+  touched by exactly one OS thread. True parallelism is therefore *multiprocessing*: the `parallel`
+  module runs many fully-isolated VMs that share nothing and communicate only by passing serialized
+  values through thread-safe queues and primitives.
 
 ## Benchmarks
 
-Kirito vs C++ (`-O2`) vs CPython 3.11 vs Lua 5.1 on identical algorithms over identical
-(LCG-generated) data, release build — mean time per repetition, lower is better
+Kirito (bytecode VM) vs C++ (`-O2`) vs CPython 3.11 vs Lua 5.1 on identical algorithms over identical
+(LCG-generated) data, release build — mean time per repetition, lower is better, median of three runs
 (`tools/tests/bench/compare.py`):
 
 | Workload | C++ (-O2) | Python 3.11 | Lua 5.1 | Kirito | Ki / C++ | Ki / Py | Ki / Lua |
 |---|---|---|---|---|---|---|---|
 | *pessimistic — interpreter-bound tight loops* | | | | | | | |
-| `sum_loop` (arithmetic loop) | 0.48 µs | 62.0 µs | 16.2 µs | 409 µs | 852× | 6.6× | 25× |
-| `fib` (recursive calls) | 4.40 µs | 269 µs | 227 µs | 2.10 ms | 477× | 7.8× | 9.3× |
-| `sieve` (nested loops + indexed writes) | 2.36 µs | 138 µs | 136 µs | 2.16 ms | 915× | 15.7× | 15.9× |
+| `sum_loop` (arithmetic loop) | 0.27 µs | 45 µs | 13.4 µs | 320 µs | ~1150× | 7.1× | 24× |
+| `fib` (recursive calls) | 2.97 µs | 217 µs | 175 µs | 1.76 ms | ~590× | 8.1× | 10× |
+| `sieve` (nested loops + indexed writes) | 1.72 µs | 110 µs | 113 µs | 1.65 ms | ~950× | 15× | 15× |
 | *optimistic — work delegated to C++ builtins* | | | | | | | |
-| `sort` (builtin sort) | 38.2 µs | 151 µs | 383 µs | 350 µs | 9× | 2.3× | **0.9×** |
-| `dict_ops` (hash insert/lookup) | 83.7 µs | 152 µs | 165 µs | 745 µs | 9× | 4.9× | 4.5× |
-| `string_ops` (`split`/`join`) | 39.6 µs | 56.0 µs | 281 µs | 195 µs | 5× | 3.5× | **0.7×** |
+| `sort` (builtin sort) | 13.1 µs | 90 µs | 318 µs | 287 µs | 22× | 3.1× | **0.9×** |
+| `dict_ops` (hash insert/lookup) | 48 µs | 120 µs | 124 µs | 575 µs | 12× | 4.7× | 4.5× |
+| `string_ops` (`split`/`join`) | 32 µs | 41 µs | 207 µs | 185 µs | 5× | 4.4× | **0.9×** |
 
-Geometric-mean slowdown: **pessimistic ≈ 720× C++ / 9.3× Python / 15.4× Lua 5.1**, **optimistic ≈ 7×
-C++ / 3.4× Python / 1.4× Lua 5.1**. The shape is exactly what a tree-walker with a fast C++ standard
-library should show: it pays per-operation dispatch on tight loops — where Lua 5.1's register VM is
+Geometric-mean slowdown: **pessimistic ≈ 880× C++ / 9.5× Python / 15× Lua 5.1**, **optimistic ≈ 11×
+C++ / 4.0× Python / 1.5× Lua 5.1**. The shape is what a bytecode VM with a fast C++ standard library
+should show: it still pays per-operation dispatch on tight loops — where Lua 5.1's register VM is
 ~15× quicker — but amortizes that away once work lands in native builtins, where Kirito is on par with
-or **faster than** Lua 5.1 (`sort`, `string_ops` delegate to `std::sort` / `std::string`). Lua 5.1
-has no integer type, so its column uses doubles; the benchmark's 31-bit LCG is computed with an exact
-split-multiply so every language runs on byte-identical data.
+or **faster than** Lua 5.1 (`sort`, `string_ops` delegate to `std::sort` / `std::string`). The big
+structural speedup still on the table is **slot-addressed locals** (turning the resolved locals into
+indexed access instead of scope lookups). The C++ baseline runs in tens to hundreds of *nanoseconds*,
+where timer jitter dominates, so the `Ki / C++` column is approximate and swings run-to-run; the
+`Ki / Py` and `Ki / Lua` ratios are the stable, meaningful ones. Lua 5.1 has no integer type, so its
+column uses doubles; the benchmark's 31-bit LCG is computed with an exact split-multiply so every
+language runs on byte-identical data.
 
 Reproduce: `cmake --build build-release --target ki && python3 tools/tests/bench/compare.py --ki build-release/ki`
 (the Lua column appears automatically when `lua5.1` is on your `PATH`).
@@ -226,12 +242,12 @@ modules — so it doubles as a worked example.
 
 ```
 src/kirito/        The interpreter — a header-only C++20 core (~38 headers). One umbrella header,
-  kirito.hpp         pulls in everything: lexer, parser, AST, the tree-walking evaluator, the
+  kirito.hpp         pulls in everything: lexer, parser, AST, the bytecode compiler + stack VM, the
                      value/object model, the arena + mark-sweep GC, and the standard library
                      (the stdlib_*.hpp modules: io, math, complex, json, net, time, hash, …).
 main.cpp           The standalone `ki` CLI (REPL + file runner) — the only `main()`.
 CMakeLists.txt     Thin CMake: an INTERFACE target for the header-only core, the `ki` executable,
-CMakePresets.json  and the test executables. Presets: debug / release / asan.
+CMakePresets.json  and the test executables. Presets: debug / release / asan / tsan.
 
 examples/          Sample `.ki` programs (RPN calculator, word count, todo, stats, …), plus:
   big_projects/      Large pure-Kirito programs that double as interpreter stress tests:
@@ -265,16 +281,30 @@ Archive/           Two prior incomplete attempts (V1/V2) — reference only; not
 
 ## Building and running
 
-The everyday build needs a C++20 compiler (GCC 13+ / Clang 18+ / MSVC), CMake 3.28+, and Ninja:
+The everyday build needs a **C++20 compiler** (GCC 13+ / Clang 18+ / MSVC), **CMake ≥ 3.28**, and
+**Ninja**. Install the toolchain for your platform:
 
 ```sh
-sudo apt-get install -y build-essential cmake ninja-build   # Debian/Ubuntu/WSL
-cmake --preset debug               # configures into build-debug/ (also: release / asan)
-cmake --build build-debug
+sudo apt-get install -y build-essential g++ cmake ninja-build git   # Debian/Ubuntu/WSL
+sudo dnf install -y gcc-c++ cmake ninja-build git                   # Fedora/RHEL
+sudo pacman -S --needed base-devel cmake ninja git                  # Arch
+xcode-select --install && brew install cmake ninja                  # macOS (Apple Clang + Homebrew)
+# Windows: install Visual Studio 2022 with the "Desktop development with C++" workload (MSVC + CMake + Ninja).
+```
+
+> **CMake version:** Ubuntu 24.04 ships 3.28 (fine); on 22.04 or older, apt's CMake is too old — use
+> `pip install --user cmake ninja`, or the [Kitware APT repo](https://apt.kitware.com). If `g++` is
+> older than 13, `apt-get install g++-13` and configure with `CXX=g++-13 cmake --preset debug`.
+
+Then build and run (same commands on every platform):
+
+```sh
+cmake --preset debug               # configures into build-debug/  (presets: debug / release / asan / tsan)
+cmake --build build-debug -j
 
 ./build-debug/ki path/to/program.ki   # run a script
 ./build-debug/ki                      # start the REPL
-ctest --test-dir build-debug          # run the C++ unit + golden-script test suite
+ctest --test-dir build-debug -j       # run the C++ unit + golden-script test suite (312 tests)
 ```
 
 ### Building the release binaries (static, TLS)
@@ -292,7 +322,7 @@ tools/scripts/build_all.sh
 Each binary is a Release build with TLS on and linked as statically as possible (the Linux binary
 keeps only glibc dynamic; the Windows `.exe` is fully static). To cut a release, bump the version in
 `src/kirito/version.hpp`, build with `build_all.sh`, and upload `dist/ki-linux-x64` and
-`dist/ki-windows-x64.exe` to a GitHub Release tagged with the bare version (e.g. `1.6.1`). The
+`dist/ki-windows-x64.exe` to a GitHub Release tagged with the bare version (e.g. `1.7.0`). The
 project does not use CI.
 
 ### Testing the built executables

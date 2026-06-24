@@ -248,7 +248,7 @@ var M = T.Tensor([[4, 3], [6, 3]])
 io.print(T.det(M) == -6.0)
 io.print(T.trace(M) == 7.0)
 io.print(T.inv(M).matmul(M) == T.eye(2))
-io.print(T.solve(M, T.Tensor([[1], [1]])) == T.Tensor([[0], [1.0 / 3]]))
+io.print(T.solve(M, T.Tensor([[1], [1]])).compare(T.Tensor([[0], [1.0 / 3]])))   # computed -> .compare
 io.print(T.norm(T.Tensor([3, 4])) == 5.0)
 io.print(T.outer(T.Tensor([1, 2]), T.Tensor([3, 4])) == T.Tensor([[3, 4], [6, 8]]))
 io.print(T.inner(T.Tensor([1, 2, 3]), T.Tensor([4, 5, 6])) == T.full([], 32))

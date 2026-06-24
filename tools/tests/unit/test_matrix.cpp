@@ -31,8 +31,8 @@ int main() {
     CHECK(evalStr(vm, std::string(P) + "A.determinant()") == "-2.0");
     CHECK(evalStr(vm, std::string(P) + "A.trace()") == "5.0");
 
-    // inverse: A * inv(A) == I (within tolerance, via Matrix equality)
-    CHECK(evalStr(vm, std::string(P) + "A * A.inverse() == matrix.identity(2)") == "True");
+    // inverse: A * inv(A) ~ I — computed floats, so use the tolerant .compare (Matrix == is exact)
+    CHECK(evalStr(vm, std::string(P) + "(A * A.inverse()).compare(matrix.identity(2))") == "True");
     CHECK(evalStr(vm, "var m = import(\"matrix\")\nm.identity(3)") ==
           "[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]");
 
