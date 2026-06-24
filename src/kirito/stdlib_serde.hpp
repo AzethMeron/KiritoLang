@@ -7,10 +7,10 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "fum/unordered_map.hpp"
 #include "builtins.hpp"
 #include "class_value.hpp"
 #include "collections.hpp"
@@ -68,7 +68,7 @@ inline std::optional<Handle> serdeMethod(KiritoVM& vm, Handle h, const char* nam
 // it into a Node table. `verb` ("serialize" / "dump") names the operation in error messages. Returns
 // the table and the root's id. Supported kinds: None/Bool/Integer/Float/String/List/Dict/Set.
 inline std::pair<std::vector<Node>, uint32_t> flatten(KiritoVM& vm, Handle root, const char* verb) {
-    std::unordered_map<const Object*, uint32_t> ids;
+    fum::unordered_map<const Object*, uint32_t> ids;
     std::vector<Node> nodes;
     RootScope roots(vm);   // keep synthesized attribute keys + _getstate_ results alive during the walk
     int depth = 0;

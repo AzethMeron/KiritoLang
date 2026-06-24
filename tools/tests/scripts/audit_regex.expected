@@ -24,7 +24,7 @@ ada
 ada
 ['ada', 'kirito.dev']
 ['ada', 'kirito.dev']
-{'h': 'kirito.dev', 'u': 'ada'}
+{'u': 'ada', 'h': 'kirito.dev'}
 0
 14
 [0, 14]
@@ -33,7 +33,7 @@ None
 [-1, -1]
 ['a', 'DEF']
 {}
-{'y': 'MISSING', 'x': 'a'}
+{'x': 'a', 'y': 'MISSING'}
 ['a', 'MISSING']
 ['a', 'b', 'c,d']
 ['a', ' ', 'b', '  ', 'c']

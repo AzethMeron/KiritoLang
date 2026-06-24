@@ -3,8 +3,8 @@
 
 #include <string>
 #include <string_view>
-#include <unordered_map>
 
+#include "fum/unordered_map.hpp"
 #include "object.hpp"
 
 namespace kirito {
@@ -15,7 +15,7 @@ class ModuleValue : public Object {
 public:
     explicit ModuleValue(std::string name) : name_(std::move(name)) {}
 
-    std::unordered_map<std::string, Handle> members;
+    fum::unordered_map<std::string, Handle> members;
 
     ValueKind kind() const override { return ValueKind::Module; }
     std::string typeName() const override { return "Module"; }

@@ -400,7 +400,7 @@ struct SwitchStmt : Stmt {
     // type+value (computed identically for case literals and the runtime subject), keeping the AST
     // free of value-layer types. `mutable` so the const-AST walk can populate the cache.
     mutable bool tableBuilt = false;
-    mutable std::unordered_map<std::string, std::size_t> jump;
+    mutable fum::unordered_map<std::string, std::size_t> jump;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 

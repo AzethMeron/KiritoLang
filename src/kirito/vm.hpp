@@ -6,10 +6,10 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
+#include "fum/unordered_map.hpp"
+#include "fum/unordered_set.hpp"
 #include "arena.hpp"
 #include "builtins.hpp"
 #include "environment.hpp"
@@ -241,17 +241,17 @@ private:
     Handle global_;
     std::vector<std::unique_ptr<ast::Program>> chunks_;
     std::vector<std::unique_ptr<NativeModule>> nativeModules_;
-    std::unordered_map<std::string, ModuleFactory> moduleFactories_;
-    std::unordered_map<std::string, Handle> moduleCache_;   // keyed by module name
-    std::unordered_map<std::string, Handle> pathCache_;     // keyed by resolved absolute path
+    fum::unordered_map<std::string, ModuleFactory> moduleFactories_;
+    fum::unordered_map<std::string, Handle> moduleCache_;   // keyed by module name
+    fum::unordered_map<std::string, Handle> pathCache_;     // keyed by resolved absolute path
     // chunk file/name -> its retained Program (the AST lives in chunks_; this just indexes it by file
     // so the dispatcher can find a spawned function's definition by source span in a worker VM).
-    std::unordered_map<std::string, const ast::Program*> programByFile_;
+    fum::unordered_map<std::string, const ast::Program*> programByFile_;
     KiritoDispatcher* dispatcher_ = nullptr;
     // Circular-import guard: names/paths currently mid-load, and the active chain (for diagnostics).
     // A module is published to moduleCache_ only after its body finishes, so a re-entrant import of
     // an in-progress module is a cycle — detected here instead of recursing until the stack blows.
-    std::unordered_set<std::string> importing_;
+    fum::unordered_set<std::string> importing_;
     std::vector<std::string> importStack_;
     std::vector<std::string> libPaths_;
     std::vector<std::string> chunkFiles_;  // see ChunkFileScope
@@ -262,15 +262,15 @@ private:
     // Class + deserializer registries for object-graph deserialization (serialize/dump): a class is
     // registered by name when defined, so a serialized instance can be reconstructed by looking its
     // class up here; a native type can register a reconstructor(state)->object to participate.
-    std::unordered_map<std::string, Handle> classRegistry_;
-    std::unordered_map<std::string, std::function<Handle(KiritoVM&, Handle)>> deserializers_;
+    fum::unordered_map<std::string, Handle> classRegistry_;
+    fum::unordered_map<std::string, std::function<Handle(KiritoVM&, Handle)>> deserializers_;
     std::vector<Handle> smallInts_;
     static constexpr int64_t kSmallIntLo = -256;
     static constexpr int64_t kSmallIntHi = 256;
     // --- bytecode engine state ---
     std::vector<const std::vector<Handle>*> auxRoots_;   // live operand stacks (GC roots)
     std::vector<Handle> bytecodeConsts_;                 // pinned literal pool of every compiled Proto
-    std::unordered_map<const void*, std::unique_ptr<Proto>> protoCache_;  // per-body compiled cache
+    fum::unordered_map<const void*, std::unique_ptr<Proto>> protoCache_;  // per-body compiled cache
     std::size_t allocsSinceGc_ = 0;
     std::size_t gcThreshold_ = 100000;
     bool gcEnabled_ = true;

@@ -15,11 +15,11 @@
 #include <set>
 #include <span>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <variant>
 #include <vector>
 
+#include "fum/unordered_map.hpp"
+#include "fum/unordered_set.hpp"
 #include "builtins.hpp"
 #include "collections.hpp"
 #include "module.hpp"
@@ -170,7 +170,7 @@ class TensorGradFlag : public NativeClass<TensorGradFlag> {
 public:
     static constexpr const char* kTypeName = "TensorGradFlag";
     bool enabled = true;
-    std::unordered_set<std::string> warned;  // op names that have already warned (warn-once per VM)
+    fum::unordered_set<std::string> warned;  // op names that have already warned (warn-once per VM)
     std::string str(StringifyCtx&) const override { return "<tensor grad-mode>"; }
 };
 
@@ -670,7 +670,7 @@ inline void runBackward(KiritoVM& vm, Handle root, std::optional<FT> seed) {
     }
     // reverse-topological order via DFS over the graph (parents first, node last)
     std::vector<Handle> order;
-    std::unordered_set<Handle> seen;
+    fum::unordered_set<Handle> seen;
     std::function<void(Handle)> dfs = [&](Handle h) {
         if (!seen.insert(h).second) return;
         TensorVal& tv = asT(vm, h);
@@ -1284,7 +1284,7 @@ inline Handle einsumT(KiritoVM& vm, const std::string& spec, const std::vector<H
     std::vector<std::string> insub; { std::string cur; for (char ch : lhs) { if (ch == ',') { insub.push_back(cur); cur.clear(); } else cur += ch; } insub.push_back(cur); }
     if (insub.size() != ops.size()) throw KiritoError("einsum: the number of operands does not match the subscripts");
     std::vector<const FT*> arrs; std::vector<tensor::Shape> shps;
-    std::unordered_map<char, std::size_t> sz;
+    fum::unordered_map<char, std::size_t> sz;
     for (std::size_t o = 0; o < ops.size(); ++o) {
         warnDetach(vm, "einsum()", asT(vm, ops[o]));
         const FT& a = reqFloat(asT(vm, ops[o]), "einsum");
@@ -1302,10 +1302,10 @@ inline Handle einsumT(KiritoVM& vm, const std::string& spec, const std::vector<H
             if (!sz.count(ch))
                 throw KiritoError(std::string("einsum: output label '") + ch
                                   + "' does not appear in any input");
-    std::vector<char> labels; std::unordered_set<char> seen;
+    std::vector<char> labels; fum::unordered_set<char> seen;
     for (char ch : outl) if (seen.insert(ch).second) labels.push_back(ch);
-    { std::set<char> all; for (auto& su : insub) for (char ch : su) all.insert(ch); std::unordered_set<char> os(outl.begin(), outl.end()); for (char ch : all) if (!os.count(ch)) labels.push_back(ch); }
-    std::unordered_map<char, std::size_t> pos; for (std::size_t i = 0; i < labels.size(); ++i) pos[labels[i]] = i;
+    { std::set<char> all; for (auto& su : insub) for (char ch : su) all.insert(ch); fum::unordered_set<char> os(outl.begin(), outl.end()); for (char ch : all) if (!os.count(ch)) labels.push_back(ch); }
+    fum::unordered_map<char, std::size_t> pos; for (std::size_t i = 0; i < labels.size(); ++i) pos[labels[i]] = i;
     std::vector<std::size_t> lsz; for (char ch : labels) lsz.push_back(sz[ch]);
     tensor::Shape oshape; for (char ch : outl) oshape.push_back(sz[ch]);
     FT out(oshape);
@@ -1710,7 +1710,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     }
     // elementwise comparisons (return a 0/1 Float mask) and logic
     {
-        static const std::unordered_map<std::string, BinOp> kCmp = {
+        static const fum::unordered_map<std::string, BinOp> kCmp = {
             {"eq", BinOp::Eq}, {"ne", BinOp::Ne}, {"lt", BinOp::Lt}, {"le", BinOp::Le}, {"gt", BinOp::Gt}, {"ge", BinOp::Ge}};
         if (auto it = kCmp.find(std::string(name)); it != kCmp.end()) {
             BinOp cop = it->second;
@@ -1937,7 +1937,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     });
 
     // ---- differentiable element-wise math (a generous unary set) ----
-    static const std::unordered_map<std::string, MathOp> kMath = {
+    static const fum::unordered_map<std::string, MathOp> kMath = {
         {"exp", MathOp::Exp}, {"log", MathOp::Log}, {"log10", MathOp::Log10}, {"log2", MathOp::Log2},
         {"sqrt", MathOp::Sqrt}, {"cbrt", MathOp::Cbrt}, {"square", MathOp::Square},
         {"reciprocal", MathOp::Reciprocal}, {"abs", MathOp::Abs}, {"sign", MathOp::Sign},

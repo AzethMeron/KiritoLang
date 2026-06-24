@@ -5,9 +5,9 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
+#include "fum/unordered_map.hpp"
 #include "arena.hpp"
 #include "object.hpp"
 
@@ -49,7 +49,7 @@ inline bool isPrivateName(std::string_view n) {
 class ClassValue : public Object {
 public:
     std::string name;
-    std::unordered_map<std::string, Handle> methods;
+    fum::unordered_map<std::string, Handle> methods;
     Handle base{};
     bool hasBase = false;
     Handle selfHandle{};  // the class's own arena handle (set by the evaluator after allocation)
@@ -86,7 +86,7 @@ public:
     Handle selfHandle{};     // this instance's own arena handle (for invoking its methods)
     std::string className;   // copied from the class so typeName()/str() need no arena
 
-    std::unordered_map<std::string, Handle> attrs;
+    fum::unordered_map<std::string, Handle> attrs;
 
     ValueKind kind() const override { return ValueKind::Instance; }
     std::string typeName() const override { return className; }

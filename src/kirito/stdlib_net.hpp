@@ -6,7 +6,6 @@
 #include <memory>
 #include <span>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
 #ifndef _WIN32
@@ -19,6 +18,7 @@
 #include <openssl/x509v3.h>
 #endif
 
+#include "fum/unordered_set.hpp"
 #include "builtins.hpp"
 #include "bytes.hpp"
 #include "collections.hpp"
@@ -617,7 +617,7 @@ inline Handle netRequest(KiritoVM& vm, const std::string& method0, const std::st
     Handle jsonH = netOpt(vm, opts, "json");
     Handle dataH = netOpt(vm, opts, "data");
     if (vm.arena().deref(jsonH).kind() != ValueKind::None) {
-        std::unordered_set<const Object*> active;
+        fum::unordered_set<const Object*> active;
         json::write(vm, jsonH, body, active);
         contentType = "application/json";
     } else if (vm.arena().deref(dataH).kind() != ValueKind::None) {

@@ -5,10 +5,10 @@
 #include <algorithm>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "fum/unordered_map.hpp"
 #include "builtins.hpp"  // utf8Starts / utf8DecodeAt / utf8Encode / utf8ToLowerCp / utf8ToUpperCp
 
 // A from-scratch regular-expression engine with a guaranteed LINEAR-TIME match: it compiles the
@@ -54,7 +54,7 @@ struct Program {
     std::vector<CharClass> classes;
     int numGroups = 0;                                  // capturing groups, excluding the whole match
     std::vector<std::string> groupNames;                // size numGroups+1; "" when unnamed
-    std::unordered_map<std::string, int> nameToGroup;   // name -> group index (1-based)
+    fum::unordered_map<std::string, int> nameToGroup;   // name -> group index (1-based)
     int flags = 0;
 };
 
@@ -102,7 +102,7 @@ struct Node {
 class Parser {
 public:
     Parser(const std::vector<int32_t>& cps, int& flags, std::vector<CharClass>& classes,
-           std::vector<std::string>& names, std::unordered_map<std::string, int>& nameMap)
+           std::vector<std::string>& names, fum::unordered_map<std::string, int>& nameMap)
         : s_(cps), flags_(flags), classes_(classes), names_(names), nameMap_(nameMap) {}
 
     Node parse() {
@@ -404,7 +404,7 @@ private:
     int& flags_;
     std::vector<CharClass>& classes_;
     std::vector<std::string>& names_;
-    std::unordered_map<std::string, int>& nameMap_;
+    fum::unordered_map<std::string, int>& nameMap_;
 };
 
 // --------------------------------------------------------------------------- AST -> bytecode

@@ -2101,10 +2101,10 @@ inline Handle KiritoVM::importModule(const std::string& name) {
     // load; always unwound on return/throw so a failed import never poisons a later one. References
     // are passed in so the local type needs no access to KiritoVM's private members.
     struct LoadGuard {
-        std::unordered_set<std::string>& importing;
+        fum::unordered_set<std::string>& importing;
         std::vector<std::string>& stack;
         std::vector<std::string> marked;
-        LoadGuard(std::unordered_set<std::string>& imp, std::vector<std::string>& st, const std::string& n)
+        LoadGuard(fum::unordered_set<std::string>& imp, std::vector<std::string>& st, const std::string& n)
             : importing(imp), stack(st) { stack.push_back(n); mark(n); }
         void mark(const std::string& k) { if (importing.insert(k).second) marked.push_back(k); }
         ~LoadGuard() { for (const auto& k : marked) importing.erase(k); stack.pop_back(); }
@@ -2214,7 +2214,7 @@ inline std::string inspectNativeSignature(KiritoVM& vm, const std::string& name,
 // type annotations where declared) for classes, instances, modules, and functions. Returns a String.
 inline std::string inspectValue(KiritoVM& vm, Handle h) {
     const Object& o = vm.arena().deref(h);
-    auto sortedKeys = [](const std::unordered_map<std::string, Handle>& m) {
+    auto sortedKeys = [](const fum::unordered_map<std::string, Handle>& m) {
         std::vector<std::string> keys;
         for (const auto& [k, v] : m) keys.push_back(k);
         std::sort(keys.begin(), keys.end());
@@ -2243,7 +2243,7 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
             // Walk the class + base chain, collecting the most-derived definition of each method.
             std::vector<std::pair<std::string, Handle>> chain;
             const ClassValue* cur = &c;
-            std::unordered_map<std::string, Handle> seen;
+            fum::unordered_map<std::string, Handle> seen;
             while (true) {
                 for (const auto& [k, v] : cur->methods)
                     if (!isPrivateName(k) && seen.find(k) == seen.end()) seen[k] = v;
@@ -2277,7 +2277,7 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
                 if (!isPrivateName(k)) attrs += describe(k, inst.attrs.at(k), "  attr ");
             // methods come from the class
             const auto& c = static_cast<const ClassValue&>(vm.arena().deref(inst.cls));
-            std::unordered_map<std::string, Handle> seen;
+            fum::unordered_map<std::string, Handle> seen;
             const ClassValue* cur = &c;
             while (true) {
                 for (const auto& [k, v] : cur->methods)

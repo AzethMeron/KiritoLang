@@ -46,10 +46,10 @@ public:
     std::vector<int> slots;                          // 2*(numGroups+1) code-point indices, -1 = absent
     int numGroups;
     std::vector<std::string> names;                  // group index -> name
-    std::unordered_map<std::string, int> nameToGroup;
+    fum::unordered_map<std::string, int> nameToGroup;
 
     MatchVal(Handle subj, std::vector<int> sl, int ng, std::vector<std::string> nm,
-             std::unordered_map<std::string, int> n2g)
+             fum::unordered_map<std::string, int> n2g)
         : subject(subj), slots(std::move(sl)), numGroups(ng), names(std::move(nm)), nameToGroup(std::move(n2g)) {}
 
     void children(std::vector<Handle>& out) const override { out.push_back(subject); }

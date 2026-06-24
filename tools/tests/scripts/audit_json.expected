@@ -19,7 +19,7 @@ a/b
 []
 {}
 {'': 0}
-{'a': [1, {'c': None, 'b': True}]}
+{'a': [1, {'b': True, 'c': None}]}
 [1, 2]
 null
 true

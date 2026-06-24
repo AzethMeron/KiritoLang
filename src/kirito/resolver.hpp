@@ -14,9 +14,9 @@
 // declaration, so it must resolve like any other reference.
 
 #include <string>
-#include <unordered_set>
 #include <vector>
 
+#include "fum/unordered_set.hpp"
 #include "ast.hpp"
 #include "common.hpp"
 #include "environment.hpp"
@@ -42,7 +42,7 @@ public:
 
 private:
     KiritoVM& vm_;
-    std::vector<std::unordered_set<std::string>> scopes_;
+    std::vector<fum::unordered_set<std::string>> scopes_;
     int depth_ = 0;  // checkExpr recursion bound (anti stack-overflow)
 
     void declare(const std::string& name) { scopes_.back().insert(name); }

@@ -3,7 +3,7 @@ x
 <a><b>1</b><b>2</b></a>
 custom
 r
-{'y': '2', 'x': '1'}
+{'x': '1', 'y': '2'}
 pre
 1
 c=inner
@@ -35,7 +35,7 @@ a < b && c > d
 b
 hi
 html
-{'y': 'two', 'x': 'one'}
+{'x': 'one', 'y': 'two'}
 &<A
 None
 None

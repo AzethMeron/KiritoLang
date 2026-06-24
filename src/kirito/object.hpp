@@ -5,9 +5,9 @@
 #include <optional>
 #include <span>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
+#include "fum/unordered_set.hpp"
 #include "common.hpp"
 #include "handle.hpp"
 #include "pool.hpp"
@@ -29,7 +29,7 @@ enum class ValueKind {
 // stringified) and emit an ellipsis instead of recursing forever. Keyed by object identity.
 struct StringifyCtx {
     const ObjectArena& arena;
-    std::unordered_set<const Object*> active;
+    fum::unordered_set<const Object*> active;
     KiritoVM* vm = nullptr;  // set when a user-defined _str_ may need to be invoked
     int depth = 0;           // nesting depth, bounded to keep a deep (acyclic) structure from
                              // overflowing the C++ stack — distinct from the `active` cycle guard.

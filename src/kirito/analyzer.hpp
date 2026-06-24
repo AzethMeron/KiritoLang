@@ -20,10 +20,10 @@
 //   - a repeated parameter name in a function signature -> "duplicate parameter".
 
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
+#include "fum/unordered_map.hpp"
+#include "fum/unordered_set.hpp"
 #include "ast.hpp"
 #include "common.hpp"
 
@@ -52,8 +52,8 @@ private:
     // it is a parameter (parameters are never warned about — unused params are idiomatic).
     struct Decl { SourceSpan span; bool used = false; bool isParam = false; };
     struct Scope {
-        std::unordered_map<std::string, Decl> decls;
-        std::unordered_map<std::string, const ast::FunctionExpr*> funcs;
+        fum::unordered_map<std::string, Decl> decls;
+        fum::unordered_map<std::string, const ast::FunctionExpr*> funcs;
         bool checkUnused = true;  // false for module/class scopes (their names are exports/members)
     };
     std::vector<Scope> scopes_;
@@ -117,7 +117,7 @@ private:
 
     // --- statement walk -------------------------------------------------------------------------
     void analyzeBlock(const ast::Block& block) {
-        std::unordered_set<std::string> declaredHere;  // `var` names seen in THIS block
+        fum::unordered_set<std::string> declaredHere;  // `var` names seen in THIS block
         bool terminated = false, unreachableWarned = false;
         for (const auto& s : block) {
             if (terminated && !unreachableWarned) {
@@ -309,7 +309,7 @@ private:
 
     void analyzeFunction(const ast::FunctionExpr& fn) {
         pushScope();
-        std::unordered_set<std::string> seenParams;
+        fum::unordered_set<std::string> seenParams;
         for (const auto& p : fn.params) {
             if (!seenParams.insert(p.name).second)
                 warnings_.push_back({fn.span, "duplicate parameter name '" + p.name + "'"});

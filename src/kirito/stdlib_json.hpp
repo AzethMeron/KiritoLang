@@ -8,8 +8,8 @@
 #include <memory>
 #include <span>
 #include <string>
-#include <unordered_set>
 
+#include "fum/unordered_set.hpp"
 #include "builtins.hpp"
 #include "collections.hpp"
 #include "native.hpp"
@@ -247,7 +247,7 @@ inline std::string jsonFloat(double d) {
     return floatToRoundtrip(d);
 }
 
-inline void write(KiritoVM& vm, Handle h, std::string& out, std::unordered_set<const Object*>& active) {
+inline void write(KiritoVM& vm, Handle h, std::string& out, fum::unordered_set<const Object*>& active) {
     const Object& o = vm.arena().deref(h);
     switch (o.kind()) {
         case ValueKind::None: out += "null"; return;
@@ -288,7 +288,7 @@ inline void write(KiritoVM& vm, Handle h, std::string& out, std::unordered_set<c
 
 // Pretty-printing variant: `indent` spaces per nesting level.
 inline void writeIndented(KiritoVM& vm, Handle h, std::string& out,
-                          std::unordered_set<const Object*>& active, int indent, int depth) {
+                          fum::unordered_set<const Object*>& active, int indent, int depth) {
     const Object& o = vm.arena().deref(h);
     switch (o.kind()) {
         case ValueKind::None: out += "null"; return;
@@ -352,7 +352,7 @@ public:
             // stringify(value[, indent]): compact by default; pretty-printed with `indent` spaces.
             Args args(vm, a, "json.stringify");
             std::string out;
-            std::unordered_set<const Object*> active;
+            fum::unordered_set<const Object*> active;
             int indent = args.size() > 1 ? static_cast<int>(args[1].asInt("json.stringify indent")) : 0;
             if (indent > 0) json::writeIndented(vm, args[0], out, active, indent, 0);
             else json::write(vm, args[0], out, active);

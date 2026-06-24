@@ -5,10 +5,10 @@
 #include <functional>
 #include <optional>
 #include <string>
-#include <unordered_set>
 #include <variant>
 #include <vector>
 
+#include "fum/unordered_set.hpp"
 #include "ast.hpp"
 #include "bytecode.hpp"
 #include "vm.hpp"
@@ -251,7 +251,7 @@ private:
         // switch is REACHED (catchable, raised at run time, like the old jump-table build), so on a
         // duplicate we evaluate the subject (for its side effects) and then throw at this position.
         {
-            std::unordered_set<std::string> seen;
+            fum::unordered_set<std::string> seen;
             for (const auto& c : s.cases)
                 for (const auto& valExpr : c.values)
                     if (const auto* lit = dynamic_cast<const ast::LiteralExpr*>(valExpr.get()))

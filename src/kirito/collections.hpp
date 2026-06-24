@@ -5,10 +5,10 @@
 #include <optional>
 #include <span>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "fum/unordered_map.hpp"
 #include "arena.hpp"
 #include "object.hpp"
 
@@ -89,7 +89,7 @@ public:
 // protocol's equals within the bucket.
 class DictVal : public Object {
 public:
-    std::unordered_map<std::size_t, std::vector<std::pair<Handle, Handle>>> buckets;
+    fum::unordered_map<std::size_t, std::vector<std::pair<Handle, Handle>>> buckets;
     std::size_t count = 0;
 
     ValueKind kind() const override { return ValueKind::Dict; }
@@ -194,7 +194,7 @@ public:
 // Hash-bucketed set of unique values.
 class SetVal : public Object {
 public:
-    std::unordered_map<std::size_t, std::vector<Handle>> buckets;
+    fum::unordered_map<std::size_t, std::vector<Handle>> buckets;
     std::size_t count = 0;
 
     ValueKind kind() const override { return ValueKind::Set; }

@@ -28,9 +28,9 @@
 #include <sstream>
 #include <string>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
+#include "fum/unordered_map.hpp"
 #include "ast.hpp"
 #include "builtins.hpp"
 #include "collections.hpp"
@@ -672,13 +672,13 @@ private:
     std::size_t maxCallDepth_ = 0;  // 0 == leave the VM default
 
     std::mutex registryMutex_;  // guards the maps below; NEVER held across a thread join or VM call
-    std::unordered_map<uint64_t, std::shared_ptr<ConcurrentQueue>> queues_;
-    std::unordered_map<uint64_t, std::shared_ptr<Lock>> locks_;
-    std::unordered_map<uint64_t, std::shared_ptr<Event>> events_;
-    std::unordered_map<uint64_t, std::shared_ptr<Semaphore>> semaphores_;
-    std::unordered_map<uint64_t, std::shared_ptr<Barrier>> barriers_;
+    fum::unordered_map<uint64_t, std::shared_ptr<ConcurrentQueue>> queues_;
+    fum::unordered_map<uint64_t, std::shared_ptr<Lock>> locks_;
+    fum::unordered_map<uint64_t, std::shared_ptr<Event>> events_;
+    fum::unordered_map<uint64_t, std::shared_ptr<Semaphore>> semaphores_;
+    fum::unordered_map<uint64_t, std::shared_ptr<Barrier>> barriers_;
     std::vector<std::weak_ptr<Waitable>> waitables_;  // abort() fan-out for shutdown()
-    std::unordered_map<uint64_t, std::unique_ptr<Task>> tasks_;
+    fum::unordered_map<uint64_t, std::unique_ptr<Task>> tasks_;
     uint64_t nextId_ = 1;  // one id space across all primitives + tasks
 };
 
