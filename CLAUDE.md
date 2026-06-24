@@ -404,7 +404,15 @@ a stability fuzzer, and a benchmark). Working today:
   arguments as a List — populated only in a directly-run file; **empty** in an imported module) and
   **`argmain`** (a Bool: True iff the file is run directly, False when imported — Kirito's
   `__name__ == "__main__"`). Small-integer interning, flat-vector scopes, a
-  no-temporaries fast call path, and other non-invasive perf wins.
+  no-temporaries fast call path, and other non-invasive perf wins. **Every `Object` is allocated
+  through a thread-local small-object pool** (`pool.hpp`, a segregated free-list keyed by size class up
+  to 224 B — covering Int/Float/Bool/Str/List/Set/Dict/Instance/Class/Function/EnvValue): profiling a
+  tight arithmetic loop put ~25% of run time in `malloc`/`free` from per-operation value boxing, and
+  recycling those fixed-size blocks cut the instruction count ~25% (sum_loop) with no semantic change.
+  It is thread-local (safe: one OS thread per VM, share-nothing multiprocessing) and **bypassed under
+  asan/tsan** so the sanitizers still instrument every allocation. (Slot-addressed locals were
+  investigated and *rejected*: an inline-cache prototype measured break-even because the flat-vector
+  scopes already make name lookup cheap — name resolution is not the bottleneck; allocation was.)
 - **Sample projects** in `examples/` (complex linear-system solver, rule34 image downloader,
   word-frequency analyzer, RPN calculator, and three `tabular`-library data-analysis demos —
   `tabular_iris.ki` on the bundled `data/iris.csv`, `tabular_sales.ki`, `tabular_survey.ki`) demonstrate

@@ -10,6 +10,7 @@
 
 #include "common.hpp"
 #include "handle.hpp"
+#include "pool.hpp"
 
 namespace kirito {
 
@@ -63,6 +64,14 @@ struct EqualsGuard {
 class Object {
 public:
     virtual ~Object() = default;
+
+    // Every value is heap-boxed and churns hard (a fresh IntVal per arithmetic op), so route all
+    // Object allocation through the thread-local small-object pool (pool.hpp) instead of the general
+    // allocator — profiling put ~25% of a tight loop's time in malloc/free. The sized delete receives
+    // the complete-object size under polymorphic deletion via this virtual destructor. Bypassed under
+    // sanitizers (pool.hpp) so ASan/UBSan still see every allocation.
+    static void* operator new(std::size_t n) { return pool::allocate(n); }
+    static void operator delete(void* p, std::size_t n) noexcept { pool::deallocate(p, n); }
 
     virtual ValueKind kind() const = 0;
     virtual std::string typeName() const = 0;
