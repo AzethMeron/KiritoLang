@@ -23,8 +23,6 @@ static std::string blobBytes(KiritoVM& from, Handle h) {
     throw std::runtime_error("blob is neither Bytes nor String");
 }
 
-static std::string ev(KiritoVM& vm, const std::string& src) { return vm.stringify(vm.runSource(src)); }
-
 // Build `graph` in a fresh VM A, dump it with `codec` ("dump" or "serialize"), spin up a brand-new
 // VM B, run `prelude` there (e.g. class defs the deserializer needs), inject the blob as the global
 // `blob`, load it into the global `x`, then return ev(B, check) — the assertion run IN the loaded VM.
