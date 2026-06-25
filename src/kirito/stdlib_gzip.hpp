@@ -17,7 +17,8 @@ namespace kirito {
 // from the bare zlib stream (RFC 1950) in the `zlib` module, so it lives in its own `gzip` module.
 namespace gzipfmt {
 
-// Wrap a DEFLATE body in the gzip container, byte-for-byte as `gzip(1)` writes it.
+// Wrap a DEFLATE body in the gzip container (RFC 1952). Sets OS = unknown and MTIME = 0 — a valid
+// `.gz` stream interoperable with `gzip(1)`/`gunzip`, but not byte-identical to gzip(1)'s own output.
 inline std::string compress(const std::string& data) {
     std::string out;
     auto byte = [&](unsigned v) { out += static_cast<char>(static_cast<unsigned char>(v)); };

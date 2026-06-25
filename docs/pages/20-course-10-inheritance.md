@@ -92,9 +92,9 @@ and the chain composes correctly.
 
 ## Private members and inheritance
 
-A private member (single leading underscore) is private to the class that *defines* it. A subclass
-has its own private namespace; it doesn't see the base's privates and vice versa. Keep the shared
-contract in non-private methods.
+A private member (single leading underscore) is reachable from any method in the **class chain** —
+the defining class **and its subclasses** — but not from outside it. So a subclass method may use a
+base class's private state, while unrelated code cannot. Keep the *public* contract in non-private methods.
 
 ## A worked example: a shape hierarchy
 

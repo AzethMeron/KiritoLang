@@ -140,7 +140,12 @@ public:
                     RootScope rs(vm_);
                     Handle base{};
                     bool hasBase = cs.base != nullptr;
-                    if (hasBase) base = rs.add(pop());                  // base pushed just before BuildClass
+                    if (hasBase) {
+                        base = rs.add(pop());                  // base pushed just before BuildClass
+                        Object& baseObj = vm_.arena().deref(base);
+                        if (baseObj.kind() != ValueKind::Class)  // a non-class base would be a bad downcast (UB) later
+                            throw KiritoError("base class must be a class, got " + baseObj.typeName(), cs.span);
+                    }
                     Handle classScope = rs.add(vm_.newScope(scope()));  // run the class body in a child scope
                     const Proto* body = protoForBody(vm_, cs.body, /*isFunction=*/true);  // compiled+cached already
                     { BytecodeVM sub(vm_, classScope, vm_.none(), false); sub.run(*body); }

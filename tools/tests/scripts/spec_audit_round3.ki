@@ -1,0 +1,110 @@
+# Round-3 audit regressions: every fix from the 18-agent re-audit, as in-VM assertions. Output: "OK".
+# (The deep-nesting / native-method-UB crash regressions live in the C++ test_audit_regressions.cpp;
+# this golden pins the behavioural fixes runnable through the `ki` binary.)
+var io = import("io")
+var raises = Function(f):
+    try:
+        discard f()
+        return False
+    catch as e:
+        return True
+
+# --- String (islower/isupper ignore uncased; strip is code-point-wise; format width counts code points;
+#     split(None, maxsplit) keeps the final field's trailing whitespace) ---
+assert "ab cd".islower() and "a1".islower() and "café".islower(), "islower ignores uncased"
+assert "AB CD".isupper() and not "Hello".islower() and not "123".islower() and not "".islower(), "isupper/edge"
+assert "café".strip("©") == "café" and "ééhiéé".strip("é") == "hi", "strip code-point-safe"
+assert len(format("ééé", "5")) == 5 and format("ab", ">5") == "   ab", "format width counts code points"
+assert "a b  ".split(None, 1) == ["a", "b  "], "split keeps trailing ws in final field"
+
+# --- builtins: a non-iterable instance raises a clean error, not bad_optional_access ---
+class NoIter:
+    var x = 1
+assert raises(Function(): return sum(NoIter())), "sum non-iterable raises"
+assert raises(Function(): return sorted(NoIter())), "sorted non-iterable raises"
+assert raises(Function(): return zip(NoIter())), "zip non-iterable raises"
+
+# --- switch: float cases match by EXACT value (agrees with ==), -0.0==0.0, near values distinct ---
+var sw = Function(x):
+    switch x:
+        case 3.141593:
+            return "a"
+        default:
+            return "d"
+assert sw(3.14159265358979) == "d" and sw(3.141593) == "a", "switch float exact match"
+var swz = Function(x):
+    switch x:
+        case 0.0:
+            return "zero"
+        default:
+            return "d"
+assert swz(-0.0) == "zero", "switch -0.0 matches 0.0"
+
+# --- classes: a non-class base and a no-_init_ class given args both raise ---
+class CNoInit:
+    var y = 1
+assert raises(Function(): return CNoInit(1, 2, 3)), "no-init positional args raise"
+
+# --- collection methods: an under-supplied required arg raises (never a silent wrong result) ---
+assert raises(Function(): return [1, 2, 3].index()), "list.index() raises"
+assert raises(Function(): return [1, 2].extend()), "list.extend() raises"
+assert raises(Function(): return {1, 2, 3}.remove()), "set.remove() raises"
+assert raises(Function(): return {1}.union()), "set.union() raises"
+assert raises(Function(): return {1}.issubset()), "set.issubset() raises"
+assert raises(Function(): return {"a": 1}.get()), "dict.get() raises"
+assert raises(Function(): return {"a": 1}.remove()), "dict.remove() raises"
+
+# --- random.randrange: overflow-safe (in-range result, or a clean error for an unsamplably-wide span) ---
+var r = import("random").Random(7)
+var rx = r.randrange(-4000000000000000000, 4000000000000000000, 1)
+assert rx >= -4000000000000000000 and rx < 4000000000000000000, "randrange stays in range"
+assert raises(Function(): return r.randrange(-5000000000000000000, 5000000000000000000, 1)), "randrange too-wide raises"
+
+# --- tensor: empty-axis median, non-tensor einsum, and shrinking broadcastto all raise cleanly ---
+var T = import("tensor")
+assert raises(Function(): return T.zeros([1, 0]).median(1)), "median empty axis raises"
+assert raises(Function(): return T.einsum("i->", 42)), "einsum non-tensor raises"
+assert raises(Function(): return T.Tensor([[1.0, 2.0], [3.0, 4.0]]).broadcastto([2])), "broadcastto shrink raises"
+assert raises(Function(): return T.diag(T.Tensor([1.0]), 100000000)), "diag huge k -> too large"
+
+# --- time: exact in-range Integer epoch; out-of-range epoch raises; long format not truncated ---
+var tm = import("time")
+assert tm.datetime(253402300799).timestamp == 253402300799, "datetime in-range exact"
+assert raises(Function(): return tm.datetime(9007199254740993)), "datetime out-of-range raises"
+assert len(tm.make(2024, 1, 1).format("%Y" * 64)) == 256, "datetime format not truncated"
+
+# --- serialize.loads: crafted overflow / negative counts raise cleanly (no UB) ---
+var ser = import("serialize")
+assert raises(Function(): return ser.loads("KSER1 1 D 2000000000 0")), "serialize pair-count overflow raises"
+assert raises(Function(): return ser.loads("KSER1 1 L -3 0")), "serialize negative count raises"
+
+# --- io: read() after EOF returns "" (no bad_alloc); remove of a missing file is False ---
+var f = io.open("/tmp/ki_round3.txt", "w")
+discard f.write("hello")
+f.close()
+var g = io.open("/tmp/ki_round3.txt", "r")
+discard g.readlines()
+assert len(g.read(9000000000000000000)) == 0, "read after EOF is empty (capped)"
+g.close()
+assert io.remove("/tmp/ki_round3_missing") == False, "remove missing file is False"
+
+# --- net: out-of-range port and negative recv size raise (no silent wrap / bad_alloc) ---
+var net = import("net")
+assert raises(Function(): return net.Socket().bind("127.0.0.1", 70000)), "bind out-of-range port raises"
+assert raises(Function(): return net.Socket().recv(-1)), "recv negative size raises"
+
+# --- kimodules: itertools.count negative step; csv preserves \r; tabular empty-frame/merge/mask/how ---
+assert import("itertools").count(5, -1, 0) == [5, 4, 3, 2, 1], "itertools.count negative step"
+var csv = import("csv")
+assert len(csv.parse(csv.format([["a\rb"]]))[0][0]) == 3, "csv preserves carriage return"
+var tb = import("tabular")
+var d = tb.DataFrame({})
+d["a"] = [1, 2, 3]
+assert d["a"].tolist() == [1, 2, 3] and d.index == [0, 1, 2], "tabular empty-frame column add"
+var lf = tb.DataFrame([[1, "a"]], columns = ["id", "val"])
+var rf = tb.DataFrame([[1, "x"]], columns = ["id", "val"])
+assert "val_x" in tb.merge(lf, rf, on = "id").columns, "tabular merge suffixes colliding columns"
+assert raises(Function(): return tb.DataFrame([[1], [2], [3]], columns = ["a"])[[True, False]]), "tabular short mask raises"
+assert raises(Function(): return tb.merge(lf, rf, on = "id", how = "outter")), "tabular invalid how raises"
+
+io.print("OK")

@@ -455,6 +455,7 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
     // apply(fn) — a new List with `fn` applied to each element (like tensor.apply: same type out).
     if (name == "apply")
         return makeMethod(vm, "apply", {"fn"}, [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("apply expects a function");
             Handle fn = a[0];
             std::vector<Handle> src = self_list(vm, self).elems;   // snapshot: fn must not see the result
             RootScope rs(vm);
@@ -532,6 +533,7 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
     if (name == "index")
         return makeMethod(vm,
             "index", {"value", "start", "end"}, [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.empty()) throw KiritoError("index expects a value");
                 auto& e = self_list(vm, self).elems;
                 // Optional [start[, end]] search window (Python-style: negatives count from the end).
                 int64_t n = static_cast<int64_t>(e.size()), start = 0, end = n;
@@ -551,7 +553,9 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
     if (name == "extend")
         return makeMethod(vm,
             "extend", {"iterable"}, [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.empty()) throw KiritoError("extend expects an iterable");
                 auto other = vm.arena().deref(a[0]).iterate(vm);
+                if (!other) throw KiritoError("extend expects an iterable");
                 auto& e = self_list(vm, self).elems;
                 for (Handle h : other.value()) e.push_back(h);
                 return vm.none();
@@ -603,6 +607,7 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
     // apply(fn) — a new Dict with the same keys and `fn` applied to each value (like tensor.apply).
     if (name == "apply")
         return bind("apply", {"fn"}, [self, dict](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("apply expects a function");
             Handle fn = a[0];
             auto pairs = dict(vm, self).pairs();                  // snapshot
             RootScope rs(vm);
@@ -642,6 +647,7 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
         });
     if (name == "get")
         return bind("get", {"key", "default"}, [self, dict](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("get expects a key");
             const Handle* v = dict(vm, self).find(vm.arena(), a[0]);
             if (v) return *v;
             return a.size() > 1 ? a[1] : vm.none();
@@ -661,6 +667,7 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
         });
     if (name == "remove")
         return bind("remove", {"key"}, [self, dict](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("remove expects a key");
             // Like pop, raise on a missing key (the doc says "raises if absent; like pop but
             // returns nothing"). DictVal::remove returns a bool telling whether anything was deleted.
             if (!dict(vm, self).remove(vm.arena(), a[0]))
@@ -734,6 +741,7 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
     // transformed elements that collide collapse, as in any Set).
     if (name == "apply")
         return makeMethod(vm, "apply", {"fn"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("apply expects a function");
             Handle fn = a[0];
             std::vector<Handle> src = static_cast<SetVal&>(vm.arena().deref(self)).items();  // snapshot
             RootScope rs(vm);
@@ -765,6 +773,7 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
     };
     if (name == "remove")
         return bind("remove", {"value"}, [self, set_of](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("remove expects a value");
             auto& s = set_of(vm, self);
             const Object& v = vm.arena().deref(a[0]);
             if (!v.hashable()) throw KiritoError("unhashable type");
@@ -824,6 +833,7 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         name == "symmetricdifference") {
         std::string op(name);
         return bind(op.c_str(), {"other"}, [self, set_of, op](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError(op + " expects an iterable");
             RootScope rs(vm);
             auto result = std::make_unique<SetVal>();
             auto& s = set_of(vm, self);
@@ -852,6 +862,7 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
     if (name == "issubset" || name == "issuperset" || name == "isdisjoint") {
         std::string op(name);
         return bind(op.c_str(), {"other"}, [self, set_of, op](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError(op + " expects an iterable");
             auto& s = set_of(vm, self);
             auto other = vm.arena().deref(a[0]).iterate(vm);
             if (!other) throw KiritoError(op + " expects an iterable");
@@ -1076,15 +1087,22 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         return bind(std::string(name).c_str(), {"chars"}, [self, recv, left, right](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             // With an optional `chars` argument, trim any of those characters; otherwise whitespace.
+            // Match by CODE POINT (not byte) so a multibyte char in `chars` can't peel a shared
+            // continuation byte off a multibyte char in `s` and corrupt the UTF-8.
             bool hasChars = !a.empty() && vm.arena().deref(a[0]).kind() != ValueKind::None;
             std::string chars = hasChars ? asStr(vm, a[0], "strip") : std::string();
-            auto trimmed = [&](char c) {
-                return hasChars ? chars.find(c) != std::string::npos
-                                : std::isspace(static_cast<unsigned char>(c)) != 0;
+            std::vector<unsigned> stripCps;
+            if (hasChars) for (std::size_t st : utf8Starts(chars)) stripCps.push_back(utf8DecodeAt(chars, st));
+            auto isTrim = [&](unsigned cp) {
+                if (hasChars) return std::find(stripCps.begin(), stripCps.end(), cp) != stripCps.end();
+                return cp == ' ' || cp == '\t' || cp == '\n' || cp == '\r' || cp == '\f' || cp == '\v';
             };
-            std::size_t b = 0, e = s.size();
-            if (left) while (b < e && trimmed(s[b])) ++b;
-            if (right) while (e > b && trimmed(s[e - 1])) --e;
+            auto starts = utf8Starts(s);
+            std::size_t n = starts.size(), lo = 0, hi = n;
+            if (left) while (lo < hi && isTrim(utf8DecodeAt(s, starts[lo]))) ++lo;
+            if (right) while (hi > lo && isTrim(utf8DecodeAt(s, starts[hi - 1]))) --hi;
+            std::size_t b = (lo < n) ? starts[lo] : s.size();
+            std::size_t e = (hi < n) ? starts[hi] : s.size();
             return vm.makeString(s.substr(b, e - b));
         });
     }
@@ -1192,10 +1210,8 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
                 while (i < n) {
                     while (i < n && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
                     if (i >= n) break;
-                    if (reached()) {  // remaining text (minus trailing whitespace) is the final field
-                        std::size_t end = n;
-                        while (end > i && std::isspace(static_cast<unsigned char>(s[end - 1]))) --end;
-                        list->elems.push_back(rs.add(vm.makeString(s.substr(i, end - i))));
+                    if (reached()) {  // remaining text is the final field — Python keeps its trailing whitespace
+                        list->elems.push_back(rs.add(vm.makeString(s.substr(i, n - i))));
                         break;
                     }
                     std::size_t start = i;
@@ -1301,10 +1317,25 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c >= 0x80; });
     if (name == "isspace") return classify("isspace", [](unsigned c) {
         return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v'; });
-    if (name == "islower") return classify("islower", [](unsigned c) {
-        return !((c >= 'A' && c <= 'Z')) && (utf8ToUpperCp(c) != c || (c >= 'a' && c <= 'z')); });
-    if (name == "isupper") return classify("isupper", [](unsigned c) {
-        return !((c >= 'a' && c <= 'z')) && (utf8ToLowerCp(c) != c || (c >= 'A' && c <= 'Z')); });
+    // islower/isupper (Python semantics): ignore uncased chars, require >=1 cased char, and every
+    // cased char must be of the requested case. (A char is "cased" if it has a different upper/lower form.)
+    auto caseClassify = [&](const char* nm, bool wantLower) {
+        return bind(nm, {}, [self, recv, wantLower](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            const std::string& s = recv(vm, self);
+            bool hasCased = false;
+            for (std::size_t st : utf8Starts(s)) {
+                unsigned c = utf8DecodeAt(s, st);
+                bool isLowerCased = utf8ToUpperCp(c) != c;   // has an uppercase form -> a lowercase letter
+                bool isUpperCased = utf8ToLowerCp(c) != c;   // has a lowercase form -> an uppercase letter
+                if (!isLowerCased && !isUpperCased) continue;  // uncased: ignore
+                hasCased = true;
+                if (wantLower ? !isLowerCased : !isUpperCased) return vm.makeBool(false);
+            }
+            return vm.makeBool(hasCased);
+        });
+    };
+    if (name == "islower") return caseClassify("islower", true);
+    if (name == "isupper") return caseClassify("isupper", false);
     // removeprefix / removesuffix (Python 3.9).
     if (name == "removeprefix")
         return bind("removeprefix", {"prefix"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
@@ -1516,7 +1547,7 @@ inline Handle ClassValue::callFull(KiritoVM& vm, std::span<const Handle> args,
             static_cast<KiFunction&>(initObj).callFull(vm, full, named);
         else
             initObj.call(vm, full);
-    } else if (!named.empty()) {
+    } else if (!named.empty() || !args.empty()) {
         throw KiritoError(name + "() takes no arguments (no _init_ defined)");
     }
     return instH;
@@ -2026,7 +2057,12 @@ inline std::optional<std::string> scalarSwitchKey(KiritoVM& vm, Handle h) {
         case ValueKind::None: return std::string("N");
         case ValueKind::Bool: return std::string("B") + (static_cast<const BoolVal&>(o).value() ? "1" : "0");
         case ValueKind::Integer: return "I" + std::to_string(static_cast<const IntVal&>(o).value());
-        case ValueKind::Float: return "F" + std::to_string(static_cast<const FloatVal&>(o).value());
+        case ValueKind::Float: {
+            double d = static_cast<const FloatVal&>(o).value();
+            if (std::isnan(d)) return std::nullopt;            // NaN != NaN: matches no case (-> default)
+            if (d == 0.0) d = 0.0;                             // 0.0 == -0.0: same key
+            return "F" + floatToRoundtrip(d);                  // EXACT key (not 6-digit to_string), agrees with ==
+        }
         case ValueKind::String: return "S" + static_cast<const StrVal&>(o).value();
         default: return std::nullopt;
     }
@@ -2441,7 +2477,7 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
 
     if (width > kMaxRepeat) throw KiritoError("format width too large");
     std::string s = signStr + body;
-    if (s.size() >= width) return s;
+    if (utf8Length(s) >= width) return s;  // width counts CODE POINTS, not bytes (multibyte no longer under-pads)
     std::size_t pad = width - utf8Length(s);
     if (align == '<') return s + std::string(pad, fill);
     if (align == '>') return std::string(pad, fill) + s;
@@ -2724,6 +2760,7 @@ inline void KiritoVM::installBuiltins() {
     }))));
     defSig("sum", {{"iterable"}, {"start", "", makeInt(0)}}, "Number", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto items = vm.arena().deref(a[0]).iterate(vm);
+        if (!items) throw KiritoError("sum() argument is not iterable");
         bool isFloat = false;
         double f = 0;
         int64_t n = 0;
@@ -2794,6 +2831,7 @@ inline void KiritoVM::installBuiltins() {
         if (a.size() > 1 && vm.arena().deref(a[1]).kind() != ValueKind::None) { keyFn = a[1]; hasKey = true; }
         if (a.size() > 2) reverse = vm.arena().deref(a[2]).truthy();
         auto items = vm.arena().deref(a[0]).iterate(vm);
+        if (!items) throw KiritoError("sorted() argument is not iterable");
         std::vector<std::pair<Handle, Handle>> tagged;
         for (Handle h : items.value()) {
             rs.add(h);
@@ -2813,6 +2851,7 @@ inline void KiritoVM::installBuiltins() {
         RootScope rs(vm);
         auto out = std::make_unique<ListVal>();
         auto items = vm.arena().deref(a[0]).iterate(vm);
+        if (!items) throw KiritoError("enumerate() argument is not iterable");
         int64_t i = 0;
         if (a.size() > 1) {
             const Object& so = vm.arena().deref(a[1]);
@@ -2834,7 +2873,11 @@ inline void KiritoVM::installBuiltins() {
         RootScope rs(vm);
         std::vector<std::vector<Handle>> cols;
         std::size_t minLen = SIZE_MAX;
-        for (Handle h : a) { cols.push_back(vm.arena().deref(h).iterate(vm).value()); minLen = std::min(minLen, cols.back().size()); }
+        for (Handle h : a) {
+            auto col = vm.arena().deref(h).iterate(vm);
+            if (!col) throw KiritoError("zip() argument is not iterable");
+            cols.push_back(col.value()); minLen = std::min(minLen, cols.back().size());
+        }
         if (cols.empty()) minLen = 0;
         auto out = std::make_unique<ListVal>();
         for (std::size_t i = 0; i < minLen; ++i) {
@@ -2849,6 +2892,7 @@ inline void KiritoVM::installBuiltins() {
         Handle f = a[0];
         auto out = std::make_unique<ListVal>();
         auto items = vm.arena().deref(a[1]).iterate(vm);
+        if (!items) throw KiritoError("map() argument is not iterable");
         for (Handle x : items.value()) {
             rs.add(x);
             std::array<Handle, 1> args{x};
@@ -2861,6 +2905,7 @@ inline void KiritoVM::installBuiltins() {
         Handle f = a[0];
         auto out = std::make_unique<ListVal>();
         auto items = vm.arena().deref(a[1]).iterate(vm);
+        if (!items) throw KiritoError("filter() argument is not iterable");
         for (Handle x : items.value()) {
             rs.add(x);
             std::array<Handle, 1> args{x};

@@ -153,7 +153,7 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 | `s.index(sub[, start[, end]])` | First index of `sub`; raises if absent. |
 | `s.rindex(sub[, start[, end]])` | Last index of `sub`; raises if absent. |
 | `s.count(sub[, start[, end]])` | Number of non-overlapping occurrences. |
-| `s.format(...)` | Substitute `{}` (sequential) and `{0}`/`{1}` (indexed) fields with the positional arguments. (Named `{x}` fields are an f-string feature.) |
+| `s.format(...)` | Substitute `{}` (sequential) and `{0}`/`{1}` (indexed) fields with the positional arguments. (Named `{x}` fields and `:format-spec` like `{:05d}` are **not** supported here — use an f-string or the `format()` builtin for those.) |
 | `s.isdigit()` | Whether every character is a digit. |
 | `s.isalpha()` | Whether every character is a letter. |
 | `s.isalnum()` | Whether every character is a letter or digit. |

@@ -98,8 +98,8 @@ io.print(describe_day("Wed"))           # => a weekday
 ```
 
 Case labels are constant scalars (Integer, Float, String, Bool, None), matched by exact type *and*
-value — so `case 1` does not match `1.0`. Internally the arms compile to a hash jump-table, so a
-`switch` with 100 cases dispatches as fast as one with two. `case` and `default` are "soft keywords":
+value — so `case 1` does not match `1.0`. Internally the arms compile to a sequence of exact-match
+tests (a comparison chain). `case` and `default` are "soft keywords":
 they're only special inside a `switch`, so you can still use them as ordinary names elsewhere.
 
 **Which to use?** Ranges (`>= 90`) need comparisons, so an `if`/`elif` chain fits. Matching a value

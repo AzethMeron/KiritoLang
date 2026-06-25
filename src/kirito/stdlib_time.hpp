@@ -97,6 +97,10 @@ public:
 #else
         ok = (::gmtime_r(&t, &tm) != nullptr);
 #endif
+        if (ok) {  // gmtime can "succeed" with a wrapped tm_year for a huge epoch -> a nonsense date; reject it
+            int64_t year = static_cast<int64_t>(tm.tm_year) + 1900;
+            if (year < -9999 || year > 9999) ok = false;
+        }
         if (!ok) throw KiritoError("DateTime: epoch " + std::to_string(secs) + " is out of representable range");
     }
 
@@ -177,19 +181,27 @@ public:
                     auto& dt = static_cast<DateTime&>(vm.arena().deref(self));
                     const Object& o = vm.arena().deref(a[0]);
                     if (o.kind() != ValueKind::String) throw KiritoError("format expects a String");
-                    char buf[256];
+                    const std::string& fmt = static_cast<const StrVal&>(o).value();
                     // The format string is intentionally user-supplied (that's the feature), so the
-                    // non-literal-format warning is expected here; silence it locally.
+                    // non-literal-format warning is expected here; silence it locally. Grow the buffer
+                    // when strftime returns 0 (didn't fit) so a long result isn't silently truncated to "".
+                    std::string out;
+                    if (!fmt.empty()) {
+                        std::vector<char> buf(256);
+                        for (int tries = 0; tries < 6; ++tries) {
 #if defined(__GNUC__)
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
-                    std::size_t n = std::strftime(buf, sizeof(buf),
-                                                  static_cast<const StrVal&>(o).value().c_str(), &dt.tm);
+                            std::size_t n = std::strftime(buf.data(), buf.size(), fmt.c_str(), &dt.tm);
 #if defined(__GNUC__)
 #  pragma GCC diagnostic pop
 #endif
-                    return vm.makeString(std::string(buf, n));
+                            if (n > 0) { out.assign(buf.data(), n); break; }
+                            buf.resize(buf.size() * 4);
+                        }
+                    }
+                    return vm.makeString(out);
                 }, std::vector<Handle>{self});
         // --- serialization (serialize / dump): a DateTime is fully determined by its epoch. ---
         if (name == "_getstate_")
@@ -257,6 +269,8 @@ public:
             int64_t secs;
             if (args.empty() || args[0].isNone())
                 secs = duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
+            else if (args[0].isInt())
+                secs = args[0].asInt("datetime timestamp");   // exact: an Integer epoch must not lose precision via double
             else
                 secs = static_cast<int64_t>(args[0].asFloat("datetime timestamp"));
             return vm.alloc(std::make_unique<DateTime>(secs));

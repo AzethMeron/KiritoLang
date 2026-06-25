@@ -93,7 +93,8 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 
 ## math
 
-Constants and the usual numeric functions. Argument errors raise; results are `Float` unless noted.
+Constants and the usual numeric functions. Type errors raise; **domain** errors (e.g. `sqrt(-1)`,
+`log(0)`) follow C semantics and yield `nan`/`inf` rather than raising. Results are `Float` unless noted.
 
 - Constants: `pi`, `e`, `tau`, `inf`, `nan` (all `Float`).
 - `sqrt(x: Number) → Float` — square root.
@@ -198,7 +199,8 @@ Matrices are arbitrary-shape (any rows × cols). Shape-specific operations (`det
 - `m.cols() → Integer` — the number of columns.
 - `m.shape() → List` — `[rows, cols]`.
 - `m.row(i) → List` — the `i`-th row as a List of its elements.
-- `m + n`, `m - n`, `m * n` — matrix addition/subtraction, and matrix or scalar multiplication.
+- `m + n`, `m - n`, `m * n` — matrix addition/subtraction, and matrix or scalar multiplication. A
+  scalar must be the **right** operand (`A * 2`, not `2 * A`).
 - `m.transpose() → Matrix` — the transpose.
 - `m.determinant() → Float` — determinant (square matrices).
 - `m.inverse() → Matrix` — inverse (raises if singular).
@@ -713,7 +715,8 @@ The UTC fields and epoch seconds are Integer **attributes** (no parentheses):
 - `dt.hour` — the hour (0–23).
 - `dt.minute` — the minute (0–59).
 - `dt.second` — the second (0–59).
-- `dt.weekday` — the day of the week.
+- `dt.weekday` — the day of the week, **0 = Sunday … 6 = Saturday** (C convention; note this differs
+  from Python's `0 = Monday`).
 - `dt.yearday` — the day of the year.
 - `dt.timestamp` — epoch seconds.
 
@@ -748,7 +751,8 @@ stream wrapped with a header and a CRC-32 trailer; distinct from the bare zlib s
 its own module. Each function takes a **String or a [`Bytes`](types.html#bytes)** and returns the
 same type as its input.
 
-- `compress(data) → data` (alias `gzip`) — wrap in the gzip container, byte-for-byte as `gzip(1)`.
+- `compress(data) → data` (alias `gzip`) — wrap the DEFLATE body in the gzip container (RFC 1952). A
+  valid `.gz` stream interoperable with `gzip(1)`/`gunzip` (OS = unknown, MTIME = 0, so not byte-identical to gzip(1)).
 - `decompress(data) → data` (alias `gunzip`) — validate the header, skip the optional filename/extra
   fields, INFLATE, and verify the CRC-32 trailer (raises on a corrupt stream).
 
@@ -1037,7 +1041,8 @@ rather than a lazy sequence.
 ## string
 
 - Constants: `ascii_letters`, `ascii_lowercase`, `ascii_uppercase`, `digits`, `hexdigits`, `octdigits`, `punctuation`, `whitespace` (all `String`).
-- `capwords(s) → String` — capitalize each whitespace-separated word.
+- `capwords(s) → String` — capitalize each **space-separated** word (splits on single spaces; does not
+  collapse whitespace runs or treat tabs/newlines as separators).
 
 Fuzzy comparison, built on the native `String.levenshtein` edit distance:
 
@@ -1352,7 +1357,7 @@ and `+build` (a leading `v`/`=` is tolerated, e.g. `v1.2.3`).
 - `diff(a, b) → String` — the kind of change: `"major"` / `"minor"` / `"patch"` / `"prerelease"`,
   or `None` if equal.
 - `inc(s, release: String) → String` — bump by `"major"` / `"minor"` / `"patch"` (drops prerelease/build).
-- `satisfies(version, range) → Bool` — does `version` match the `range`? Supports caret (`^1.2.3`),
+- `satisfies(version, rng) → Bool` — does `version` match the range `rng`? Supports caret (`^1.2.3`),
   tilde (`~1.2`), comparators (`>=1.0.0 <2.0.0`), x-ranges (`1.2.x`, `1.x`, `*`), hyphen ranges
   (`1.0.0 - 2.0.0`), AND (space) and OR (`||`). Prereleases are excluded unless a comparator in the
   matched set pins the same `major.minor.patch` (node-semver's default).
@@ -1360,7 +1365,7 @@ and `+build` (a leading `v`/`=` is tolerated, e.g. `v1.2.3`).
   semver constraint from a literal git ref like `main`.)
 - `sort(versions: List) / rsort(versions) → List` — sort by precedence, ascending / descending
   (invalid versions are dropped).
-- `maxsatisfying(versions, range) / minsatisfying(versions, range)` — the highest / lowest version
+- `maxsatisfying(versions, rng) / minsatisfying(versions, rng)` — the highest / lowest version
   in the list that satisfies the range, returned as its **original** string (so a `v`-prefixed tag
   comes back unchanged, usable directly as a git ref), or `None`.
 

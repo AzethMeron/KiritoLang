@@ -934,10 +934,16 @@ inline Handle g_flip(KiritoVM& vm, Handle ah, int64_t axis) {
 }
 inline Handle g_broadcastToShape(KiritoVM& vm, Handle ah, tensor::Shape target) {
     TensorVal& A = asT(vm, ah);
-    if (A.isComplex()) return make(vm, tensor::add(CT(target, cdouble(0, 0)), std::get<CT>(A.store)));
+    if (A.isComplex()) {
+        CT out = tensor::add(CT(target, cdouble(0, 0)), std::get<CT>(A.store));
+        if (out.shape != target) throw KiritoError("broadcastto: cannot broadcast to the requested shape");
+        return make(vm, std::move(out));
+    }
     const FT& a = std::get<FT>(A.store);
     tensor::Shape ash = a.shape;
     FT out = broadcastTo(a, target);
+    if (out.shape != target)  // a source larger than the target must NOT silently succeed with the bigger shape
+        throw KiritoError("broadcastto: cannot broadcast to the requested shape");
     if (!wantsGrad(vm, {&A})) return make(vm, std::move(out));
     auto bw = [ash](const FT& g) -> std::vector<FT> { return {sumTo(g, ash)}; };
     return makeAutogradFloat(vm, std::move(out), {ah}, std::move(bw));
@@ -1125,7 +1131,7 @@ inline Handle ptpT(KiritoVM& vm, Handle ah, int64_t axis) {
 inline Handle medianT(KiritoVM& vm, Handle ah, int64_t axis) {
     warnDetach(vm, "median()", asT(vm, ah));
     const FT& a = reqFloat(asT(vm, ah), "median");
-    auto med = [](std::vector<double> v) { std::sort(v.begin(), v.end()); std::size_t n = v.size(); return n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]); };
+    auto med = [](std::vector<double> v) { if (v.empty()) throw KiritoError("median of an empty axis"); std::sort(v.begin(), v.end()); std::size_t n = v.size(); return n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]); };
     if (axis < 0) { if (a.data.empty()) throw KiritoError("median of an empty tensor"); return vm.makeFloat(med(a.data)); }
     std::size_t ax = static_cast<std::size_t>(axis);
     tensor::Shape os; for (std::size_t i = 0; i < a.ndim(); ++i) if (i != ax) os.push_back(a.shape[i]);
@@ -1292,8 +1298,9 @@ inline Handle einsumT(KiritoVM& vm, const std::string& spec, const std::vector<H
     std::vector<const FT*> arrs; std::vector<tensor::Shape> shps;
     fum::unordered_map<char, std::size_t> sz;
     for (std::size_t o = 0; o < ops.size(); ++o) {
-        warnDetach(vm, "einsum()", asT(vm, ops[o]));
-        const FT& a = reqFloat(asT(vm, ops[o]), "einsum");
+        TensorVal& tv = reqT(vm, ops[o], "einsum");   // checked downcast (a non-tensor operand was UB)
+        warnDetach(vm, "einsum()", tv);
+        const FT& a = reqFloat(tv, "einsum");
         if (insub[o].size() != a.ndim()) throw KiritoError("einsum: a subscript length does not match its operand rank");
         arrs.push_back(&a); shps.push_back(a.shape);
         for (std::size_t i = 0; i < insub[o].size(); ++i) { char L = insub[o][i]; auto it = sz.find(L); if (it == sz.end()) sz[L] = a.shape[i]; else if (it->second != a.shape[i]) throw KiritoError("einsum: inconsistent dimension for an index"); }
@@ -2013,6 +2020,7 @@ public:
                 if (it.empty()) break;
                 cur = it[0];
             }
+            if (shape.size() > 64) throw KiritoError("Tensor: too many dimensions (max 64)");  // bound rec() depth (no stack overflow)
             tns::checkSize(shape);
             std::vector<Handle> flat;
             std::function<void(Value, std::size_t)> rec = [&](Value v, std::size_t d) {
@@ -2204,6 +2212,7 @@ public:
             return tns::wrap([&]() -> Handle {
                 if (t.ndim() == 1) {
                     std::size_t n = t.size() + static_cast<std::size_t>(k < 0 ? -k : k);
+                    tns::checkSize(tensor::Shape{n, n});  // bound n*n -> clean "Tensor too large", not bad_alloc
                     TensorVal::FT out(tensor::Shape{n, n});
                     for (std::size_t i = 0; i < t.size(); ++i) {
                         std::size_t r = k >= 0 ? i : i + static_cast<std::size_t>(-k);

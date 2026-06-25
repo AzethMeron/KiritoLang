@@ -372,9 +372,9 @@ assert dt.isoformat() == dt.iso(), "isoformat is an alias of iso"
 assert dt.format("%Y-%m-%d") == "2024-01-15", "format %Y-%m-%d"
 assert dt.format("%H:%M:%S") == "10:30:45", "format %H:%M:%S"
 assert dt.format("literal") == "literal", "format passes literal text through"
-# a 300-char format string overflows strftime's internal buffer -> empty result (no crash)
+# a long format string is no longer truncated (the strftime buffer grows as needed)
 var bigfmt = "x" * 300
-assert dt.format(bigfmt) == "", "an over-long format string yields empty (buffer-bounded, no crash)"
+assert dt.format(bigfmt) == bigfmt, "a long literal format string round-trips in full"
 
 # add / sub / diff in seconds
 var base = time.make(2024, 1, 1, 0, 0, 0)

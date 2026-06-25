@@ -130,8 +130,8 @@ a stability fuzzer, and a benchmark). Working today:
   blank line no longer corrupts the indent/dedent stream).
 - `switch SUBJECT:` with `case V[, V2...]:` arms and an optional `default:` — **no fallthrough**
   (exactly one arm runs). Case labels are constant scalars (`Integer`/`Float`/`String`/`Bool`/`None`),
-  matched exactly by type+value (so `case 1` ≠ `case 1.0`); compiled once into a hash jump-table for
-  O(1) dispatch regardless of arm count. Non-scalar subjects only reach `default`; duplicate case
+  matched exactly by type+value (so `case 1` ≠ `case 1.0`, and float labels match by exact value, not a
+  rounded string); compiled into an exact-match comparison chain. Non-scalar subjects only reach `default`; duplicate case
   values, a second `default`, and an empty body are rejected. `case`/`default` are **soft keywords**
   (lexed as identifiers, recognized only inside a switch body) so they stay usable as ordinary names
   like a `default` parameter; only `switch` itself is reserved.
@@ -416,7 +416,7 @@ a stability fuzzer, and a benchmark). Working today:
   scopes already make name lookup cheap — name resolution is not the bottleneck; allocation was.)
 - **Sample projects** in `examples/` (complex linear-system solver, rule34 image downloader,
   word-frequency analyzer, RPN calculator, and three `tabular`-library data-analysis demos —
-  `tabular_iris.ki` on the bundled `data/iris.csv`, `tabular_sales.ki`, `tabular_survey.ki`) demonstrate
+  `tabular_iris.ki` on the bundled `examples/data/iris.csv`, `tabular_sales.ki`, `tabular_survey.ki`) demonstrate
   non-trivial programs in pure Kirito.
   `examples/big_projects/` holds larger ones with Python test harnesses that double as interpreter
   stress tests: `sqldb` (a networked SQL database — **concurrent** via the `parallel` actor model: a

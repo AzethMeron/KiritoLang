@@ -127,5 +127,27 @@ int main() {
         CHECK(has(err("discard format(1.0, \".3000000000f\")"), "too large"));   // precision bounded like width
     }
 
+    // === round-2 re-audit crash regressions (each was a SIGSEGV/SIGABRT; must now raise cleanly) =====
+    {
+        // a non-class base was an unchecked static_cast<ClassValue&> -> SIGSEGV
+        CHECK(has(err("var b = \"x\"\nclass C(b):\n    var z = 1\ndiscard C()"), "base class must be a class"));
+        CHECK(has(err("class C(5):\n    var z = 1\ndiscard C()"), "base class must be a class"));
+        // deeply-nested list to Tensor() recursed per level -> stack overflow; now bounded at 64 dims
+        std::string deep = "var x = [1.0]\nvar i = 0\nwhile i < 5000:\n    x = [x]\n    i = i + 1\ndiscard import(\"tensor\").Tensor(x)\n";
+        CHECK(has(err(deep), "too many dimensions"));
+        // median over a 0-length axis read v[SIZE_MAX] -> SIGSEGV
+        CHECK(has(err("import(\"tensor\").zeros([1, 0]).median(1)"), "empty axis"));
+        // einsum on a non-tensor operand was an unchecked downcast (UB)
+        CHECK(has(err("import(\"tensor\").einsum(\"i->\", 42)"), "Tensor"));
+        // switch on a float matched by EXACT value (not a 6-digit string), agreeing with ==
+        CHECK(ok("var f = Function(x):\n    switch x:\n        case 3.141593:\n            return 1\n        default:\n            return 0\nf(3.14159265358979)") == "0");
+        CHECK(ok("var f = Function(x):\n    switch x:\n        case 0.0:\n            return 1\n        default:\n            return 0\nf(-0.0)") == "1");
+        // randrange over a span wider than int64 raises instead of returning an out-of-range value
+        CHECK(has(err("var r = import(\"random\").Random(1)\ndiscard r.randrange(-5000000000000000000, 5000000000000000000, 1)"), "too large"));
+        // serialize.loads with a crafted overflowing/negative count raises (was signed-overflow UB)
+        CHECK(has(err("import(\"serialize\").loads(\"KSER1 1 D 2000000000 0\")"), "corrupt"));
+        CHECK(has(err("import(\"serialize\").loads(\"KSER1 1 L -3 0\")"), "corrupt"));
+    }
+
     return RUN_TESTS();
 }

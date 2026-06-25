@@ -96,7 +96,8 @@ public:
         requireReadable();
         if (!n) { std::stringstream ss; ss << stream.rdbuf(); return ss.str(); }
         std::size_t want = *n;
-        std::streampos cur = stream.tellg();          // cap the pre-allocation to what's actually left
+        stream.clear();                               // a prior readline/iterate to EOF leaves eof/fail set,
+        std::streampos cur = stream.tellg();          // making tellg()==-1 and skipping the cap below -> bad_alloc
         if (cur >= 0) {                               // (a huge read(n) must not try to allocate n bytes)
             stream.seekg(0, std::ios::end);
             std::streampos endp = stream.tellg();
@@ -592,8 +593,8 @@ public:
         });
         m.fn("remove", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;
-            std::filesystem::remove(pathArg(vm, a[0]), ec);
-            return val(vm, !ec);
+            bool removed = std::filesystem::remove(pathArg(vm, a[0]), ec);  // false if nothing was there
+            return val(vm, removed);
         });
         m.fn("rename", {{"src", "String"}, {"dst", "String"}}, "", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;

@@ -16,9 +16,11 @@ var count = Function(start = 0, step = 1, stop = None):
     # Bounded count: requires stop (unbounded would never return a List). Returns [start, start+step, ...).
     if stop == None:
         throw "itertools.count needs a stop bound (no lazy generators)"
+    if step == 0:
+        throw "itertools.count step must not be zero"
     var out = []
     var x = start
-    while x < stop:
+    while x < stop if step > 0 else x > stop:
         out.append(x)
         x = x + step
     return out
@@ -619,7 +621,7 @@ var urlsafedecode = Function(s):
 // --- csv (simple, RFC-style quoting) -----------------------------------------------------------
 inline constexpr std::string_view csv = R"KI(
 var _needsQuote = Function(field) -> Bool:
-    return "," in field or "\"" in field or "\n" in field
+    return "," in field or "\"" in field or "\n" in field or "\r" in field
 
 var formatrow = Function(fields) -> String:
     var parts = []
@@ -1661,8 +1663,12 @@ class DataFrame:
         if key not in self.columns:
             self.columns.append(key)
         self.data[key] = col
+        if len(self.index) != self.nrows():     # adding the first column to an empty frame: sync the index
+            self.index = _range(self.nrows())
 
     var _mask = Function(self, flags):
+        if len(flags) != self.nrows():           # a wrong-length boolean mask must not silently drop rows
+            throw "boolean mask length does not match row count"
         var positions = []
         var i = 0
         while i < len(flags):
@@ -2007,20 +2013,37 @@ var _merge = Function(left, right, on, how):
     for c in right.columns:
         if c != on:
             rightvalcols.append(c)
-    var outcols = []
+    # A non-key column present in BOTH frames would collide on one output name; suffix _x/_y (pandas-style).
+    var lset = {}
     for c in leftcols:
-        outcols.append(c)
+        lset[c] = True
+    var rset = {}
     for c in rightvalcols:
+        rset[c] = True
+    var leftout = []
+    for c in leftcols:
+        leftout.append(c + "_x" if c != on and c in rset else c)
+    var rightout = []
+    for c in rightvalcols:
+        rightout.append(c + "_y" if c in lset else c)
+    var outcols = []
+    for c in leftout:
+        outcols.append(c)
+    for c in rightout:
         outcols.append(c)
     var newdata = {}
     for c in outcols:
         newdata[c] = []
 
     var emitrow = Function(lp, rp):
-        for c in leftcols:
-            newdata[c].append(left.data[c][lp])
-        for c in rightvalcols:
-            newdata[c].append(None if rp == None else right.data[c][rp])
+        var li = 0
+        while li < len(leftcols):
+            newdata[leftout[li]].append(left.data[leftcols[li]][lp])
+            li = li + 1
+        var ri = 0
+        while ri < len(rightvalcols):
+            newdata[rightout[ri]].append(None if rp == None else right.data[rightvalcols[ri]][rp])
+            ri = ri + 1
 
     var matchedright = {}
     var lp = 0
@@ -2039,18 +2062,24 @@ var _merge = Function(left, right, on, how):
         var rp2 = 0
         while rp2 < right.nrows():
             if rp2 not in matchedright:
-                for c in leftcols:
-                    if c == on:
-                        newdata[c].append(right.data[on][rp2])
+                var li3 = 0
+                while li3 < len(leftcols):
+                    if leftcols[li3] == on:
+                        newdata[leftout[li3]].append(right.data[on][rp2])
                     else:
-                        newdata[c].append(None)
-                for c in rightvalcols:
-                    newdata[c].append(right.data[c][rp2])
+                        newdata[leftout[li3]].append(None)
+                    li3 = li3 + 1
+                var ri3 = 0
+                while ri3 < len(rightvalcols):
+                    newdata[rightout[ri3]].append(right.data[rightvalcols[ri3]][rp2])
+                    ri3 = ri3 + 1
             rp2 = rp2 + 1
 
     return DataFrame(newdata, outcols, None)
 
 var merge = Function(left, right, on, how = "inner"):
+    if how != "inner" and how != "left" and how != "right" and how != "outer":
+        throw "merge: how must be one of inner/left/right/outer, got '" + how + "'"
     return _merge(left, right, on, how)
 
 var concat = Function(frames):

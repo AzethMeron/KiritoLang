@@ -836,7 +836,9 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return bind("connect", {"host", "port"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto& s = sock(vm, self);
             sockaddr_in addr{};
-            if (!net::resolve(asStr(vm, a[0]), static_cast<int>(asInt(vm, a[1])), addr))
+            int64_t port = asInt(vm, a[1]);
+            if (port < 0 || port > 65535) throw KiritoError("port out of range: " + std::to_string(port) + " (must be 0-65535)");
+            if (!net::resolve(asStr(vm, a[0]), static_cast<int>(port), addr))
                 throw KiritoError("could not resolve host");
             if (::connect(s.fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0)
                 throw KiritoError("connect failed: " + netcompat::lastError());
@@ -850,7 +852,9 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
                          reinterpret_cast<const char*>(&yes), sizeof(yes));
             sockaddr_in addr{};
             addr.sin_family = AF_INET;
-            addr.sin_port = htons(static_cast<uint16_t>(asInt(vm, a[1])));
+            int64_t port = asInt(vm, a[1]);
+            if (port < 0 || port > 65535) throw KiritoError("port out of range: " + std::to_string(port) + " (must be 0-65535)");
+            addr.sin_port = htons(static_cast<uint16_t>(port));
             // Resolve the host so bind("localhost", ...) binds the loopback, not every interface. An
             // empty host is the explicit "all interfaces" idiom; a valid IPv4 literal binds that IP; any
             // other name is resolved (so a hostname can't silently fall through to 0.0.0.0).
@@ -895,7 +899,9 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         });
     if (name == "recv")
         return bind("recv", {"size"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::size_t n = a.empty() ? 4096 : static_cast<std::size_t>(asInt(vm, a[0]));
+            int64_t reqN = a.empty() ? 4096 : asInt(vm, a[0]);
+            if (reqN < 0) throw KiritoError("recv size must be non-negative");
+            std::size_t n = static_cast<std::size_t>(std::min<int64_t>(reqN, 64ll * 1024 * 1024));  // cap the buffer; recv returns <= size anyway
             std::vector<char> buf(n);
             long long got = netcompat::recvBytes(sock(vm, self).fd, buf.data(), n);
             if (got < 0) throw KiritoError("recv failed: " + netcompat::lastError());

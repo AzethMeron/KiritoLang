@@ -85,10 +85,11 @@ assert dupc.nrows() == 2, "nrows still reports 2 (reads the first column slot)"
 # (2) readcsv with a duplicated header column CRASHES (caught here): the column is appended to twice
 #     per row, so the backing list is too long for the column count -> length-mismatch throw.
 assert throws(Function(): return pd.readcsv("a,a,b\n1,2,3")), "readcsv with a duplicate header column throws (length mismatch)"
-# (3) merge with a colliding NON-key column CRASHES the same way (outcols has 'v' twice, data has one).
+# (3) merge with a colliding NON-key column suffixes them _x / _y (pandas-style).
 var mL = pd.DataFrame({"id": [1, 2], "v": [10, 20]}, columns=["id", "v"])
 var mR = pd.DataFrame({"id": [1, 2], "v": [100, 200]}, columns=["id", "v"])
-assert throws(Function(): return pd.merge(mL, mR, on="id")), "merge with a colliding non-key column throws (no suffixing)"
+var mg = pd.merge(mL, mR, on="id")
+assert "v_x" in mg.columns and "v_y" in mg.columns, "merge suffixes a colliding non-key column"
 
 # =================================================================== setindex / resetindex round-trip LOSES the index
 # Unlike pandas, resetindex() does NOT push the current index back into a column — the labels are

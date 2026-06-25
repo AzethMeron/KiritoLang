@@ -106,12 +106,18 @@ public:
                 else if (a.size() == 3) { start = optInt(a[0], 0); stop = asInt(vm, a[1]); step = optInt(a[2], 1); }
                 else throw KiritoError("randrange expects 1 to 3 arguments");
                 if (step == 0) throw KiritoError("randrange: step must not be zero");
-                // Count the members of range(start, stop, step); pick one uniformly.
-                int64_t count = step > 0 ? (stop > start ? (stop - start + step - 1) / step : 0)
-                                         : (start > stop ? (start - stop + (-step) - 1) / (-step) : 0);
-                if (count <= 0) throw KiritoError("randrange: empty range");
-                int64_t k = std::uniform_int_distribution<int64_t>(0, count - 1)(rng(vm, self).engine);
-                return vm.makeInt(start + k * step);
+                // Count the members of range(start, stop, step), overflow-safe: stop-start can exceed
+                // int64 for a wide span (signed subtraction would be UB), so work in unsigned wraparound.
+                bool empty = step > 0 ? !(stop > start) : !(start > stop);
+                if (empty) throw KiritoError("randrange: empty range");
+                uint64_t span = step > 0 ? static_cast<uint64_t>(stop) - static_cast<uint64_t>(start)
+                                         : static_cast<uint64_t>(start) - static_cast<uint64_t>(stop);
+                uint64_t ustep = step > 0 ? static_cast<uint64_t>(step) : (0ull - static_cast<uint64_t>(step));
+                uint64_t count = (span + ustep - 1) / ustep;   // number of members
+                if (count > static_cast<uint64_t>(INT64_MAX)) throw KiritoError("randrange: range too large to sample");
+                int64_t k = std::uniform_int_distribution<int64_t>(0, static_cast<int64_t>(count) - 1)(rng(vm, self).engine);
+                // start + k*step, overflow-safe; the result is in range by construction so it fits int64
+                return vm.makeInt(static_cast<int64_t>(static_cast<uint64_t>(start) + static_cast<uint64_t>(k) * static_cast<uint64_t>(step)));
             });
         if (name == "choice")
             return bind("choice", {"seq"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {

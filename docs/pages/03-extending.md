@@ -240,7 +240,7 @@ a.x                       # 3.0
 a.length()                # 5.0
 a.dot(Vec2(1, 0))         # 3.0
 a.dot(other = Vec2(1, 0)) # 3.0   — methods built with makeMethod accept keyword arguments
-String(a + Vec2(1, 1))    # "Vec2(4, 5)"
+String(a + Vec2(1, 1))    # "Vec2(4.000000, 5.000000)"  (std::to_string formats doubles with 6 decimals)
 ```
 
 `vm.alloc(std::make_unique<T>(...))` boxes any `Object` (a built-in *or* a `NativeClass`) into the

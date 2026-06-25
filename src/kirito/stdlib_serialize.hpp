@@ -97,22 +97,22 @@ public:
             else if (t == "B") { nd.tag = serde::Tag::Bool; nd.b = std::stoi(token()) != 0; }
             else if (t == "I") { nd.tag = serde::Tag::Integer; nd.i = std::stoll(token()); }
             else if (t == "F") { nd.tag = serde::Tag::Float; nd.f = parseDouble(token()); }   // parseDouble: subnormals don't trap
-            else if (t == "S") { nd.tag = serde::Tag::String; int len = std::stoi(token()); nd.s = rawBytes(len); }
+            else if (t == "S") { nd.tag = serde::Tag::String; int len = countToken(); nd.s = rawBytes(len); }
             else if (t == "L") { nd.tag = serde::Tag::List; readIds(nd.links); }
             else if (t == "T") { nd.tag = serde::Tag::Set; readIds(nd.links); }
             else if (t == "D") {
                 nd.tag = serde::Tag::Dict;
-                int pairs = std::stoi(token());
-                for (int k = 0; k < pairs * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
+                int pairs = countToken();
+                for (long k = 0; k < static_cast<long>(pairs) * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
             } else if (t == "O") {
                 nd.tag = serde::Tag::Object;
-                int len = std::stoi(token());
+                int len = countToken();
                 nd.s = rawBytes(len);
-                int pairs = std::stoi(token());
-                for (int k = 0; k < pairs * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
+                int pairs = countToken();
+                for (long k = 0; k < static_cast<long>(pairs) * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
             } else if (t == "P") {
                 nd.tag = serde::Tag::Stateful;
-                int len = std::stoi(token());
+                int len = countToken();
                 nd.s = rawBytes(len);
                 nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
             } else throw KiritoError("bad serialization tag '" + t + "'");
@@ -122,8 +122,16 @@ public:
     }
 
 private:
+    // A non-negative element/pair count from untrusted text, bounded by the blob length (you cannot have
+    // more elements than bytes), so `count*2`/loops can't overflow int and a crafted huge/negative count
+    // raises cleanly instead of looping wild or signed-overflowing (UB).
+    int countToken() {
+        long v = std::stol(token());
+        if (v < 0 || v > static_cast<long>(s_.size())) throw KiritoError("corrupt serialized data: bad count");
+        return static_cast<int>(v);
+    }
     void readIds(std::vector<uint32_t>& out) {
-        int c = std::stoi(token());
+        int c = countToken();
         for (int k = 0; k < c; ++k) out.push_back(static_cast<uint32_t>(std::stol(token())));
     }
     std::string token() {

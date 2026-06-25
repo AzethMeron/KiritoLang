@@ -1,6 +1,7 @@
 #ifndef KIRITO_COMPILER_HPP
 #define KIRITO_COMPILER_HPP
 
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -11,6 +12,7 @@
 #include "fum/unordered_set.hpp"
 #include "ast.hpp"
 #include "bytecode.hpp"
+#include "builtins.hpp"   // floatToRoundtrip for exact switch-case float keys
 #include "vm.hpp"
 
 namespace kirito {
@@ -75,7 +77,12 @@ private:
         if (std::holds_alternative<bool>(lit.value))
             return std::string("B") + (std::get<bool>(lit.value) ? "1" : "0");
         if (std::holds_alternative<int64_t>(lit.value)) return "I" + std::to_string(std::get<int64_t>(lit.value));
-        if (std::holds_alternative<double>(lit.value)) return "F" + std::to_string(std::get<double>(lit.value));
+        if (std::holds_alternative<double>(lit.value)) {
+            double d = std::get<double>(lit.value);
+            if (std::isnan(d)) return std::nullopt;            // NaN case matches nothing
+            if (d == 0.0) d = 0.0;                             // -0.0 / 0.0 share a key
+            return "F" + floatToRoundtrip(d);                  // EXACT key, must agree with scalarSwitchKey + ==
+        }
         if (std::holds_alternative<std::string>(lit.value)) return "S" + std::get<std::string>(lit.value);
         return std::nullopt;
     }
