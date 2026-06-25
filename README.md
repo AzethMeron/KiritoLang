@@ -337,6 +337,13 @@ TSAN_OPTIONS=halt_on_error=1:second_deadlock_stack=1 ctest --test-dir build-tsan
 > `%UserProfile%\.wslconfig` (`[wsl2]` then `memory=48GB`), `wsl --shutdown`, reopen.
 > `post_work_check.sh` auto-caps the `asan`/`tsan` build jobs by available RAM (~3 GB/job); override
 > with `PW_SANITIZER_JOBS=N`.
+>
+> **ThreadSanitizer on a recent kernel (Ubuntu 24.04 / WSL2):** if *every* `tsan` test fails at once
+> (even trivial ones like `test_arena`) with `FATAL: ThreadSanitizer: unexpected memory mapping`, the
+> kernel's ASLR entropy is too high for TSan's shadow layout. Lower it once:
+> `sudo sysctl -w vm.mmap_rnd_bits=28` (persist via
+> `echo 'vm.mmap_rnd_bits=28' | sudo tee /etc/sysctl.d/99-tsan.conf`), then re-run — no rebuild needed.
+> This is a kernel/sanitizer knob, not a Kirito issue (debug/release/asan are unaffected).
 
 To build **and** test all four variants in sequence (`debug → release → asan → tsan`, each a clean
 build of the whole auto-discovered CTest suite) with one command:
