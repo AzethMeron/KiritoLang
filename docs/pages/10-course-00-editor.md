@@ -9,14 +9,16 @@ Pick whichever editor you use.
 
 ## VS Code (recommended)
 
-The `docs/editors/vscode/` folder is a complete extension — a grammar plus comment-toggling, bracket
-matching, and auto-indent after `:`.
+The `docs/editors/vscode/` folder is a complete extension — a grammar (keywords, types, builtins,
+dunder methods, stdlib modules, and every string flavour: single/double/triple, `f"…"` with `{…}`
+interpolation, and `r"…"` raw), plus comment-toggling, bracket/quote auto-closing, off-side folding,
+auto-indent after `:`, and **snippets** (type `fn`, `class`, `for`, `try`, `switch`, `main`, … + Tab).
 
 ```text
-cp -r docs/editors/vscode ~/.vscode/extensions/kirito-language-0.1.0
+cp -r docs/editors/vscode ~/.vscode/extensions/kirito-language-0.2.0
 ```
 
-(On Windows that's `%USERPROFILE%\.vscode\extensions\kirito-language-0.1.0`.) Reload VS Code and any
+(On Windows that's `%USERPROFILE%\.vscode\extensions\kirito-language-0.2.0`.) Reload VS Code and any
 `.ki` file lights up. To share it, package a `.vsix` with `vsce package` and
 `code --install-extension`.
 

@@ -2,8 +2,13 @@
 
 Kirito is a young language, so editors don't know it out of the box. This directory ships
 ready-to-install syntax definitions. They highlight Kirito's keywords (`var`, `Function`, `class`,
-`switch`/`case`, `catch`/`throw`, `todo`, `discard`, …), the built-in types and functions, `#`
-comments, `"strings"` and `f"strings"` with escapes, and decimal/hex/octal/binary/float numbers.
+`switch`/`case`, `catch`/`throw`, `todo`, `discard`, …), the logical operators (`and`/`or`/`not`),
+`True`/`False`/`None`/`self`, the built-in types (incl. `Bytes`) and functions, the dunder/special
+methods (`_init_`, `_add_`, `_getitem_`, …), the standard-library module names (`io`, `math`,
+`tensor`, …), `#` comments, every string flavour — single- and double-quoted, triple-quoted,
+`f"…"`/`f'…'` f-strings (with `{…}` interpolation and `:format-spec`), and `r"…"` raw strings, with
+escapes — and decimal/hex/octal/binary/float numbers. The VS Code extension also ships **snippets**
+(type `fn`, `class`, `for`, `try`, `switch`, `main`, … then Tab).
 
 Pick your editor:
 
@@ -37,16 +42,17 @@ colours are cached, so a re-import + restart is needed to pick up a change).
 
 ## VS Code  (best experience)
 
-The `vscode/` folder is a complete extension (a TextMate grammar + language configuration with
-comment toggling, bracket matching, and indent-after-`:`).
+The `vscode/` folder is a complete extension: a TextMate grammar, a language configuration (comment
+toggling, bracket/quote auto-closing, off-side folding, indent-after-`:` and dedent-after-`return`),
+and a snippet set.
 
 **Quick, local install:**
 
 ```
-cp -r docs/editors/vscode ~/.vscode/extensions/kirito-language-0.1.0
+cp -r docs/editors/vscode ~/.vscode/extensions/kirito-language-0.2.0
 ```
 
-(Windows: `%USERPROFILE%\.vscode\extensions\kirito-language-0.1.0`.) Reload VS Code — `.ki` files
+(Windows: `%USERPROFILE%\.vscode\extensions\kirito-language-0.2.0`.) Reload VS Code — `.ki` files
 light up.
 
 **Or package it as a `.vsix`** (shareable):
@@ -54,8 +60,8 @@ light up.
 ```
 npm install -g @vscode/vsce
 cd docs/editors/vscode
-vsce package          # produces kirito-language-0.1.0.vsix
-code --install-extension kirito-language-0.1.0.vsix
+vsce package          # produces kirito-language-0.2.0.vsix
+code --install-extension kirito-language-0.2.0.vsix
 ```
 
 The grammar's `scopeName` is `source.kirito`; the same `syntaxes/kirito.tmLanguage.json` also works

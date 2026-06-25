@@ -41,9 +41,9 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Before the first line of code, spend two minutes giving your editor <strong>Kirito syntax highlighting</strong>. It&#x27;s optional — Kirito runs fine from a plain text file — but coloured keywords, strings, and comments make the rest of this course much easier to read. Kirito is young, so no editor knows it out of the box; the repository ships ready-to-install definitions under <a href="https://github.com/AzethMeron/KiritoLang/tree/main/docs/editors"><code>docs/editors/</code></a>.</p>
 <p>Pick whichever editor you use.</p>
 <h2 id="vs-code-recommended">VS Code (recommended)</h2>
-<p>The <code>docs/editors/vscode/</code> folder is a complete extension — a grammar plus comment-toggling, bracket matching, and auto-indent after <code>:</code>.</p>
-<pre><code>cp -r docs/editors/vscode ~/.vscode/extensions/kirito-language-0.1.0</code></pre>
-<p>(On Windows that&#x27;s <code>%USERPROFILE%\.vscode\extensions\kirito-language-0.1.0</code>.) Reload VS Code and any <code>.ki</code> file lights up. To share it, package a <code>.vsix</code> with <code>vsce package</code> and <code>code --install-extension</code>.</p>
+<p>The <code>docs/editors/vscode/</code> folder is a complete extension — a grammar (keywords, types, builtins, dunder methods, stdlib modules, and every string flavour: single/double/triple, <code>f&quot;…&quot;</code> with <code>{…}</code> interpolation, and <code>r&quot;…&quot;</code> raw), plus comment-toggling, bracket/quote auto-closing, off-side folding, auto-indent after <code>:</code>, and <strong>snippets</strong> (type <code>fn</code>, <code>class</code>, <code>for</code>, <a class="xref" href="course-11-errors.html#sym-try"><code>try</code></a>, <a class="xref" href="language-guide.html#switch"><code>switch</code></a>, <code>main</code>, … + Tab).</p>
+<pre><code>cp -r docs/editors/vscode ~/.vscode/extensions/kirito-language-0.2.0</code></pre>
+<p>(On Windows that&#x27;s <code>%USERPROFILE%\.vscode\extensions\kirito-language-0.2.0</code>.) Reload VS Code and any <code>.ki</code> file lights up. To share it, package a <code>.vsix</code> with <code>vsce package</code> and <code>code --install-extension</code>.</p>
 <h2 id="notepad">Notepad++</h2>
 <p>Notepad++ has a built-in <strong>User Defined Language</strong> system, so no plugin is needed:</p>
 <p>Pick the colour file matching your Notepad++ theme — <code>docs/editors/notepad++/kirito-dark.xml</code> (dark) or <code>kirito-light.xml</code> (light):</p>

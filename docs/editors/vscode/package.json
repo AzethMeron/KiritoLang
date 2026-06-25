@@ -1,10 +1,14 @@
 {
   "name": "kirito-language",
   "displayName": "Kirito Language",
-  "description": "Syntax highlighting for the Kirito scripting language (.ki).",
-  "version": "0.1.0",
+  "description": "Syntax highlighting, bracket/indent rules, and snippets for the Kirito scripting language (.ki).",
+  "version": "0.2.0",
+  "publisher": "kirito",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/AzethMeron/KiritoLang" },
+  "keywords": ["kirito", "ki", "scripting", "language"],
   "engines": { "vscode": "^1.60.0" },
-  "categories": ["Programming Languages"],
+  "categories": ["Programming Languages", "Snippets"],
   "contributes": {
     "languages": [
       {
@@ -19,6 +23,12 @@
         "language": "kirito",
         "scopeName": "source.kirito",
         "path": "./syntaxes/kirito.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "kirito",
+        "path": "./snippets/kirito.json"
       }
     ]
   }
