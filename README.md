@@ -304,8 +304,41 @@ cmake --build build-debug -j
 
 ./build-debug/ki path/to/program.ki   # run a script
 ./build-debug/ki                      # start the REPL
-ctest --test-dir build-debug -j       # run the C++ unit + golden-script test suite (312 tests)
+ctest --test-dir build-debug -j       # run the C++ unit + golden-script test suite (316 tests)
 ```
+
+### Sanitizers and the full test matrix
+
+Every variant uses the same `preset / build / test` commands — just swap the name. The two safety
+gates are **`asan`** (AddressSanitizer + UBSan: memory and undefined-behaviour) and **`tsan`**
+(ThreadSanitizer: data races and lock-order inversions in the `parallel` dispatcher, the only
+concurrent code):
+
+```sh
+# AddressSanitizer + UBSan
+cmake --preset asan && cmake --build build-asan -j
+ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
+  ctest --test-dir build-asan -j
+
+# ThreadSanitizer
+cmake --preset tsan && cmake --build build-tsan -j
+TSAN_OPTIONS=halt_on_error=1:second_deadlock_stack=1 ctest --test-dir build-tsan -j
+```
+
+> ASan's recursion-guard frames are larger, so give it a roomier stack if a deep-nesting test trips
+> the guard early: `ulimit -s 262144` before the `ctest` line. Each sanitizer build is a separate
+> `build-asan/` / `build-tsan/` directory (~8–13 GB of objects — make sure you have the disk).
+
+To build **and** test all four variants in sequence (`debug → release → asan → tsan`, each a clean
+build of the whole auto-discovered CTest suite) with one command:
+
+```sh
+tools/scripts/post_work_check.sh        # debug+release first, then asan+tsan; prints a green/red summary
+```
+
+It does not touch git — it only builds and tests, then reports which variants are green so you decide
+whether to commit.
+
 
 ### Building the release binaries (static, TLS)
 
