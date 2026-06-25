@@ -102,7 +102,7 @@ io.<span class="builtin">print</span>(<span class="builtin">isinstance</span>(Sq
 io.<span class="builtin">print</span>(m.describe())               <span class="com"># =&gt; Grace, employee, managing 5</span></code></pre>
 <p><code>_super_()</code> only works when the class actually inherits (it throws otherwise), and it climbs exactly one level per call — so in a three-level hierarchy each class&#x27;s <code>_super_()</code> reaches the next one up, and the chain composes correctly.</p>
 <h2 id="private-members-and-inheritance">Private members and inheritance</h2>
-<p>A private member (single leading underscore) is private to the class that <em>defines</em> it. A subclass has its own private namespace; it doesn&#x27;t see the base&#x27;s privates and vice versa. Keep the shared contract in non-private methods.</p>
+<p>A private member (single leading underscore) is reachable from any method in the <strong>class chain</strong> — the defining class <strong>and its subclasses</strong> — but not from outside it. So a subclass method may use a base class&#x27;s private state, while unrelated code cannot. Keep the <em>public</em> contract in non-private methods.</p>
 <h2 id="a-worked-example-a-shape-hierarchy">A worked example: a shape hierarchy</h2>
 <pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
 
