@@ -39,6 +39,37 @@ inline int64_t timegmCompat(const std::tm& tm) {
     return days * 86400 + tm.tm_hour * 3600 + tm.tm_min * 60 + tm.tm_sec;
 }
 
+// Inverse of timegmCompat: epoch seconds -> broken-down UTC fields, via the same pure civil arithmetic
+// (Hinnant's civil-from-days). Unlike the platform gmtime_r/gmtime_s — whose valid range differs across
+// platforms (Windows rejects negative time_t and years beyond ~3000) — this handles the full int64
+// range identically everywhere, so DateTime behaves the same on Linux and Windows.
+inline void gmtimeCompat(int64_t secs, std::tm& tm) {
+    int64_t days = secs / 86400, rem = secs % 86400;
+    if (rem < 0) { rem += 86400; --days; }                  // floor toward -inf: rem in [0, 86399]
+    int64_t z = days + 719468;
+    int64_t era = (z >= 0 ? z : z - 146096) / 146097;
+    int64_t doe = z - era * 146097;                                          // [0, 146096]
+    int64_t yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;     // [0, 399]
+    int64_t y = yoe + era * 400;
+    int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);                   // [0, 365]
+    int64_t mp = (5 * doy + 2) / 153;                                        // [0, 11]
+    int64_t d = doy - (153 * mp + 2) / 5 + 1;                                // [1, 31]
+    int64_t m = mp < 10 ? mp + 3 : mp - 9;                                   // [1, 12]
+    y += (m <= 2);
+    tm = std::tm{};
+    tm.tm_year = static_cast<int>(y - 1900);
+    tm.tm_mon = static_cast<int>(m - 1);
+    tm.tm_mday = static_cast<int>(d);
+    tm.tm_hour = static_cast<int>(rem / 3600);
+    tm.tm_min = static_cast<int>((rem % 3600) / 60);
+    tm.tm_sec = static_cast<int>(rem % 60);
+    int64_t wd = (days % 7 + 4) % 7;                         // 1970-01-01 was a Thursday (tm_wday 4)
+    tm.tm_wday = static_cast<int>(wd < 0 ? wd + 7 : wd);     // 0=Sunday … 6=Saturday
+    std::tm jan{};
+    jan.tm_year = tm.tm_year; jan.tm_mon = 0; jan.tm_mday = 1;
+    tm.tm_yday = static_cast<int>(days - timegmCompat(jan) / 86400);
+}
+
 // Minimal strptime covering the common UTC fields (%Y %m %d %H %M %S and literal separators). Avoids
 // the platform strptime (absent on Windows). Returns false if the text doesn't match the format.
 inline bool strptimeCompat(const char* s, const char* fmt, std::tm& tm) {
@@ -86,22 +117,15 @@ public:
     explicit DateTime(int64_t secs) { setEpoch(secs); }
 
     // Set the epoch and recompute the broken-down UTC fields, keeping `epoch` and `tm` consistent.
-    // gmtime fails (returns null) for an epoch whose year overflows `tm_year`; raise rather than leave
-    // `tm` half-written and emit a nonsense date (e.g. day 00).
+    // Uses the portable gmtimeCompat (not the platform gmtime, whose range differs across OSes), so the
+    // accepted epoch range is the same on every platform; reject epochs outside a sane year range
+    // rather than emit a nonsense date.
     void setEpoch(int64_t secs) {
         epoch = secs;
-        std::time_t t = static_cast<std::time_t>(secs);
-        bool ok;
-#if defined(_WIN32)
-        ok = (::gmtime_s(&tm, &t) == 0);
-#else
-        ok = (::gmtime_r(&t, &tm) != nullptr);
-#endif
-        if (ok) {  // gmtime can "succeed" with a wrapped tm_year for a huge epoch -> a nonsense date; reject it
-            int64_t year = static_cast<int64_t>(tm.tm_year) + 1900;
-            if (year < -9999 || year > 9999) ok = false;
-        }
-        if (!ok) throw KiritoError("DateTime: epoch " + std::to_string(secs) + " is out of representable range");
+        gmtimeCompat(secs, tm);
+        int64_t year = static_cast<int64_t>(tm.tm_year) + 1900;
+        if (year < -9999 || year > 9999)
+            throw KiritoError("DateTime: epoch " + std::to_string(secs) + " is out of representable range");
     }
 
     std::string iso() const {
