@@ -58,12 +58,19 @@ run_variant() {
     if ! cmake --preset "$name" >"/tmp/pw_$name.cfg.log" 2>&1; then
         echo "[$name] CONFIG FAILED"; tail -8 "/tmp/pw_$name.cfg.log"; FAILED=1; return 1
     fi
-    # ASan/TSan compiles of the big headers are RAM-hungry (~1.5-2 GB each); build those with fewer
-    # parallel jobs so a memory-limited box (e.g. WSL2 with its default cap) isn't OOM-killed mid-build
-    # (it shows up as a bare "Terminated"). Override with PW_SANITIZER_JOBS if you have plenty of RAM.
+    # ASan/TSan compiles of the big headers use ~2-2.5 GB EACH, so peak build RAM is jobs x ~2.5 GB —
+    # it scales with CORE COUNT, not total RAM. On a many-core / memory-capped box (e.g. a 24-core WSL2
+    # whose default cap is ~50% of host) a full -j build is OOM-killed mid-compile (a bare "Terminated";
+    # dmesg shows `oom-kill ... cc1plus`). Cap the sanitizer build jobs by available memory (~3 GB/job)
+    # AND by core count, so it fits everywhere. Override with PW_SANITIZER_JOBS=N.
     local bjobs="$JOBS"
     case "$name" in
-        asan|tsan) bjobs="${PW_SANITIZER_JOBS:-$(( JOBS > 2 ? JOBS / 2 : JOBS ))}" ;;
+        asan|tsan)
+            local memgb=$(( $(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || echo 8000000) / 1048576 ))
+            local rammax=$(( memgb / 3 )); [ "$rammax" -lt 2 ] && rammax=2
+            bjobs="${PW_SANITIZER_JOBS:-$(( JOBS < rammax ? JOBS : rammax ))}"
+            echo "[$name] building with -j$bjobs (cores=$JOBS, RAM=${memgb} GB capped at ~3 GB/job)"
+            ;;
     esac
     if ! cmake --build "$dir" -j"$bjobs" -- -k 0 >"/tmp/pw_$name.build.log" 2>&1; then
         echo "[$name] BUILD FAILED ($(grep -cE 'error:' "/tmp/pw_$name.build.log") errors):"

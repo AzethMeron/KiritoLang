@@ -331,10 +331,12 @@ TSAN_OPTIONS=halt_on_error=1:second_deadlock_stack=1 ctest --test-dir build-tsan
 >
 > **Memory:** the sanitizer-instrumented compiles are RAM-hungry (~1.5–2 GB per parallel job). On a
 > memory-capped box — notably **WSL2**, whose default cap is a fraction of host RAM — a full-`-j`
-> build can be OOM-killed (it appears as a bare `Terminated`). Either build with fewer jobs
-> (`cmake --build build-asan -j2`) or raise WSL2's limit in `%UserProfile%\.wslconfig`:
-> `[wsl2]` then `memory=16GB`, then `wsl --shutdown` and reopen. (`post_work_check.sh` already halves
-> the job count for `asan`/`tsan`; override with `PW_SANITIZER_JOBS=N`.)
+> build can be OOM-killed (a bare `Terminated`; `dmesg` shows `oom-kill … cc1plus`). Peak RAM is
+> `jobs × ~2.5 GB`, so it scales with **core count** — a 24-core box launches 24 such compiles at once
+> (~50 GB). Either build with fewer jobs (`cmake --build build-asan -j8`) or raise WSL2's cap in
+> `%UserProfile%\.wslconfig` (`[wsl2]` then `memory=48GB`), `wsl --shutdown`, reopen.
+> `post_work_check.sh` auto-caps the `asan`/`tsan` build jobs by available RAM (~3 GB/job); override
+> with `PW_SANITIZER_JOBS=N`.
 
 To build **and** test all four variants in sequence (`debug → release → asan → tsan`, each a clean
 build of the whole auto-discovered CTest suite) with one command:
