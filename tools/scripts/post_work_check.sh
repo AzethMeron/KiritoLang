@@ -58,7 +58,14 @@ run_variant() {
     if ! cmake --preset "$name" >"/tmp/pw_$name.cfg.log" 2>&1; then
         echo "[$name] CONFIG FAILED"; tail -8 "/tmp/pw_$name.cfg.log"; FAILED=1; return 1
     fi
-    if ! cmake --build "$dir" -j"$JOBS" -- -k 0 >"/tmp/pw_$name.build.log" 2>&1; then
+    # ASan/TSan compiles of the big headers are RAM-hungry (~1.5-2 GB each); build those with fewer
+    # parallel jobs so a memory-limited box (e.g. WSL2 with its default cap) isn't OOM-killed mid-build
+    # (it shows up as a bare "Terminated"). Override with PW_SANITIZER_JOBS if you have plenty of RAM.
+    local bjobs="$JOBS"
+    case "$name" in
+        asan|tsan) bjobs="${PW_SANITIZER_JOBS:-$(( JOBS > 2 ? JOBS / 2 : JOBS ))}" ;;
+    esac
+    if ! cmake --build "$dir" -j"$bjobs" -- -k 0 >"/tmp/pw_$name.build.log" 2>&1; then
         echo "[$name] BUILD FAILED ($(grep -cE 'error:' "/tmp/pw_$name.build.log") errors):"
         grep -E 'error:' "/tmp/pw_$name.build.log" | head -20
         FAILED=1; return 1
