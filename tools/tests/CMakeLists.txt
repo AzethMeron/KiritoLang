@@ -116,7 +116,10 @@ kirito_test(test_modules_fuzz unit/test_modules_fuzz.cpp)
 
 # Multiprocessing (KiritoDispatcher + the `parallel` module). Every blocking scenario runs under an
 # in-test deadlock watchdog; the CTest TIMEOUT is a coarse backstop so a regression that slips past
-# the watchdog still fails the suite rather than stalling CI.
+# the watchdog still fails the suite rather than stalling CI. RUN_SERIAL: each test spawns its own pool
+# of worker threads, so `ctest -j` must NOT run them alongside other tests — core oversubscription on a
+# few-core box (e.g. WSL) starves the workers and trips the watchdog/timeout. Running them alone (full
+# cores each) keeps them fast and reliable everywhere.
 kirito_test(test_parallel unit/test_parallel.cpp)
 kirito_test(test_parallel_sync unit/test_parallel_sync.cpp)
 kirito_test(test_parallel_deadlock unit/test_parallel_deadlock.cpp)
@@ -124,7 +127,7 @@ kirito_test(test_parallel_random unit/test_parallel_random.cpp)
 kirito_test(test_parallel_edge unit/test_parallel_edge.cpp)
 kirito_test(test_parallel_fuzz unit/test_parallel_fuzz.cpp)
 set_tests_properties(test_parallel test_parallel_sync test_parallel_deadlock test_parallel_random
-                     test_parallel_edge test_parallel_fuzz PROPERTIES TIMEOUT 120)
+                     test_parallel_edge test_parallel_fuzz PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)
 
 kirito_test(embed_demo integration/embed_demo.cpp)
 kirito_test(fuzz_eval fuzz/fuzz_eval.cpp)
