@@ -415,6 +415,8 @@ var quantiles = Function(data, n = 4):
     var ld = len(s)
     if ld < 2:
         throw "quantiles requires at least two data points"
+    if n < 1:
+        throw "quantiles: n must be at least 1"
     var out = []
     var i = 1
     while i < n:
@@ -1323,6 +1325,8 @@ class Series:
     var _binop = Function(self, other, op):
         var out = []
         if isinstance(other, "Series"):
+            if len(self.values) != len(other.values):
+                throw "Series: length mismatch (" + String(len(self.values)) + " vs " + String(len(other.values)) + ")"
             var i = 0
             while i < len(self.values):
                 out.append(op(self.values[i], other.values[i]))
@@ -2123,6 +2127,10 @@ var readcsv = Function(source, header = True, infer = True):
     var r = start
     while r < len(rows):
         var row = rows[r]
+        # A row with MORE fields than the header would silently lose its surplus cells; reject it
+        # (like pandas' ParserError) rather than truncate. Short rows are still padded with "".
+        if len(row) > len(cols):
+            throw "readcsv: row " + String(r + 1) + " has " + String(len(row)) + " fields, expected " + String(len(cols))
         var ci = 0
         while ci < len(cols):
             var cell = row[ci] if ci < len(row) else ""

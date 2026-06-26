@@ -70,8 +70,22 @@ inline void gmtimeCompat(int64_t secs, std::tm& tm) {
     tm.tm_yday = static_cast<int>(days - timegmCompat(jan) / 86400);
 }
 
+// Days in a (1-based) month of a proleptic-Gregorian year, for field-range validation.
+inline int daysInMonthUTC(int64_t year, int month) {
+    static const int dim[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (month < 1 || month > 12) return 0;
+    if (month == 2) {
+        bool leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+        return leap ? 29 : 28;
+    }
+    return dim[month - 1];
+}
+
 // Minimal strptime covering the common UTC fields (%Y %m %d %H %M %S and literal separators). Avoids
-// the platform strptime (absent on Windows). Returns false if the text doesn't match the format.
+// the platform strptime (absent on Windows). Returns false if the text doesn't match the format —
+// which includes out-of-range fields (month 99, day 32, hour 25) and any unconverted trailing input,
+// so malformed text fails to parse (like Python's strptime) instead of silently normalizing to a
+// garbage-but-plausible date. (Construction via `time.make` deliberately keeps C-mktime rollover.)
 inline bool strptimeCompat(const char* s, const char* fmt, std::tm& tm) {
     auto num = [&](int width, int& out) -> bool {
         int v = 0, n = 0;
@@ -101,6 +115,13 @@ inline bool strptimeCompat(const char* s, const char* fmt, std::tm& tm) {
             ++s; ++fmt;
         }
     }
+    if (*s != '\0') return false;  // unconverted trailing input ("2024-01-01XYZ") -> no match
+    int year = tm.tm_year + 1900, month = tm.tm_mon + 1;
+    if (month < 1 || month > 12) return false;
+    if (tm.tm_mday < 1 || tm.tm_mday > daysInMonthUTC(year, month)) return false;
+    if (tm.tm_hour < 0 || tm.tm_hour > 23) return false;
+    if (tm.tm_min < 0 || tm.tm_min > 59) return false;
+    if (tm.tm_sec < 0 || tm.tm_sec > 59) return false;
     return true;
 }
 

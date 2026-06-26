@@ -5,6 +5,14 @@
 
 var io = import("io")
 
+# True iff calling `thunk` raises — for asserting domain/edge errors now raise instead of NaN/inf.
+var raises = Function(thunk) -> Bool:
+    try:
+        discard thunk()
+    catch as e:
+        return True
+    return False
+
 # --- INTEGER + arithmetic edges -----------------------------------------------------------------
 assert (9223372036854775807 + 1) == -9223372036854775808, "int64 overflow wraps to MIN"
 assert (-9223372036854775808 - 1) == 9223372036854775807, "int64 underflow wraps to MAX"
@@ -285,15 +293,15 @@ assert threw, "Bytes is immutable (no item assignment)"
 # --- MATH module ----------------------------------------------------------------------------
 assert math.sqrt(0) == 0.0, "sqrt(0)"
 assert math.sqrt(4) == 2.0, "sqrt(4)"
-# sqrt of a negative is IEEE-754 NaN (consistent with C math); use complex.sqrt for principal root
-assert math.isnan(math.sqrt(-1)), "sqrt(-1) is NaN (not an error)"
+# sqrt of a negative RAISES a math domain error (use complex.sqrt for the principal root)
+assert raises(Function(): return math.sqrt(-1)), "sqrt(-1) raises"
 # transcendental edges
 assert math.exp(0) == 1.0, "exp(0)"
 assert math.log(1) == 0.0, "log(1)"
 assert math.log(math.e) == 1.0, "log(e)"
-# IEEE 754: log(0) is -inf, log(negative) is NaN; neither raises
-assert math.isinf(math.log(0)) and math.log(0) < 0, "log(0) is -inf"
-assert math.isnan(math.log(-1)), "log(-1) is NaN"
+# domain errors raise (no silent -inf/NaN): log of a non-positive argument
+assert raises(Function(): return math.log(0)), "log(0) raises"
+assert raises(Function(): return math.log(-1)), "log(-1) raises"
 # trig
 assert math.sin(0) == 0.0 and math.cos(0) == 1.0, "sin(0)=0, cos(0)=1"
 # floor / ceil / trunc

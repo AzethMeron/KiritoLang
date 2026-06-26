@@ -20,9 +20,12 @@ parameter name.
 - `type(x) → String` — the type name of `x` (e.g. `"Integer"`, `"List"`, a user class's name).
 - `Integer(x) → Integer` — convert to a 64-bit integer. Accepts `Bool` (`True`→`1`), `Float`
   (truncates toward zero; rejects NaN/∞/out-of-range), or a `String` in decimal or `0x`/`0o`/`0b`
-  form. Raises on anything else or an unparseable String.
+  form (surrounding whitespace and a single leading sign allowed). Raises on anything else or an
+  unparseable String — including a doubled sign or a space after the sign/prefix (`"--5"`, `"+ 5"`,
+  `"0x-5"`), matching Python's `int()`.
 - `Float(x) → Float` — convert to a double. Accepts `Integer`, `Bool`, or a numeric `String`
-  (including scientific notation). Raises if a String doesn't parse.
+  (decimal/scientific notation, plus `"inf"`/`"nan"`). Raises if a String doesn't parse; a C99
+  hex-float literal (`"0x1p4"`) is rejected too, matching Python's `float()`.
 - `String(x) → String` — the `str()` form of any value (the same text `io.print` would emit).
 - `Bool(x) → Bool` — the truthiness of `x` (empty collections/`0`/`""`/`None` are `False`).
 - `List([iterable]) → List` — an empty list, or a new list built from any iterable. `List(iterable = xs)`.
@@ -75,7 +78,8 @@ parameter name.
   not Python's round-half-to-even.
 - `divmod(a, b) → List` — `[a // b, a % b]` in one step, using floor semantics.
 - `pow(base, exp[, mod]) → Number` — exponentiation; the 3-argument form is modular,
-  `(base ** exp) % mod`, computed efficiently. `pow(2, 10, mod = 1000)`.
+  `(base ** exp) % mod`, computed efficiently over non-negative Integers (`mod` must be positive and
+  `exp` non-negative; both raise otherwise). `pow(2, 10, mod = 1000)`.
 - `bin(n) → String` — the base-2 text of an Integer with a `0b` prefix (sign-aware).
 - `oct(n) → String` — the base-8 text of an Integer with a `0o` prefix (sign-aware).
 - `hex(n) → String` — the base-16 text of an Integer with a `0x` prefix (sign-aware).

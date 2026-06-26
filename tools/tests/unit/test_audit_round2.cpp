@@ -105,9 +105,12 @@ got
     CHECK(ev(vm, "var j = import(\"json\")\nj.dumps(0.1)") == "0.1");   // still clean for ordinary values
     CHECK(ev(vm, "var j = import(\"json\")\nj.loads(j.dumps([1.5, 2.25, 0.1 + 0.2]))[2] == 0.1 + 0.2") == "True");
 
-    // --- tensor: tolerant whole == but NaN never equal; // and % by zero raise -------------------
+    // --- tensor: exact whole == but NaN never equal; sqrt/// /% of bad input raise ---------------
     CHECK(ev(vm, "var T = import(\"tensor\")\nT.Tensor([1, 2]) == T.Tensor([1, 2])") == "True");
-    CHECK(ev(vm, "var T = import(\"tensor\")\nT.Tensor([-1.0]).sqrt() == T.Tensor([-1.0]).sqrt()") == "False");
+    // sqrt of a negative now RAISES a clear domain error (was a silent NaN); the NaN-never-equal
+    // whole-== check uses a literal NaN element instead.
+    CHECK_THROWS(vm.runSource("var T = import(\"tensor\")\ndiscard T.Tensor([-1.0]).sqrt()"));
+    CHECK(ev(vm, "var T = import(\"tensor\")\nvar n = import(\"math\").nan\nT.Tensor([n]) == T.Tensor([n])") == "False");
     CHECK_THROWS(vm.runSource("var T = import(\"tensor\")\ndiscard T.Tensor([1.0, 2.0]) // 0"));
     CHECK_THROWS(vm.runSource("var T = import(\"tensor\")\ndiscard T.Tensor([1.0, 2.0]) % 0"));
 

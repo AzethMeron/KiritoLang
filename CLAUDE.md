@@ -233,7 +233,13 @@ a stability fuzzer, and a benchmark). Working today:
     (dirname/basename/splitext/join). `chmod(path, mode)` sets POSIX permission bits from an octal
     Integer (e.g. `0o755`). Module members are rebindable (`ModuleValue::setAttr`).
   - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf/erfc, floor/ceil/
-    trunc, gcd/lcm, factorial, isnan/isinf, prod/comb/perm, ...).
+    trunc, gcd/lcm, factorial, isnan/isinf, prod/comb/perm, ...). **Domain errors RAISE** a clear `math
+    domain error` rather than returning silent `NaN`/`inf` rubbish (`sqrt(-1)`, `log(0)`, `asin(2)`,
+    `acosh(0)`, `atanh(1)`, `gamma(0)`, `pow(-2, 0.5)`, `fmod(x, 0)`, …); a `NaN` argument passes
+    through and genuine overflow-to-`inf` is not a domain error. The same policy holds across the
+    numeric stack — the **`complex`** analytic set raises exactly where Python's `cmath` does
+    (`log`/`log10` of `0`, `atanh(±1)`, zero to a negative/complex power) and **`tensor`** element-wise
+    math raises on an out-of-domain element (consistent with the tensor engine's div-by-zero guard).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
     randrange/choice/shuffle/sample/gauss/expovariate.
   - `tensor` — dense **N-dimensional** arrays in C++ (`tensor.hpp`, a generic `Tensor<T>` engine;

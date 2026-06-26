@@ -2546,6 +2546,16 @@ inline void KiritoVM::installBuiltins() {
                     }
                     if (i == s.size() || (base != 10 && i == 0))
                         throw std::invalid_argument("empty value");
+                    // std::stoll independently re-skips whitespace and re-parses a sign, which would
+                    // let "--5", "+ 5", "0x-5", "0b -1" slip through after we already consumed our own
+                    // sign/prefix. Require an actual base digit right here so such malformed input is
+                    // rejected, matching Python's int().
+                    auto isBaseDigit = [base](char ch) -> bool {
+                        if (ch >= '0' && ch <= '9') return (ch - '0') < (base < 10 ? base : 10);
+                        char lc = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                        return base > 10 && lc >= 'a' && lc < 'a' + (base - 10);
+                    };
+                    if (!isBaseDigit(s[i])) throw std::invalid_argument("no digit after sign/prefix");
                     std::size_t pos = 0;
                     int64_t v = static_cast<int64_t>(std::stoll(s.substr(i), &pos, base));
                     // Reject trailing garbage (e.g. "42abc", "12.5") — surrounding whitespace allowed.
@@ -2572,6 +2582,13 @@ inline void KiritoVM::installBuiltins() {
             case ValueKind::String: {
                 const std::string& s = static_cast<const StrVal&>(o).value();
                 try {
+                    // strtod accepts C99 hex-float syntax ("0x1p4"); Python's float() rejects it. Refuse
+                    // the 0x/0X prefix for parity (decimal "inf"/"nan" still parse, like Python).
+                    std::size_t j = 0;
+                    while (j < s.size() && std::isspace(static_cast<unsigned char>(s[j]))) ++j;
+                    if (j < s.size() && (s[j] == '+' || s[j] == '-')) ++j;
+                    if (j + 1 < s.size() && s[j] == '0' && (s[j + 1] == 'x' || s[j + 1] == 'X'))
+                        throw std::invalid_argument("hex float literal");
                     std::size_t pos = 0;
                     double v = parseDouble(s, &pos);
                     while (pos < s.size() && std::isspace(static_cast<unsigned char>(s[pos]))) ++pos;
@@ -3066,6 +3083,10 @@ inline void KiritoVM::installBuiltins() {
             int64_t base = geti(a[0], "base"), exp = geti(a[1], "exp"), mod = geti(a[2], "mod");
             if (exp < 0) throw KiritoError("pow exponent must be non-negative with a modulus");
             if (mod == 0) throw KiritoError("pow modulus must be non-zero");
+            // A negative modulus would make `((base % mod) + mod) % mod` produce a silently-wrong
+            // residue (C++ truncated `%` vs Python's floor `%`); reject it (docs scope this to
+            // non-negative Integers) instead of returning a misleading number.
+            if (mod < 0) throw KiritoError("pow modulus must be positive");
             __extension__ __int128 result = 1 % mod, b = ((base % mod) + mod) % mod;
             while (exp > 0) {
                 if (exp & 1) result = (result * b) % mod;

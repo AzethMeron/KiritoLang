@@ -23,6 +23,14 @@ var check = Function(b):
     assert b, "deep_numeric assertion failed"
     io.print(b)
 
+# True iff calling `thunk` raises (for asserting domain errors now raise instead of returning NaN/inf)
+var raises = Function(thunk) -> Bool:
+    try:
+        discard thunk()
+    catch as e:
+        return True
+    return False
+
 # =================================================================================================
 # Integer / Float semantics — overflow, division-by-zero, ** edge cases, promotion
 # =================================================================================================
@@ -79,17 +87,17 @@ check(7 / 2 == 3.5 and type(4 / 2) == "Float")
 n = n + 2
 
 # =================================================================================================
-# math — IEEE domain edges (must NOT raise: NaN/inf), gcd/lcm/factorial/comb/perm guards, atan2
+# math — domain edges RAISE (no silent NaN/inf), gcd/lcm/factorial/comb/perm guards, atan2
 # =================================================================================================
-# domain edges: NaN/inf, no exception
-check(math.isnan(math.sqrt(-1)))
-check(math.isinf(math.log(0)) and math.log(0) < 0)       # log(0) = -inf
-check(math.isnan(math.log(-1)))
-check(math.isnan(math.acos(2)) and math.isnan(math.asin(-2)))
-check(math.isnan(math.atanh(2)) and math.isinf(math.atanh(1)))
-check(math.isnan(math.gamma(-1)))                         # pole at non-positive integers
-check(math.isinf(math.gamma(0)) or math.isnan(math.gamma(0)))
-check(math.isinf(math.log(10, 1)))                        # base 1 -> divide by log(1)=0
+# domain edges: out-of-domain arguments raise a clear "math domain error", not NaN/inf rubbish
+check(raises(Function(): return math.sqrt(-1)))
+check(raises(Function(): return math.log(0)))            # log of <= 0 raises
+check(raises(Function(): return math.log(-1)))
+check(raises(Function(): return math.acos(2)) and raises(Function(): return math.asin(-2)))
+check(raises(Function(): return math.atanh(2)) and raises(Function(): return math.atanh(1)))
+check(raises(Function(): return math.gamma(-1)))         # pole at non-positive integers
+check(raises(Function(): return math.gamma(0)))
+check(raises(Function(): return math.log(10, 1)))        # base 1 (log(1)=0) raises
 n = n + 8
 
 # atan2 covers all four quadrants + axes
@@ -100,9 +108,9 @@ check(approx(math.atan2(-1, 1), -math.pi / 4))
 check(approx(math.atan2(0, -1), math.pi) and math.atan2(0, 1) == 0.0)
 n = n + 5
 
-# fmod takes the sign of x; fmod by zero is NaN (no raise); copysign honours -0.0
+# fmod takes the sign of x; fmod by zero RAISES (domain error); copysign honours -0.0
 check(math.fmod(-7, 3) == -1.0 and math.fmod(7, -3) == 1.0)
-check(math.isnan(math.fmod(5, 0)))
+check(raises(Function(): return math.fmod(5, 0)))
 check(math.copysign(3, -0.0) == -3.0 and math.copysign(-3, 1) == 3.0)
 n = n + 3
 
@@ -147,8 +155,8 @@ n = n + 2
 # =================================================================================================
 var a = T.Tensor([[1, 2, 3], [4, 5, 6]])
 
-# DIV-BY-ZERO POLICY (now consistent): `/`, `//`, and `%` ALL raise on a zero divisor, matching
-# scalar Integer/Float. (reciprocal(0) still yields inf — it's an elementwise math op, not division.)
+# DIV-BY-ZERO POLICY (now consistent): `/`, `//`, `%` AND `reciprocal(0)` ALL raise on a zero
+# divisor, matching scalar Integer/Float (reciprocal(0) was the one inconsistent elementwise op).
 var tdiv_raised = 0
 for thunk in [Function(): return T.Tensor([1.0, 2.0]) / 0, Function(): return T.Tensor([1.0]) / T.Tensor([0.0]), Function(): return T.Tensor([1.0, 2.0]) // 0, Function(): return T.Tensor([1.0, 2.0]) % 0]:
     try:
@@ -156,7 +164,7 @@ for thunk in [Function(): return T.Tensor([1.0, 2.0]) / 0, Function(): return T.
     catch as e:
         tdiv_raised = tdiv_raised + 1
 check(tdiv_raised == 4)
-check(math.isinf(T.Tensor([0.0, 2.0]).reciprocal().tolist()[0]))  # reciprocal(0) -> inf
+check(raises(Function(): return T.Tensor([0.0, 2.0]).reciprocal()))  # reciprocal(0) raises
 n = n + 2
 
 # NEGATIVE AXIS (fixed): a negative axis now counts from the end NumPy-style (-1 = last axis),
@@ -181,9 +189,10 @@ catch as e:
 check(axis_raised == 2)
 n = n + 9
 
-# NaN/inf live in tensors fine; sqrt/log of a negative element yield NaN (no raise)
-check(math.isnan(T.Tensor([-1.0, 4.0]).sqrt().tolist()[0]))
-check(math.isnan(T.Tensor([-2.0, 1.0]).log().tolist()[0]))
+# sqrt/log of a negative element RAISE a tensor domain error (consistent with the scalar math module
+# and the tensor div-by-zero policy); a valid element still computes.
+check(raises(Function(): return T.Tensor([-1.0, 4.0]).sqrt()))
+check(raises(Function(): return T.Tensor([-2.0, 1.0]).log()))
 check(approx(T.Tensor([4.0, 9.0]).sqrt().tolist()[1], 3.0))
 n = n + 3
 

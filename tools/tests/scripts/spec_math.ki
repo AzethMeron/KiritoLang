@@ -57,13 +57,21 @@ assert type(m.prod([2, 3])) == "Integer" and type(m.prod([2.0, 3.0])) == "Float"
 assert not m.isnan(1.0) and not m.isinf(1.0) and m.isfinite(1.0), "finite classification"
 assert m.isinf(1.0 / 0.0001 * m.inf), "inf arithmetic stays inf"
 
-# --- domain edges: sqrt/log of a negative are NaN (IEEE), factorial of a negative raises ---
-assert m.isnan(m.sqrt(-1.0)) and m.isnan(m.log(-1.0)), "sqrt/log of a negative yield NaN, not an error"
-var factorial_raised = False
-try:
-    discard m.factorial(-1)
-catch as e:
-    factorial_raised = True
-assert factorial_raised, "factorial of a negative raises a catchable error"
+# --- domain edges: out-of-domain args RAISE (no silent NaN/inf), factorial of a negative raises ---
+var raises = Function(thunk) -> Bool:
+    try:
+        discard thunk()
+    catch as e:
+        return True
+    return False
+assert raises(Function(): return m.sqrt(-1.0)), "sqrt(-1) raises"
+assert raises(Function(): return m.log(-1.0)) and raises(Function(): return m.log(0.0)), "log of <= 0 raises"
+assert raises(Function(): return m.asin(2.0)) and raises(Function(): return m.acos(2.0)), "asin/acos out of [-1,1] raise"
+assert raises(Function(): return m.acosh(0.0)) and raises(Function(): return m.atanh(1.0)), "acosh/atanh domain raise"
+assert raises(Function(): return m.gamma(0.0)) and raises(Function(): return m.pow(-2.0, 0.5)), "gamma pole / negative base raise"
+assert raises(Function(): return m.factorial(-1)), "factorial of a negative raises a catchable error"
+# A NaN argument passes through unchanged; overflow to inf is a range condition, not a domain error.
+assert m.isnan(m.sqrt(m.nan)) and m.isnan(m.log(m.nan)), "NaN passes through unchanged"
+assert m.isinf(m.exp(1000.0)), "overflow to inf does not raise"
 
 io.print("OK")

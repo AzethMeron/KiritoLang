@@ -48,34 +48,41 @@ public:
         m.value("inf", val(vm, HUGE_VAL));
         m.value("nan", val(vm, std::nan("")));
 
-        auto unary = [&](const char* nm, double (*f)(double)) {
-            m.fn(nm, {{"x", "Number"}}, "Float", [f](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        // `ok` is an optional domain predicate: if the (non-NaN) argument is outside the function's
+        // mathematical domain, raise a clear "math domain error" instead of returning NaN/inf rubbish.
+        // A NaN argument always passes through (math.sqrt(nan) -> nan, like Python), and overflow to
+        // inf (e.g. exp(1000)) is a range, not a domain, condition and is left as-is.
+        auto unary = [&](const char* nm, double (*f)(double), bool (*ok)(double) = nullptr) {
+            m.fn(nm, {{"x", "Number"}}, "Float", [f, ok, nm](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 if (a.size() != 1) throw KiritoError("math function expected 1 argument");
-                return val(vm, f(mathNum(vm, a[0])));
+                double x = mathNum(vm, a[0]);
+                if (ok && !std::isnan(x) && !ok(x))
+                    throw KiritoError(std::string(nm) + ": math domain error (got " + floatToString(x) + ")");
+                return val(vm, f(x));
             });
         };
-        unary("sqrt", std::sqrt);
+        unary("sqrt", std::sqrt, [](double x) { return x >= 0.0; });
         unary("cbrt", std::cbrt);
         unary("sin", std::sin);
         unary("cos", std::cos);
         unary("tan", std::tan);
-        unary("asin", std::asin);
-        unary("acos", std::acos);
+        unary("asin", std::asin, [](double x) { return x >= -1.0 && x <= 1.0; });
+        unary("acos", std::acos, [](double x) { return x >= -1.0 && x <= 1.0; });
         unary("atan", std::atan);
         unary("sinh", std::sinh);
         unary("cosh", std::cosh);
         unary("tanh", std::tanh);
         unary("asinh", std::asinh);
-        unary("acosh", std::acosh);
-        unary("atanh", std::atanh);
+        unary("acosh", std::acosh, [](double x) { return x >= 1.0; });
+        unary("atanh", std::atanh, [](double x) { return x > -1.0 && x < 1.0; });
         unary("exp", std::exp);
         unary("expm1", std::expm1);
-        unary("log1p", std::log1p);
-        unary("log2", std::log2);
-        unary("log10", std::log10);
+        unary("log1p", std::log1p, [](double x) { return x > -1.0; });
+        unary("log2", std::log2, [](double x) { return x > 0.0; });
+        unary("log10", std::log10, [](double x) { return x > 0.0; });
         unary("trunc", std::trunc);
-        unary("gamma", std::tgamma);
-        unary("lgamma", std::lgamma);
+        unary("gamma", std::tgamma, [](double x) { return !(x <= 0.0 && x == std::floor(x)); });   // poles at 0, -1, -2, ...
+        unary("lgamma", std::lgamma, [](double x) { return !(x <= 0.0 && x == std::floor(x)); });
         unary("erf", std::erf);
         unary("erfc", std::erfc);
 
@@ -92,7 +99,9 @@ public:
             return val(vm, std::copysign(mathNum(vm, a[0]), mathNum(vm, a[1])));
         });
         m.fn("fmod", {{"x", "Number"}, {"y", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return val(vm, std::fmod(mathNum(vm, a[0]), mathNum(vm, a[1])));
+            double x = mathNum(vm, a[0]), y = mathNum(vm, a[1]);
+            if (!std::isnan(y) && y == 0.0) throw KiritoError("fmod: math domain error (divisor is zero)");
+            return val(vm, std::fmod(x, y));
         });
         m.fn("lcm", {{"a", "Integer"}, {"b", "Integer"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto get = [&](Handle h) {
@@ -116,14 +125,25 @@ public:
 
         m.fn("log", {{"x", "Number"}, {"base", "", vm.none()}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             // log(x) is the natural log; log(x, base) changes the base. A None base (the default) is
-            // the natural log too.
+            // the natural log too. The argument must be > 0 and a given base must be > 0 and != 1.
+            double x = mathNum(vm, a[0]);
+            if (!std::isnan(x) && x <= 0.0) throw KiritoError("log: math domain error (argument must be > 0)");
             if (a.size() < 2 || vm.arena().deref(a[1]).kind() == ValueKind::None)
-                return val(vm, std::log(mathNum(vm, a[0])));
-            return val(vm, std::log(mathNum(vm, a[0])) / std::log(mathNum(vm, a[1])));
+                return val(vm, std::log(x));
+            double b = mathNum(vm, a[1]);
+            if (!std::isnan(b) && (b <= 0.0 || b == 1.0)) throw KiritoError("log: math domain error (base must be > 0 and != 1)");
+            return val(vm, std::log(x) / std::log(b));
         });
         m.fn("pow", {{"x", "Number"}, {"y", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.size() != 2) throw KiritoError("pow expected 2 arguments");
-            return val(vm, std::pow(mathNum(vm, a[0]), mathNum(vm, a[1])));
+            double x = mathNum(vm, a[0]), y = mathNum(vm, a[1]);
+            if (!std::isnan(x) && !std::isnan(y)) {
+                if (x < 0.0 && y != std::floor(y))
+                    throw KiritoError("pow: math domain error (a negative base requires an integer exponent)");
+                if (x == 0.0 && y < 0.0)
+                    throw KiritoError("pow: math domain error (zero to a negative power)");
+            }
+            return val(vm, std::pow(x, y));
         });
         m.fn("atan2", {{"y", "Number"}, {"x", "Number"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.size() != 2) throw KiritoError("atan2 expected 2 arguments");
@@ -179,7 +199,7 @@ public:
             if (a.empty()) throw KiritoError("prod expects an iterable");
             auto items = vm.arena().deref(a[0]).iterate(vm);
             if (!items) throw KiritoError("prod expects an iterable");
-            bool isFloat = false;
+            bool isFloat = false, intOverflow = false;
             double f = 1.0;
             int64_t n = 1;
             if (a.size() > 1) {
@@ -191,9 +211,16 @@ public:
             for (Handle h : items.value()) {
                 const Object& o = vm.arena().deref(h);
                 if (o.kind() == ValueKind::Float) { isFloat = true; f *= static_cast<const FloatVal&>(o).value(); }
-                else if (o.kind() == ValueKind::Integer) { int64_t v = static_cast<const IntVal&>(o).value(); n *= v; f *= static_cast<double>(v); }
+                else if (o.kind() == ValueKind::Integer) {
+                    int64_t v = static_cast<const IntVal&>(o).value();
+                    if (__builtin_mul_overflow(n, v, &n)) intOverflow = true;  // track; only an error if the result stays Integer
+                    f *= static_cast<double>(v);
+                }
                 else throw KiritoError("prod expects numbers");
             }
+            // Like its siblings (factorial/comb/perm/lcm), an Integer prod raises on overflow rather
+            // than silently wrapping. A Float in the mix makes the result Float (no overflow concept).
+            if (!isFloat && intOverflow) throw KiritoError("prod result too large for Integer");
             return isFloat ? val(vm, f) : val(vm, n);
         });
         // comb(n, k) / perm(n, k): combinations / partial permutations, computed without overflow

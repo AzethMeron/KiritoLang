@@ -8,16 +8,28 @@ io.print(math.tau > 6.28 and math.tau < 6.29)
 io.print(math.isinf(math.inf))
 io.print(math.isnan(math.nan))
 
-# ---- IEEE-754 domain edges (do NOT raise: docs say results are NaN/inf) ------------------------
-io.print(math.isnan(math.sqrt(-1)))
-io.print(math.isinf(math.log(0)))                       # log(0) = -inf
-io.print(math.log(0) < 0)                                # -inf is negative
-io.print(math.isnan(math.log(-1)))                       # log(-1) = NaN
-io.print(math.isnan(math.acos(2)))                       # acos out of domain
-io.print(math.isnan(math.asin(2)))
-io.print(math.isnan(math.atanh(2)))                      # |x|>1
-io.print(math.isinf(math.log(math.inf)))
+# ---- domain errors RAISE (no silent NaN/inf rubbish) ------------------------------------------
+var domain_thunks = [Function(): return math.sqrt(-1), Function(): return math.log(0),
+                     Function(): return math.log(-1), Function(): return math.acos(2),
+                     Function(): return math.asin(2), Function(): return math.atanh(2),
+                     Function(): return math.acosh(0), Function(): return math.log2(0),
+                     Function(): return math.log10(0), Function(): return math.log1p(-1),
+                     Function(): return math.gamma(0), Function(): return math.gamma(-1),
+                     Function(): return math.lgamma(0), Function(): return math.pow(-2, 0.5),
+                     Function(): return math.pow(0, -1), Function(): return math.fmod(1, 0),
+                     Function(): return math.log(8, 1), Function(): return math.log(8, -2)]
+var draised = 0
+for thunk in domain_thunks:
+    try:
+        discard thunk()
+    catch as e:
+        draised = draised + 1
+io.print(draised == 18)                                  # every domain error raised
+# NaN passes through unchanged, and overflow-to-inf is a range (not domain) condition: neither raises.
+io.print(math.isnan(math.sqrt(math.nan)))
 io.print(math.isnan(math.log(math.nan)))
+io.print(math.isinf(math.log(math.inf)))                 # log(inf) = inf (inf > 0, in domain)
+io.print(math.isinf(math.exp(1000)))                     # overflow to +inf does not raise
 
 # ---- log with base -----------------------------------------------------------------------------
 io.print(math.log(100, 10))      # 2

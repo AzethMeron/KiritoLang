@@ -579,12 +579,56 @@ inline double mathDeriv(MathOp k, double x, double o) {
     return 1.0;
 }
 
+// Reject out-of-domain elements before an element-wise math op, instead of letting std:: emit a
+// silent NaN/inf into the data (and poison gradients). Mirrors the scalar `math` module's policy and
+// the tensor engine's own div-by-zero guard, with which the unguarded math ops were inconsistent. A
+// NaN element passes through (like the scalar math module); genuine overflow-to-inf is not a domain
+// error. Only the ops with a real domain restriction are listed; everything else is total.
+inline void checkMathDomain(MathOp k, double x) {
+    if (std::isnan(x)) return;
+    switch (k) {
+        case MathOp::Log: case MathOp::Log10: case MathOp::Log2:
+            if (x <= 0.0) throw KiritoError("tensor log: math domain error (got " + floatToString(x) + ")");
+            break;
+        case MathOp::Sqrt:
+            if (x < 0.0) throw KiritoError("tensor sqrt: math domain error (got " + floatToString(x) + ")");
+            break;
+        case MathOp::Asin:
+            if (x < -1.0 || x > 1.0) throw KiritoError("tensor asin: math domain error (got " + floatToString(x) + ")");
+            break;
+        case MathOp::Acos:
+            if (x < -1.0 || x > 1.0) throw KiritoError("tensor acos: math domain error (got " + floatToString(x) + ")");
+            break;
+        case MathOp::Acosh:
+            if (x < 1.0) throw KiritoError("tensor acosh: math domain error (got " + floatToString(x) + ")");
+            break;
+        case MathOp::Atanh:
+            if (x <= -1.0 || x >= 1.0) throw KiritoError("tensor atanh: math domain error (got " + floatToString(x) + ")");
+            break;
+        case MathOp::Reciprocal:
+            if (x == 0.0) throw KiritoError("tensor division by zero (reciprocal of 0)");
+            break;
+        default: break;
+    }
+}
+
+// pow domain: a negative base with a non-integer exponent (a complex result) or zero to a negative
+// power (a pole) are domain errors, matching the scalar `math.pow` guard.
+inline void checkPowDomain(double base, double p) {
+    if (std::isnan(base) || std::isnan(p)) return;
+    if (base < 0.0 && p != std::floor(p))
+        throw KiritoError("tensor pow: math domain error (negative base " + floatToString(base) +
+                          " with a non-integer exponent " + floatToString(p) + ")");
+    if (base == 0.0 && p < 0.0)
+        throw KiritoError("tensor pow: math domain error (zero to a negative power)");
+}
+
 inline Handle g_math(KiritoVM& vm, Handle ah, MathOp k) {
     TensorVal& A = asT(vm, ah);
     if (A.isComplex())
         throw KiritoError("this math op is Float-only on tensors (use the complex module for complex math)");
     const FT& a = std::get<FT>(A.store);
-    FT out = tensor::mapUnary(a, [k](double x) { return mathForward(k, x); });
+    FT out = tensor::mapUnary(a, [k](double x) { checkMathDomain(k, x); return mathForward(k, x); });
     if (!wantsGrad(vm, {&A})) return make(vm, std::move(out));
     FT acopy = a, outcopy = out;
     auto bw = [k, acopy, outcopy](const FT& g) -> std::vector<FT> {
@@ -600,7 +644,7 @@ inline Handle g_pow(KiritoVM& vm, Handle ah, double p) {
     TensorVal& A = asT(vm, ah);
     if (A.isComplex()) throw KiritoError("pow is Float-only on tensors");
     const FT& a = std::get<FT>(A.store);
-    FT out = tensor::mapUnary(a, [p](double x) { return std::pow(x, p); });
+    FT out = tensor::mapUnary(a, [p](double x) { checkPowDomain(x, p); return std::pow(x, p); });
     if (!wantsGrad(vm, {&A})) return make(vm, std::move(out));
     FT acopy = a;
     auto bw = [acopy, p](const FT& g) -> std::vector<FT> {
@@ -820,6 +864,8 @@ inline Handle g_where(KiritoVM& vm, Handle cH, Handle aH, Handle bH) {
 inline Handle g_clip(KiritoVM& vm, Handle ah, double lo, double hi) {
     TensorVal& A = asT(vm, ah);
     const FT& a = reqFloat(A, "clip");
+    if (lo > hi) throw KiritoError("tensor clip: lower bound " + floatToString(lo) +
+                                   " is greater than upper bound " + floatToString(hi));
     FT out = tensor::mapUnary(a, [lo, hi](double x) { return x < lo ? lo : (x > hi ? hi : x); });
     if (!wantsGrad(vm, {&A})) return make(vm, std::move(out));
     FT acopy = a;
@@ -860,7 +906,7 @@ inline Handle g_maxmin(KiritoVM& vm, Handle ah, Handle bh, bool isMax) {
 inline Handle g_powT(KiritoVM& vm, Handle ah, Handle bh) {
     TensorVal& A = asT(vm, ah); TensorVal& B = asT(vm, bh);
     const FT& a = reqFloat(A, "pow"); const FT& b = reqFloat(B, "pow");
-    FT out = tensor::elementwise(a, b, [](double x, double y) { return std::pow(x, y); });
+    FT out = tensor::elementwise(a, b, [](double x, double y) { checkPowDomain(x, y); return std::pow(x, y); });
     if (!wantsGrad(vm, {&A, &B})) return make(vm, std::move(out));
     bool ag = A.requiresGrad, bg = B.requiresGrad;
     tensor::Shape ash = a.shape, bsh = b.shape;
@@ -1259,7 +1305,8 @@ inline Handle solveT(KiritoVM& vm, Handle aH, Handle bH) {
 inline Handle normT(KiritoVM& vm, Handle ah, double ord) {
     warnDetach(vm, "norm()", asT(vm, ah));
     const FT& a = reqFloat(asT(vm, ah), "norm");
-    if (ord == 2.0 || ord == 0.0) { double s = 0; for (double x : a.data) s += x * x; return vm.makeFloat(std::sqrt(s)); }
+    if (ord == 0.0) { double c = 0; for (double x : a.data) c += (x != 0.0); return vm.makeFloat(c); }  // NumPy: count of nonzeros
+    if (ord == 2.0) { double s = 0; for (double x : a.data) s += x * x; return vm.makeFloat(std::sqrt(s)); }
     if (std::isinf(ord)) { double m = 0; for (double x : a.data) m = std::max(m, std::fabs(x)); return vm.makeFloat(m); }
     if (ord == 1.0) { double s = 0; for (double x : a.data) s += std::fabs(x); return vm.makeFloat(s); }
     double s = 0; for (double x : a.data) s += std::pow(std::fabs(x), ord);

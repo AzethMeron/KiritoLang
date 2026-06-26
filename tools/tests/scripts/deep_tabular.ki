@@ -30,17 +30,17 @@ var bag = Function(xs):
     return d
 
 # =================================================================== Series binop LENGTH ASYMMETRY
-# A Series op iterates over SELF and indexes OTHER positionally, so a length mismatch is asymmetric:
-#  - self SHORTER than other -> silently truncates to self's length (NO error, NO alignment)
-#  - self LONGER  than other -> "index out of range"
-# (pandas would align by index or raise consistently; this is neither — pin the real behavior.)
+# A Series op now CONSISTENTLY raises on a length mismatch (no more silent asymmetric truncation):
+# both `short OP long` and `long OP short` raise a clear "length mismatch" error, in both directions.
 var shortS = pd.Series([1, 2])
 var longS = pd.Series([10, 20, 30, 40])
-assert (shortS + longS).tolist() == [11, 22], "short+long silently truncates to the shorter (self) length"
-assert throws(Function(): return longS + shortS), "long+short raises index out of range (asymmetric!)"
-# the multiply/divide/etc. paths share _binop, so they truncate the same way
-assert (shortS * longS).tolist() == [10, 40], "short*long truncates too (shared _binop)"
-assert (shortS > longS).tolist() == [False, False], "comparison truncates the same asymmetric way"
+assert throws(Function(): return shortS + longS), "short+long raises a length-mismatch error (no silent truncation)"
+assert throws(Function(): return longS + shortS), "long+short raises a length-mismatch error too (now symmetric)"
+# the multiply/divide/comparison paths share _binop, so they raise the same way
+assert throws(Function(): return shortS * longS), "short*long raises (shared _binop)"
+assert throws(Function(): return shortS > longS), "comparison raises the same way"
+# equal-length Series-Series arithmetic still works
+assert (pd.Series([1, 2]) + pd.Series([10, 20])).tolist() == [11, 22], "equal-length Series + Series aligns"
 
 # =================================================================== Series MISSING-DATA arithmetic
 # Aggregations skip missing, but element-wise arithmetic / comparison / sort do NOT propagate NaN
@@ -143,12 +143,11 @@ assert bag(vcA.tolist()) == bag([1, 1, 1]), "valuecounts ties: every value count
 assert bag(vcA.index) == bag(["a", "b", "c"]), "valuecounts index covers every value"
 
 # =================================================================== CSV: ragged rows, embedded newline, quoting
-# Short row -> missing trailing cells become "" -> inferred as None.
+# Short row -> missing trailing cells become "" -> inferred as None (still padded, not an error).
 var ragShort = pd.readcsv("a,b,c\n1,2\n3,4,5")
 assert ragShort["c"].tolist() == [None, 5], "short CSV row: missing trailing cell -> None"
-# Long row -> extra cells beyond the header are silently dropped.
-var ragLong = pd.readcsv("a,b\n1,2,3,4\n5,6")
-assert ragLong["a"].tolist() == [1, 5] and ragLong["b"].tolist() == [2, 6], "long CSV row: extra cells silently dropped"
+# Long row -> extra cells beyond the header now RAISE (no silent data loss, like pandas' ParserError).
+assert throws(Function(): return pd.readcsv("a,b\n1,2,3,4\n5,6")), "long CSV row (more fields than the header) raises"
 # Quoted field with an embedded newline stays one cell / one row.
 var emb = pd.readcsv("a,b\n\"x\ny\",z\np,q")
 assert emb.nrows() == 2, "quoted embedded newline keeps the row intact"

@@ -93,8 +93,13 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 
 ## math
 
-Constants and the usual numeric functions. Type errors raise; **domain** errors (e.g. `sqrt(-1)`,
-`log(0)`) follow C semantics and yield `nan`/`inf` rather than raising. Results are `Float` unless noted.
+Constants and the usual numeric functions. Both type **and domain** errors raise a clear `math domain
+error` rather than silently returning `nan`/`inf` rubbish — `sqrt(-1)`, `log(0)`, `log(-1)`, `asin(2)`,
+`acos(2)`, `acosh(0)`, `atanh(1)`, `log2(0)`, `log10(0)`, `log1p(-1)`, `gamma(0)`/`gamma(-1)`,
+`lgamma(0)`, `pow(-2, 0.5)` (negative base, non-integer exponent), `pow(0, -1)` (zero to a negative
+power), `fmod(x, 0)`, and a `log` base `≤ 0` or `== 1` all raise. A NaN argument passes through
+unchanged (`sqrt(nan) → nan`, like Python), and a genuine *range* condition — overflow to infinity such
+as `exp(1000) → inf` — is not a domain error and does not raise. Results are `Float` unless noted.
 
 - Constants: `pi`, `e`, `tau`, `inf`, `nan` (all `Float`).
 - `sqrt(x: Number) → Float` — square root.
@@ -141,7 +146,9 @@ Constants and the usual numeric functions. Type errors raise; **domain** errors 
 - `comb(n: Integer, k: Integer) → Integer` — combinations “n choose k”.
 - `perm(n: Integer, k = None) → Integer` — permutations of `n` taken `k` at a time; with `k` omitted
   (or `None`) it returns `n!`.
-- `prod(iterable, start = 1) → Number` — product of the elements times `start` (Integer if all Integer, else Float).
+- `prod(iterable, start = 1) → Number` — product of the elements times `start` (Integer if all Integer,
+  else Float). Like `factorial`/`comb`/`perm`/`lcm`, an all-Integer product raises on Integer overflow
+  rather than silently wrapping; a Float anywhere in the mix makes the result a Float (no overflow).
 
 ---
 
@@ -259,11 +266,14 @@ Scalar reductions (one per line):
 - `conjugate(z) → Complex` — the complex conjugate.
 
 The analytic math set — the complex extensions of the `math` functions — each take a `Complex` or a
-number and return a `Complex`:
+number and return a `Complex`. They are defined across the whole complex plane (so `sqrt(-1)` → `i`,
+`log(-1)` → `iπ`, `asin(2)`/`acosh(0)` are valid), but the true singularities raise a `math domain
+error` exactly where Python's `cmath` does: `log(0)`/`log10(0)`, `atanh(±1)`, and `pow`/`**` of zero to
+a negative or non-real power (`zero ** -1`):
 
 - `exp(z)`
-- `log(z)` — natural logarithm (principal branch).
-- `log10(z)`
+- `log(z)` — natural logarithm (principal branch); raises on `0`.
+- `log10(z)` — raises on `0`.
 - `sqrt(z)` — principal square root.
 - `cbrt(z)` — principal cube root.
 - `pow(z, w)` — `z` raised to the power `w`.
@@ -446,6 +456,13 @@ Every one of these returns a new tensor with the function applied element-wise, 
 - trigonometric: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`
 - hyperbolic: `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`
 - neural-net: `relu`, `sigmoid`
+
+Like the scalar `math` module — and like the tensor engine's own division-by-zero guard — these raise a
+clear `tensor … : math domain error` on an out-of-domain **element** instead of silently emitting
+`NaN`/`inf` into the result (and poisoning gradients): `log`/`log10`/`log2` of `≤ 0`, `sqrt` of a
+negative, `asin`/`acos` outside `[-1, 1]`, `acosh` below `1`, `atanh` at/outside `±1`, `reciprocal` of
+`0`, and `pow` of a negative base to a non-integer exponent (or zero to a negative power). A `NaN`
+element passes through; genuine overflow to `inf` is not a domain error.
 
 ### tensordot / contract
 
@@ -703,7 +720,10 @@ Clocks and calendar time.
 - `make(year, month, day, hour = 0, minute = 0, second = 0) → DateTime` — build from UTC components.
   Out-of-range components **normalize** (C `mktime`-style: month 13 → January of the next year,
   day 32 → the 1st of the next month), rather than raising.
-- `strptime(text: String, format: String) → DateTime` — parse a time string against a format of `%`-codes (`%Y-%m-%d %H:%M:%S`, …).
+- `strptime(text: String, format: String) → DateTime` — parse a time string against a format of
+  `%`-codes (`%Y-%m-%d %H:%M:%S`, …). Unlike `make`, parsing is strict: a literal/format mismatch,
+  an **out-of-range** field (`2024-99-99`, hour `25`), or **unconverted trailing input**
+  (`"2024-01-01XYZ"`) all raise rather than silently producing a garbage date.
 
 ### DateTime object
 
@@ -1034,7 +1054,8 @@ rather than a lazy sequence.
 - `stdev(data) → Float` — the sample standard deviation.
 - `pvariance(data) → Float` — the population variance.
 - `pstdev(data) → Float` — the population standard deviation.
-- `quantiles(data[, n]) → List` — cut points dividing `data` into `n` equal groups.
+- `quantiles(data[, n]) → List` — cut points dividing `data` into `n` equal groups (`n ≥ 1`, default
+  `4`); raises on fewer than two data points or `n < 1`.
 
 ---
 
@@ -1097,6 +1118,8 @@ Low-level CSV parsing/formatting (RFC-4180-style quoting). For tabular data anal
 A dataframe-style data-analysis library: a labelled 1-D **`Series`** and 2-D **`DataFrame`**, with CSV
 I/O, label/position indexing, boolean masking, element-wise arithmetic (on `Series` —
 a `DataFrame` is operated on per-column), aggregations, group-by, joins, and missing-data handling.
+`Series`-to-`Series` arithmetic and comparison require **equal length** (a mismatch raises consistently
+in either order — no silent truncation); a `Series`-to-scalar op broadcasts the scalar.
 Public names follow Kirito's lowercase-no-underscore convention (`readcsv`, `sortvalues`,
 `valuecounts`, `resetindex`, ...).
 
@@ -1110,7 +1133,8 @@ Public names follow Kirito's lowercase-no-underscore convention (`readcsv`, `sor
 - `DataFrame(data = None, columns = None, index = None)` — `data` is a Dict of `column → values`, a
   List of row-Lists (pair with `columns`), or a List of row-Dicts (columns are the key union).
 - `readcsv(source, header = True, infer = True)` — build a DataFrame from CSV text (or a filename).
-  With `infer`, each cell becomes Integer/Float/Bool/None/String; an empty cell is `None` (missing).
+  With `infer`, each cell becomes Integer/Float/Bool/None/String; a short row's missing trailing cells
+  are `None`, but a row with **more** fields than the header raises (no silent data loss, like pandas).
 - `merge(left, right, on, how = "inner")` — join two DataFrames on a key column; `how` is
   `"inner"`/`"left"`/`"right"`/`"outer"`.
 - `concat(frames)` — stack DataFrames vertically (column union, missing filled with `None`).

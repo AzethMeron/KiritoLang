@@ -122,11 +122,17 @@ r[0] == r
 )") == "True");
 
     // ---------------- Math ----------------
-    CHECK(survives(vm, "import(\"math\").sqrt(-1)\n"));        // nan, not a crash
+    CHECK(survives(vm, "import(\"math\").sqrt(-1)\n"));        // domain error, cleanly caught (no crash)
     CHECK(survives(vm, "import(\"math\").log(0)\n"));
     CHECK(survives(vm, "import(\"math\").factorial(-1)\n"));   // clean error
     CHECK(survives(vm, "import(\"math\").factorial(100000)\n"));  // huge, but bounded
-    CHECK(evalStr(vm, "import(\"math\").isnan(import(\"math\").sqrt(-1.0))") == "True");
+    // sqrt(-1) now RAISES a clear math domain error rather than silently returning NaN.
+    {
+        bool raised = false;
+        try { vm.runSource("import(\"math\").sqrt(-1.0)"); }
+        catch (const KiritoError&) { raised = true; }
+        CHECK(raised);
+    }
 
     // ---------------- Random ----------------
     CHECK(survives(vm, "import(\"random\").Random(1).randint(10, 1)\n"));  // empty range

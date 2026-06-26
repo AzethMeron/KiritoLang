@@ -99,6 +99,14 @@ inline cdouble asComplex(KiritoVM& vm, Handle h, const char* who = "Complex") {
 
 inline Handle make(KiritoVM& vm, cdouble z) { return vm.alloc(std::make_unique<ComplexVal>(z)); }
 
+// Reject the one true singularity of complex exponentiation: zero raised to a negative or non-real
+// power (std::pow would emit inf/nan). Matches Python's `0j ** -1` / `0j ** 1j` -> ZeroDivisionError
+// and Kirito's own `complex` division-by-zero guard. Other bases/powers are well-defined.
+inline void checkPow(cdouble base, cdouble exp) {
+    if (base == cdouble(0.0, 0.0) && (exp.real() < 0.0 || exp.imag() != 0.0))
+        throw KiritoError("complex pow: zero to a negative or complex power");
+}
+
 }  // namespace cpx
 
 inline Handle ComplexVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
@@ -113,7 +121,7 @@ inline Handle ComplexVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
         case BinOp::Div:
             if (b == cdouble(0.0, 0.0)) throw KiritoError("complex division by zero");
             return cpx::make(vm, z / b);
-        case BinOp::Pow: return cpx::make(vm, std::pow(z, b));
+        case BinOp::Pow: cpx::checkPow(z, b); return cpx::make(vm, std::pow(z, b));
         case BinOp::Eq: return vm.makeBool(z == b);   // EXACT (std::complex::==); .compare() for tolerance
         case BinOp::Ne: return vm.makeBool(z != b);
         default: break;
@@ -535,15 +543,25 @@ public:
         m.fn("conjugate", {{"z"}}, "Complex", [](KiritoVM& vm, std::span<const Handle> a) -> Handle { return cpx::make(vm, std::conj(cpx::asComplex(vm, a[0]))); });
 
         // Analytic functions — the complex extensions of the `math` module's transcendental set.
-        // Each accepts a Complex or a real number and returns a Complex.
-        auto unary = [&](const char* nm, cdouble (*f)(const cdouble&)) {
-            m.fn(nm, {{"z"}}, "Complex", [f](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-                return cpx::make(vm, f(cpx::asComplex(vm, a[0])));
+        // Each accepts a Complex or a real number and returns a Complex. `bad` is an optional domain
+        // predicate (a non-capturing lambda → function pointer): when it returns a message, raise it
+        // instead of letting std:: emit silent inf/nan at a true singularity. Like the `math` module,
+        // Kirito's complex analytic functions raise at exactly the points cmath raises — log/log10 of
+        // zero, atanh of ±1 — while remaining defined on the rest of the plane (e.g. sqrt(-1)=i,
+        // log(-1)=iπ, asin(2), acosh(0) are all valid and must NOT raise).
+        auto unary = [&](const char* nm, cdouble (*f)(const cdouble&), const char* (*bad)(const cdouble&) = nullptr) {
+            m.fn(nm, {{"z"}}, "Complex", [f, bad, nm](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                cdouble z = cpx::asComplex(vm, a[0]);
+                if (bad) { const char* msg = bad(z); if (msg) throw KiritoError(std::string(nm) + ": " + msg); }
+                return cpx::make(vm, f(z));
             });
         };
+        auto logZero = [](const cdouble& z) -> const char* {
+            return z == cdouble(0.0, 0.0) ? "math domain error (logarithm of zero)" : nullptr;
+        };
         unary("exp", [](const cdouble& z) { return std::exp(z); });
-        unary("log", [](const cdouble& z) { return std::log(z); });
-        unary("log10", [](const cdouble& z) { return std::log10(z); });
+        unary("log", [](const cdouble& z) { return std::log(z); }, logZero);
+        unary("log10", [](const cdouble& z) { return std::log10(z); }, logZero);
         unary("sqrt", [](const cdouble& z) { return std::sqrt(z); });
         unary("sin", [](const cdouble& z) { return std::sin(z); });
         unary("cos", [](const cdouble& z) { return std::cos(z); });
@@ -556,10 +574,17 @@ public:
         unary("tanh", [](const cdouble& z) { return std::tanh(z); });
         unary("asinh", [](const cdouble& z) { return std::asinh(z); });
         unary("acosh", [](const cdouble& z) { return std::acosh(z); });
-        unary("atanh", [](const cdouble& z) { return std::atanh(z); });
-        // pow(z, w) and a cube root (no std::cbrt for complex; use the principal value).
+        unary("atanh", [](const cdouble& z) { return std::atanh(z); },
+              [](const cdouble& z) -> const char* {
+                  return (z == cdouble(1.0, 0.0) || z == cdouble(-1.0, 0.0))
+                             ? "math domain error (atanh of ±1)" : nullptr;
+              });
+        // pow(z, w) and a cube root (no std::cbrt for complex; use the principal value). Zero raised
+        // to a negative or non-real power is a singularity (Python raises ZeroDivisionError there).
         m.fn("pow", {{"z"}, {"w"}}, "Complex", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return cpx::make(vm, std::pow(cpx::asComplex(vm, a[0]), cpx::asComplex(vm, a[1])));
+            cdouble z = cpx::asComplex(vm, a[0]), w = cpx::asComplex(vm, a[1]);
+            cpx::checkPow(z, w);
+            return cpx::make(vm, std::pow(z, w));
         });
         m.fn("cbrt", {{"z"}}, "Complex", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return cpx::make(vm, std::pow(cpx::asComplex(vm, a[0]), cdouble(1.0 / 3.0, 0.0)));
