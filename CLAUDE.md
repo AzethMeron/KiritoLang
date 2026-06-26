@@ -570,10 +570,18 @@ Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
 - **Install + packages**: `tools/scripts/install.sh` (Linux/macOS) and `tools/scripts/install.ps1` (Windows)
   are one-line installers that download the release binary (or build from source), place `ki`/`kpm`
   launchers on PATH, and create `~/.kirito/packages`. **`kpm/kpm.ki`** is the package manager,
-  written in Kirito (uses `net`/`json`/`io`/`sys`/`semver`): `kpm install <owner/repo>[@ref]` fetches a
-  package's `kirito.json` manifest + modules from GitHub (no central index) into
-  `~/.kirito/packages/<name>/`; also `remove`/`list`/`update`/`outdated`/`where`/`version`.
-  Dependencies are other `owner/repo` packages (each optionally `@<constraint>`). An `@ref` is either
+  written in Kirito (uses `net`/`json`/`io`/`sys`/`semver`): `kpm install <repo>[@ref]` fetches a
+  package's `kirito.json` manifest + modules into `~/.kirito/packages/<name>/`; also
+  `remove`/`list`/`update`/`outdated`/`where`/`version`. **Multi-host (1.3):** `<repo>` defaults to
+  GitHub (`owner/repo`) but a host-aware adapter also installs from **GitLab** and self-hosted
+  instances — `gitlab.com/o/r`, `gitlab:o/r`, a full `https://…` URL (host auto-detected), or a
+  `gitlab+`/`github+` prefix to force the host TYPE (self-hosted GitLab / GitHub Enterprise); GitHub
+  endpoints are env-overridable (`$KPM_GITHUB_API`/`$KPM_GITHUB_RAW`). Hardening: manifest validation,
+  a path-traversal guard on module paths + package names (a manifest can never write outside the
+  package dir), and version-conflict warnings across the dependency graph. (`tools/tests/kpm_integration.py`
+  drives the real kpm under `ki` against a localhost GitHub/GitLab mock — install/deps/semver/update/
+  remove/conflict + every misconfig failure mode.) Dependencies are other repos (each optionally
+  `@<constraint>`). An `@ref` is either
   a **literal git ref** (`@main`, a sha) or a **semver constraint** (`@^1.2.0`, `@1.x`, `@">=1 <2"`)
   resolved against the repo's tags by the `semver` module (`validrange` tells them apart;
   `maxsatisfying` picks the highest matching tag); the chosen constraint is recorded in `.kpm.json`
@@ -582,8 +590,9 @@ Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
   release binary for `sys.platform`/`sys.arch`, `io.chmod`s it executable, and atomically swaps it in
   over the running interpreter (`sys.executable` / `$KPM_KI_PATH`; Windows moves the old exe aside
   first) — both version-check against `sys.version` and no-op when current (`--force` overrides).
-  `$GITHUB_TOKEN`/`$KPM_GITHUB_TOKEN` is sent as a bearer token to lift the API rate limit + reach
-  private repos. The standalone `ki` also gains `-v`/`--version`.
+  `$GITHUB_TOKEN`/`$KPM_GITHUB_TOKEN` (GitHub bearer) and `$GITLAB_TOKEN`/`$KPM_GITLAB_TOKEN` (GitLab
+  `PRIVATE-TOKEN`) lift each host's rate limit + reach private repos. The standalone `ki` also gains
+  `-v`/`--version`.
 - Tests run under **CTest**. **Every language feature gets a test.** Prefer many
   small, focused tests (one behavior each) over large ones. A feature isn't done
   until it has a test and the suite is green.

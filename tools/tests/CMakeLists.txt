@@ -99,6 +99,15 @@ kirito_test(test_kpm unit/test_kpm.cpp)
 # kpm.ki lives at the repo root, not under tests/; hand its directory to the test via the environment
 # so `import("kpm")` resolves it (passed by env, not a -D, to keep the shared PCH reusable).
 set_tests_properties(test_kpm PROPERTIES ENVIRONMENT "KPM_DIR=${CMAKE_SOURCE_DIR}/kpm")
+# kpm end-to-end integration: drives the REAL kpm under `ki` against a localhost mock git host
+# (GitHub- and GitLab-shaped), exercising install/deps/semver/update/remove/version-conflict and every
+# misconfiguration failure mode. Needs python3 + the built `ki`; skipped if python3 is absent.
+find_program(KPM_PYTHON NAMES python3 python)
+if(KPM_PYTHON)
+    add_test(NAME kpm_integration
+             COMMAND ${KPM_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/kpm_integration.py $<TARGET_FILE:ki>)
+    set_tests_properties(kpm_integration PROPERTIES TIMEOUT 120)
+endif()
 kirito_test(test_introspect unit/test_introspect.cpp)
 kirito_test(test_warnings unit/test_warnings.cpp)
 kirito_test(test_unicode unit/test_unicode.cpp)

@@ -1,16 +1,20 @@
 # Packages & kpm
 
-`kpm` is Kirito's package manager. A **package** is a bundle of `.ki` modules published in a GitHub
-repository — there is **no central index**, you install by naming an `owner/repo`. `kpm` is itself
-written in Kirito (`kpm/kpm.ki`, using only the `net`, `json`, `io`, `sys`, and `semver` modules) and
-ships with the interpreter; the installer drops a `kpm` launcher on your `PATH`.
+`kpm` is Kirito's package manager. A **package** is a bundle of `.ki` modules published in a git
+repository — there is **no central index**, you install by naming a repository. **GitHub is the
+default**, but any **GitLab** repository (gitlab.com or a self-hosted instance) works too. `kpm` is
+itself written in Kirito (`kpm/kpm.ki`, using only the `net`, `json`, `io`, `sys`, and `semver`
+modules) and ships with the interpreter; the installer drops a `kpm` launcher on your `PATH`.
 
 ## Commands
 
 ```sh
-kpm install owner/repo            # install a package (and its dependencies) from GitHub
+kpm install owner/repo            # install from GitHub (the default — owner/repo)
 kpm install owner/repo@main       # pin a literal git ref (branch / tag / commit)
 kpm install owner/repo@^1.2.0     # pin a semver constraint -> highest matching tag
+kpm install gitlab.com/owner/repo # install from GitLab.com (also: gitlab:owner/repo)
+kpm install https://gitlab.com/owner/repo@v2.0.0      # any full http(s) URL; host auto-detected
+kpm install gitlab+https://git.acme.com/group/repo    # self-hosted GitLab (github+<url> for GHE)
 kpm list                          # list installed packages
 kpm update owner ... | --all      # re-resolve + reinstall (honours each recorded constraint)
 kpm outdated                      # show which installed packages have a newer version
@@ -129,9 +133,28 @@ still installable from a branch (`@main`), but then version constraints have not
 Both compare versions first (against `sys.version` and the latest GitHub release) and **no-op when
 already current** — pass `--force` to reinstall anyway.
 
+## Repository sources (GitHub, GitLab, self-hosted)
+
+A package source is written as one of:
+
+| Form | Host |
+|------|------|
+| `owner/repo` | GitHub.com (the default) |
+| `github.com/owner/repo` | GitHub.com, explicit |
+| `gitlab.com/owner/repo` or `gitlab:owner/repo` | GitLab.com |
+| `https://gitlab.com/owner/repo` (any full `http(s)://` URL) | host auto-detected from the domain |
+| `gitlab+https://git.example.com/group/repo` | a **self-hosted** GitLab (force the host *type*) |
+| `github+https://ghe.example.com/owner/repo` | a self-hosted **GitHub Enterprise** |
+
+A trailing `.git` is ignored, a GitLab **nested group path** (`group/subgroup/repo`) is supported, and
+the same forms work for a `dependencies` entry. Dependencies on GitLab are pinned and re-resolved just
+like GitHub ones (the install record stores a re-parseable source). If a host's *type* can't be
+inferred from its domain, prefix it with `gitlab+`/`github+` — `kpm` tells you so rather than guessing.
+
 ## Authentication & rate limits
 
-`kpm` uses GitHub's public REST API (to list tags / releases) and raw file endpoints (to download
-modules). Set **`$GITHUB_TOKEN`** (or `$KPM_GITHUB_TOKEN`) and `kpm` sends it as a bearer token, which
-lifts GitHub's unauthenticated API rate limit (60 → 5000 requests/hour) and lets you install from
-**private** repositories.
+`kpm` uses each host's REST API (to list tags / releases) and raw-file endpoints (to download
+modules). Set **`$GITHUB_TOKEN`** (or `$KPM_GITHUB_TOKEN`) for GitHub — sent as a bearer token — and
+**`$GITLAB_TOKEN`** (or `$KPM_GITLAB_TOKEN`) for GitLab — sent as a `PRIVATE-TOKEN` header. A token
+lifts that host's anonymous rate limit and lets you install from **private** repositories. For GitHub
+Enterprise (or testing), `$KPM_GITHUB_API` / `$KPM_GITHUB_RAW` override the GitHub endpoints.
