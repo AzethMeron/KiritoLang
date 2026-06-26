@@ -246,7 +246,7 @@ private:
 
     ast::StmtPtr parseThrow() {
         auto node = std::make_unique<ast::ThrowStmt>();
-        node->span = advance().span;  // 'raise'
+        node->span = advance().span;  // 'throw'
         node->value = parseExpr();
         endSimpleStatement();
         return node;

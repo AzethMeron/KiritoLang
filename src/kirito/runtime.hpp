@@ -1011,14 +1011,13 @@ inline const std::string& asStr(KiritoVM& vm, Handle h, const char* what) {
 
 // Map a Python-style code-point index (negative counts from the end, out-of-range clamps) to a byte
 // offset into a UTF-8 string — for the optional start/end of the search methods.
-inline std::size_t cpIndexToByte(const std::string& s, int64_t cp, bool isEnd) {
+inline std::size_t cpIndexToByte(const std::string& s, int64_t cp) {
     auto starts = utf8Starts(s);
     int64_t n = static_cast<int64_t>(starts.size());
     if (cp < 0) cp += n;
     if (cp < 0) cp = 0;
     if (cp >= n) return s.size();
     return starts[static_cast<std::size_t>(cp)];
-    (void)isEnd;
 }
 
 // Decode a UTF-8 string to its code points (so edit distance is by character, not byte).
@@ -1074,9 +1073,9 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         -> std::pair<std::size_t, std::size_t> {
         std::size_t lo = 0, hi = s.size();
         if (a.size() > from && vm.arena().deref(a[from]).kind() != ValueKind::None)
-            lo = cpIndexToByte(s, argInt(vm, a[from], "start"), false);
+            lo = cpIndexToByte(s, argInt(vm, a[from], "start"));
         if (a.size() > from + 1 && vm.arena().deref(a[from + 1]).kind() != ValueKind::None)
-            hi = cpIndexToByte(s, argInt(vm, a[from + 1], "end"), true);
+            hi = cpIndexToByte(s, argInt(vm, a[from + 1], "end"));
         if (hi < lo) hi = lo;
         return {lo, hi};
     };
@@ -1994,10 +1993,11 @@ inline Handle applyBinaryOp(KiritoVM& vm, BinOp op, Handle lhs, Handle rhs) {
 inline Handle applyCall(KiritoVM& vm, Handle callee, std::span<const Handle> positional,
                         std::span<const NamedArg> named) {
     Object& c = vm.arena().deref(callee);
+    const ValueKind k = c.kind();   // hoisted: this is the hot call path, kind() is virtual
     if (named.empty()) {
-        if (c.kind() == ValueKind::Function)
+        if (k == ValueKind::Function)
             return static_cast<KiFunction&>(c).callFull(vm, positional, {});
-        if (c.kind() == ValueKind::NativeFunction && static_cast<NativeFunction&>(c).hasSignature() &&
+        if (k == ValueKind::NativeFunction && static_cast<NativeFunction&>(c).hasSignature() &&
             positional.size() != static_cast<NativeFunction&>(c).params().size()) {
             auto& nf = static_cast<NativeFunction&>(c);
             RootScope rs(vm);
@@ -2007,20 +2007,20 @@ inline Handle applyCall(KiritoVM& vm, Handle callee, std::span<const Handle> pos
         }
         return c.call(vm, positional);
     }
-    if (c.kind() == ValueKind::Function)
+    if (k == ValueKind::Function)
         return static_cast<KiFunction&>(c).callFull(vm, positional, named);
-    if (c.kind() == ValueKind::Class)
+    if (k == ValueKind::Class)
         return static_cast<ClassValue&>(c).callFull(vm, positional, named);
-    if (c.kind() == ValueKind::NativeFunction && static_cast<NativeFunction&>(c).acceptsKwargs())
+    if (k == ValueKind::NativeFunction && static_cast<NativeFunction&>(c).acceptsKwargs())
         return static_cast<NativeFunction&>(c).callKw(vm, positional, named);
-    if (c.kind() == ValueKind::NativeFunction && static_cast<NativeFunction&>(c).hasSignature()) {
+    if (k == ValueKind::NativeFunction && static_cast<NativeFunction&>(c).hasSignature()) {
         auto& nf = static_cast<NativeFunction&>(c);
         RootScope rs(vm);
         std::vector<Handle> bound = nf.bindArgs(positional, named);
         for (Handle h : bound) rs.add(h);
         return nf.call(vm, bound);
     }
-    if (c.kind() == ValueKind::Instance && dynamic_cast<InstanceValue*>(&c))
+    if (k == ValueKind::Instance && dynamic_cast<InstanceValue*>(&c))
         return static_cast<InstanceValue&>(c).callKw(vm, positional, named);
     throw KiritoError("this callable does not accept keyword arguments");
 }

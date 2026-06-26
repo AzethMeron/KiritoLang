@@ -20,8 +20,8 @@
 // (std::complex<double>) or any other arithmetic-like type. Storage is a single contiguous,
 // row-major (C-order) buffer. That single-buffer design is deliberate: it is CPU-only today, but a
 // future device backend can replace `data` with a GPU buffer and swap these element loops for
-// kernels without changing the public shape/stride contract. There is no autograd — this is a plain
-// numeric container.
+// kernels without changing the public shape/stride contract. This core engine is a plain numeric
+// container — reverse-mode autograd lives one layer up, in the VM's TensorVal (stdlib_tensor.hpp).
 
 namespace kirito::tensor {
 

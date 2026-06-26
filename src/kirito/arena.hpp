@@ -12,7 +12,7 @@
 namespace kirito {
 
 // The single owner of every shared Kirito value. A slot's unique_ptr is the sole owner of its
-// Object; everything else refers to it by Handle. Reclamation (deferred mark-sweep GC) frees
+// Object; everything else refers to it by Handle. Reclamation (precise mark-sweep GC) frees
 // slots and bumps their generation but never moves live objects, so handles stay stable.
 class ObjectArena {
 public:

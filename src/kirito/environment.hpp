@@ -19,7 +19,7 @@ namespace kirito {
 // Bindings live in a flat vector rather than a hash map: function-call scopes are tiny (a handful
 // of names), so a linear scan with no per-binding heap allocation is markedly faster than an
 // unordered_map (which mallocs a control block + nodes on every call). This is the single hottest
-// data structure in the tree-walker — see the call-heavy benchmark profile.
+// data structure in the interpreter — see the call-heavy benchmark profile.
 class EnvValue : public Object {
 public:
     EnvValue() : hasParent_(false) {}

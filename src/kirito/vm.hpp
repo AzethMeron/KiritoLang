@@ -91,8 +91,9 @@ public:
     // A compiled Proto's literal constants are pinned here so they live for the VM's lifetime (the
     // Proto is cached as long as its AST is retained), giving O(1) LoadConst with no re-allocation.
     void pinConst(Handle h) { bytecodeConsts_.push_back(h); }
-    // Per-body Proto cache, keyed by the body's stable address. A present-but-null entry records a
-    // body the compiler could not handle, so it is tree-walked and never re-attempted.
+    // Per-body Proto cache, keyed by the body's stable address: each body is compiled lazily on first
+    // execution and the Proto reused thereafter. The compiler handles every body (a genuine program
+    // error propagates as a KiritoError instead), so a cached entry is always a real Proto.
     bool protoTried(const void* key) const { return protoCache_.find(key) != protoCache_.end(); }
     const Proto* protoGet(const void* key) const {
         auto it = protoCache_.find(key);
@@ -132,9 +133,10 @@ public:
     void setGcEnabled(bool on) { gcEnabled_ = on; }
     std::size_t liveCount() const { return arena_.liveCount(); }
 
-    // Call-depth guard: the tree-walker recurses on the native C++ stack, so unbounded Kirito
-    // recursion would overflow it and crash the host. A RAII CallGuard caps the depth and raises a
-    // catchable error instead. The limit is well under what an 8 MB stack tolerates.
+    // Call-depth guard: the VM still recurses on the native C++ stack (one nested call/compile
+    // descends into BytecodeVM::run again), so unbounded Kirito recursion would overflow it and crash
+    // the host. A RAII CallGuard caps the depth and raises a catchable error instead. The limit is
+    // well under what an 8 MB stack tolerates.
     void enterCall() {
         if (++callDepth_ > maxCallDepth_) {
             --callDepth_;

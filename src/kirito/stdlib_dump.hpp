@@ -33,7 +33,8 @@ namespace kirito {
 // Wire format (little-endian): magic "KDMP" (4 bytes), version u8 = 1, u32 objectCount, then
 // objectCount records each `u8 tag + payload` (tags match serde::Tag: 0 None, 1 Bool u8, 2 Integer
 // i64, 3 Float f64-bits, 4 String u32 len + bytes, 5 List u32 count + ids, 6 Dict u32 count + (k,v)
-// id pairs, 7 Set u32 count + ids), then u32 rootId.
+// id pairs, 7 Set u32 count + ids, 8 Object [user class] u32 nameLen + name + u32 count + (k,v) id
+// pairs, 9 Stateful [_getstate_-based] u32 nameLen + name + single state id), then u32 rootId.
 namespace dumpfmt {
 
 inline void putU8(std::string& b, uint8_t v) { b.push_back(static_cast<char>(v)); }

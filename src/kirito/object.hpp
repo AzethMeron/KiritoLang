@@ -83,7 +83,7 @@ public:
     virtual bool hashable() const { return false; }
     virtual std::size_t hash() const { throw KiritoError("unhashable type '" + typeName() + "'"); }
 
-    // Enumerate contained handles for the (future) mark-sweep GC and for serialization.
+    // Enumerate contained handles for the mark-sweep GC and for serialization.
     virtual void children(std::vector<Handle>&) const {}
 
     // Public members (methods + attributes) for `inspect`, as formatted one-line descriptions, e.g.

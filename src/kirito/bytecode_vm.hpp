@@ -107,12 +107,14 @@ public:
                 case Op::Jump: ip = in.a; break;
                 case Op::PopJumpIfFalse: { Handle v = pop(); if (!vm_.arena().deref(v).truthy()) ip = in.a; break; }
                 case Op::PopJumpIfTrue: { Handle v = pop(); if (vm_.arena().deref(v).truthy()) ip = in.a; break; }
-                case Op::JumpIfFalseOrPop:
+                case Op::JumpIfFalseOrPop: {
                     if (!vm_.arena().deref(peek(0)).truthy()) ip = in.a; else pop();
                     break;
-                case Op::JumpIfTrueOrPop:
+                }
+                case Op::JumpIfTrueOrPop: {
                     if (vm_.arena().deref(peek(0)).truthy()) ip = in.a; else pop();
                     break;
+                }
 
                 case Op::Call: {
                     const CallSpec& spec = proto.calls[in.a];
@@ -335,9 +337,13 @@ public:
                 }
                 case Op::Throw: { Handle v = pop(); throw KiritoThrow{v, in.span}; }
                 case Op::Return: return pop();
+                default:
+                    // An opcode the dispatch doesn't know means a corrupt/truncated Proto — a VM
+                    // invariant violation, not a program error. Fail loudly instead of misbehaving.
+                    throw KiritoError("internal error: unknown bytecode opcode", in.span);
             }
             }
-            return vm_.none();  // every Proto ends in Return; this is only a defensive fallback
+            return vm_.none();  // a Proto always ends in Return; reaching here means ip ran off the end
           } catch (const KiritoThrow& t) {
             if (!unwind(t.value, t.span, ip)) throw;
           } catch (const KiritoError& e) {

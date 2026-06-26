@@ -93,29 +93,39 @@ public:
         for (long idx = 0; idx < n; ++idx) {
             serde::Node& nd = nodes[static_cast<std::size_t>(idx)];
             std::string t = token();
-            if (t == "N") nd.tag = serde::Tag::None;
-            else if (t == "B") { nd.tag = serde::Tag::Bool; nd.b = std::stoi(token()) != 0; }
-            else if (t == "I") { nd.tag = serde::Tag::Integer; nd.i = std::stoll(token()); }
-            else if (t == "F") { nd.tag = serde::Tag::Float; nd.f = parseDouble(token()); }   // parseDouble: subnormals don't trap
-            else if (t == "S") { nd.tag = serde::Tag::String; int len = countToken(); nd.s = rawBytes(len); }
-            else if (t == "L") { nd.tag = serde::Tag::List; readIds(nd.links); }
-            else if (t == "T") { nd.tag = serde::Tag::Set; readIds(nd.links); }
-            else if (t == "D") {
-                nd.tag = serde::Tag::Dict;
-                int pairs = countToken();
-                for (long k = 0; k < static_cast<long>(pairs) * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
-            } else if (t == "O") {
-                nd.tag = serde::Tag::Object;
-                int len = countToken();
-                nd.s = rawBytes(len);
-                int pairs = countToken();
-                for (long k = 0; k < static_cast<long>(pairs) * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
-            } else if (t == "P") {
-                nd.tag = serde::Tag::Stateful;
-                int len = countToken();
-                nd.s = rawBytes(len);
-                nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
-            } else throw KiritoError("bad serialization tag '" + t + "'");
+            // Tags are single chars — dispatch on t[0] (mirrors dump's numeric-tag switch).
+            if (t.size() != 1) throw KiritoError("bad serialization tag '" + t + "'");
+            switch (t[0]) {
+                case 'N': { nd.tag = serde::Tag::None; break; }
+                case 'B': { nd.tag = serde::Tag::Bool; nd.b = std::stoi(token()) != 0; break; }
+                case 'I': { nd.tag = serde::Tag::Integer; nd.i = std::stoll(token()); break; }
+                case 'F': { nd.tag = serde::Tag::Float; nd.f = parseDouble(token()); break; }   // parseDouble: subnormals don't trap
+                case 'S': { nd.tag = serde::Tag::String; int len = countToken(); nd.s = rawBytes(len); break; }
+                case 'L': { nd.tag = serde::Tag::List; readIds(nd.links); break; }
+                case 'T': { nd.tag = serde::Tag::Set; readIds(nd.links); break; }
+                case 'D': {
+                    nd.tag = serde::Tag::Dict;
+                    int pairs = countToken();
+                    for (long k = 0; k < static_cast<long>(pairs) * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
+                    break;
+                }
+                case 'O': {
+                    nd.tag = serde::Tag::Object;
+                    int len = countToken();
+                    nd.s = rawBytes(len);
+                    int pairs = countToken();
+                    for (long k = 0; k < static_cast<long>(pairs) * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
+                    break;
+                }
+                case 'P': {
+                    nd.tag = serde::Tag::Stateful;
+                    int len = countToken();
+                    nd.s = rawBytes(len);
+                    nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
+                    break;
+                }
+                default: throw KiritoError("bad serialization tag '" + t + "'");
+            }
         }
         uint32_t rootId = static_cast<uint32_t>(std::stoul(token()));
         return {std::move(nodes), rootId};
