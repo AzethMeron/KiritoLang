@@ -55,7 +55,7 @@ var json = import("json")
 var sys = import("sys")
 var semver = import("semver")
 
-var KPM_VERSION = "1.3.0"
+var KPM_VERSION = "1.3.1"
 
 # Self-maintenance (update-kpm / update-ki) always targets the Kirito project on github.com; these are
 # fixed and never redirected. The PACKAGE install path uses the host-aware adapters further down (so a
@@ -681,27 +681,28 @@ if argmain:
     else:
         var cmd = arglist[0]
         var rest = arglist[1:]
-        if cmd == "install" or cmd == "i" or cmd == "add":
-            cmdInstall(rest)
-        elif cmd == "remove" or cmd == "rm" or cmd == "uninstall":
-            cmdRemove(rest)
-        elif cmd == "list" or cmd == "ls":
-            cmdList()
-        elif cmd == "update" or cmd == "upgrade":
-            cmdUpdate(rest)
-        elif cmd == "outdated":
-            cmdOutdated()
-        elif cmd == "where":
-            io.print(packagesDir())
-        elif cmd == "version" or cmd == "--version" or cmd == "-v":
-            cmdVersion()
-        elif cmd == "update-kpm" or cmd == "self-update" or cmd == "selfupdate":
-            cmdSelfUpdate(rest)
-        elif cmd == "update-ki" or cmd == "upgrade-ki" or cmd == "upgrade-kirito" or cmd == "self-upgrade":
-            cmdUpgradeKi(rest)
-        elif cmd == "help" or cmd == "-h" or cmd == "--help":
-            usage()
-        else:
-            io.eprint("kpm: unknown command '" + cmd + "'")
-            usage()
-            sys.exit(2)
+        switch cmd:
+            case "install", "i", "add":
+                cmdInstall(rest)
+            case "remove", "rm', "uninstall":
+                cmdRemove(rest)
+            case "list", "ls":
+                cmdList()
+            case "update", "upgrade":
+                cmdUpdate(rest)
+            case "outdated":
+                cmdOutdated()
+            case "where":
+                io.print(packagesDir())
+            case "version", "--version", "-v":
+                cmdVersion()
+            case "update-kpm", "self-update", "selfupdate":
+                cmdSelfUpdate(rest)
+            case "update-ki", 'upgrade-ki", "upgrade-kirito", "self-upgrade":
+                cmdUpgradeKi(rest)
+            case "help", "-h", "--help":
+                usage()
+            default:
+                io.eprint("kpm: unknown command '" + cmd + "'")
+                usage()
+                sys.exit(2)
