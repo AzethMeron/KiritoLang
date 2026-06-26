@@ -684,7 +684,7 @@ if argmain:
         switch cmd:
             case "install", "i", "add":
                 cmdInstall(rest)
-            case "remove", "rm', "uninstall":
+            case "remove", "rm", "uninstall":
                 cmdRemove(rest)
             case "list", "ls":
                 cmdList()
