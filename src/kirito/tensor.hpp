@@ -185,10 +185,10 @@ template <class T> Tensor<T> div(const Tensor<T>& a, const Tensor<T>& b) {
 template <class T> Tensor<T> scalarOp(const Tensor<T>& a, T s, char op) {
     return mapUnary(a, [s, op](T x) -> T {
         switch (op) {
-            case '+': return x + s;
-            case '-': return x - s;
-            case '*': return x * s;
-            case '/': if (s == T{}) throw TensorError("tensor division by zero"); return x / s;
+            case '+': { return x + s; } break;
+            case '-': { return x - s; } break;
+            case '*': { return x * s; } break;
+            case '/': { if (s == T{}) throw TensorError("tensor division by zero"); return x / s; } break;
         }
         return x;
     });

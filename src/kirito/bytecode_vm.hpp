@@ -63,58 +63,51 @@ public:
             while (ip < code.size()) {
             const Instr& in = code[ip++];
             switch (in.op) {
-                case Op::LoadConst: push(proto.consts[in.a]); break;
-                case Op::LoadNone: push(vm_.none()); break;
-                case Op::LoadResult: push(result()); break;
-                case Op::SetResult: setResult(pop()); break;
-                case Op::ClearResult: setResult(vm_.none()); break;
-                case Op::Pop: pop(); break;
-                case Op::Dup: push(peek(0)); break;
+                case Op::LoadConst: { push(proto.consts[in.a]); } break;
+                case Op::LoadNone: { push(vm_.none()); } break;
+                case Op::LoadResult: { push(result()); } break;
+                case Op::SetResult: { setResult(pop()); } break;
+                case Op::ClearResult: { setResult(vm_.none()); } break;
+                case Op::Pop: { pop(); } break;
+                case Op::Dup: { push(peek(0)); } break;
 
                 case Op::LoadName: {
                     auto found = envLookup(vm_.arena(), scope(), proto.names[in.a]);
                     if (!found) throw KiritoError("name '" + proto.names[in.a] + "' is not defined", in.span);
                     push(*found);
-                    break;
-                }
+                } break;
                 case Op::StoreName: {
                     Handle v = pop();
                     static_cast<EnvValue&>(vm_.arena().deref(scope())).define(proto.names[in.a], v);
-                    break;
-                }
+                } break;
                 case Op::AssignName: {
                     Handle v = pop();
                     if (!envAssign(vm_.arena(), scope(), proto.names[in.a], v))
                         throw KiritoError("name '" + proto.names[in.a] + "' is not defined", in.span);
-                    break;
-                }
+                } break;
 
                 case Op::UnaryOp: {
                     Handle operand = peek(0);
                     Handle r = located(in.span, [&] { return applyUnaryOp(vm_, static_cast<UnOp>(in.a), operand); });
                     pop();
                     push(r);
-                    break;
-                }
+                } break;
                 case Op::BinaryOp: {
                     Handle lhs = peek(1), rhs = peek(0);  // operands stay rooted on the stack while we operate
                     Handle r = located(in.span, [&] { return applyBinaryOp(vm_, static_cast<BinOp>(in.a), lhs, rhs); });
                     pop(); pop();
                     push(r);
-                    break;
-                }
+                } break;
 
-                case Op::Jump: ip = in.a; break;
-                case Op::PopJumpIfFalse: { Handle v = pop(); if (!vm_.arena().deref(v).truthy()) ip = in.a; break; }
-                case Op::PopJumpIfTrue: { Handle v = pop(); if (vm_.arena().deref(v).truthy()) ip = in.a; break; }
+                case Op::Jump: { ip = in.a; } break;
+                case Op::PopJumpIfFalse: { Handle v = pop(); if (!vm_.arena().deref(v).truthy()) ip = in.a; } break;
+                case Op::PopJumpIfTrue: { Handle v = pop(); if (vm_.arena().deref(v).truthy()) ip = in.a; } break;
                 case Op::JumpIfFalseOrPop: {
                     if (!vm_.arena().deref(peek(0)).truthy()) ip = in.a; else pop();
-                    break;
-                }
+                } break;
                 case Op::JumpIfTrueOrPop: {
                     if (vm_.arena().deref(peek(0)).truthy()) ip = in.a; else pop();
-                    break;
-                }
+                } break;
 
                 case Op::Call: {
                     const CallSpec& spec = proto.calls[in.a];
@@ -129,14 +122,12 @@ public:
                     Handle r = located(in.span, [&] { return applyCall(vm_, callee, pos, named); });
                     stack_.resize(base - 1);                     // pop callee + all arguments
                     push(r);
-                    break;
-                }
+                } break;
                 case Op::MakeFunction: {
                     auto fn = std::make_unique<KiFunction>(proto.funcs[in.a], scope());
                     fn->sourceFile = vm_.currentChunkFile();
                     push(vm_.alloc(std::move(fn)));
-                    break;
-                }
+                } break;
                 case Op::BuildClass: {
                     const ast::ClassStmt& cs = *proto.classes[in.a];
                     RootScope rs(vm_);
@@ -170,8 +161,7 @@ public:
                     }
                     static_cast<EnvValue&>(vm_.arena().deref(scope())).define(cs.name, clsHandle);
                     vm_.registerClass(cs.name, clsHandle);  // so serialize/dump can reconstruct instances
-                    break;
-                }
+                } break;
 
                 case Op::GetAttr: {
                     Handle obj = peek(0);
@@ -180,8 +170,7 @@ public:
                     });
                     pop();
                     push(r);
-                    break;
-                }
+                } break;
                 case Op::SetAttr: {
                     Handle obj = peek(0), value = peek(1);   // stack: [value, obj]
                     const std::string& name = proto.names[in.a];
@@ -191,8 +180,7 @@ public:
                         return vm_.none();
                     });
                     pop(); pop();
-                    break;
-                }
+                } break;
                 case Op::GetItem: {
                     std::size_t n = in.a, base = stack_.size() - n;
                     Handle obj = stack_[base - 1];
@@ -200,23 +188,20 @@ public:
                     Handle r = located(in.span, [&] { return vm_.arena().deref(obj).getItem(vm_, keys); });
                     stack_.resize(base - 1);
                     push(r);
-                    break;
-                }
+                } break;
                 case Op::SetItem: {
                     std::size_t n = in.a, base = stack_.size() - n;   // stack: [value, obj, keys...]
                     Handle obj = stack_[base - 1], value = stack_[base - 2];
                     std::vector<Handle> keys(stack_.begin() + static_cast<std::ptrdiff_t>(base), stack_.end());
                     located(in.span, [&] { vm_.arena().deref(obj).setItem(vm_, keys, value); return vm_.none(); });
                     stack_.resize(base - 2);
-                    break;
-                }
+                } break;
                 case Op::GetSlice: {
                     Handle obj = peek(3), start = peek(2), stop = peek(1), step = peek(0);
                     Handle r = located(in.span, [&] { return vm_.arena().deref(obj).slice(vm_, start, stop, step); });
                     pop(); pop(); pop(); pop();
                     push(r);
-                    break;
-                }
+                } break;
 
                 case Op::BuildList:
                 case Op::BuildPack: {  // bare-comma packing builds the same List as a list literal —
@@ -228,8 +213,7 @@ public:
                     Handle r = vm_.alloc(std::move(list));
                     stack_.resize(base);
                     push(r);
-                    break;
-                }
+                } break;
                 case Op::BuildSet: {
                     std::size_t n = in.a, base = stack_.size() - n;
                     auto set = std::make_unique<SetVal>();
@@ -240,8 +224,7 @@ public:
                     Handle r = vm_.alloc(std::move(set));
                     stack_.resize(base);
                     push(r);
-                    break;
-                }
+                } break;
                 case Op::BuildDict: {
                     std::size_t pairs = in.a, base = stack_.size() - 2 * pairs;
                     auto dict = std::make_unique<DictVal>();
@@ -253,8 +236,7 @@ public:
                     Handle r = vm_.alloc(std::move(dict));
                     stack_.resize(base);
                     push(r);
-                    break;
-                }
+                } break;
 
                 case Op::FormatValue: {
                     Handle v = peek(0);
@@ -265,8 +247,7 @@ public:
                     Handle r = vm_.makeString(std::move(s));
                     pop();
                     push(r);
-                    break;
-                }
+                } break;
                 case Op::BuildString: {
                     std::size_t n = in.a, base = stack_.size() - n;
                     std::string out;
@@ -275,8 +256,7 @@ public:
                     Handle r = vm_.makeString(std::move(out));
                     stack_.resize(base);
                     push(r);
-                    break;
-                }
+                } break;
 
                 case Op::GetIter: {
                     Handle iterable = peek(0);
@@ -290,14 +270,12 @@ public:
                     Handle r = vm_.alloc(std::move(cursor));
                     pop();
                     push(r);
-                    break;
-                }
+                } break;
                 case Op::ForIter: {
                     auto& cur = static_cast<IterCursor&>(vm_.arena().deref(peek(0)));
                     if (cur.idx >= cur.items.size()) { pop(); ip = in.a; }  // exhausted: drop cursor, exit loop
                     else push(cur.items[cur.idx++]);
-                    break;
-                }
+                } break;
                 case Op::Unpack: {
                     const UnpackSpec& spec = proto.unpacks[in.a];
                     Handle iterable = peek(0);   // stays rooted while spreadValues iterates/allocates
@@ -306,8 +284,7 @@ public:
                     });
                     pop();  // drop the iterable
                     for (std::size_t i = spec.count; i-- > 0;) push(slots[i]);  // reversed: slot 0 ends on top
-                    break;
-                }
+                } break;
                 case Op::SwitchMatch: {
                     Handle v = peek(0), subj = peek(1);
                     auto vk = scalarSwitchKey(vm_, v);
@@ -316,23 +293,22 @@ public:
                     bool match = sk.has_value() && *sk == *vk;
                     pop(); pop();
                     push(vm_.makeBool(match));
-                    break;
-                }
+                } break;
 
-                case Op::SetupBlock: blocks_.push_back({in.a, stack_.size()}); break;
-                case Op::PopBlock: blocks_.pop_back(); break;
-                case Op::Reraise: { Handle v = pop(); throw KiritoThrow{v, excSpan_}; }  // keep the original site
+                case Op::SetupBlock: { blocks_.push_back({in.a, stack_.size()}); } break;
+                case Op::PopBlock: { blocks_.pop_back(); } break;
+                case Op::Reraise: { Handle v = pop(); throw KiritoThrow{v, excSpan_}; } break;  // keep the original site
                 case Op::ExcMatch: {
                     Handle type = pop(), exc = pop();
                     push(vm_.makeBool(isInstanceOf(vm_, exc, type)));
-                    break;
-                }
-                case Op::Throw: { Handle v = pop(); throw KiritoThrow{v, in.span}; }
-                case Op::Return: return pop();
-                default:
+                } break;
+                case Op::Throw: { Handle v = pop(); throw KiritoThrow{v, in.span}; } break;
+                case Op::Return: { return pop(); } break;
+                default: {
                     // An opcode the dispatch doesn't know means a corrupt/truncated Proto — a VM
                     // invariant violation, not a program error. Fail loudly instead of misbehaving.
                     throw KiritoError("internal error: unknown bytecode opcode", in.span);
+                } break;
             }
             }
             return vm_.none();  // a Proto always ends in Return; reaching here means ip ran off the end

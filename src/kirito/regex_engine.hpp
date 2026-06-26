@@ -304,17 +304,17 @@ private:
         if (pos_ >= s_.size()) throw RegexError("trailing backslash in pattern");
         int32_t c = next();
         switch (c) {
-            case 'd': return classNode(digitRanges(), false);
-            case 'D': return classNode(digitRanges(), true);
-            case 'w': return classNode(wordRanges(), false);
-            case 'W': return classNode(wordRanges(), true);
-            case 's': return classNode(spaceRanges(), false);
-            case 'S': return classNode(spaceRanges(), true);
-            case 'b': return anchorNode(AWordBoundary);
-            case 'B': return anchorNode(ANotWordBoundary);
-            case 'A': return anchorNode(ABeginText);
-            case 'Z': case 'z': return anchorNode(AEndText);
-            default: break;
+            case 'd': { return classNode(digitRanges(), false); } break;
+            case 'D': { return classNode(digitRanges(), true); } break;
+            case 'w': { return classNode(wordRanges(), false); } break;
+            case 'W': { return classNode(wordRanges(), true); } break;
+            case 's': { return classNode(spaceRanges(), false); } break;
+            case 'S': { return classNode(spaceRanges(), true); } break;
+            case 'b': { return anchorNode(AWordBoundary); } break;
+            case 'B': { return anchorNode(ANotWordBoundary); } break;
+            case 'A': { return anchorNode(ABeginText); } break;
+            case 'Z': case 'z': { return anchorNode(AEndText); } break;
+            default: { break; } break;
         }
         if (c >= '1' && c <= '9') throw RegexError("backreferences are not supported (they would break the linear-time guarantee)");
         Node n; n.kind = Node::Lit; n.ch = decodeEscapeChar(c); return n;
@@ -322,13 +322,13 @@ private:
 
     int32_t decodeEscapeChar(int32_t c) {
         switch (c) {
-            case 'n': return '\n'; case 't': return '\t'; case 'r': return '\r';
-            case 'f': return '\f'; case 'v': return '\v'; case 'a': return '\a';
-            case '0': return readOctalAfter(0);   // \0, \012, ... octal escape
-            case 'x': return readHex(2);
-            case 'u': return readHex(4);
-            case 'U': return readHex(8);
-            default: return c;  // an escaped metacharacter or any other char is itself
+            case 'n': { return '\n'; } break; case 't': { return '\t'; } break; case 'r': { return '\r'; } break;
+            case 'f': { return '\f'; } break; case 'v': { return '\v'; } break; case 'a': { return '\a'; } break;
+            case '0': { return readOctalAfter(0); } break;   // \0, \012, ... octal escape
+            case 'x': { return readHex(2); } break;
+            case 'u': { return readHex(4); } break;
+            case 'U': { return readHex(8); } break;
+            default: { return c; } break;  // an escaped metacharacter or any other char is itself
         }
     }
     int32_t readHex(int n) {
@@ -429,18 +429,18 @@ private:
 
     void compile(const Node& n) {
         switch (n.kind) {
-            case Node::Empty: break;
-            case Node::Lit: emit({Inst::Char, n.ch, -1, 0, 0, 0, 0}); break;
-            case Node::Any: emit({Inst::Any, 0, -1, 0, 0, 0, 0}); break;
-            case Node::Class: emit({Inst::Class, 0, n.klass, 0, 0, 0, 0}); break;
-            case Node::Anchor: emit({Inst::Assert, 0, -1, 0, 0, 0, n.anchor}); break;
-            case Node::Concat: for (const Node& k : n.kids) compile(k); break;
-            case Node::Alt: compileAlt(n.kids); break;
-            case Node::Star: compileStar(n.kids[0], n.greedy); break;
-            case Node::Plus: compilePlus(n.kids[0], n.greedy); break;
-            case Node::Quest: compileQuest(n.kids[0], n.greedy); break;
-            case Node::Repeat: compileRepeat(n); break;
-            case Node::Group: compileGroup(n); break;
+            case Node::Empty: { break; } break;
+            case Node::Lit: { emit({Inst::Char, n.ch, -1, 0, 0, 0, 0}); } break;
+            case Node::Any: { emit({Inst::Any, 0, -1, 0, 0, 0, 0}); } break;
+            case Node::Class: { emit({Inst::Class, 0, n.klass, 0, 0, 0, 0}); } break;
+            case Node::Anchor: { emit({Inst::Assert, 0, -1, 0, 0, 0, n.anchor}); } break;
+            case Node::Concat: { for (const Node& k : n.kids) compile(k); } break;
+            case Node::Alt: { compileAlt(n.kids); } break;
+            case Node::Star: { compileStar(n.kids[0], n.greedy); } break;
+            case Node::Plus: { compilePlus(n.kids[0], n.greedy); } break;
+            case Node::Quest: { compileQuest(n.kids[0], n.greedy); } break;
+            case Node::Repeat: { compileRepeat(n); } break;
+            case Node::Group: { compileGroup(n); } break;
         }
     }
 
@@ -549,24 +549,26 @@ inline bool charEq(int32_t a, int32_t b, bool ignorecase) {
 inline bool assertHolds(int kind, const std::vector<int32_t>& t, int sp, int flags) {
     int n = static_cast<int>(t.size());
     switch (kind) {
-        case ABeginText: return sp == 0;                      // \A — absolute start
-        case AEndText:   return sp == n;                      // \z / \Z — absolute end
-        case ABeginLine:                                      // ^
+        case ABeginText: { return sp == 0; } break;                      // \A — absolute start
+        case AEndText:   { return sp == n; } break;                      // \z / \Z — absolute end
+        case ABeginLine: {                                      // ^
             if (flags & MULTILINE) return sp == 0 || t[sp - 1] == '\n';
             return sp == 0;
-        case AEndLine:                                        // $ — end, or just before a final newline
+        } break;
+        case AEndLine: {                                        // $ — end, or just before a final newline
             if (flags & MULTILINE) return sp == n || t[sp] == '\n';
             return sp == n || (sp == n - 1 && t[sp] == '\n');
+        } break;
         case AWordBoundary: {
             bool a = sp > 0 && isWordCp(t[sp - 1]);
             bool b = sp < n && isWordCp(t[sp]);
             return a != b;
-        }
+        } break;
         case ANotWordBoundary: {
             bool a = sp > 0 && isWordCp(t[sp - 1]);
             bool b = sp < n && isWordCp(t[sp]);
             return a == b;
-        }
+        } break;
     }
     return false;
 }
@@ -589,26 +591,25 @@ inline void addThread(const Program& prog, const std::vector<int32_t>& text, int
         visited[fr.pc] = gen;
         const Inst& in = prog.insts[fr.pc];
         switch (in.op) {
-            case Inst::Jmp:
+            case Inst::Jmp: {
                 stack.push_back({in.x, std::move(fr.caps)});
-                break;
-            case Inst::Split:
+            } break;
+            case Inst::Split: {
                 stack.push_back({in.y, fr.caps});                 // lower priority pushed first
                 stack.push_back({in.x, std::move(fr.caps)});      // higher priority popped first
-                break;
+            } break;
             case Inst::Save: {
                 std::vector<int> c = fr.caps;
                 if (in.slot >= 0 && in.slot < static_cast<int>(c.size())) c[in.slot] = sp;
                 stack.push_back({fr.pc + 1, std::move(c)});
-                break;
-            }
-            case Inst::Assert:
+            } break;
+            case Inst::Assert: {
                 if (assertHolds(in.assertKind, text, sp, prog.flags))
                     stack.push_back({fr.pc + 1, std::move(fr.caps)});
-                break;
-            default:  // Char / Any / Class / Match — these consume (or finish); record the thread
+            } break;
+            default: {  // Char / Any / Class / Match — these consume (or finish); record the thread
                 list.push_back({fr.pc, std::move(fr.caps)});
-                break;
+            } break;
         }
     }
 }
@@ -652,26 +653,26 @@ inline MatchResult run(const Program& prog, const std::vector<int32_t>& text,
             Thread& t = clist[ti];
             const Inst& in = prog.insts[t.pc];
             switch (in.op) {
-                case Inst::Char:
+                case Inst::Char: {
                     if (sp < n && charEq(text[sp], in.ch, prog.flags & IGNORECASE))
                         addThread(prog, text, sp + 1, nlist, visited, nextGen, t.pc + 1, t.caps);
-                    break;
-                case Inst::Any:
+                } break;
+                case Inst::Any: {
                     if (sp < n && ((prog.flags & DOTALL) || text[sp] != '\n'))
                         addThread(prog, text, sp + 1, nlist, visited, nextGen, t.pc + 1, t.caps);
-                    break;
-                case Inst::Class:
+                } break;
+                case Inst::Class: {
                     if (sp < n && classMatches(prog.classes[in.klass], text[sp], prog.flags & IGNORECASE))
                         addThread(prog, text, sp + 1, nlist, visited, nextGen, t.pc + 1, t.caps);
-                    break;
-                case Inst::Match:
+                } break;
+                case Inst::Match: {
                     if (!requireEnd || sp == n) {
                         best.matched = true;
                         best.slots = t.caps;
                         cut = true;  // lower-priority threads can't beat this one; stop scanning clist
                     }
-                    break;
-                default: break;  // epsilon ops never appear in a thread list
+                } break;
+                default: { break; } break;  // epsilon ops never appear in a thread list
             }
         }
         std::swap(clist, nlist);

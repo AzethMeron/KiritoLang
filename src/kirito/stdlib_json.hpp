@@ -129,14 +129,14 @@ private:
                 if (pos_ >= s_.size()) fail("bad escape");
                 char e = s_[pos_++];
                 switch (e) {
-                    case '"': out += '"'; break;
-                    case '\\': out += '\\'; break;
-                    case '/': out += '/'; break;
-                    case 'n': out += '\n'; break;
-                    case 't': out += '\t'; break;
-                    case 'r': out += '\r'; break;
-                    case 'b': out += '\b'; break;
-                    case 'f': out += '\f'; break;
+                    case '"': { out += '"'; } break;
+                    case '\\': { out += '\\'; } break;
+                    case '/': { out += '/'; } break;
+                    case 'n': { out += '\n'; } break;
+                    case 't': { out += '\t'; } break;
+                    case 'r': { out += '\r'; } break;
+                    case 'b': { out += '\b'; } break;
+                    case 'f': { out += '\f'; } break;
                     case 'u': {
                         unsigned cp = readHex4();
                         // Combine a UTF-16 surrogate pair (😀) into one astral code point.
@@ -153,9 +153,8 @@ private:
                         // WHATWG) so the decoded String is always well-formed UTF-8.
                         if (cp >= 0xD800 && cp <= 0xDFFF) cp = 0xFFFD;
                         utf8Encode(cp, out);  // shared encoder (builtins.hpp), 4-byte-capable
-                        break;
-                    }
-                    default: fail("bad escape");
+                    } break;
+                    default: { fail("bad escape"); } break;
                 }
             } else {
                 out += c;
@@ -217,14 +216,14 @@ inline void escapeString(const std::string& s, std::string& out) {
     out += '"';
     for (char c : s) {
         switch (c) {
-            case '"': out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n"; break;
-            case '\t': out += "\\t"; break;
-            case '\r': out += "\\r"; break;
-            case '\b': out += "\\b"; break;
-            case '\f': out += "\\f"; break;
-            default:
+            case '"': { out += "\\\""; } break;
+            case '\\': { out += "\\\\"; } break;
+            case '\n': { out += "\\n"; } break;
+            case '\t': { out += "\\t"; } break;
+            case '\r': { out += "\\r"; } break;
+            case '\b': { out += "\\b"; } break;
+            case '\f': { out += "\\f"; } break;
+            default: {
                 // JSON requires control characters U+0000..U+001F to be \u-escaped; emitting them
                 // raw produces invalid JSON (a NUL/0x01/... in the output). Other bytes (incl. UTF-8
                 // continuation bytes) pass through unchanged.
@@ -236,6 +235,7 @@ inline void escapeString(const std::string& s, std::string& out) {
                 } else {
                     out += c;
                 }
+            } break;
         }
     }
     out += '"';
@@ -266,12 +266,12 @@ inline std::string jsonFloat(double d) {
 inline void write(KiritoVM& vm, Handle h, std::string& out, fum::unordered_set<const Object*>& active) {
     const Object& o = vm.arena().deref(h);
     switch (o.kind()) {
-        case ValueKind::None: out += "null"; return;
-        case ValueKind::Bool: out += static_cast<const BoolVal&>(o).value() ? "true" : "false"; return;
-        case ValueKind::Integer: out += std::to_string(static_cast<const IntVal&>(o).value()); return;
-        case ValueKind::Float: out += jsonFloat(static_cast<const FloatVal&>(o).value()); return;
-        case ValueKind::String: escapeString(static_cast<const StrVal&>(o).value(), out); return;
-        default: break;
+        case ValueKind::None: { out += "null"; return; } break;
+        case ValueKind::Bool: { out += static_cast<const BoolVal&>(o).value() ? "true" : "false"; return; } break;
+        case ValueKind::Integer: { out += std::to_string(static_cast<const IntVal&>(o).value()); return; } break;
+        case ValueKind::Float: { out += jsonFloat(static_cast<const FloatVal&>(o).value()); return; } break;
+        case ValueKind::String: { escapeString(static_cast<const StrVal&>(o).value(), out); return; } break;
+        default: { break; } break;
     }
     if (active.count(&o)) throw KiritoError("cannot serialize a cyclic structure to JSON");
     if (active.size() > 1000) throw KiritoError("structure too deeply nested to serialize to JSON");
@@ -305,12 +305,12 @@ inline void writeIndented(KiritoVM& vm, Handle h, std::string& out,
                           fum::unordered_set<const Object*>& active, int indent, int depth) {
     const Object& o = vm.arena().deref(h);
     switch (o.kind()) {
-        case ValueKind::None: out += "null"; return;
-        case ValueKind::Bool: out += static_cast<const BoolVal&>(o).value() ? "true" : "false"; return;
-        case ValueKind::Integer: out += std::to_string(static_cast<const IntVal&>(o).value()); return;
-        case ValueKind::Float: out += jsonFloat(static_cast<const FloatVal&>(o).value()); return;
-        case ValueKind::String: escapeString(static_cast<const StrVal&>(o).value(), out); return;
-        default: break;
+        case ValueKind::None: { out += "null"; return; } break;
+        case ValueKind::Bool: { out += static_cast<const BoolVal&>(o).value() ? "true" : "false"; return; } break;
+        case ValueKind::Integer: { out += std::to_string(static_cast<const IntVal&>(o).value()); return; } break;
+        case ValueKind::Float: { out += jsonFloat(static_cast<const FloatVal&>(o).value()); return; } break;
+        case ValueKind::String: { escapeString(static_cast<const StrVal&>(o).value(), out); return; } break;
+        default: { break; } break;
     }
     if (active.count(&o)) throw KiritoError("cannot serialize a cyclic structure to JSON");
     if (active.size() > 1000) throw KiritoError("structure too deeply nested to serialize to JSON");

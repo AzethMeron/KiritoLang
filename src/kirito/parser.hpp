@@ -61,36 +61,36 @@ private:
     ast::StmtPtr parseStatement() {
         blockJustClosed_ = false;
         switch (peek().type) {
-            case TokenType::KwVar: return parseVarDecl();
-            case TokenType::KwIf: return parseIf();
-            case TokenType::KwWhile: return parseWhile();
-            case TokenType::KwFor: return parseFor();
-            case TokenType::KwTry: return parseTry();
-            case TokenType::KwThrow: return parseThrow();
-            case TokenType::KwSwitch: return parseSwitch();
-            case TokenType::KwClass: return parseClass();
-            case TokenType::KwWith: return parseWith();
-            case TokenType::KwReturn: return parseReturn();
+            case TokenType::KwVar: { return parseVarDecl(); } break;
+            case TokenType::KwIf: { return parseIf(); } break;
+            case TokenType::KwWhile: { return parseWhile(); } break;
+            case TokenType::KwFor: { return parseFor(); } break;
+            case TokenType::KwTry: { return parseTry(); } break;
+            case TokenType::KwThrow: { return parseThrow(); } break;
+            case TokenType::KwSwitch: { return parseSwitch(); } break;
+            case TokenType::KwClass: { return parseClass(); } break;
+            case TokenType::KwWith: { return parseWith(); } break;
+            case TokenType::KwReturn: { return parseReturn(); } break;
             case TokenType::KwPass: {
                 auto node = std::make_unique<ast::PassStmt>();
                 node->span = advance().span;
                 expectStatementEnd();
                 return node;
-            }
+            } break;
             case TokenType::KwTodo: {
                 auto node = std::make_unique<ast::TodoStmt>();
                 node->span = advance().span;
                 if (at(TokenType::String)) node->message = advance().text;  // optional reminder
                 expectStatementEnd();
                 return node;
-            }
+            } break;
             case TokenType::KwDiscard: {
                 auto node = std::make_unique<ast::DiscardStmt>();
                 node->span = advance().span;
                 node->expr = parseExpr();
                 endSimpleStatement();
                 return node;
-            }
+            } break;
             case TokenType::KwAssert: {
                 auto node = std::make_unique<ast::AssertStmt>();
                 node->span = advance().span;
@@ -98,22 +98,22 @@ private:
                 if (at(TokenType::Comma)) { advance(); node->message = parseExpr(); }
                 endSimpleStatement();
                 return node;
-            }
+            } break;
             case TokenType::KwBreak: {
                 auto node = std::make_unique<ast::BreakStmt>();
                 node->span = advance().span;
                 if (loopDepth_ == 0) throw KiritoError("'break' outside loop", node->span);
                 expectStatementEnd();
                 return node;
-            }
+            } break;
             case TokenType::KwContinue: {
                 auto node = std::make_unique<ast::ContinueStmt>();
                 node->span = advance().span;
                 if (loopDepth_ == 0) throw KiritoError("'continue' outside loop", node->span);
                 expectStatementEnd();
                 return node;
-            }
-            default: break;
+            } break;
+            default: { break; }
         }
 
         SourceSpan span = peek().span;
@@ -482,13 +482,13 @@ private:
                 advance();
             } else {
                 switch (peek().type) {
-                    case TokenType::EqEq: op = BinOp::Eq; break;
-                    case TokenType::NotEq: op = BinOp::Ne; break;
-                    case TokenType::Lt: op = BinOp::Lt; break;
-                    case TokenType::Le: op = BinOp::Le; break;
-                    case TokenType::Gt: op = BinOp::Gt; break;
-                    case TokenType::Ge: op = BinOp::Ge; break;
-                    default: return left;
+                    case TokenType::EqEq: { op = BinOp::Eq; } break;
+                    case TokenType::NotEq: { op = BinOp::Ne; } break;
+                    case TokenType::Lt: { op = BinOp::Lt; } break;
+                    case TokenType::Le: { op = BinOp::Le; } break;
+                    case TokenType::Gt: { op = BinOp::Gt; } break;
+                    case TokenType::Ge: { op = BinOp::Ge; } break;
+                    default: { return left; } break;
                 }
                 span = advance().span;
             }
@@ -721,24 +721,24 @@ private:
                     !at(TokenType::Comma) && !at(TokenType::RParen) && !at(TokenType::RBracket))
                     node->value = parseExpr();
                 return node;
-            }
+            } break;
             case TokenType::KwPass: {
                 auto node = std::make_unique<ast::PassStmt>();
                 node->span = advance().span;
                 return node;
-            }
+            } break;
             case TokenType::KwTodo: {
                 auto node = std::make_unique<ast::TodoStmt>();
                 node->span = advance().span;
                 if (at(TokenType::String)) node->message = advance().text;  // optional reminder
                 return node;
-            }
+            } break;
             case TokenType::KwThrow: {
                 auto node = std::make_unique<ast::ThrowStmt>();
                 node->span = advance().span;
                 node->value = parseExpr();
                 return node;
-            }
+            } break;
             default: {
                 SourceSpan span = peek().span;
                 auto expr = parseExpr();
@@ -754,7 +754,7 @@ private:
                 node->span = span;
                 node->expr = std::move(expr);
                 return node;
-            }
+            } break;
         }
     }
 
@@ -764,7 +764,7 @@ private:
             case TokenType::Integer: {
                 advance();
                 return literal(intLiteral(t.text), t.span);
-            }
+            } break;
             case TokenType::Float: {
                 advance();
                 // parseDouble (not std::stod) so a subnormal literal like 5e-324 yields the value
@@ -778,36 +778,37 @@ private:
                     d = HUGE_VAL;   // the literal token is unsigned; a leading '-' is a separate unary op
                 }
                 return literal(d, t.span);
-            }
+            } break;
             case TokenType::String: {
                 advance();
                 return literal(t.text, t.span);
-            }
+            } break;
             case TokenType::FString: {
                 advance();
                 return parseFString(t);
-            }
-            case TokenType::KwTrue: advance(); return literal(true, t.span);
-            case TokenType::KwFalse: advance(); return literal(false, t.span);
-            case TokenType::KwNone: advance(); return literal(std::monostate{}, t.span);
-            case TokenType::KwFunction: return parseFunction();
+            } break;
+            case TokenType::KwTrue: { advance(); return literal(true, t.span); } break;
+            case TokenType::KwFalse: { advance(); return literal(false, t.span); } break;
+            case TokenType::KwNone: { advance(); return literal(std::monostate{}, t.span); } break;
+            case TokenType::KwFunction: { return parseFunction(); } break;
             case TokenType::Identifier: {
                 advance();
                 auto node = std::make_unique<ast::NameExpr>();
                 node->span = t.span;
                 node->name = t.text;
                 return node;
-            }
+            } break;
             case TokenType::LParen: {
                 advance();
                 auto e = parseExpr();
                 expect(TokenType::RParen, "')'");
                 return e;
-            }
-            case TokenType::LBracket: return parseListLiteral();
-            case TokenType::LBrace: return parseBraceLiteral();
-            default:
+            } break;
+            case TokenType::LBracket: { return parseListLiteral(); } break;
+            case TokenType::LBrace: { return parseBraceLiteral(); } break;
+            default: {
                 throw KiritoError("expected an expression", t.span);
+            } break;
         }
     }
 
@@ -941,14 +942,14 @@ private:
                     continue;
                 }
                 switch (e) {
-                    case 'n': lit += '\n'; break;
-                    case 't': lit += '\t'; break;
-                    case 'r': lit += '\r'; break;
-                    case '0': lit += '\0'; break;
-                    case '\\': lit += '\\'; break;
-                    case '"': lit += '"'; break;
-                    case '\'': lit += '\''; break;
-                    default: lit += e; break;
+                    case 'n': { lit += '\n'; } break;
+                    case 't': { lit += '\t'; } break;
+                    case 'r': { lit += '\r'; } break;
+                    case '0': { lit += '\0'; } break;
+                    case '\\': { lit += '\\'; } break;
+                    case '"': { lit += '"'; } break;
+                    case '\'': { lit += '\''; } break;
+                    default: { lit += e; } break;
                 }
                 i += 2;
             } else {

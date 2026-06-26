@@ -27,16 +27,16 @@ namespace serial {
 
 inline char tagLetter(serde::Tag t) {
     switch (t) {
-        case serde::Tag::None: return 'N';
-        case serde::Tag::Bool: return 'B';
-        case serde::Tag::Integer: return 'I';
-        case serde::Tag::Float: return 'F';
-        case serde::Tag::String: return 'S';
-        case serde::Tag::List: return 'L';
-        case serde::Tag::Dict: return 'D';
-        case serde::Tag::Set: return 'T';
-        case serde::Tag::Object: return 'O';
-        case serde::Tag::Stateful: return 'P';
+        case serde::Tag::None: { return 'N'; } break;
+        case serde::Tag::Bool: { return 'B'; } break;
+        case serde::Tag::Integer: { return 'I'; } break;
+        case serde::Tag::Float: { return 'F'; } break;
+        case serde::Tag::String: { return 'S'; } break;
+        case serde::Tag::List: { return 'L'; } break;
+        case serde::Tag::Dict: { return 'D'; } break;
+        case serde::Tag::Set: { return 'T'; } break;
+        case serde::Tag::Object: { return 'O'; } break;
+        case serde::Tag::Stateful: { return 'P'; } break;
     }
     return '?';
 }
@@ -47,32 +47,31 @@ inline std::string encode(const std::vector<serde::Node>& nodes, uint32_t rootId
     for (const serde::Node& n : nodes) {
         out << tagLetter(n.tag) << " ";
         switch (n.tag) {
-            case serde::Tag::None: break;
-            case serde::Tag::Bool: out << (n.b ? 1 : 0) << " "; break;
-            case serde::Tag::Integer: out << n.i << " "; break;
+            case serde::Tag::None: { break; } break;
+            case serde::Tag::Bool: { out << (n.b ? 1 : 0) << " "; } break;
+            case serde::Tag::Integer: { out << n.i << " "; } break;
             case serde::Tag::Float: {
                 char buf[32];
                 std::snprintf(buf, sizeof(buf), "%.17g", n.f);
                 out << buf << " ";
-                break;
-            }
-            case serde::Tag::String: out << n.s.size() << " " << n.s << " "; break;
+            } break;
+            case serde::Tag::String: { out << n.s.size() << " " << n.s << " "; } break;
             case serde::Tag::List:
-            case serde::Tag::Set:
+            case serde::Tag::Set: {
                 out << n.links.size() << " ";
                 for (uint32_t id : n.links) out << id << " ";
-                break;
-            case serde::Tag::Dict:
+            } break;
+            case serde::Tag::Dict: {
                 out << (n.links.size() / 2) << " ";
                 for (uint32_t id : n.links) out << id << " ";
-                break;
-            case serde::Tag::Object:  // class name, then key/val id pairs (like a Dict)
+            } break;
+            case serde::Tag::Object: {  // class name, then key/val id pairs (like a Dict)
                 out << n.s.size() << " " << n.s << " " << (n.links.size() / 2) << " ";
                 for (uint32_t id : n.links) out << id << " ";
-                break;
-            case serde::Tag::Stateful:  // class name, then the single state id
+            } break;
+            case serde::Tag::Stateful: {  // class name, then the single state id
                 out << n.s.size() << " " << n.s << " " << (n.links.empty() ? 0 : n.links[0]) << " ";
-                break;
+            } break;
         }
     }
     out << rootId;
@@ -96,35 +95,32 @@ public:
             // Tags are single chars — dispatch on t[0] (mirrors dump's numeric-tag switch).
             if (t.size() != 1) throw KiritoError("bad serialization tag '" + t + "'");
             switch (t[0]) {
-                case 'N': { nd.tag = serde::Tag::None; break; }
-                case 'B': { nd.tag = serde::Tag::Bool; nd.b = std::stoi(token()) != 0; break; }
-                case 'I': { nd.tag = serde::Tag::Integer; nd.i = std::stoll(token()); break; }
-                case 'F': { nd.tag = serde::Tag::Float; nd.f = parseDouble(token()); break; }   // parseDouble: subnormals don't trap
-                case 'S': { nd.tag = serde::Tag::String; int len = countToken(); nd.s = rawBytes(len); break; }
-                case 'L': { nd.tag = serde::Tag::List; readIds(nd.links); break; }
-                case 'T': { nd.tag = serde::Tag::Set; readIds(nd.links); break; }
+                case 'N': { nd.tag = serde::Tag::None; } break;
+                case 'B': { nd.tag = serde::Tag::Bool; nd.b = std::stoi(token()) != 0; } break;
+                case 'I': { nd.tag = serde::Tag::Integer; nd.i = std::stoll(token()); } break;
+                case 'F': { nd.tag = serde::Tag::Float; nd.f = parseDouble(token()); } break;   // parseDouble: subnormals don't trap
+                case 'S': { nd.tag = serde::Tag::String; int len = countToken(); nd.s = rawBytes(len); } break;
+                case 'L': { nd.tag = serde::Tag::List; readIds(nd.links); } break;
+                case 'T': { nd.tag = serde::Tag::Set; readIds(nd.links); } break;
                 case 'D': {
                     nd.tag = serde::Tag::Dict;
                     int pairs = countToken();
                     for (long k = 0; k < static_cast<long>(pairs) * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
-                    break;
-                }
+                } break;
                 case 'O': {
                     nd.tag = serde::Tag::Object;
                     int len = countToken();
                     nd.s = rawBytes(len);
                     int pairs = countToken();
                     for (long k = 0; k < static_cast<long>(pairs) * 2; ++k) nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
-                    break;
-                }
+                } break;
                 case 'P': {
                     nd.tag = serde::Tag::Stateful;
                     int len = countToken();
                     nd.s = rawBytes(len);
                     nd.links.push_back(static_cast<uint32_t>(std::stol(token())));
-                    break;
-                }
-                default: throw KiritoError("bad serialization tag '" + t + "'");
+                } break;
+                default: { throw KiritoError("bad serialization tag '" + t + "'"); } break;
             }
         }
         uint32_t rootId = static_cast<uint32_t>(std::stoul(token()));

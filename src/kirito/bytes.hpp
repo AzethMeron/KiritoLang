@@ -40,12 +40,12 @@ public:
         std::string out = "b'";
         for (unsigned char c : data) {
             switch (c) {
-                case '\n': out += "\\n"; break;
-                case '\t': out += "\\t"; break;
-                case '\r': out += "\\r"; break;
-                case '\\': out += "\\\\"; break;
-                case '\'': out += "\\'"; break;
-                default:
+                case '\n': { out += "\\n"; } break;
+                case '\t': { out += "\\t"; } break;
+                case '\r': { out += "\\r"; } break;
+                case '\\': { out += "\\\\"; } break;
+                case '\'': { out += "\\'"; } break;
+                default: {
                     if (c >= 0x20 && c < 0x7f) out += static_cast<char>(c);
                     else {
                         static const char* hex = "0123456789abcdef";
@@ -53,6 +53,7 @@ public:
                         out += hex[c >> 4];
                         out += hex[c & 0xf];
                     }
+                } break;
             }
         }
         out += "'";
@@ -129,11 +130,11 @@ public:
         }
         if (const auto* o = dynamic_cast<const BytesVal*>(&b)) {  // lexicographic ordering (Python-like)
             switch (op) {
-                case BinOp::Lt: return vm.makeBool(data < o->data);
-                case BinOp::Le: return vm.makeBool(data <= o->data);
-                case BinOp::Gt: return vm.makeBool(data > o->data);
-                case BinOp::Ge: return vm.makeBool(data >= o->data);
-                default: break;
+                case BinOp::Lt: { return vm.makeBool(data < o->data); } break;
+                case BinOp::Le: { return vm.makeBool(data <= o->data); } break;
+                case BinOp::Gt: { return vm.makeBool(data > o->data); } break;
+                case BinOp::Ge: { return vm.makeBool(data >= o->data); } break;
+                default: { break; } break;
             }
         }
         return Object::binary(vm, op, self, rhs);

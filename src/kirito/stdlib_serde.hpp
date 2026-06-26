@@ -93,16 +93,15 @@ inline std::pair<std::vector<Node>, uint32_t> flatten(KiritoVM& vm, Handle root,
         Node n;
         Object& o = vm.arena().deref(h);
         switch (o.kind()) {
-            case ValueKind::None: n.tag = Tag::None; break;
-            case ValueKind::Bool: n.tag = Tag::Bool; n.b = static_cast<BoolVal&>(o).value(); break;
-            case ValueKind::Integer: n.tag = Tag::Integer; n.i = static_cast<IntVal&>(o).value(); break;
-            case ValueKind::Float: n.tag = Tag::Float; n.f = static_cast<FloatVal&>(o).value(); break;
-            case ValueKind::String: n.tag = Tag::String; n.s = static_cast<StrVal&>(o).value(); break;
+            case ValueKind::None: { n.tag = Tag::None; } break;
+            case ValueKind::Bool: { n.tag = Tag::Bool; n.b = static_cast<BoolVal&>(o).value(); } break;
+            case ValueKind::Integer: { n.tag = Tag::Integer; n.i = static_cast<IntVal&>(o).value(); } break;
+            case ValueKind::Float: { n.tag = Tag::Float; n.f = static_cast<FloatVal&>(o).value(); } break;
+            case ValueKind::String: { n.tag = Tag::String; n.s = static_cast<StrVal&>(o).value(); } break;
             case ValueKind::List: {
                 n.tag = Tag::List;
                 for (Handle e : static_cast<ListVal&>(o).elems) n.links.push_back(visit(e));
-                break;
-            }
+            } break;
             case ValueKind::Dict: {
                 n.tag = Tag::Dict;
                 auto& d = static_cast<DictVal&>(o);
@@ -112,13 +111,11 @@ inline std::pair<std::vector<Node>, uint32_t> flatten(KiritoVM& vm, Handle root,
                     n.links.push_back(kid);
                     n.links.push_back(vid);
                 }
-                break;
-            }
+            } break;
             case ValueKind::Set: {
                 n.tag = Tag::Set;
                 for (Handle e : static_cast<SetVal&>(o).items()) n.links.push_back(visit(e));
-                break;
-            }
+            } break;
             case ValueKind::Instance: {
                 // A `_getstate_` override (user class OR a native type that opts in) wins: serialize
                 // whatever it returns, tagged with the type name so `_setstate_` can restore it.
@@ -143,9 +140,10 @@ inline std::pair<std::vector<Node>, uint32_t> flatten(KiritoVM& vm, Handle root,
                 }
                 throw KiritoError(std::string("cannot ") + verb + " type '" + o.typeName() +
                                   "' (define _getstate_/_setstate_ to make it serializable)");
-            }
-            default:
+            } break;
+            default: {
                 throw KiritoError(std::string("cannot ") + verb + " type '" + o.typeName() + "'");
+            } break;
         }
         --depth;
         nodes[id] = std::move(n);
@@ -172,14 +170,14 @@ inline Handle rebuild(KiritoVM& vm, const std::vector<Node>& nodes, uint32_t roo
     for (uint32_t i = 0; i < n; ++i) {
         const Node& nd = nodes[i];
         switch (nd.tag) {
-            case Tag::None: objs[i] = vm.none(); break;
-            case Tag::Bool: objs[i] = vm.makeBool(nd.b); break;
-            case Tag::Integer: objs[i] = roots.add(vm.makeInt(nd.i)); break;
-            case Tag::Float: objs[i] = roots.add(vm.makeFloat(nd.f)); break;
-            case Tag::String: objs[i] = roots.add(vm.makeString(nd.s)); break;
-            case Tag::List: objs[i] = roots.add(vm.alloc(std::make_unique<ListVal>())); break;
-            case Tag::Dict: objs[i] = roots.add(vm.alloc(std::make_unique<DictVal>())); break;
-            case Tag::Set: objs[i] = roots.add(vm.alloc(std::make_unique<SetVal>())); break;
+            case Tag::None: { objs[i] = vm.none(); } break;
+            case Tag::Bool: { objs[i] = vm.makeBool(nd.b); } break;
+            case Tag::Integer: { objs[i] = roots.add(vm.makeInt(nd.i)); } break;
+            case Tag::Float: { objs[i] = roots.add(vm.makeFloat(nd.f)); } break;
+            case Tag::String: { objs[i] = roots.add(vm.makeString(nd.s)); } break;
+            case Tag::List: { objs[i] = roots.add(vm.alloc(std::make_unique<ListVal>())); } break;
+            case Tag::Dict: { objs[i] = roots.add(vm.alloc(std::make_unique<DictVal>())); } break;
+            case Tag::Set: { objs[i] = roots.add(vm.alloc(std::make_unique<SetVal>())); } break;
             case Tag::Object:
             case Tag::Stateful: {
                 const Handle* cls = vm.findClass(nd.s);
@@ -202,8 +200,7 @@ inline Handle rebuild(KiritoVM& vm, const std::vector<Node>& nodes, uint32_t roo
                 } else {
                     throw KiritoError("cannot deserialize: class '" + nd.s + "' is not defined in this VM");
                 }
-                break;
-            }
+            } break;
         }
     }
     // Pass 2: wire containers and instance attributes (handles only — contents finish filling here).

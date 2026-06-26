@@ -236,9 +236,10 @@ private:
             case ast::ExprKind::Name:
             case ast::ExprKind::Index:
             case ast::ExprKind::Member:
-            case ast::ExprKind::Tuple:
+            case ast::ExprKind::Tuple: {
                 return true;
-            default: break;
+            } break;
+            default: { } break;
         }
         if (const auto* lit = dynamic_cast<const ast::LiteralExpr*>(&e))
             return !std::holds_alternative<std::monostate>(lit->value);  // None literal is fine

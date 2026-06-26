@@ -61,12 +61,13 @@ inline std::optional<double> argTimeout(KiritoVM& vm, std::span<const Handle> a,
 // Map a non-Ok wait outcome to a catchable Kirito error. (Ok is handled by the caller.)
 [[noreturn]] inline void throwWait(WaitResult r, const char* who) {
     switch (r) {
-        case WaitResult::Closed: throw KiritoError(std::string(who) + ": queue is closed");
-        case WaitResult::Aborted: throw KiritoError("parallel: operation aborted (dispatcher shut down)");
-        case WaitResult::Reentrant:
+        case WaitResult::Closed: { throw KiritoError(std::string(who) + ": queue is closed"); } break;
+        case WaitResult::Aborted: { throw KiritoError("parallel: operation aborted (dispatcher shut down)"); } break;
+        case WaitResult::Reentrant: {
             throw KiritoError(std::string(who) + ": lock is not reentrant (already held by this worker)");
-        case WaitResult::Broken: throw KiritoError(std::string(who) + ": barrier is broken");
-        case WaitResult::TimedOut: throw KiritoError(std::string(who) + ": timed out");
+        } break;
+        case WaitResult::Broken: { throw KiritoError(std::string(who) + ": barrier is broken"); } break;
+        case WaitResult::TimedOut: { throw KiritoError(std::string(who) + ": timed out"); } break;
         case WaitResult::Ok: break;
     }
     throw KiritoError(std::string(who) + ": unexpected wait result");

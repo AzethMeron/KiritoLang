@@ -134,19 +134,18 @@ private:
     // targets read their object/keys; tuple/star recurse.
     void checkTarget(const ast::Expr& target) {
         switch (target.exprKind()) {
-            case ast::ExprKind::Name: checkName(static_cast<const ast::NameExpr&>(target)); break;
-            case ast::ExprKind::Tuple:
+            case ast::ExprKind::Name: { checkName(static_cast<const ast::NameExpr&>(target)); } break;
+            case ast::ExprKind::Tuple: {
                 for (const auto& e : static_cast<const ast::TupleExpr&>(target).elems) checkTarget(*e);
-                break;
-            case ast::ExprKind::Star: checkTarget(*static_cast<const ast::StarExpr&>(target).inner); break;
+            } break;
+            case ast::ExprKind::Star: { checkTarget(*static_cast<const ast::StarExpr&>(target).inner); } break;
             case ast::ExprKind::Index: {
                 const auto& ix = static_cast<const ast::IndexExpr&>(target);
                 checkExpr(*ix.object);
                 for (const auto& k : ix.indices) checkExpr(*k);
-                break;
-            }
-            case ast::ExprKind::Member: checkExpr(*static_cast<const ast::MemberExpr&>(target).object); break;
-            default: break;
+            } break;
+            case ast::ExprKind::Member: { checkExpr(*static_cast<const ast::MemberExpr&>(target).object); } break;
+            default: { } break;
         }
     }
 

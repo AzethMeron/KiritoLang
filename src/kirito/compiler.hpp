@@ -143,23 +143,21 @@ private:
     // Store the value already on the stack into a single target (name, index, or member).
     void compileAssignTarget(const ast::Expr& target, SourceSpan span) {
         switch (target.exprKind()) {
-            case ast::ExprKind::Name:
+            case ast::ExprKind::Name: {
                 emit(Op::AssignName, addName(static_cast<const ast::NameExpr&>(target).name), span);
-                break;
+            } break;
             case ast::ExprKind::Index: {
                 const auto& idx = static_cast<const ast::IndexExpr&>(target);
                 compileExpr(*idx.object);
                 for (const auto& ix : idx.indices) compileExpr(*ix);
                 emit(Op::SetItem, static_cast<uint32_t>(idx.indices.size()), span);
-                break;
-            }
+            } break;
             case ast::ExprKind::Member: {
                 const auto& mem = static_cast<const ast::MemberExpr&>(target);
                 compileExpr(*mem.object);
                 emit(Op::SetAttr, addName(mem.name), span);
-                break;
-            }
-            default: throw KiritoError("invalid assignment target", span);
+            } break;
+            default: { throw KiritoError("invalid assignment target", span); } break;
         }
     }
 

@@ -509,36 +509,36 @@ inline Handle g_mean(KiritoVM& vm, Handle ah, int64_t axis) {
 // Forward value of an element-wise math op.
 inline double mathForward(MathOp k, double x) {
     switch (k) {
-        case MathOp::Exp: return std::exp(x);
-        case MathOp::Log: return std::log(x);
-        case MathOp::Log10: return std::log10(x);
-        case MathOp::Log2: return std::log2(x);
-        case MathOp::Sqrt: return std::sqrt(x);
-        case MathOp::Cbrt: return std::cbrt(x);
-        case MathOp::Square: return x * x;
-        case MathOp::Reciprocal: return 1.0 / x;
-        case MathOp::Abs: return std::fabs(x);
-        case MathOp::Sign: return (x > 0) - (x < 0);
-        case MathOp::Sin: return std::sin(x);
-        case MathOp::Cos: return std::cos(x);
-        case MathOp::Tan: return std::tan(x);
-        case MathOp::Asin: return std::asin(x);
-        case MathOp::Acos: return std::acos(x);
-        case MathOp::Atan: return std::atan(x);
-        case MathOp::Sinh: return std::sinh(x);
-        case MathOp::Cosh: return std::cosh(x);
-        case MathOp::Tanh: return std::tanh(x);
-        case MathOp::Asinh: return std::asinh(x);
-        case MathOp::Acosh: return std::acosh(x);
-        case MathOp::Atanh: return std::atanh(x);
-        case MathOp::Relu: return x > 0 ? x : 0.0;
-        case MathOp::Sigmoid: return 1.0 / (1.0 + std::exp(-x));
-        case MathOp::Softplus: return std::log1p(std::exp(x));
-        case MathOp::Erf: return std::erf(x);
-        case MathOp::Floor: return std::floor(x);
-        case MathOp::Ceil: return std::ceil(x);
-        case MathOp::Round: return std::nearbyint(x);
-        case MathOp::Trunc: return std::trunc(x);
+        case MathOp::Exp: { return std::exp(x); } break;
+        case MathOp::Log: { return std::log(x); } break;
+        case MathOp::Log10: { return std::log10(x); } break;
+        case MathOp::Log2: { return std::log2(x); } break;
+        case MathOp::Sqrt: { return std::sqrt(x); } break;
+        case MathOp::Cbrt: { return std::cbrt(x); } break;
+        case MathOp::Square: { return x * x; } break;
+        case MathOp::Reciprocal: { return 1.0 / x; } break;
+        case MathOp::Abs: { return std::fabs(x); } break;
+        case MathOp::Sign: { return (x > 0) - (x < 0); } break;
+        case MathOp::Sin: { return std::sin(x); } break;
+        case MathOp::Cos: { return std::cos(x); } break;
+        case MathOp::Tan: { return std::tan(x); } break;
+        case MathOp::Asin: { return std::asin(x); } break;
+        case MathOp::Acos: { return std::acos(x); } break;
+        case MathOp::Atan: { return std::atan(x); } break;
+        case MathOp::Sinh: { return std::sinh(x); } break;
+        case MathOp::Cosh: { return std::cosh(x); } break;
+        case MathOp::Tanh: { return std::tanh(x); } break;
+        case MathOp::Asinh: { return std::asinh(x); } break;
+        case MathOp::Acosh: { return std::acosh(x); } break;
+        case MathOp::Atanh: { return std::atanh(x); } break;
+        case MathOp::Relu: { return x > 0 ? x : 0.0; } break;
+        case MathOp::Sigmoid: { return 1.0 / (1.0 + std::exp(-x)); } break;
+        case MathOp::Softplus: { return std::log1p(std::exp(x)); } break;
+        case MathOp::Erf: { return std::erf(x); } break;
+        case MathOp::Floor: { return std::floor(x); } break;
+        case MathOp::Ceil: { return std::ceil(x); } break;
+        case MathOp::Round: { return std::nearbyint(x); } break;
+        case MathOp::Trunc: { return std::trunc(x); } break;
     }
     return x;
 }
@@ -548,33 +548,33 @@ inline double mathDeriv(MathOp k, double x, double o) {
     static const double kInvSqrtPi2 = 1.1283791670955126;  // 2/sqrt(pi)
     static const double kLn10 = 2.302585092994046, kLn2 = 0.6931471805599453;
     switch (k) {
-        case MathOp::Exp: return o;
-        case MathOp::Log: return 1.0 / x;
-        case MathOp::Log10: return 1.0 / (x * kLn10);
-        case MathOp::Log2: return 1.0 / (x * kLn2);
-        case MathOp::Sqrt: return 0.5 / o;
-        case MathOp::Cbrt: return 1.0 / (3.0 * o * o);
-        case MathOp::Square: return 2.0 * x;
-        case MathOp::Reciprocal: return -o * o;
-        case MathOp::Abs: return (x > 0) - (x < 0);
-        case MathOp::Sign: return 0.0;
-        case MathOp::Sin: return std::cos(x);
-        case MathOp::Cos: return -std::sin(x);
-        case MathOp::Tan: return 1.0 + o * o;
-        case MathOp::Asin: return 1.0 / std::sqrt(1.0 - x * x);
-        case MathOp::Acos: return -1.0 / std::sqrt(1.0 - x * x);
-        case MathOp::Atan: return 1.0 / (1.0 + x * x);
-        case MathOp::Sinh: return std::cosh(x);
-        case MathOp::Cosh: return std::sinh(x);
-        case MathOp::Tanh: return 1.0 - o * o;
-        case MathOp::Asinh: return 1.0 / std::sqrt(x * x + 1.0);
-        case MathOp::Acosh: return 1.0 / std::sqrt(x * x - 1.0);
-        case MathOp::Atanh: return 1.0 / (1.0 - x * x);
-        case MathOp::Relu: return x > 0 ? 1.0 : 0.0;
-        case MathOp::Sigmoid: return o * (1.0 - o);
-        case MathOp::Softplus: return 1.0 / (1.0 + std::exp(-x));
-        case MathOp::Erf: return kInvSqrtPi2 * std::exp(-x * x);
-        case MathOp::Floor: case MathOp::Ceil: case MathOp::Round: case MathOp::Trunc: return 0.0;
+        case MathOp::Exp: { return o; } break;
+        case MathOp::Log: { return 1.0 / x; } break;
+        case MathOp::Log10: { return 1.0 / (x * kLn10); } break;
+        case MathOp::Log2: { return 1.0 / (x * kLn2); } break;
+        case MathOp::Sqrt: { return 0.5 / o; } break;
+        case MathOp::Cbrt: { return 1.0 / (3.0 * o * o); } break;
+        case MathOp::Square: { return 2.0 * x; } break;
+        case MathOp::Reciprocal: { return -o * o; } break;
+        case MathOp::Abs: { return (x > 0) - (x < 0); } break;
+        case MathOp::Sign: { return 0.0; } break;
+        case MathOp::Sin: { return std::cos(x); } break;
+        case MathOp::Cos: { return -std::sin(x); } break;
+        case MathOp::Tan: { return 1.0 + o * o; } break;
+        case MathOp::Asin: { return 1.0 / std::sqrt(1.0 - x * x); } break;
+        case MathOp::Acos: { return -1.0 / std::sqrt(1.0 - x * x); } break;
+        case MathOp::Atan: { return 1.0 / (1.0 + x * x); } break;
+        case MathOp::Sinh: { return std::cosh(x); } break;
+        case MathOp::Cosh: { return std::sinh(x); } break;
+        case MathOp::Tanh: { return 1.0 - o * o; } break;
+        case MathOp::Asinh: { return 1.0 / std::sqrt(x * x + 1.0); } break;
+        case MathOp::Acosh: { return 1.0 / std::sqrt(x * x - 1.0); } break;
+        case MathOp::Atanh: { return 1.0 / (1.0 - x * x); } break;
+        case MathOp::Relu: { return x > 0 ? 1.0 : 0.0; } break;
+        case MathOp::Sigmoid: { return o * (1.0 - o); } break;
+        case MathOp::Softplus: { return 1.0 / (1.0 + std::exp(-x)); } break;
+        case MathOp::Erf: { return kInvSqrtPi2 * std::exp(-x * x); } break;
+        case MathOp::Floor: case MathOp::Ceil: case MathOp::Round: case MathOp::Trunc: { return 0.0; } break;
     }
     return 1.0;
 }
@@ -587,28 +587,28 @@ inline double mathDeriv(MathOp k, double x, double o) {
 inline void checkMathDomain(MathOp k, double x) {
     if (std::isnan(x)) return;
     switch (k) {
-        case MathOp::Log: case MathOp::Log10: case MathOp::Log2:
+        case MathOp::Log: case MathOp::Log10: case MathOp::Log2: {
             if (x <= 0.0) throw KiritoError("tensor log: math domain error (got " + floatToString(x) + ")");
-            break;
-        case MathOp::Sqrt:
+        } break;
+        case MathOp::Sqrt: {
             if (x < 0.0) throw KiritoError("tensor sqrt: math domain error (got " + floatToString(x) + ")");
-            break;
-        case MathOp::Asin:
+        } break;
+        case MathOp::Asin: {
             if (x < -1.0 || x > 1.0) throw KiritoError("tensor asin: math domain error (got " + floatToString(x) + ")");
-            break;
-        case MathOp::Acos:
+        } break;
+        case MathOp::Acos: {
             if (x < -1.0 || x > 1.0) throw KiritoError("tensor acos: math domain error (got " + floatToString(x) + ")");
-            break;
-        case MathOp::Acosh:
+        } break;
+        case MathOp::Acosh: {
             if (x < 1.0) throw KiritoError("tensor acosh: math domain error (got " + floatToString(x) + ")");
-            break;
-        case MathOp::Atanh:
+        } break;
+        case MathOp::Atanh: {
             if (x <= -1.0 || x >= 1.0) throw KiritoError("tensor atanh: math domain error (got " + floatToString(x) + ")");
-            break;
-        case MathOp::Reciprocal:
+        } break;
+        case MathOp::Reciprocal: {
             if (x == 0.0) throw KiritoError("tensor division by zero (reciprocal of 0)");
-            break;
-        default: break;
+        } break;
+        default: { } break;
     }
 }
 
@@ -826,10 +826,10 @@ inline Handle g_takeAxis0(KiritoVM& vm, Handle ah, const std::vector<std::ptrdif
 // --- elementwise comparisons / logic (Float-only, return a 0/1 mask) ---
 inline double cmp(BinOp op, double x, double y) {
     switch (op) {
-        case BinOp::Lt: return x < y; case BinOp::Le: return x <= y;
-        case BinOp::Gt: return x > y; case BinOp::Ge: return x >= y;
-        case BinOp::Eq: return x == y; case BinOp::Ne: return x != y;
-        default: return 0.0;
+        case BinOp::Lt: { return x < y; } break; case BinOp::Le: { return x <= y; } break;
+        case BinOp::Gt: { return x > y; } break; case BinOp::Ge: { return x >= y; } break;
+        case BinOp::Eq: { return x == y; } break; case BinOp::Ne: { return x != y; } break;
+        default: { return 0.0; } break;
     }
 }
 inline Handle compareTensors(KiritoVM& vm, BinOp op, const FT& a, const FT& b) {
@@ -1457,10 +1457,10 @@ inline Handle TensorVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs)
             CT a = isComplex() ? std::get<CT>(store) : tns::toComplex(std::get<FT>(store));
             CT d = ot->isComplex() ? std::get<CT>(ot->store) : tns::toComplex(std::get<FT>(ot->store));
             switch (c) {
-                case '+': return tns::make(vm, tensor::add(a, d));
-                case '-': return tns::make(vm, tensor::sub(a, d));
-                case '*': return tns::make(vm, tensor::mul(a, d));
-                default: return tns::make(vm, tensor::div(a, d));
+                case '+': { return tns::make(vm, tensor::add(a, d)); } break;
+                case '-': { return tns::make(vm, tensor::sub(a, d)); } break;
+                case '*': { return tns::make(vm, tensor::mul(a, d)); } break;
+                default: { return tns::make(vm, tensor::div(a, d)); } break;
             }
         }
         // tensor OP scalar

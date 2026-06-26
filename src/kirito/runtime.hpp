@@ -146,55 +146,61 @@ inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
         int64_t x = static_cast<const IntVal&>(a).value();
         int64_t y = static_cast<const IntVal&>(b).value();
         switch (op) {
-            case BinOp::Lt: return vm.makeBool(x < y);
-            case BinOp::Le: return vm.makeBool(x <= y);
-            case BinOp::Gt: return vm.makeBool(x > y);
-            case BinOp::Ge: return vm.makeBool(x >= y);
-            case BinOp::Add: return vm.makeInt(wadd(x, y));
-            case BinOp::Sub: return vm.makeInt(wsub(x, y));
-            case BinOp::Mul: return vm.makeInt(wmul(x, y));
-            case BinOp::FloorDiv:
+            case BinOp::Lt: { return vm.makeBool(x < y); } break;
+            case BinOp::Le: { return vm.makeBool(x <= y); } break;
+            case BinOp::Gt: { return vm.makeBool(x > y); } break;
+            case BinOp::Ge: { return vm.makeBool(x >= y); } break;
+            case BinOp::Add: { return vm.makeInt(wadd(x, y)); } break;
+            case BinOp::Sub: { return vm.makeInt(wsub(x, y)); } break;
+            case BinOp::Mul: { return vm.makeInt(wmul(x, y)); } break;
+            case BinOp::FloorDiv: {
                 if (y == 0) throw KiritoError("integer division by zero");
                 return vm.makeInt(ifloordiv(x, y));
-            case BinOp::Mod:
+            } break;
+            case BinOp::Mod: {
                 if (y == 0) throw KiritoError("integer modulo by zero");
                 return vm.makeInt(imod(x, y));
-            case BinOp::Pow:
+            } break;
+            case BinOp::Pow: {
                 if (y < 0) {
                     if (x == 0) throw KiritoError("zero cannot be raised to a negative power");
                     return vm.makeFloat(std::pow(static_cast<double>(x), static_cast<double>(y)));
                 }
                 return vm.makeInt(ipow(x, y));
-            default: break;
+            } break;
+            default: { } break;
         }
     }
 
     switch (op) {
-        case BinOp::Lt: return vm.makeBool(asDouble(a) < asDouble(b));
-        case BinOp::Le: return vm.makeBool(asDouble(a) <= asDouble(b));
-        case BinOp::Gt: return vm.makeBool(asDouble(a) > asDouble(b));
-        case BinOp::Ge: return vm.makeBool(asDouble(a) >= asDouble(b));
-        default: break;
+        case BinOp::Lt: { return vm.makeBool(asDouble(a) < asDouble(b)); } break;
+        case BinOp::Le: { return vm.makeBool(asDouble(a) <= asDouble(b)); } break;
+        case BinOp::Gt: { return vm.makeBool(asDouble(a) > asDouble(b)); } break;
+        case BinOp::Ge: { return vm.makeBool(asDouble(a) >= asDouble(b)); } break;
+        default: { } break;
     }
 
     {
         // At least one operand is a Float (Integer×Integer was handled above): promote and compute.
         double x = asDouble(a), y = asDouble(b);
         switch (op) {
-            case BinOp::Add: return vm.makeFloat(x + y);
-            case BinOp::Sub: return vm.makeFloat(x - y);
-            case BinOp::Mul: return vm.makeFloat(x * y);
-            case BinOp::FloorDiv:
+            case BinOp::Add: { return vm.makeFloat(x + y); } break;
+            case BinOp::Sub: { return vm.makeFloat(x - y); } break;
+            case BinOp::Mul: { return vm.makeFloat(x * y); } break;
+            case BinOp::FloorDiv: {
                 if (y == 0.0) throw KiritoError("float division by zero");
                 return vm.makeFloat(std::floor(x / y));
-            case BinOp::Mod:
+            } break;
+            case BinOp::Mod: {
                 if (y == 0.0) throw KiritoError("float modulo by zero");
                 return vm.makeFloat(x - std::floor(x / y) * y);
-            case BinOp::Pow:
+            } break;
+            case BinOp::Pow: {
                 // 0**-n is 1/0: raise like division by zero does (otherwise it would yield inf).
                 if (x == 0.0 && y < 0.0) throw KiritoError("zero cannot be raised to a negative power");
                 return vm.makeFloat(std::pow(x, y));
-            default: break;
+            } break;
+            default: { } break;
         }
     }
     throw KiritoError("unsupported numeric operator");
@@ -309,11 +315,11 @@ inline Handle StrVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
     if (b.kind() == ValueKind::String) {
         const std::string& r = static_cast<const StrVal&>(b).value();
         switch (op) {
-            case BinOp::Lt: return vm.makeBool(value_ < r);
-            case BinOp::Le: return vm.makeBool(value_ <= r);
-            case BinOp::Gt: return vm.makeBool(value_ > r);
-            case BinOp::Ge: return vm.makeBool(value_ >= r);
-            default: break;
+            case BinOp::Lt: { return vm.makeBool(value_ < r); } break;
+            case BinOp::Le: { return vm.makeBool(value_ <= r); } break;
+            case BinOp::Gt: { return vm.makeBool(value_ > r); } break;
+            case BinOp::Ge: { return vm.makeBool(value_ >= r); } break;
+            default: { } break;
         }
     }
     throw KiritoError("type 'String' does not support this operator");
@@ -413,11 +419,11 @@ inline Handle ListVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
         bool lt = kiLessThan(vm, self, rhs);
         bool gt = kiLessThan(vm, rhs, self);
         switch (op) {
-            case BinOp::Lt: return vm.makeBool(lt);
-            case BinOp::Le: return vm.makeBool(!gt);
-            case BinOp::Gt: return vm.makeBool(gt);
-            case BinOp::Ge: return vm.makeBool(!lt);
-            default: break;
+            case BinOp::Lt: { return vm.makeBool(lt); } break;
+            case BinOp::Le: { return vm.makeBool(!gt); } break;
+            case BinOp::Gt: { return vm.makeBool(gt); } break;
+            case BinOp::Ge: { return vm.makeBool(!lt); } break;
+            default: { } break;
         }
     }
     return Object::binary(vm, op, self, rhs);
@@ -900,12 +906,12 @@ inline Handle SetVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
             auto r = std::make_unique<SetVal>();
             for (Handle e : a.items()) if (!b.contains(vm.arena(), e)) r->add(vm.arena(), e);
             return vm.alloc(std::move(r));
-        }
-        case BinOp::Le: return vm.makeBool(subset(a, b));                          // a <= b
-        case BinOp::Ge: return vm.makeBool(subset(b, a));                          // a >= b
-        case BinOp::Lt: return vm.makeBool(a.count < b.count && subset(a, b));     // a < b (proper)
-        case BinOp::Gt: return vm.makeBool(b.count < a.count && subset(b, a));     // a > b (proper)
-        default: return Object::binary(vm, op, self, rhs);
+        } break;
+        case BinOp::Le: { return vm.makeBool(subset(a, b)); } break;                          // a <= b
+        case BinOp::Ge: { return vm.makeBool(subset(b, a)); } break;                          // a >= b
+        case BinOp::Lt: { return vm.makeBool(a.count < b.count && subset(a, b)); } break;     // a < b (proper)
+        case BinOp::Gt: { return vm.makeBool(b.count < a.count && subset(b, a)); } break;     // a > b (proper)
+        default: { return Object::binary(vm, op, self, rhs); } break;
     }
 }
 
@@ -1750,18 +1756,18 @@ inline std::string InstanceValue::str(StringifyCtx& ctx) const {
 // user instances report their class name (and inheritance is handled separately by typeMatches).
 inline std::string annotationTypeName(ValueKind k) {
     switch (k) {
-        case ValueKind::None: return "None";
-        case ValueKind::Bool: return "Bool";
-        case ValueKind::Integer: return "Integer";
-        case ValueKind::Float: return "Float";
-        case ValueKind::String: return "String";
-        case ValueKind::List: return "List";
-        case ValueKind::Dict: return "Dict";
-        case ValueKind::Set: return "Set";
-        case ValueKind::Function: case ValueKind::NativeFunction: return "Function";
-        case ValueKind::Module: return "Module";
-        case ValueKind::Class: return "Class";
-        default: return "";
+        case ValueKind::None: { return "None"; } break;
+        case ValueKind::Bool: { return "Bool"; } break;
+        case ValueKind::Integer: { return "Integer"; } break;
+        case ValueKind::Float: { return "Float"; } break;
+        case ValueKind::String: { return "String"; } break;
+        case ValueKind::List: { return "List"; } break;
+        case ValueKind::Dict: { return "Dict"; } break;
+        case ValueKind::Set: { return "Set"; } break;
+        case ValueKind::Function: case ValueKind::NativeFunction: { return "Function"; } break;
+        case ValueKind::Module: { return "Module"; } break;
+        case ValueKind::Class: { return "Class"; } break;
+        default: { return ""; } break;
     }
 }
 
@@ -2092,17 +2098,17 @@ inline std::vector<Handle> spreadValues(KiritoVM& vm, Handle value, std::size_t 
 inline std::optional<std::string> scalarSwitchKey(KiritoVM& vm, Handle h) {
     const Object& o = vm.arena().deref(h);
     switch (o.kind()) {
-        case ValueKind::None: return std::string("N");
-        case ValueKind::Bool: return std::string("B") + (static_cast<const BoolVal&>(o).value() ? "1" : "0");
-        case ValueKind::Integer: return "I" + std::to_string(static_cast<const IntVal&>(o).value());
+        case ValueKind::None: { return std::string("N"); } break;
+        case ValueKind::Bool: { return std::string("B") + (static_cast<const BoolVal&>(o).value() ? "1" : "0"); } break;
+        case ValueKind::Integer: { return "I" + std::to_string(static_cast<const IntVal&>(o).value()); } break;
         case ValueKind::Float: {
             double d = static_cast<const FloatVal&>(o).value();
             if (std::isnan(d)) return std::nullopt;            // NaN != NaN: matches no case (-> default)
             if (d == 0.0) d = 0.0;                             // 0.0 == -0.0: same key
             return "F" + floatToRoundtrip(d);                  // EXACT key (not 6-digit to_string), agrees with ==
-        }
-        case ValueKind::String: return "S" + static_cast<const StrVal&>(o).value();
-        default: return std::nullopt;
+        } break;
+        case ValueKind::String: { return "S" + static_cast<const StrVal&>(o).value(); } break;
+        default: { return std::nullopt; } break;
     }
 }
 
@@ -2334,7 +2340,7 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
             std::string methods;
             for (const std::string& k : sortedKeys(seen)) methods += describe(k, seen[k], "  ");
             return out + methods.substr(0, methods.size() - 1);  // drop trailing newline
-        }
+        } break;
         case ValueKind::Instance: {
             // A C++-authored NativeClass (Matrix, Random, File, …) also reports ValueKind::Instance
             // but is NOT an InstanceValue, so only treat genuine user-class instances as one;
@@ -2370,7 +2376,7 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
             std::string body = attrs + methods;
             if (body.empty()) return out + "  (no public members)";
             return out + body.substr(0, body.size() - 1);
-        }
+        } break;
         case ValueKind::Module: {
             const auto& mod = static_cast<const ModuleValue&>(o);
             std::string out = "module " + mod.name() + ":\n";
@@ -2382,14 +2388,15 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
                     body += describe(k, mod.members.at(k), "  ");
             if (body.empty()) return out + "  (empty)";
             return out + body.substr(0, body.size() - 1);
-        }
-        case ValueKind::Function:
+        } break;
+        case ValueKind::Function: {
             return inspectSignature("function", static_cast<const KiFunction&>(o).def());
+        } break;
         case ValueKind::NativeFunction: {
             const auto& nf = static_cast<const NativeFunction&>(o);
             return nf.hasSignature() ? inspectNativeSignature(vm, nf.name(), nf)
                                      : nf.name() + "(...)  [native]";
-        }
+        } break;
         default: {
             // Built-in types (List/Dict/Set/Bytes/…) that declare members list them; scalars don't.
             std::vector<std::string> mem = o.inspectMembers();
@@ -2398,7 +2405,7 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
             std::string out = o.typeName() + " value:\n";
             for (const std::string& line : mem) out += "  " + line + "\n";
             return out.substr(0, out.size() - 1);
-        }
+        } break;
     }
 }
 
@@ -2571,8 +2578,8 @@ inline void KiritoVM::installBuiltins() {
         if (args.size() != 1) throw KiritoError("Integer expected 1 argument");
         const Object& o = vm.arena().deref(args[0]);
         switch (o.kind()) {
-            case ValueKind::Integer: return args[0];
-            case ValueKind::Bool: return vm.makeInt(static_cast<const BoolVal&>(o).value() ? 1 : 0);
+            case ValueKind::Integer: { return args[0]; } break;
+            case ValueKind::Bool: { return vm.makeInt(static_cast<const BoolVal&>(o).value() ? 1 : 0); } break;
             case ValueKind::Float: {
                 double d = static_cast<const FloatVal&>(o).value();
                 // Casting a non-finite or out-of-range double to int64 is UB; reject it cleanly.
@@ -2581,7 +2588,7 @@ inline void KiritoVM::installBuiltins() {
                 if (d >= 9223372036854775808.0 || d < -9223372036854775808.0)
                     throw KiritoError("Float is out of Integer range");
                 return vm.makeInt(static_cast<int64_t>(d));
-            }
+            } break;
             case ValueKind::String: {
                 const std::string& s = static_cast<const StrVal&>(o).value();
                 try {
@@ -2620,8 +2627,8 @@ inline void KiritoVM::installBuiltins() {
                 } catch (...) {
                     throw KiritoError("cannot convert String to Integer: '" + s + "'");
                 }
-            }
-            default: throw KiritoError("cannot convert '" + o.typeName() + "' to Integer");
+            } break;
+            default: { throw KiritoError("cannot convert '" + o.typeName() + "' to Integer"); } break;
         }
     });
 
@@ -2629,10 +2636,11 @@ inline void KiritoVM::installBuiltins() {
         if (args.size() != 1) throw KiritoError("Float expected 1 argument");
         const Object& o = vm.arena().deref(args[0]);
         switch (o.kind()) {
-            case ValueKind::Float: return args[0];
-            case ValueKind::Integer:
+            case ValueKind::Float: { return args[0]; } break;
+            case ValueKind::Integer: {
                 return vm.makeFloat(static_cast<double>(static_cast<const IntVal&>(o).value()));
-            case ValueKind::Bool: return vm.makeFloat(static_cast<const BoolVal&>(o).value() ? 1.0 : 0.0);
+            } break;
+            case ValueKind::Bool: { return vm.makeFloat(static_cast<const BoolVal&>(o).value() ? 1.0 : 0.0); } break;
             case ValueKind::String: {
                 const std::string& s = static_cast<const StrVal&>(o).value();
                 try {
@@ -2651,8 +2659,8 @@ inline void KiritoVM::installBuiltins() {
                 } catch (...) {
                     throw KiritoError("cannot convert String to Float: '" + s + "'");
                 }
-            }
-            default: throw KiritoError("cannot convert '" + o.typeName() + "' to Float");
+            } break;
+            default: { throw KiritoError("cannot convert '" + o.typeName() + "' to Float"); } break;
         }
     });
 

@@ -279,14 +279,12 @@ inline std::string inflateImpl(const std::string& in, std::size_t maxOut, std::s
             if (out.size() + len > maxOut) throw DeflateError("decompressed data exceeds the size limit");
             out.append(in, p, len);
             br.setBytePos(p + len);
-            break;
-        }
+        } break;
         case 1: {  // fixed Huffman
             static const Huffman lit = fixedLitHuffman();
             static const Huffman dist = fixedDistHuffman();
             inflateBlock(br, lit, dist, out, maxOut);
-            break;
-        }
+        } break;
         case 2: {  // dynamic Huffman
             int hlit = static_cast<int>(br.bits(5)) + 257;
             int hdist = static_cast<int>(br.bits(5)) + 1;
@@ -319,10 +317,10 @@ inline std::string inflateImpl(const std::string& in, std::size_t maxOut, std::s
             Huffman lit; lit.build(litLengths, 15);
             Huffman dist; dist.build(distLengths, 15);
             inflateBlock(br, lit, dist, out, maxOut);
-            break;
-        }
-        default:
+        } break;
+        default: {
             throw DeflateError("invalid block type");
+        } break;
         }
     }
     if (consumed) { br.alignByte(); *consumed = br.bytePos(); }

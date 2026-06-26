@@ -101,14 +101,14 @@ inline bool strptimeCompat(const char* s, const char* fmt, std::tm& tm) {
             ++fmt;
             int v = 0;
             switch (*fmt) {
-                case 'Y': if (!num(4, v)) return false; tm.tm_year = v - 1900; break;
-                case 'm': if (!num(2, v)) return false; tm.tm_mon = v - 1; break;
-                case 'd': if (!num(2, v)) return false; tm.tm_mday = v; break;
-                case 'H': if (!num(2, v)) return false; tm.tm_hour = v; break;
-                case 'M': if (!num(2, v)) return false; tm.tm_min = v; break;
-                case 'S': if (!num(2, v)) return false; tm.tm_sec = v; break;
-                case '%': if (*s != '%') return false; ++s; break;
-                default: return false;  // unsupported directive
+                case 'Y': { if (!num(4, v)) return false; tm.tm_year = v - 1900; } break;
+                case 'm': { if (!num(2, v)) return false; tm.tm_mon = v - 1; } break;
+                case 'd': { if (!num(2, v)) return false; tm.tm_mday = v; } break;
+                case 'H': { if (!num(2, v)) return false; tm.tm_hour = v; } break;
+                case 'M': { if (!num(2, v)) return false; tm.tm_min = v; } break;
+                case 'S': { if (!num(2, v)) return false; tm.tm_sec = v; } break;
+                case '%': { if (*s != '%') return false; ++s; } break;
+                default: { return false; } break;  // unsupported directive
             }
             ++fmt;
         } else {

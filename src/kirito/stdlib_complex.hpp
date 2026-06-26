@@ -121,16 +121,17 @@ inline Handle ComplexVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
         throw KiritoError("complex numbers are not ordered (no <, <=, >, >=)");
     cdouble b = cpx::asComplex(vm, rhs, "Complex arithmetic");
     switch (op) {
-        case BinOp::Add: return cpx::make(vm, z + b);
-        case BinOp::Sub: return cpx::make(vm, z - b);
-        case BinOp::Mul: return cpx::make(vm, z * b);
-        case BinOp::Div:
+        case BinOp::Add: { return cpx::make(vm, z + b); } break;
+        case BinOp::Sub: { return cpx::make(vm, z - b); } break;
+        case BinOp::Mul: { return cpx::make(vm, z * b); } break;
+        case BinOp::Div: {
             if (b == cdouble(0.0, 0.0)) throw KiritoError("complex division by zero");
             return cpx::make(vm, z / b);
-        case BinOp::Pow: return cpx::make(vm, cpx::cpow(z, b));
-        case BinOp::Eq: return vm.makeBool(z == b);   // EXACT (std::complex::==); .compare() for tolerance
-        case BinOp::Ne: return vm.makeBool(z != b);
-        default: break;
+        } break;
+        case BinOp::Pow: { return cpx::make(vm, cpx::cpow(z, b)); } break;
+        case BinOp::Eq: { return vm.makeBool(z == b); } break;   // EXACT (std::complex::==); .compare() for tolerance
+        case BinOp::Ne: { return vm.makeBool(z != b); } break;
+        default: { } break;
     }
     throw KiritoError("Complex does not support this operator");
 }

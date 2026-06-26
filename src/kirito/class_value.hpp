@@ -18,20 +18,20 @@ namespace kirito {
 // method name a class may define.
 inline const char* binOpMethod(BinOp op) {
     switch (op) {
-        case BinOp::Add: return "_add_";
-        case BinOp::Sub: return "_sub_";
-        case BinOp::Mul: return "_mul_";
-        case BinOp::Div: return "_div_";
-        case BinOp::FloorDiv: return "_floordiv_";
-        case BinOp::Mod: return "_mod_";
-        case BinOp::Pow: return "_pow_";
-        case BinOp::Eq: return "_eq_";
-        case BinOp::Ne: return "_ne_";
-        case BinOp::Lt: return "_lt_";
-        case BinOp::Le: return "_le_";
-        case BinOp::Gt: return "_gt_";
-        case BinOp::Ge: return "_ge_";
-        case BinOp::In: case BinOp::NotIn: break;  // handled via _contains_, not here
+        case BinOp::Add: { return "_add_"; } break;
+        case BinOp::Sub: { return "_sub_"; } break;
+        case BinOp::Mul: { return "_mul_"; } break;
+        case BinOp::Div: { return "_div_"; } break;
+        case BinOp::FloorDiv: { return "_floordiv_"; } break;
+        case BinOp::Mod: { return "_mod_"; } break;
+        case BinOp::Pow: { return "_pow_"; } break;
+        case BinOp::Eq: { return "_eq_"; } break;
+        case BinOp::Ne: { return "_ne_"; } break;
+        case BinOp::Lt: { return "_lt_"; } break;
+        case BinOp::Le: { return "_le_"; } break;
+        case BinOp::Gt: { return "_gt_"; } break;
+        case BinOp::Ge: { return "_ge_"; } break;
+        case BinOp::In: case BinOp::NotIn: { } break;  // handled via _contains_, not here
     }
     return "";
 }

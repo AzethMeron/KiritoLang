@@ -343,16 +343,17 @@ private:
         }
         char out;
         switch (e) {
-            case 'n': out = '\n'; break;
-            case 't': out = '\t'; break;
-            case 'r': out = '\r'; break;
-            case '0': out = '\0'; break;
-            case '\\': out = '\\'; break;
-            case '"': out = '"'; break;
-            case '\'': out = '\''; break;
-            default:
+            case 'n': { out = '\n'; } break;
+            case 't': { out = '\t'; } break;
+            case 'r': { out = '\r'; } break;
+            case '0': { out = '\0'; } break;
+            case '\\': { out = '\\'; } break;
+            case '"': { out = '"'; } break;
+            case '\'': { out = '\''; } break;
+            default: {
                 throw KiritoError(std::string("invalid escape '\\") + e + "'",
                                   SourceSpan{line_, col_, 1});
+            } break;
         }
         advance();
         return std::string(1, out);
@@ -362,58 +363,69 @@ private:
         uint32_t line = line_, col = col_;
         char c = peek();
         switch (c) {
-            case '+': advance(); return make(TokenType::Plus, line, col);
-            case '-':
+            case '+': { advance(); return make(TokenType::Plus, line, col); } break;
+            case '-': {
                 advance();
                 if (peek() == '>') { advance(); return make(TokenType::Arrow, line, col); }
                 return make(TokenType::Minus, line, col);
-            case '*':
+            } break;
+            case '*': {
                 advance();
                 if (peek() == '*') { advance(); return make(TokenType::StarStar, line, col); }
                 return make(TokenType::Star, line, col);
-            case '/':
+            } break;
+            case '/': {
                 advance();
                 if (peek() == '/') { advance(); return make(TokenType::SlashSlash, line, col); }
                 return make(TokenType::Slash, line, col);
-            case '%': advance(); return make(TokenType::Percent, line, col);
-            case ':': advance(); return make(TokenType::Colon, line, col);
-            case ',': advance(); return make(TokenType::Comma, line, col);
-            case '.': advance(); return make(TokenType::Dot, line, col);
-            case '(': advance(); ++parenDepth_; return make(TokenType::LParen, line, col);
-            case ')':
+            } break;
+            case '%': { advance(); return make(TokenType::Percent, line, col); } break;
+            case ':': { advance(); return make(TokenType::Colon, line, col); } break;
+            case ',': { advance(); return make(TokenType::Comma, line, col); } break;
+            case '.': { advance(); return make(TokenType::Dot, line, col); } break;
+            case '(': { advance(); ++parenDepth_; return make(TokenType::LParen, line, col); } break;
+            case ')': {
                 advance();
                 if (parenDepth_ > 0) --parenDepth_;
                 return make(TokenType::RParen, line, col);
-            case '[': advance(); ++parenDepth_; return make(TokenType::LBracket, line, col);
-            case ']':
+            } break;
+            case '[': { advance(); ++parenDepth_; return make(TokenType::LBracket, line, col); } break;
+            case ']': {
                 advance();
                 if (parenDepth_ > 0) --parenDepth_;
                 return make(TokenType::RBracket, line, col);
-            case '{': advance(); ++parenDepth_; return make(TokenType::LBrace, line, col);
-            case '}':
+            } break;
+            case '{': { advance(); ++parenDepth_; return make(TokenType::LBrace, line, col); } break;
+            case '}': {
                 advance();
                 if (parenDepth_ > 0) --parenDepth_;
                 return make(TokenType::RBrace, line, col);
-            case '=':
+            } break;
+            case '=': {
                 advance();
                 if (peek() == '=') { advance(); return make(TokenType::EqEq, line, col); }
                 return make(TokenType::Assign, line, col);
-            case '!':
+            } break;
+            case '!': {
                 advance();
                 if (peek() == '=') { advance(); return make(TokenType::NotEq, line, col); }
                 throw KiritoError("unexpected '!' (did you mean '!=' or 'not'?)",
                                   SourceSpan{line, col, 1});
-            case '<':
+            } break;
+            case '<': {
                 advance();
                 if (peek() == '=') { advance(); return make(TokenType::Le, line, col); }
                 return make(TokenType::Lt, line, col);
-            case '>':
+            } break;
+            case '>': {
                 advance();
                 if (peek() == '=') { advance(); return make(TokenType::Ge, line, col); }
                 return make(TokenType::Gt, line, col);
-            default:
+            } break;
+            default: {
                 throw KiritoError(std::string("unexpected character '") + c + "'",
                                   SourceSpan{line, col, 1});
+            } break;
         }
     }
 
