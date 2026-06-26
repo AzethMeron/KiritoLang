@@ -260,7 +260,9 @@ public:
             ++generation_;
             count_ = 0;
             cv_.notify_all();
-            return WaitResult::Ok;
+            // If this generation was already broken (an earlier waiter timed out / reset), every
+            // wait() in it must report Broken — including this last arrival, per Python semantics.
+            return brokenGen_ == gen ? WaitResult::Broken : WaitResult::Ok;
         }
         auto ready = [&] { return aborted_ || generation_ != gen || brokenGen_ == gen; };
         if (timeout) {
@@ -301,6 +303,7 @@ struct Task {
     uint64_t id = 0;
     std::thread thread;
     std::atomic<bool> done{false};
+    std::atomic<bool> joining{false};   // claimed by the one caller that joins the thread (see reap())
     std::string result;  // dump blob, valid iff done && !hasError
     bool hasError = false;
     std::string errorText;
@@ -531,6 +534,9 @@ public:
 
     uint64_t spawnTask(std::string sourceFile, uint32_t line, uint32_t col, std::string argsBlob) {
         std::lock_guard<std::mutex> lk(registryMutex_);
+        // A spawn racing teardown would create a thread that shutdown's join sweep already passed,
+        // leaving it un-joined (and dereferencing a freed Task) — refuse once shutdown has begun.
+        if (shuttingDown_) throw KiritoError("parallel: the dispatcher is shutting down");
         uint64_t id = nextId_++;
         auto task = std::make_unique<Task>();
         task->id = id;
@@ -555,7 +561,7 @@ public:
             if (it == tasks_.end()) throw KiritoError("parallel: invalid task handle");
             tp = it->second.get();
         }
-        if (tp->thread.joinable()) tp->thread.join();
+        reap(tp);   // join exactly once even if join()/shutdown() race on the same Task
         hasError = tp->hasError;
         errorText = tp->errorText;
         return tp->result;
@@ -567,15 +573,16 @@ public:
         std::vector<std::shared_ptr<Waitable>> live;
         {
             std::lock_guard<std::mutex> lk(registryMutex_);
+            shuttingDown_ = true;   // set before aborting so no new task can be spawned past the sweep
             for (auto& w : waitables_) if (auto sp = w.lock()) live.push_back(sp);
         }
         for (auto& sp : live) sp->abort();
-        std::vector<std::thread*> threads;
+        std::vector<Task*> ts;
         {
             std::lock_guard<std::mutex> lk(registryMutex_);
-            for (auto& [id, t] : tasks_) if (t->thread.joinable()) threads.push_back(&t->thread);
+            for (auto& [id, t] : tasks_) ts.push_back(t.get());
         }
-        for (auto* th : threads) th->join();
+        for (auto* t : ts) reap(t);   // reap() each exactly once, coordinating with any live join()
     }
 
     static unsigned cpuCount() {
@@ -586,6 +593,17 @@ public:
     void configureVM(KiritoVM& vm);  // defined in stdlib_parallel.hpp (it installs ParallelModule)
 
 private:
+    // Join a worker's thread exactly once, even when join() (from Kirito) and shutdown() race on the
+    // same Task: the first to claim `joining` does the std::thread::join(); any other caller waits for
+    // the worker to finish (the claimer's join() then reaps it). Two join()s on one std::thread is UB.
+    void reap(Task* t) {
+        if (!t->joining.exchange(true)) {
+            if (t->thread.joinable()) t->thread.join();
+        } else {
+            while (!t->done.load()) std::this_thread::yield();
+        }
+    }
+
     // Create a primitive of the map's element type, register it under a fresh id, and track it as a
     // Waitable for shutdown's abort fan-out. Explicit return type (not `auto`) so the create* methods
     // above can call it regardless of in-class declaration order.
@@ -681,6 +699,7 @@ private:
     std::vector<std::weak_ptr<Waitable>> waitables_;  // abort() fan-out for shutdown()
     fum::unordered_map<uint64_t, std::unique_ptr<Task>> tasks_;
     uint64_t nextId_ = 1;  // one id space across all primitives + tasks
+    bool shuttingDown_ = false;  // guarded by registryMutex_; set once by shutdown(), read by spawnTask
 };
 
 }  // namespace kirito
