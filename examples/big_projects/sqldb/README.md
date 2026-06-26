@@ -31,9 +31,10 @@ test_client.py      Python harness: launches the server, tests it over the netwo
 Newline-framed. The client sends one JSON object per line `{"sql": "..."}`; the server replies with
 one JSON object per line: `{"ok": true, "type": "...", ...}` on success, or
 `{"ok": false, "error": "..."}` on any lex/parse/engine error. The special request
-`{"sql": "__shutdown__"}` stops the server. One in-memory `Database` is shared for the server's
-lifetime; the server is single-threaded and serves one connection at a time (matching Kirito's
-no-threads model), but state persists across sequential connections.
+`{"sql": "__shutdown__"}` stops the server. The server is **concurrent** (via the `parallel` module's
+actor model): one DB-owner VM holds the single in-memory `Database` and serializes every query through
+a request queue, while a pool of connection-worker VMs handles socket I/O — so many clients are served
+at once with no shared-state races, and state persists across connections.
 
 ## Running
 

@@ -40,7 +40,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="packages.html">Packages &amp; kpm</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values-numbers.html">Lesson 2 — Values, Variables &amp; Numbers</a><a href="course-03-strings.html">Lesson 3 — Strings</a><a href="course-04-control-loops.html">Lesson 4 — Control Flow and Loops</a><a href="course-05-collections.html">Lesson 5 — Collections: Lists, Sets, Dicts &amp; Unpacking</a><a href="course-06-functions-closures.html" class="active">Lesson 6 — Functions and Closures</a><a href="course-07-annotations.html">Lesson 7 — Type Annotations and Runtime Checks</a><a href="course-08-classes.html">Lesson 8 — Classes I: Data and Behavior</a><a href="course-09-operators.html">Lesson 9 — Classes II: Operators and Protocols</a><a href="course-10-inheritance.html">Lesson 10 — Classes III: Inheritance and super</a><a href="course-11-errors.html">Lesson 11 — Errors and Exceptions</a><a href="course-12-context-managers.html">Lesson 12 — Context Managers and with</a><a href="course-13-files-io.html">Lesson 13 — Files, I/O, and Streams</a><a href="course-14-stdlib-tour.html">Lesson 14 — A Tour of the Standard Library</a><a href="course-15-capstone.html">Lesson 15 — Capstone: A Task Manager</a><a href="bonus-01-regex.html">Bonus Lesson 1 — Regular Expressions</a><a href="bonus-02-cli.html">Bonus Lesson 2 — Command-Line Programs</a><a href="bonus-03-data.html">Bonus Lesson 3 — Tabular Data Analysis</a><a href="bonus-04-linear-algebra.html">Bonus Lesson 4 — Matrices, Vectors &amp; Complex Numbers</a><a href="bonus-05-tensors.html">Bonus Lesson 5 — Tensors &amp; Autograd</a><a href="bonus-06-concurrency.html">Bonus: Concurrency with `parallel`</a></nav><main id="content"><h1 id="lesson-6-functions-and-closures">Lesson 6 — Functions and Closures</h1>
 <p>Functions name a piece of work so you can reuse it, test it, and read your program at a higher level. In Kirito a function is a <strong>value</strong> created with <a class="xref" href="course-06-functions-closures.html#sym-Function"><code>Function(...)</code></a> and bound to a name like anything else — which means you can also pass functions around and return them, the idea that powers closures.</p>
 <h2 id="defining-and-calling">Defining and calling</h2>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> greet = <span class="kw">Function</span>(name):
     <span class="kw">return</span> f<span class="str">&quot;Hello, {name}!&quot;</span>
@@ -49,7 +49,7 @@ io.<span class="builtin">print</span>(greet(<span class="str">&quot;Ada&quot;</s
 <p>The parameters go in the parentheses; the indented block is the body; <code>return</code> hands back a value.</p>
 <h2 id="the-default-return-is-none">The default return is <a class="xref" href="types.html#none"><code>None</code></a></h2>
 <p>A function with no <code>return</code> (or a bare <code>return</code>) yields <a class="xref" href="types.html#none"><code>None</code></a>. Such functions are run for their <em>effect</em>, not their value:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> log = <span class="kw">Function</span>(message):
     io.<span class="builtin">print</span>(f<span class="str">&quot;[log] {message}&quot;</span>)
     <span class="com"># no return -&gt; yields None</span>
@@ -58,7 +58,7 @@ io.<span class="builtin">print</span>(greet(<span class="str">&quot;Ada&quot;</s
 io.<span class="builtin">print</span>(result)                     <span class="com"># =&gt; None</span></code></pre>
 <h2 id="default-parameter-values-and-keyword-arguments">Default parameter values and keyword arguments</h2>
 <p>A parameter can have a default, used when the caller omits it. Defaults are evaluated <strong>at call time, once per call</strong> — so a mutable default like <code>xs = []</code> is a <em>fresh</em> list on every call (no Python-style shared-default surprise). You can also pass arguments <strong>by name</strong>, in any order — clearer at the call site and order-independent:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> power = <span class="kw">Function</span>(base, exponent = <span class="num">2</span>):
     <span class="kw">return</span> base ** exponent
 
@@ -73,7 +73,7 @@ io.<span class="builtin">print</span>(make_label(width=<span class="num">8</span
 <p>Keyword arguments work for built-in and standard-library functions too — that&#x27;s why you&#x27;ve been writing <a class="xref" href="builtins.html#sym-round"><code>round(x, ndigits=2)</code></a> and <a class="xref" href="builtins.html#sym-sorted"><code>sorted(xs, reverse=True)</code></a>.</p>
 <h2 id="composing-small-functions">Composing small functions</h2>
 <p>Break a problem into small, single-purpose functions and compose them. Each one is easy to read and test on its own:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> is_vowel = <span class="kw">Function</span>(ch : <span class="builtin">String</span>) -&gt; <span class="builtin">Bool</span>:
     <span class="kw">return</span> ch.lower() <span class="kw">in</span> <span class="str">&quot;aeiou&quot;</span>
@@ -89,13 +89,13 @@ io.<span class="builtin">print</span>(count_vowels(<span class="str">&quot;Hello
 <p><code>is_vowel</code> answers one tiny question; <code>count_vowels</code> uses it in a loop. Splitting the work this way means you can test <code>is_vowel(&quot;e&quot;)</code> in isolation — the habit that keeps large programs manageable.</p>
 <h2 id="discard-and-todo"><code>discard</code> and <code>todo</code></h2>
 <p>If you call a function only for its side effect and ignore a non-<a class="xref" href="types.html#none"><code>None</code></a> result, Kirito&#x27;s analyzer warns that you dropped a value. Mark it <code>discard</code> to say &quot;I meant to&quot;. When you&#x27;re sketching, <code>todo</code> is a no-op that emits a reminder warning at its location:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">discard</span> io.<span class="builtin">input</span>(<span class="str">&quot;Press Enter to continue... &quot;</span>)   <span class="com"># we don&#x27;t need the line back</span></code></pre>
 <pre><code><span class="kw">var</span> parse_config = <span class="kw">Function</span>(path):
-    todo <span class="str">&quot;read and validate the config file&quot;</span></code></pre>
+    <span class="kw">todo</span> <span class="str">&quot;read and validate the config file&quot;</span></code></pre>
 <h2 id="functions-are-values">Functions are values</h2>
 <p>Because a function is an ordinary value, you can store it, pass it, return it, and keep a list of them:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> double = <span class="kw">Function</span>(x): <span class="kw">return</span> x * <span class="num">2</span>
 <span class="kw">var</span> triple = <span class="kw">Function</span>(x): <span class="kw">return</span> x * <span class="num">3</span>
 
@@ -103,14 +103,14 @@ io.<span class="builtin">print</span>(count_vowels(<span class="str">&quot;Hello
 <span class="kw">for</span> op <span class="kw">in</span> operations:
     io.<span class="builtin">print</span>(op(<span class="num">10</span>))                    <span class="com"># =&gt; 20 / 30</span></code></pre>
 <p>A function that takes another function is &quot;higher-order&quot;. The builtins <a class="xref" href="builtins.html#sym-map"><code>map</code></a>, <a class="xref" href="builtins.html#sym-filter"><code>filter</code></a>, and <a class="xref" href="builtins.html#sym-sorted"><code>sorted(key=...)</code></a> are the everyday examples:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> numbers = [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]
 io.<span class="builtin">print</span>(<span class="builtin">map</span>(<span class="kw">Function</span>(n): <span class="kw">return</span> n * n, numbers))          <span class="com"># =&gt; [1, 4, 9, 16, 25, 36]</span>
 io.<span class="builtin">print</span>(<span class="builtin">filter</span>(<span class="kw">Function</span>(n): <span class="kw">return</span> n % <span class="num">2</span> == <span class="num">0</span>, numbers))  <span class="com"># =&gt; [2, 4, 6]</span>
 io.<span class="builtin">print</span>(<span class="builtin">sorted</span>([<span class="str">&quot;bb&quot;</span>, <span class="str">&quot;a&quot;</span>, <span class="str">&quot;ccc&quot;</span>], key=<span class="builtin">len</span>))              <span class="com"># =&gt; [&#x27;a&#x27;, &#x27;bb&#x27;, &#x27;ccc&#x27;]</span></code></pre>
 <h2 id="closures-functions-that-remember">Closures: functions that remember</h2>
 <p>A function that <em>remembers</em> variables from where it was created is a <strong>closure</strong>. The key move is a function that builds and returns another function:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="com"># make_adder returns a NEW function that adds `amount` to whatever it&#x27;s given.</span>
 <span class="kw">var</span> make_adder = <span class="kw">Function</span>(amount):
@@ -121,7 +121,7 @@ io.<span class="builtin">print</span>(<span class="builtin">sorted</span>([<span
 io.<span class="builtin">print</span>(add_ten(<span class="num">5</span>), add_hundred(<span class="num">5</span>))          <span class="com"># =&gt; 15 105</span></code></pre>
 <p><code>add_ten</code> and <code>add_hundred</code> are separate functions, each carrying its own captured <code>amount</code>.</p>
 <p>Because a closure can capture a <em>mutable</em> binding, you can build little objects with private state without a class:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> make_counter = <span class="kw">Function</span>():
     <span class="kw">var</span> count = <span class="num">0</span>                 <span class="com"># private to each counter</span>
@@ -134,7 +134,7 @@ io.<span class="builtin">print</span>(tick(), tick(), tick())  <span class="com"
 <span class="kw">var</span> other = make_counter()
 io.<span class="builtin">print</span>(other())                 <span class="com"># =&gt; 1   (independent state)</span></code></pre>
 <h3 id="a-worked-example-composing-transformations">A worked example: composing transformations</h3>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="com"># Build a pipeline that applies a list of single-argument functions in order.</span>
 <span class="kw">var</span> pipeline = <span class="kw">Function</span>(steps):

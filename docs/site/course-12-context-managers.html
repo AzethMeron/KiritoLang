@@ -41,7 +41,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Some resources must be cleaned up: a file must be closed, a lock released, a timer stopped — even if an error interrupts the work. You <em>could</em> do this with <a class="xref" href="course-11-errors.html#sym-try"><code>try</code></a>/<a class="xref" href="course-11-errors.html#sym-finally"><code>finally</code></a> every time, but Kirito offers a cleaner tool: the <code>with</code> statement and the <strong>context-manager protocol</strong>.</p>
 <h2 id="the-with-statement">The <code>with</code> statement</h2>
 <p><code>with EXPR as NAME:</code> enters a context, binds its resource to <code>NAME</code>, runs the block, and guarantees cleanup on the way out — normal exit <em>or</em> exception. The classic case is files:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> path = io.join(io.getcwd(), <span class="str">&quot;lesson17_demo.txt&quot;</span>)
 
 <span class="kw">with</span> io.open(path, <span class="str">&quot;w&quot;</span>) <span class="kw">as</span> file:
@@ -58,8 +58,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p><code>with</code> works on any object that implements two special methods:</p>
 <ul><li><code>_enter_(self)</code> — runs on entry; its return value is what <code>as NAME</code> binds.</li><li><code>_exit_(self)</code> — runs on exit (always), to release the resource.</li></ul>
 <p>Knowing this, you can write your own context managers. Here&#x27;s a timer that reports how long its block took:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> time = <span class="kw">import</span>(<span class="str">&quot;time&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> time = <span class="builtin">import</span>(<span class="str">&quot;time&quot;</span>)
 
 <span class="kw">class</span> Timer:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, label):
@@ -79,15 +79,15 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p><strong>Walkthrough:</strong> <code>_enter_</code> stamps the start time and hands back <code>self</code>; the block does its work; <code>_exit_</code> runs the moment the block ends (or throws) and reports the elapsed time. The caller can&#x27;t forget to stop the timer — the protocol does it. Any &quot;do X before, undo it after&quot; pattern fits this shape: open/close, lock/unlock, set-up/tear-down.</p>
 <h2 id="in-memory-buffers-as-contexts">In-memory buffers as contexts</h2>
 <p><code>BytesIO</code> is an in-memory stream usable anywhere a file is — and it&#x27;s a context manager too. It&#x27;s ideal for tests and for capturing output without touching disk:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> buffer = io.BytesIO()
 buffer.write(<span class="str">&quot;captured text&quot;</span>)
 io.<span class="builtin">print</span>(buffer.getvalue())        <span class="com"># =&gt; captured text</span></code></pre>
 <h2 id="redirecting-output-with-tee">Redirecting output with <a class="xref" href="stdlib.html#tee"><code>tee</code></a></h2>
 <p>The <a class="xref" href="stdlib.html#tee"><code>tee</code></a> standard-library module builds on the stream protocol to <em>fan out</em> writes — sending output to several places at once, or capturing it. <a class="xref" href="stdlib.html#sym-tee_stdout"><code>tee_stdout</code></a> is a context manager that mirrors everything printed to <a class="xref" href="stdlib.html#sym-stdout"><code>stdout</code></a> into extra streams while the block runs:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> tee = <span class="kw">import</span>(<span class="str">&quot;tee&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> tee = <span class="builtin">import</span>(<span class="str">&quot;tee&quot;</span>)
 
 <span class="kw">var</span> log = io.BytesIO()
 <span class="kw">with</span> tee.tee_stdout(log):

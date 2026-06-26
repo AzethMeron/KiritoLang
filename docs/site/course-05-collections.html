@@ -41,7 +41,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Most programs revolve around collections of values. Kirito has three, each with a job: the <strong>List</strong> (an ordered, mutable sequence), the <strong>Set</strong> (distinct values with instant membership), and the <strong>Dict</strong> (a mapping from keys to values). This lesson covers all three, then <strong>unpacking</strong> — the syntax that moves several values around at once.</p>
 <h2 id="lists-ordered-sequences">Lists: ordered sequences</h2>
 <p>A List holds values of any type, grows and shrinks on demand, and supports indexing and slicing.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> primes = [<span class="num">2</span>, <span class="num">3</span>, <span class="num">5</span>, <span class="num">7</span>, <span class="num">11</span>]
 io.<span class="builtin">print</span>(primes[<span class="num">0</span>])       <span class="com"># =&gt; 2     (indices start at 0)</span>
 io.<span class="builtin">print</span>(primes[-<span class="num">1</span>])      <span class="com"># =&gt; 11    (negative counts from the end)</span>
@@ -51,7 +51,7 @@ io.<span class="builtin">print</span>(primes[<span class="num">1</span>:<span cl
 <span class="kw">var</span> mixed = [<span class="num">1</span>, <span class="str">&quot;two&quot;</span>, <span class="num">3.0</span>, [<span class="num">4</span>, <span class="num">5</span>]]
 io.<span class="builtin">print</span>(mixed[<span class="num">3</span>][<span class="num">0</span>])     <span class="com"># =&gt; 4   (index into the nested list)</span></code></pre>
 <h3 id="growing-and-shrinking">Growing and shrinking</h3>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> stack = []
 stack.append(<span class="num">10</span>)          <span class="com"># add to the end</span>
 stack.append(<span class="num">20</span>)
@@ -62,7 +62,7 @@ stack.remove(<span class="num">10</span>)          <span class="com"># remove th
 io.<span class="builtin">print</span>(stack)           <span class="com"># =&gt; [5]</span></code></pre>
 <h3 id="searching-combining-and-counting">Searching, combining, and counting</h3>
 <p><code>+</code> concatenates into a new list; <code>*</code> repeats; <code>.extend</code> appends another list in place:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> letters = [<span class="str">&quot;a&quot;</span>, <span class="str">&quot;b&quot;</span>, <span class="str">&quot;a&quot;</span>, <span class="str">&quot;c&quot;</span>, <span class="str">&quot;a&quot;</span>]
 io.<span class="builtin">print</span>(<span class="str">&quot;a&quot;</span> <span class="kw">in</span> letters)        <span class="com"># =&gt; True   (membership test)</span>
 io.<span class="builtin">print</span>(letters.index(<span class="str">&quot;b&quot;</span>))    <span class="com"># =&gt; 1      (position of the first match)</span>
@@ -72,7 +72,7 @@ io.<span class="builtin">print</span>([<span class="num">1</span>, <span class="
 io.<span class="builtin">print</span>([<span class="num">0</span>] * <span class="num">4</span>)                <span class="com"># =&gt; [0, 0, 0, 0]   (handy for fixed-size buffers)</span></code></pre>
 <h3 id="sorting">Sorting</h3>
 <p><code>.sort()</code> sorts <strong>in place</strong>; the builtin <a class="xref" href="builtins.html#sym-sorted"><code>sorted(...)</code></a> returns a <strong>new</strong> sorted list and leaves the original alone. Both are <em>stable</em> and both accept <code>key</code> and <code>reverse</code>:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> scores = [<span class="num">42</span>, <span class="num">17</span>, <span class="num">99</span>, <span class="num">8</span>, <span class="num">53</span>]
 io.<span class="builtin">print</span>(<span class="builtin">sorted</span>(scores))                 <span class="com"># =&gt; [8, 17, 42, 53, 99]   (original unchanged)</span>
 io.<span class="builtin">print</span>(<span class="builtin">sorted</span>(scores, reverse=<span class="kw">True</span>))   <span class="com"># =&gt; [99, 53, 42, 17, 8]</span>
@@ -82,14 +82,14 @@ io.<span class="builtin">print</span>(<span class="builtin">sorted</span>(words,
 <p><code>key</code> is a function applied to each element to produce its sort key (computed once per element). You can sort by several keys at once by returning a List as the key — it compares element by element.</p>
 <h3 id="lists-are-shared-not-copied">Lists are shared, not copied</h3>
 <p>Recall the binding model from Lesson 2: assigning a list to a second name shares it. When you want an independent list, use <code>.copy()</code> (a shallow copy) or <code>copy.deepcopy</code> for nested structures:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> original = [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>]
 <span class="kw">var</span> independent = original.copy()
 independent.append(<span class="num">4</span>)
 io.<span class="builtin">print</span>(original, independent)          <span class="com"># =&gt; [1, 2, 3] [1, 2, 3, 4]</span></code></pre>
 <h2 id="sets-distinct-values">Sets: distinct values</h2>
 <p>A Set holds each value at most once and tests membership instantly:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> seen = {<span class="num">3</span>, <span class="num">1</span>, <span class="num">4</span>, <span class="num">1</span>, <span class="num">5</span>, <span class="num">9</span>, <span class="num">2</span>, <span class="num">6</span>, <span class="num">5</span>}   <span class="com"># duplicates collapse</span>
 io.<span class="builtin">print</span>(<span class="builtin">len</span>(seen))                       <span class="com"># =&gt; 7   (distinct values: 1 2 3 4 5 6 9)</span>
 io.<span class="builtin">print</span>(<span class="num">3</span> <span class="kw">in</span> seen, <span class="num">7</span> <span class="kw">in</span> seen)            <span class="com"># =&gt; True False</span>
@@ -98,7 +98,7 @@ seen.<span class="kw">discard</span>(<span class="num">3</span>)                
 io.<span class="builtin">print</span>(<span class="num">7</span> <span class="kw">in</span> seen, <span class="num">3</span> <span class="kw">in</span> seen)             <span class="com"># =&gt; True False</span></code></pre>
 <blockquote>The literal <code>{}</code> is an empty <strong>Dict</strong>, not a Set — use <a class="xref" href="types.html#set"><code>Set()</code></a> for an empty set. A brace literal with values like <code>{1, 2}</code> is a Set.</blockquote>
 <p>Sets support the classic mathematical operations as methods (a common use is de-duplication: <a class="xref" href="types.html#list"><code>List(Set(items))</code></a> gives the distinct items):</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> a = {<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>}
 <span class="kw">var</span> b = {<span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>}
 io.<span class="builtin">print</span>(<span class="builtin">sorted</span>(a.union(b)))            <span class="com"># =&gt; [1, 2, 3, 4, 5, 6]</span>
@@ -108,7 +108,7 @@ io.<span class="builtin">print</span>(a.issubset({<span class="num">1</span>, <s
 <p>(We wrap results in <a class="xref" href="builtins.html#sym-sorted"><code>sorted(...)</code></a> only to get a stable order for printing — sets are unordered.)</p>
 <h2 id="dicts-keys-to-values">Dicts: keys to values</h2>
 <p>A Dict maps keys to values. Create one with <code>{key: value, ...}</code>, look up with <a class="xref" href="stdlib.html#sym-d"><code>d[key]</code></a>, and assign with <a class="xref" href="stdlib.html#sym-d"><code>d[key] = value</code></a>:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> ages = {<span class="str">&quot;Ada&quot;</span>: <span class="num">36</span>, <span class="str">&quot;Alan&quot;</span>: <span class="num">41</span>}
 io.<span class="builtin">print</span>(ages[<span class="str">&quot;Ada&quot;</span>])           <span class="com"># =&gt; 36</span>
 ages[<span class="str">&quot;Grace&quot;</span>] = <span class="num">45</span>              <span class="com"># add a new entry</span>
@@ -116,17 +116,17 @@ ages[<span class="str">&quot;Ada&quot;</span>] = <span class="num">37</span>    
 io.<span class="builtin">print</span>(<span class="str">&quot;Alan&quot;</span> <span class="kw">in</span> ages)        <span class="com"># =&gt; True  (membership tests keys)</span>
 io.<span class="builtin">print</span>(<span class="builtin">len</span>(ages))             <span class="com"># =&gt; 3</span></code></pre>
 <p>Looking up a missing key is an error. When a key might be absent, use <code>.get</code>, which returns a default instead of raising:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> ages = {<span class="str">&quot;Ada&quot;</span>: <span class="num">36</span>}
 io.<span class="builtin">print</span>(ages.get(<span class="str">&quot;Edsger&quot;</span>))             <span class="com"># =&gt; None  (absent -&gt; None by default)</span>
 io.<span class="builtin">print</span>(ages.get(<span class="str">&quot;Edsger&quot;</span>, <span class="num">0</span>))          <span class="com"># =&gt; 0     (your own default)</span></code></pre>
 <p><code>.keys()</code>, <code>.values()</code>, and <code>.items()</code> give the three views. A Dict does <strong>not</strong> promise any particular iteration order, so sort the keys first if you need a deterministic one:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> inventory = {<span class="str">&quot;apples&quot;</span>: <span class="num">12</span>, <span class="str">&quot;pears&quot;</span>: <span class="num">7</span>}
 <span class="kw">for</span> name <span class="kw">in</span> <span class="builtin">sorted</span>(inventory.keys()):
     io.<span class="builtin">print</span>(name)                       <span class="com"># apples / pears</span></code></pre>
 <h3 id="a-worked-example-word-frequency">A worked example: word frequency</h3>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> word_counts = <span class="kw">Function</span>(text : <span class="builtin">String</span>) -&gt; <span class="builtin">Dict</span>:
     <span class="kw">var</span> counts = {}
@@ -142,7 +142,7 @@ io.<span class="builtin">print</span>(tally[<span class="str">&quot;the&quot;</s
 <p><strong>Walkthrough:</strong> <code>setdefault(word, 0)</code> is the counting idiom — the first time a word appears it inserts <code>0</code> and returns it; thereafter it returns the running count. The result is a Dict from each word to how often it occurred. (The <a class="xref" href="stdlib.html#collections"><code>collections</code></a> module&#x27;s <a class="xref" href="stdlib.html#sym-Counter"><code>Counter</code></a> automates exactly this.)</p>
 <h2 id="packing-and-unpacking">Packing and unpacking</h2>
 <p>A bare comma <strong>packs</strong> values into a List, and the left-hand side of an assignment <strong>unpacks</strong> an iterable into separate names:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> point = <span class="num">3</span>, <span class="num">4</span>               <span class="com"># same as [3, 4]</span>
 io.<span class="builtin">print</span>(point, <span class="builtin">type</span>(point))   <span class="com"># =&gt; [3, 4] List</span>
 
@@ -151,7 +151,7 @@ io.<span class="builtin">print</span>(first, second)        <span class="com"># 
 <span class="kw">var</span> p, q, r = <span class="str">&quot;xyz&quot;</span>            <span class="com"># any iterable unpacks</span>
 io.<span class="builtin">print</span>(p, q, r)              <span class="com"># =&gt; x y z</span></code></pre>
 <p>The counts must match — too few or too many values is a clear error. Because the right side is fully evaluated first, you can <strong>swap</strong> without a temporary, and one <strong>starred</strong> target absorbs the rest:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> left = <span class="num">1</span>
 <span class="kw">var</span> right = <span class="num">2</span>
 left, right = right, left
@@ -162,7 +162,7 @@ io.<span class="builtin">print</span>(head, tail)           <span class="com"># 
 <span class="kw">var</span> lo, *mid, hi = [<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>]
 io.<span class="builtin">print</span>(lo, mid, hi)          <span class="com"># =&gt; 1 [2, 3, 4] 5</span></code></pre>
 <p>Unpacking shines in <code>for</code> loops and in returning several values from a function:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> prices = {<span class="str">&quot;apple&quot;</span>: <span class="num">1.20</span>, <span class="str">&quot;pear&quot;</span>: <span class="num">0.90</span>}
 <span class="kw">for</span> name, cost <span class="kw">in</span> prices.items():
     io.<span class="builtin">print</span>(f<span class="str">&quot;{name} costs {cost}&quot;</span>)
@@ -173,7 +173,7 @@ io.<span class="builtin">print</span>(lo, mid, hi)          <span class="com"># 
 <span class="kw">var</span> quotient, remainder = divide(<span class="num">17</span>, <span class="num">5</span>)
 io.<span class="builtin">print</span>(f<span class="str">&quot;17 = 5 * {quotient} + {remainder}&quot;</span>)   <span class="com"># =&gt; 17 = 5 * 3 + 2</span></code></pre>
 <p>An unpack target can even be an index or a member, not just a bare name:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> grid = [<span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>]
 grid[<span class="num">0</span>], grid[<span class="num">2</span>] = <span class="num">9</span>, <span class="num">7</span>
 io.<span class="builtin">print</span>(grid)                 <span class="com"># =&gt; [9, 0, 7]</span></code></pre>

@@ -40,7 +40,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <body><div id="layout"><nav id="sidebar"><h1>Kirito</h1><div class="tag">dynamically-typed scripting language</div><a href="introduction.html">Introduction</a><a href="getting-started.html">Getting Started</a><a href="embedding.html">Embedding Kirito in C++</a><a href="extending.html">Extending Kirito from C++</a><a href="language-guide.html">Language Guide</a><a href="builtins.html">Built-in Functions</a><a href="types.html">Built-in Types</a><a href="stdlib.html">Standard Library</a><a href="recipes.html">Recipes</a><a href="packages.html">Packages &amp; kpm</a><a href="course-00-editor.html">Lesson 0 — Setting Up Your Editor</a><a href="course-01-hello.html">Lesson 1 — Hello, Kirito</a><a href="course-02-values-numbers.html">Lesson 2 — Values, Variables &amp; Numbers</a><a href="course-03-strings.html">Lesson 3 — Strings</a><a href="course-04-control-loops.html" class="active">Lesson 4 — Control Flow and Loops</a><a href="course-05-collections.html">Lesson 5 — Collections: Lists, Sets, Dicts &amp; Unpacking</a><a href="course-06-functions-closures.html">Lesson 6 — Functions and Closures</a><a href="course-07-annotations.html">Lesson 7 — Type Annotations and Runtime Checks</a><a href="course-08-classes.html">Lesson 8 — Classes I: Data and Behavior</a><a href="course-09-operators.html">Lesson 9 — Classes II: Operators and Protocols</a><a href="course-10-inheritance.html">Lesson 10 — Classes III: Inheritance and super</a><a href="course-11-errors.html">Lesson 11 — Errors and Exceptions</a><a href="course-12-context-managers.html">Lesson 12 — Context Managers and with</a><a href="course-13-files-io.html">Lesson 13 — Files, I/O, and Streams</a><a href="course-14-stdlib-tour.html">Lesson 14 — A Tour of the Standard Library</a><a href="course-15-capstone.html">Lesson 15 — Capstone: A Task Manager</a><a href="bonus-01-regex.html">Bonus Lesson 1 — Regular Expressions</a><a href="bonus-02-cli.html">Bonus Lesson 2 — Command-Line Programs</a><a href="bonus-03-data.html">Bonus Lesson 3 — Tabular Data Analysis</a><a href="bonus-04-linear-algebra.html">Bonus Lesson 4 — Matrices, Vectors &amp; Complex Numbers</a><a href="bonus-05-tensors.html">Bonus Lesson 5 — Tensors &amp; Autograd</a><a href="bonus-06-concurrency.html">Bonus: Concurrency with `parallel`</a></nav><main id="content"><h1 id="lesson-4-control-flow-and-loops">Lesson 4 — Control Flow and Loops</h1>
 <p>Programs make decisions and repeat work. This lesson covers comparisons and the logical operators, the <a class="xref" href="course-04-control-loops.html#sym-if"><code>if</code></a> family and <a class="xref" href="language-guide.html#switch"><code>switch</code></a>, then the two kinds of loop — <a class="xref" href="course-04-control-loops.html#sym-while"><code>while</code></a> and <code>for</code> — and the builtins that make loops expressive.</p>
 <h2 id="comparisons-produce-bools">Comparisons produce Bools</h2>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 io.<span class="builtin">print</span>(<span class="num">3</span> &lt; <span class="num">5</span>)          <span class="com"># =&gt; True</span>
 io.<span class="builtin">print</span>(<span class="num">3</span> == <span class="num">3.0</span>)       <span class="com"># =&gt; True   (Integer and Float compare by value)</span>
 io.<span class="builtin">print</span>(<span class="str">&quot;a&quot;</span> &lt; <span class="str">&quot;b&quot;</span>)      <span class="com"># =&gt; True   (strings compare lexicographically)</span>
@@ -48,7 +48,7 @@ io.<span class="builtin">print</span>(<span class="num">3</span> != <span class=
 io.<span class="builtin">print</span>(<span class="num">5</span> &gt;= <span class="num">5</span>)         <span class="com"># =&gt; True</span></code></pre>
 <h2 id="combining-conditions-and-or-not">Combining conditions: <code>and</code>, <code>or</code>, <code>not</code></h2>
 <p>These are spelled as words, and <code>and</code>/<code>or</code> <strong>short-circuit</strong> — they stop evaluating as soon as the answer is known:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> age = <span class="num">25</span>
 <span class="kw">var</span> has_ticket = <span class="kw">True</span>
 <span class="kw">if</span> age &gt;= <span class="num">18</span> <span class="kw">and</span> has_ticket:
@@ -62,7 +62,7 @@ io.<span class="builtin">print</span>(<span class="kw">True</span> <span class="
 <p>Short-circuiting is not just an optimization — it lets you guard a risky operation with a cheap check on its left: <a class="xref" href="course-04-control-loops.html#sym-if"><code>if count &gt; 0 and total / count &gt; threshold:</code></a>. Above, <code>True or ...</code> already knows the answer, so <code>boom()</code> — which would divide by zero — is never reached.</p>
 <h2 id="if-elif-else"><a class="xref" href="course-04-control-loops.html#sym-if"><code>if</code></a> / <code>elif</code> / <code>else</code></h2>
 <p>Indentation defines the block. Be consistent (pick spaces or tabs and stick with it — Kirito rejects ambiguous mixing):</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> score = <span class="num">72</span>
 <span class="kw">if</span> score &gt;= <span class="num">90</span>:
     io.<span class="builtin">print</span>(<span class="str">&quot;A&quot;</span>)
@@ -74,7 +74,7 @@ io.<span class="builtin">print</span>(<span class="kw">True</span> <span class="
     io.<span class="builtin">print</span>(<span class="str">&quot;try again&quot;</span>)</code></pre>
 <h2 id="the-conditional-expression">The conditional expression</h2>
 <p>When you just need to <em>choose between two values</em>, the conditional expression <code>then if cond else orelse</code> is more concise than a four-line <a class="xref" href="course-04-control-loops.html#sym-if"><code>if</code></a>/<code>else</code>. It&#x27;s an <strong>expression</strong>, so it produces a value you can assign, return, or pass along:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> score = <span class="num">72</span>
 <span class="kw">var</span> outcome = <span class="str">&quot;pass&quot;</span> <span class="kw">if</span> score &gt;= <span class="num">60</span> <span class="kw">else</span> <span class="str">&quot;fail&quot;</span>
 io.<span class="builtin">print</span>(outcome)                       <span class="com"># =&gt; pass</span>
@@ -85,14 +85,14 @@ io.<span class="builtin">print</span>(band)                          <span class
 <p>Only the chosen branch is evaluated. Reach for it for a quick two-way pick; for anything with side effects or more than a couple of branches, a statement <a class="xref" href="course-04-control-loops.html#sym-if"><code>if</code></a>/<code>elif</code>/<code>else</code> reads better.</p>
 <h2 id="switch-for-multi-way-branching"><a class="xref" href="language-guide.html#switch"><code>switch</code></a> for multi-way branching</h2>
 <p><a class="xref" href="language-guide.html#switch"><code>switch</code></a> matches a subject against <code>case</code> labels. Exactly one arm runs — <strong>there is no fall-through</strong> — and an optional <code>default</code> handles everything else:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> describe_day = <span class="kw">Function</span>(day : <span class="builtin">String</span>) -&gt; <span class="builtin">String</span>:
-    switch day:
-        case <span class="str">&quot;Sat&quot;</span>, <span class="str">&quot;Sun&quot;</span>:              <span class="com"># one arm, several labels</span>
+    <span class="kw">switch</span> day:
+        <span class="kw">case</span> <span class="str">&quot;Sat&quot;</span>, <span class="str">&quot;Sun&quot;</span>:              <span class="com"># one arm, several labels</span>
             <span class="kw">return</span> <span class="str">&quot;weekend&quot;</span>
-        case <span class="str">&quot;Mon&quot;</span>:
+        <span class="kw">case</span> <span class="str">&quot;Mon&quot;</span>:
             <span class="kw">return</span> <span class="str">&quot;back to work&quot;</span>
-        default:
+        <span class="kw">default</span>:
             <span class="kw">return</span> <span class="str">&quot;a weekday&quot;</span>
 
 io.<span class="builtin">print</span>(describe_day(<span class="str">&quot;Sun&quot;</span>))           <span class="com"># =&gt; weekend</span>
@@ -102,7 +102,7 @@ io.<span class="builtin">print</span>(describe_day(<span class="str">&quot;Wed&q
 <p><strong>Which to use?</strong> Ranges (<code>&gt;= 90</code>) need comparisons, so an <a class="xref" href="course-04-control-loops.html#sym-if"><code>if</code></a>/<code>elif</code> chain fits. Matching a value against a fixed set of constants is exactly what <a class="xref" href="language-guide.html#switch"><code>switch</code></a> is for — it reads as a table and runs in constant time regardless of how many arms it has.</p>
 <h2 id="while-condition-driven-loops"><a class="xref" href="course-04-control-loops.html#sym-while"><code>while</code></a> — condition-driven loops</h2>
 <p>A <a class="xref" href="course-04-control-loops.html#sym-while"><code>while</code></a> loop runs its body as long as the condition is truthy:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> countdown = <span class="num">3</span>
 <span class="kw">while</span> countdown &gt; <span class="num">0</span>:
     io.<span class="builtin">print</span>(countdown)
@@ -112,14 +112,14 @@ io.<span class="builtin">print</span>(<span class="str">&quot;liftoff!&quot;</sp
 <p>The body must eventually make the condition false, or the loop runs forever — <code>countdown = countdown - 1</code> is what guarantees progress here.</p>
 <h2 id="for-in-item-driven-loops"><code>for ... in</code> — item-driven loops</h2>
 <p>A <code>for</code> loop walks any <strong>iterable</strong> — a range, a List, a String, a Set, a Dict — binding each item to a name in turn:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">for</span> letter <span class="kw">in</span> <span class="str">&quot;hi!&quot;</span>:
     io.<span class="builtin">print</span>(letter)           <span class="com"># =&gt; h / i / !</span>
 
 <span class="kw">for</span> item <span class="kw">in</span> [<span class="str">&quot;apple&quot;</span>, <span class="str">&quot;pear&quot;</span>]:
     io.<span class="builtin">print</span>(item)             <span class="com"># =&gt; apple / pear</span></code></pre>
 <p><code>range</code> is the workhorse of counting loops:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">for</span> i <span class="kw">in</span> <span class="builtin">range</span>(<span class="num">3</span>):             <span class="com"># 0, 1, 2  — stop is exclusive</span>
     io.<span class="builtin">print</span>(i)
 
@@ -132,7 +132,7 @@ io.<span class="builtin">print</span>(total)                <span class="com"># 
     io.<span class="builtin">print</span>(even)             <span class="com"># =&gt; 0 2 4 6 8</span></code></pre>
 <h2 id="break-and-continue"><code>break</code> and <code>continue</code></h2>
 <p><code>break</code> exits the loop immediately; <code>continue</code> skips to the next iteration:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="com"># Find the first multiple of 7 above 20.</span>
 <span class="kw">var</span> found = <span class="kw">None</span>
 <span class="kw">for</span> n <span class="kw">in</span> <span class="builtin">range</span>(<span class="num">21</span>, <span class="num">100</span>):
@@ -148,7 +148,7 @@ io.<span class="builtin">print</span>(found)                <span class="com"># 
     io.<span class="builtin">print</span>(n)                <span class="com"># =&gt; 1 3 5 7 9</span></code></pre>
 <h2 id="enumerate-and-zip"><code>enumerate</code> and <a class="xref" href="builtins.html#sym-zip"><code>zip</code></a></h2>
 <p><code>enumerate</code> pairs each item with its position, so you don&#x27;t manage a counter by hand; <a class="xref" href="builtins.html#sym-zip"><code>zip</code></a> pairs items from several iterables, stopping at the shortest:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">for</span> pair <span class="kw">in</span> <span class="builtin">enumerate</span>([<span class="str">&quot;red&quot;</span>, <span class="str">&quot;green&quot;</span>, <span class="str">&quot;blue&quot;</span>]):
     io.<span class="builtin">print</span>(f<span class="str">&quot;{pair[0]}: {pair[1]}&quot;</span>)
 <span class="com"># =&gt; 0: red / 1: green / 2: blue</span>
@@ -160,7 +160,7 @@ io.<span class="builtin">print</span>(found)                <span class="com"># 
 <span class="com"># =&gt; Ada is 36 / Alan is 41 / Grace is 45</span></code></pre>
 <p>(The next lesson&#x27;s unpacking lets you write these as <code>for index, color in enumerate(...)</code> and <code>for name, age in zip(...)</code>.)</p>
 <h2 id="a-worked-example-the-accumulator-pattern">A worked example: the accumulator pattern</h2>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> average = <span class="kw">Function</span>(numbers) -&gt; <span class="builtin">Float</span>:
     <span class="kw">if</span> <span class="builtin">len</span>(numbers) == <span class="num">0</span>:

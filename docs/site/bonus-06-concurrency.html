@@ -43,8 +43,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <blockquote><a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> is provided by the <code>ki</code> interpreter (which runs every VM under a coordinator). A bare embedded <code>KiritoVM</code> has no <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> module — see the embedding guide for <code>KiritoDispatcher</code>.</blockquote>
 <h2 id="spawning-work">Spawning work</h2>
 <p><code>parallel.spawn(fn, *args, **kwargs)</code> runs <code>fn</code> on a fresh worker VM and returns a <a class="xref" href="stdlib.html#task"><code>Task</code></a>. Call <a class="xref" href="stdlib.html#sym-t.join"><code>t.join()</code></a> to block for its result (rebuilt in your VM). <code>fn</code> must be a function defined in a <code>.ki</code> file — the worker re-reads that file to find it.</p>
-<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
-<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> parallel = <span class="builtin">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> slow_square = <span class="kw">Function</span>(x):
     <span class="kw">return</span> x * x
@@ -53,8 +53,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
     <span class="kw">var</span> t = parallel.spawn(slow_square, <span class="num">9</span>)
     io.<span class="builtin">print</span>(t.join())          <span class="com"># 81</span></code></pre>
 <p>Spawn many at once for a parallel map-reduce — start every task, then join them all:</p>
-<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
-<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> parallel = <span class="builtin">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> work = <span class="kw">Function</span>(lo, hi):    <span class="com"># sum of a sub-range</span>
     <span class="kw">var</span> s = <span class="num">0</span>
@@ -77,8 +77,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <blockquote><strong>The share-nothing rule.</strong> A worker sees its parameters, the defining file&#x27;s module-level names, and its <code>import</code>s — but <em>not</em> locals captured from an enclosing function (the closure does not cross). Keep functions you spawn at module level, and pass everything they need as arguments. Put your program&#x27;s startup under <a class="xref" href="course-04-control-loops.html#sym-if"><code>if argmain:</code></a> so a worker (which re-evaluates the file with <code>argmain</code> False) only <em>defines</em> functions instead of re-running the whole program.</blockquote>
 <h2 id="queues-passing-values-between-vms">Queues: passing values between VMs</h2>
 <p>A <a class="xref" href="stdlib.html#queue"><code>Queue</code></a> is a thread-safe FIFO that carries values across VMs. It&#x27;s the one object you can share between workers — pass it into <a class="xref" href="stdlib.html#sym-spawn"><code>spawn</code></a> (or send it through another Queue) and every VM references the <strong>same</strong> queue. A producer puts; consumers get; <code>close()</code> signals &quot;no more&quot;:</p>
-<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
-<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> parallel = <span class="builtin">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> producer = <span class="kw">Function</span>(out, n):
     <span class="kw">var</span> i = <span class="num">0</span>
@@ -102,8 +102,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>A bounded <a class="xref" href="stdlib.html#queue"><code>Queue(maxsize)</code></a> gives back-pressure: a full <code>put</code> blocks until a consumer makes room.</p>
 <h2 id="pattern-1-the-actor-one-owner-of-shared-state">Pattern 1 — the actor (one owner of shared state)</h2>
 <p>When state must be shared and mutated (a database, a counter, a cache), keep it on <strong>one</strong> owner VM and funnel every access through a Queue. Workers send a request plus a private reply Queue; the owner does the work and replies. Because only the owner touches the state, there are no races — and it&#x27;s exactly how the <code>sqldb</code> example serves a shared database from a pool of connection workers.</p>
-<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
-<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> parallel = <span class="builtin">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> counter_owner = <span class="kw">Function</span>(reqq):     <span class="com"># the only VM that owns `total`</span>
     <span class="kw">var</span> total = <span class="num">0</span>
@@ -129,8 +129,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
     reqq.close()</code></pre>
 <h2 id="pattern-2-the-worker-pool-stateless">Pattern 2 — the worker pool (stateless)</h2>
 <p>When the work is independent (handling HTTP requests against read-only data), skip the owner: spawn a pool of identical workers that pull jobs from a shared Queue. The <code>webserver</code> example uses this — an acceptor hands each connection&#x27;s socket to the pool. Sockets cross by <em>file descriptor</em>: <code>socket.detach()</code> surrenders the fd, and <code>net.fromfd(fd)</code> adopts it in the worker (same OS process).</p>
-<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
-<span class="kw">var</span> net = <span class="kw">import</span>(<span class="str">&quot;net&quot;</span>)
+<pre><code><span class="kw">var</span> parallel = <span class="builtin">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> net = <span class="builtin">import</span>(<span class="str">&quot;net&quot;</span>)
 
 <span class="kw">var</span> worker = <span class="kw">Function</span>(jobs):
     <span class="kw">var</span> running = <span class="kw">True</span>
@@ -154,8 +154,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <h2 id="coordination-primitives">Coordination primitives</h2>
 <p>Beyond Queues, <a class="xref" href="stdlib.html#parallel"><code>parallel</code></a> offers the classic primitives — all shared across VMs, all woken on shutdown:</p>
 <ul><li><strong><code>Lock</code></strong> — mutual exclusion around an external resource. Prefer <code>with lock:</code> (always releases).</li><li><strong><code>Event</code></strong> — a flag many workers <code>wait()</code> on until one <code>set()</code>s it (e.g. a start/stop signal).</li><li><strong><code>Semaphore(n)</code></strong> — allow at most <code>n</code> workers into a section at once.</li><li><strong><code>Barrier(n)</code></strong> — make <code>n</code> workers rendezvous before any proceeds.</li></ul>
-<pre><code><span class="kw">var</span> parallel = <span class="kw">import</span>(<span class="str">&quot;parallel&quot;</span>)
-<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> parallel = <span class="builtin">import</span>(<span class="str">&quot;parallel&quot;</span>)
+<span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> worker = <span class="kw">Function</span>(bar, out, id):
     <span class="kw">discard</span> bar.wait()          <span class="com"># all workers line up here first</span>

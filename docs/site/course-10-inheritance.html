@@ -41,7 +41,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p><strong>Inheritance</strong> lets one class build on another: a subclass automatically gets the base class&#x27;s methods, and can add new ones or <strong>override</strong> existing ones. This models &quot;is-a&quot; relationships — a <code>Circle</code> <em>is a</em> <code>Shape</code>, a <code>Manager</code> <em>is an</em> <code>Employee</code> — and removes duplication.</p>
 <h2 id="a-base-class-and-a-subclass">A base class and a subclass</h2>
 <p>Declare a subclass by naming its base in parentheses: <code>class Circle(Shape):</code>.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">class</span> Shape:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name):
@@ -64,7 +64,7 @@ io.<span class="builtin">print</span>(c.describe())                       <span 
 <p>Notice <code>describe</code> is defined only on <code>Shape</code>, yet <code>c.describe()</code> works and calls <strong>Circle&#x27;s</strong> <code>area()</code> — method lookup starts at the actual class and walks up to the base. This is <em>polymorphism</em>: <code>describe</code> doesn&#x27;t know or care which shape it&#x27;s describing.</p>
 <h2 id="inheritance-is-annotation-aware">Inheritance is annotation-aware</h2>
 <p>A subclass instance satisfies a base-class type annotation (Lesson 7), so functions written against the base accept any subclass:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="com"># (reusing Shape/Circle from above)</span>
 <span class="kw">class</span> Square(Shape):
@@ -82,7 +82,7 @@ io.<span class="builtin">print</span>(total_area(Square(<span class="num">3</spa
 io.<span class="builtin">print</span>(<span class="builtin">isinstance</span>(Square(<span class="num">3</span>), <span class="str">&quot;Shape&quot;</span>))   <span class="com"># =&gt; True</span></code></pre>
 <h2 id="extending-a-parent-method-with-super">Extending a parent method with <code>_super_</code></h2>
 <p>Often a subclass wants to <em>extend</em> a base method rather than replace it wholesale — for instance, run the base constructor and then add more. <a class="xref" href="course-10-inheritance.html#sym-self._super_"><code>self._super_()</code></a> returns a <strong>parent view</strong> of the instance: calling a method on it starts lookup at the base class, so you invoke the inherited version.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">class</span> Employee:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name):
@@ -104,7 +104,7 @@ io.<span class="builtin">print</span>(m.describe())               <span class="c
 <h2 id="private-members-and-inheritance">Private members and inheritance</h2>
 <p>A private member (single leading underscore) is reachable from any method in the <strong>class chain</strong> — the defining class <strong>and its subclasses</strong> — but not from outside it. So a subclass method may use a base class&#x27;s private state, while unrelated code cannot. Keep the <em>public</em> contract in non-private methods.</p>
 <h2 id="a-worked-example-a-shape-hierarchy">A worked example: a shape hierarchy</h2>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">class</span> Shape2:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name):

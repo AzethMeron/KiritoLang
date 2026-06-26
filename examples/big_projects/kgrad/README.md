@@ -6,8 +6,8 @@ heavy stress test for the interpreter: every operation runs through Kirito's cla
 overloading, closures, exceptions, and collections, so bugs and rough edges surface fast. (Building
 it surfaced and fixed several interpreter issues — see the repo history.)
 
-> Performance note: this is a *tree-walking interpreter*, so tensor math (nested Kirito loops) is
-> slow. Everything here is correctness-first and uses tiny sizes. The architecture, however, is
+> Performance note: this runs on the Kirito interpreter (a bytecode VM), so tensor math (nested
+> Kirito loops) is slow. Everything here is correctness-first and uses tiny sizes. The architecture, however, is
 > designed so the slow CPU kernels could be swapped for a fast (e.g. GPU) backend without touching
 > the layers above — see "Backend abstraction".
 

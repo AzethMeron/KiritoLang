@@ -41,7 +41,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Things go wrong: a file is missing, input is malformed, a divisor is zero. <strong>Exceptions</strong> let you signal such problems where they&#x27;re detected and handle them where you can do something about it — without threading error codes through every return value. Kirito uses indented blocks with the keyword names <a class="xref" href="course-11-errors.html#sym-throw"><code>throw</code></a> (to raise), <a class="xref" href="course-11-errors.html#sym-try"><code>try</code></a>/<code>catch</code>/<a class="xref" href="course-11-errors.html#sym-finally"><code>finally</code></a> (to handle).</p>
 <h2 id="raising-with-throw">Raising with <a class="xref" href="course-11-errors.html#sym-throw"><code>throw</code></a></h2>
 <p><a class="xref" href="course-11-errors.html#sym-throw"><code>throw</code></a> raises an exception, which unwinds the program until a matching <code>catch</code> handles it (or, if none does, stops the program with a message):</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> safe_divide = <span class="kw">Function</span>(a, b) -&gt; <span class="builtin">Float</span>:
     <span class="kw">if</span> b == <span class="num">0</span>:
@@ -51,7 +51,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 io.<span class="builtin">print</span>(safe_divide(<span class="num">10</span>, <span class="num">2</span>))               <span class="com"># =&gt; 5.0</span></code></pre>
 <h2 id="handling-with-try-catch">Handling with <a class="xref" href="course-11-errors.html#sym-try"><code>try</code></a> / <code>catch</code></h2>
 <p>Wrap risky code in <a class="xref" href="course-11-errors.html#sym-try"><code>try:</code></a>; put the recovery in <code>catch:</code>. A bare <code>catch</code> handles anything thrown:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">try</span>:
     <span class="kw">var</span> result = safe_divide(<span class="num">10</span>, <span class="num">0</span>)
@@ -61,7 +61,7 @@ io.<span class="builtin">print</span>(safe_divide(<span class="num">10</span>, <
 <p><code>catch as e</code> binds the thrown value to <code>e</code> so you can inspect or report it.</p>
 <h2 id="custom-exception-types">Custom exception types</h2>
 <p>Throwing a String works, but a <strong>class</strong> carries structured data and lets callers catch <em>specific</em> kinds of error. Define a class, throw an instance, and catch by type:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">class</span> ValidationError:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, field, message):
@@ -83,7 +83,7 @@ io.<span class="builtin">print</span>(safe_divide(<span class="num">10</span>, <
 <p><code>catch ValidationError as err</code> matches that class and any subclass of it; other exception types would sail past this handler to an outer one. (The <code>discard</code> marks that we call <code>validate_age</code> only to trigger the error and don&#x27;t need its return value.)</p>
 <h2 id="finally-cleanup-that-always-runs"><a class="xref" href="course-11-errors.html#sym-finally"><code>finally</code></a>: cleanup that always runs</h2>
 <p>A <a class="xref" href="course-11-errors.html#sym-finally"><code>finally:</code></a> block runs whether or not an exception occurred — perfect for releasing resources:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> attempt = <span class="kw">Function</span>(should_fail):
     <span class="kw">try</span>:
@@ -99,7 +99,7 @@ attempt(<span class="kw">False</span>)    <span class="com"># =&gt; work succeed
 attempt(<span class="kw">True</span>)     <span class="com"># =&gt; work failed: boom / cleanup runs no matter what</span></code></pre>
 <h2 id="multiple-specific-handlers">Multiple, specific handlers</h2>
 <p>Order handlers from specific to general. List several <code>catch</code> clauses to react differently per type:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">class</span> NotFound:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, key):
@@ -128,7 +128,7 @@ fetch(<span class="str">&quot;missing&quot;</span>)   <span class="com"># =&gt; 
 fetch(<span class="str">&quot;secret&quot;</span>)    <span class="com"># =&gt; 403: access denied</span></code></pre>
 <h2 id="assert-for-invariants"><a class="xref" href="language-guide.html#assert"><code>assert</code></a> for invariants</h2>
 <p><a class="xref" href="language-guide.html#assert"><code>assert</code></a> checks a condition you believe must hold; if it&#x27;s false it throws with your message. Use it to catch programming mistakes early (not for ordinary input validation, which deserves real exceptions):</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> average = <span class="kw">Function</span>(numbers) -&gt; <span class="builtin">Float</span>:
     <span class="kw">assert</span> <span class="builtin">len</span>(numbers) &gt; <span class="num">0</span>, <span class="str">&quot;average of an empty list is undefined&quot;</span>

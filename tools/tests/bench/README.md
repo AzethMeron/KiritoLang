@@ -32,7 +32,7 @@ times with `os.clock()` — the best clock stock Lua 5.1 offers.
 
 Chosen to bracket Kirito's performance envelope:
 
-- **pessimistic** — interpreter-bound tight loops where a tree-walker pays per-operation dispatch on
+- **pessimistic** — interpreter-bound tight loops where the bytecode VM pays per-operation dispatch on
   every step: `sum_loop` (arithmetic loop), `fib` (recursive calls), `sieve` (nested loops + indexed
   list writes).
 - **optimistic** — work delegated to C++ builtins/library so the interpreter overhead is amortized
@@ -41,4 +41,4 @@ Chosen to bracket Kirito's performance envelope:
 
 The expected shape: Kirito is orders of magnitude slower than C++/Python on the pessimistic loops,
 but closes most of the gap on the optimistic, builtin-delegated workloads — exactly what a
-tree-walking interpreter with a fast C++ standard library should show.
+bytecode interpreter with a fast C++ standard library should show.

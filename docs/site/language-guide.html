@@ -139,14 +139,14 @@ io.<span class="builtin">print</span>(<span class="str">&quot;big&quot;</span> <
 <p>It has the lowest precedence of any operator (so <a class="xref" href="stdlib.html#sym-a"><code>a or b if c else d</code></a> parses as <code>(a or b) if c else d</code>), and it is an expression — usable anywhere a value is, including inside lists, call arguments, and <code>return</code>. There is no statement form; for multi-line branching use <a class="xref" href="course-04-control-loops.html#sym-if"><code>if</code></a>/<code>elif</code>/<code>else</code>.</p>
 <h3 id="switch"><a class="xref" href="language-guide.html#switch"><code>switch</code></a></h3>
 <p><a class="xref" href="language-guide.html#switch"><code>switch</code></a> dispatches on a value against constant <code>case</code> labels — <strong>no fallthrough</strong>, so exactly one arm runs:</p>
-<pre><code>switch command:
-    case <span class="str">&quot;start&quot;</span>:
+<pre><code><span class="kw">switch</span> command:
+    <span class="kw">case</span> <span class="str">&quot;start&quot;</span>:
         run()
-    case <span class="str">&quot;stop&quot;</span>, <span class="str">&quot;halt&quot;</span>:     <span class="com"># multiple values per arm</span>
+    <span class="kw">case</span> <span class="str">&quot;stop&quot;</span>, <span class="str">&quot;halt&quot;</span>:     <span class="com"># multiple values per arm</span>
         shutdown()
-    case <span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>:            <span class="com"># cases may mix types</span>
+    <span class="kw">case</span> <span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>:            <span class="com"># cases may mix types</span>
         handle_number()
-    default:                 <span class="com"># optional; runs when nothing matched</span>
+    <span class="kw">default</span>:                 <span class="com"># optional; runs when nothing matched</span>
         unknown()</code></pre>
 <p>Case labels must be constant scalars (<a class="xref" href="types.html#integer"><code>Integer</code></a>, <a class="xref" href="types.html#float"><code>Float</code></a>, <a class="xref" href="types.html#string"><code>String</code></a>, <a class="xref" href="types.html#bool"><code>Bool</code></a>, or <a class="xref" href="types.html#none"><code>None</code></a>) and are matched <strong>exactly by type and value</strong> — <code>case 1</code> and <code>case 1.0</code> are distinct, and a non-scalar subject (e.g. a list) only ever reaches <code>default</code>. The labels are compiled into an exact-match comparison chain (tested in turn). Duplicate case values, a second <code>default</code>, and an empty body are rejected at parse/first-run time. <code>break</code>/<code>continue</code>/<code>return</code> inside an arm propagate to the enclosing loop/function as usual; a <a class="xref" href="language-guide.html#switch"><code>switch</code></a> with no matching case and no <code>default</code> is a no-op.</p>
 <h3 id="assert"><a class="xref" href="language-guide.html#assert"><code>assert</code></a></h3>
@@ -221,13 +221,13 @@ a, b = b, a               <span class="com"># swap</span>
 <span class="com"># f is closed automatically (enter/exit protocol)</span></code></pre>
 <h2 id="modules">Modules</h2>
 <p><code>import(&quot;name&quot;)</code> returns a module value; access members with <code>.</code>. Modules are resolved from the bundled stdlib, then from <code>.ki</code> files on the import path. Each module loads once per VM.</p>
-<pre><code><span class="kw">var</span> math = <span class="kw">import</span>(<span class="str">&quot;math&quot;</span>)
+<pre><code><span class="kw">var</span> math = <span class="builtin">import</span>(<span class="str">&quot;math&quot;</span>)
 math.sqrt(<span class="num">2</span>)</code></pre>
 <p>A module&#x27;s members only become visible once its body has finished running, so a <strong>circular import</strong> — a module that imports itself, directly or through a chain (<a class="xref" href="stdlib.html#sym-a"><code>a</code></a> imports <code>b</code> imports <a class="xref" href="stdlib.html#sym-a"><code>a</code></a>) — cannot be satisfied. Kirito detects the loop and raises a clear <code>circular import detected: a -&gt; b -&gt; a</code> error naming the chain, instead of looping until the stack is exhausted. Re-importing a module that has already finished loading is fine (a diamond <a class="xref" href="stdlib.html#sym-a"><code>a</code></a> → {<code>b</code>, <a class="xref" href="stdlib.html#sym-c"><code>c</code></a>} → <a class="xref" href="stdlib.html#sym-d"><code>d</code></a> loads <a class="xref" href="stdlib.html#sym-d"><code>d</code></a> once and shares it).</p>
 <h3 id="arglist-and-argmain"><code>arglist</code> and <code>argmain</code></h3>
 <p>Every file runs with two names already bound in its scope:</p>
 <ul><li><strong><code id="sym-arglist">arglist</code></strong> — a List of the command-line arguments the program was launched with (<code>arglist[0]</code> is the first; the program name is not included). It&#x27;s the same list in every file.</li><li><strong><code id="sym-argmain">argmain</code></strong> — a Bool that is <code>True</code> when this file is the one being <strong>run directly</strong>, and <code>False</code> when it was loaded by another file via <code>import</code>. Guard a file&#x27;s &quot;run me&quot; code with <a class="xref" href="course-04-control-loops.html#sym-if"><code>if argmain:</code></a> so it stays dormant when the file is imported as a library.</li></ul>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> greet = <span class="kw">Function</span>(name): <span class="kw">return</span> f<span class="str">&quot;Hello, {name}!&quot;</span>
 <span class="kw">if</span> argmain:
     io.<span class="builtin">print</span>(greet(arglist[<span class="num">0</span>] <span class="kw">if</span> <span class="builtin">len</span>(arglist) &gt; <span class="num">0</span> <span class="kw">else</span> <span class="str">&quot;world&quot;</span>))</code></pre>
@@ -242,7 +242,7 @@ math.sqrt(<span class="num">2</span>)</code></pre>
     <span class="kw">pass</span>        <span class="com"># intentionally empty</span></code></pre>
 <p><code>todo</code> is also a no-op at runtime, but it <em>deliberately</em> emits a warning at its own location to remind you to come back and implement something. An optional trailing string is the reminder:</p>
 <pre><code><span class="kw">var</span> parse = <span class="kw">Function</span>(src):
-    todo <span class="str">&quot;handle escape sequences&quot;</span>
+    <span class="kw">todo</span> <span class="str">&quot;handle escape sequences&quot;</span>
     <span class="kw">return</span> src</code></pre>
 <p>Running this prints <code>file.ki:2:5: warning: todo: handle escape sequences</code> to stderr (a bare <code>todo</code> warns <code>todo: not yet implemented</code>), while the program keeps running. Like all warnings, <code>todo</code> reminders are silenced with <code>-w</code>.</p>
 <p class="note">Kirito documentation — generated by docs/build_docs.py from docs/pages/.</p>

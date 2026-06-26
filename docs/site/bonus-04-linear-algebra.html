@@ -41,8 +41,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Kirito ships three native (C++) numeric libraries: <a class="xref" href="stdlib.html#matrix"><code>matrix</code></a> (real matrices) and <a class="xref" href="stdlib.html#complex"><code>complex</code></a> (complex numbers <strong>and</strong> complex matrices) — both covered in this lesson — plus <a href="bonus-05-tensors.html"><code>tensor</code></a> (N-dimensional arrays), the subject of the next lesson. They share one idea — arbitrary-shape dense data — and one ergonomic trick: <code>apply</code>, which maps a function over every element at native speed.</p>
 <h2 id="real-matrices">Real matrices</h2>
 <p>Build a matrix from a nested list (rows must be equal length), or with a factory:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> m = <span class="kw">import</span>(<span class="str">&quot;matrix&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> m = <span class="builtin">import</span>(<span class="str">&quot;matrix&quot;</span>)
 
 <span class="kw">var</span> A = m.Matrix([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]])
 io.<span class="builtin">print</span>(A)                 <span class="com"># [[1.0, 2.0], [3.0, 4.0]]   (elements are Floats)</span>
@@ -51,8 +51,8 @@ io.<span class="builtin">print</span>(A[<span class="num">0</span>, <span class=
 io.<span class="builtin">print</span>(m.zeros(<span class="num">2</span>, <span class="num">3</span>))     <span class="com"># [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]</span>
 io.<span class="builtin">print</span>(m.identity(<span class="num">2</span>))     <span class="com"># [[1.0, 0.0], [0.0, 1.0]]</span></code></pre>
 <p>Matrices are <strong>arbitrary shape</strong> — any rows × cols. Arithmetic checks dimensions and raises on a mismatch; the square-only operations (<code>determinant</code>, <code>inverse</code>, <code>trace</code>) raise on a non-square matrix.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> m = <span class="kw">import</span>(<span class="str">&quot;matrix&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> m = <span class="builtin">import</span>(<span class="str">&quot;matrix&quot;</span>)
 <span class="kw">var</span> A = m.Matrix([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]])
 <span class="kw">var</span> B = m.Matrix([[<span class="num">5</span>, <span class="num">6</span>], [<span class="num">7</span>, <span class="num">8</span>]])
 
@@ -66,21 +66,21 @@ io.<span class="builtin">print</span>(A * A.inverse() == m.identity(<span class=
 io.<span class="builtin">print</span>((A * A.inverse()).compare(m.identity(<span class="num">2</span>), abs_tol = 1e-<span class="num">9</span>))   <span class="com"># True — tolerant compare</span></code></pre>
 <h2 id="applying-a-function-to-every-element-apply">Applying a function to every element — <code>apply</code></h2>
 <p><a class="xref" href="stdlib.html#sym-m.apply"><code>m.apply(fn)</code></a> returns a <strong>new</strong> matrix with <code>fn</code> applied to each element. This is the idiomatic, efficient &quot;map over the whole matrix&quot; — the loop runs in C++, you just supply the per-element function:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> m = <span class="kw">import</span>(<span class="str">&quot;matrix&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> m = <span class="builtin">import</span>(<span class="str">&quot;matrix&quot;</span>)
 <span class="kw">var</span> A = m.Matrix([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]])
 
 io.<span class="builtin">print</span>(A.apply(<span class="kw">Function</span>(x): <span class="kw">return</span> x * x))       <span class="com"># [[1.0, 4.0], [9.0, 16.0]]</span>
 io.<span class="builtin">print</span>(A.apply(<span class="kw">Function</span>(x): <span class="kw">return</span> x + <span class="num">10</span>))      <span class="com"># [[11.0, 12.0], [13.0, 14.0]]</span>
 
 <span class="com"># apply composes with the math module — e.g. an element-wise square root:</span>
-<span class="kw">var</span> math = <span class="kw">import</span>(<span class="str">&quot;math&quot;</span>)
+<span class="kw">var</span> math = <span class="builtin">import</span>(<span class="str">&quot;math&quot;</span>)
 io.<span class="builtin">print</span>(A.apply(<span class="kw">Function</span>(x): <span class="kw">return</span> math.sqrt(x)))   <span class="com"># [[1.0, 1.414...], [1.732..., 2.0]]</span></code></pre>
 <p>Because a vector is just a matrix (see below), <code>apply</code> maps over a vector&#x27;s elements too.</p>
 <h2 id="vectors">Vectors</h2>
 <p>A matrix with one dimension equal to <code>1</code> <strong>is</strong> a vector (a row <code>1×n</code> or column <code>n×1</code>). Build one with <code>vector</code>, then use the vector operations:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> m = <span class="kw">import</span>(<span class="str">&quot;matrix&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> m = <span class="builtin">import</span>(<span class="str">&quot;matrix&quot;</span>)
 
 <span class="kw">var</span> u = m.vector([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>])      <span class="com"># a 1×3 row vector</span>
 <span class="kw">var</span> v = m.vector([<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>])
@@ -94,8 +94,8 @@ io.<span class="builtin">print</span>(u.apply(<span class="kw">Function</span>(x
 <blockquote><code>*</code> is <strong>always</strong> matrix multiply — never a dot product. The dot product is <code>u.dot(v)</code>. (Two same-shape row vectors have incompatible inner dimensions for <code>*</code>, so <code>u * v</code> would raise.)</blockquote>
 <h2 id="complex-numbers">Complex numbers</h2>
 <p>The <a class="xref" href="stdlib.html#complex"><code>complex</code></a> module gives you a <a class="xref" href="stdlib.html#sym-Complex"><code>Complex</code></a> type and the full analytic math set. Reals coerce to the real axis, so the functions accept plain numbers too.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> C = <span class="kw">import</span>(<span class="str">&quot;complex&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> C = <span class="builtin">import</span>(<span class="str">&quot;complex&quot;</span>)
 
 <span class="kw">var</span> z = C.of(<span class="num">3</span>, <span class="num">4</span>)               <span class="com"># 3 + 4i  (also C.Complex(3, 4))</span>
 io.<span class="builtin">print</span>(z.re, z.im)             <span class="com"># 3.0 4.0</span>
@@ -111,8 +111,8 @@ io.<span class="builtin">print</span>(C.sqrt(C.of(-<span class="num">1</span>, <
 <p>Complex numbers are <strong>unordered</strong> (<code>&lt;</code>, <code>&gt;</code> raise), and — like every numeric type in Kirito — their <code>==</code> is <strong>exact</strong> (real and imaginary parts compared bit-for-bit; <code>NaN</code> never equals anything). For a tolerant comparison of computed values use the <strong><code>.compare(other, rel_tol = 1e-9, abs_tol = 0.0)</code></strong> method, which <a class="xref" href="stdlib.html#sym-Complex"><code>Complex</code></a>, real/complex <code>Matrix</code>, and <a class="xref" href="stdlib.html#sym-Tensor"><code>Tensor</code></a> all carry (so <code>(a - b).modulus()</code> checks and <code>result == expected</code> on computed floats become <code>result.compare(expected)</code>).</p>
 <h2 id="complex-matrices-and-vectors">Complex matrices and vectors</h2>
 <p><code>complex.Matrix</code> is the complex counterpart of <code>matrix.Matrix</code>, with the extras a complex space needs — <code>conjugate</code>, <code>hermitian</code> (conjugate transpose), and a Gaussian <code>determinant</code> / fast Gauss-Jordan <code>inverse</code>:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> C = <span class="kw">import</span>(<span class="str">&quot;complex&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> C = <span class="builtin">import</span>(<span class="str">&quot;complex&quot;</span>)
 
 <span class="kw">var</span> M = C.Matrix([[C.of(<span class="num">1</span>, <span class="num">1</span>), C.of(<span class="num">2</span>, <span class="num">0</span>)],
                   [C.of(<span class="num">0</span>, <span class="num">1</span>), C.of(<span class="num">1</span>, -<span class="num">1</span>)]])
@@ -129,9 +129,9 @@ io.<span class="builtin">print</span>(w.dot(w))               <span class="com">
 io.<span class="builtin">print</span>(w.norm())               <span class="com"># 2.449...  = sqrt(6)</span></code></pre>
 <h2 id="keyword-arguments-and-inspect">Keyword arguments and <a class="xref" href="builtins.html#sym-inspect"><code>inspect</code></a></h2>
 <p>Every function and method in these modules is fully introspectable and accepts keyword arguments — exactly like Kirito-level functions:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> C = <span class="kw">import</span>(<span class="str">&quot;complex&quot;</span>)
-<span class="kw">var</span> m = <span class="kw">import</span>(<span class="str">&quot;matrix&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> C = <span class="builtin">import</span>(<span class="str">&quot;complex&quot;</span>)
+<span class="kw">var</span> m = <span class="builtin">import</span>(<span class="str">&quot;matrix&quot;</span>)
 
 io.<span class="builtin">print</span>(C.of(re = <span class="num">1</span>, im = <span class="num">2</span>))                  <span class="com"># keyword args on a constructor</span>
 io.<span class="builtin">print</span>(m.zeros(rows = <span class="num">2</span>, cols = <span class="num">3</span>))           <span class="com"># ... and on a factory</span>

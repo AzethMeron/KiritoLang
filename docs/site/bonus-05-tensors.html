@@ -45,12 +45,12 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <ul><li>its <strong>rank</strong> (<code>ndim</code>) — how many dimensions it has,</li><li>its <strong>shape</strong> — the length along each dimension, as a list,</li><li>its <strong>dtype</strong> — the element type, either <code>&quot;Float&quot;</code> (the default, a real number) or <code>&quot;Complex&quot;</code>.</li></ul>
 <p>The <a class="xref" href="stdlib.html#tensor"><code>tensor</code></a> module is also the foundation the <a class="xref" href="stdlib.html#matrix"><code>matrix</code></a> and <a class="xref" href="stdlib.html#complex"><code>complex</code></a> matrix types are built on: a 2-D Float tensor <em>is</em> a real matrix. Everything runs on the CPU.</p>
 <p>Throughout this lesson:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)</code></pre>
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)</code></pre>
 <h2 id="1-creating-tensors">1. Creating tensors</h2>
 <p>Build a tensor from a nested list — the depth of nesting sets the rank, and every row at a given level must be the same length (the array is rectangular). Integers are accepted and stored as Floats.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 
 <span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], [<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]])    <span class="com"># a 2×3 tensor</span>
 io.<span class="builtin">print</span>(a.shape())            <span class="com"># [2, 3]</span>
@@ -58,8 +58,8 @@ io.<span class="builtin">print</span>(a.ndim())             <span class="com"># 
 io.<span class="builtin">print</span>(a.size())             <span class="com"># 6     — total number of elements</span>
 io.<span class="builtin">print</span>(a.dtype())            <span class="com"># Float</span></code></pre>
 <p>There are factories for common shapes. Each takes the shape as a list (or a count, for <a class="xref" href="stdlib.html#sym-eye"><code>eye</code></a>):</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 
 io.<span class="builtin">print</span>(T.zeros([<span class="num">2</span>, <span class="num">2</span>]))            <span class="com"># [[0.0, 0.0], [0.0, 0.0]]</span>
 io.<span class="builtin">print</span>(T.ones([<span class="num">3</span>]))                <span class="com"># [1.0, 1.0, 1.0]</span>
@@ -68,8 +68,8 @@ io.<span class="builtin">print</span>(T.eye(<span class="num">3</span>))        
 io.<span class="builtin">print</span>(T.arange(<span class="num">0</span>, <span class="num">6</span>, <span class="num">2</span>))          <span class="com"># [0.0, 2.0, 4.0]   — start, stop (exclusive), step</span>
 io.<span class="builtin">print</span>(T.linspace(<span class="num">0</span>, <span class="num">1</span>, <span class="num">5</span>))        <span class="com"># [0.0, 0.25, 0.5, 0.75, 1.0]   — 5 evenly-spaced points</span></code></pre>
 <p>A few more builders construct from, or relative to, existing tensors:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]])
 
 io.<span class="builtin">print</span>(T.zeroslike(a))                  <span class="com"># zeros with a&#x27;s shape</span>
@@ -78,8 +78,8 @@ io.<span class="builtin">print</span>(T.diag(a))                       <span cla
 io.<span class="builtin">print</span>(T.tril(T.ones([<span class="num">3</span>, <span class="num">3</span>])))          <span class="com"># lower triangle (triu for upper)</span></code></pre>
 <h2 id="2-indexing-slicing-and-selection">2. Indexing, slicing, and selection</h2>
 <p>A <strong>full index</strong> — one integer per dimension — returns the scalar element. A <strong>partial index</strong> returns the sub-tensor of the remaining dimensions.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> cube = T.Tensor([[[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]], [[<span class="num">5</span>, <span class="num">6</span>], [<span class="num">7</span>, <span class="num">8</span>]]])    <span class="com"># shape [2, 2, 2]</span>
 
 io.<span class="builtin">print</span>(cube[<span class="num">1</span>, <span class="num">0</span>, <span class="num">1</span>])        <span class="com"># 6.0   — one element</span>
@@ -87,8 +87,8 @@ io.<span class="builtin">print</span>(cube[<span class="num">0</span>])         
 cube[<span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>] = <span class="num">99</span>             <span class="com"># assign into an element (full index)</span>
 io.<span class="builtin">print</span>(cube[<span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>])        <span class="com"># 99.0</span></code></pre>
 <p>You can <strong>slice</strong> the first dimension with <code>start:stop:step</code> (the bounds follow the usual rules — <code>stop</code> is exclusive, and negative numbers count back from the end):</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> v = T.Tensor([<span class="num">10</span>, <span class="num">20</span>, <span class="num">30</span>, <span class="num">40</span>, <span class="num">50</span>])
 
 io.<span class="builtin">print</span>(v[<span class="num">1</span>:<span class="num">4</span>])               <span class="com"># [20.0, 30.0, 40.0]</span>
@@ -96,8 +96,8 @@ io.<span class="builtin">print</span>(v[:<span class="num">2</span>])           
 io.<span class="builtin">print</span>(v[-<span class="num">2</span>:])               <span class="com"># [40.0, 50.0]</span></code></pre>
 <p>Two more selection forms, both returning a fresh tensor:</p>
 <ul><li>an <strong>index list</strong> picks rows along the first dimension, in the order given,</li><li>a <strong>boolean mask</strong> (a 0/1 tensor of the same shape, usually from a comparison) selects the elements where it is non-zero, flattened into a 1-D tensor.</li></ul>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], [<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]])
 
 io.<span class="builtin">print</span>(a[[<span class="num">1</span>, <span class="num">0</span>]])            <span class="com"># [[4.0, 5.0, 6.0], [1.0, 2.0, 3.0]]   — rows 1 then 0</span>
@@ -105,8 +105,8 @@ io.<span class="builtin">print</span>(a[a.gt(<span class="num">3</span>)])      
 <blockquote>Indexing and <code>start:stop:step</code> slicing return <strong>detached</strong> copies (they don&#x27;t carry gradients). For the gradient-aware versions, use the <a class="xref" href="stdlib.html#sym-t.slice"><code>t.slice(start, stop, step, axis)</code></a> and <code>t.take(indices, axis)</code> <strong>methods</strong> instead — they appear again in the autograd section.</blockquote>
 <h2 id="3-element-wise-arithmetic-and-broadcasting">3. Element-wise arithmetic and broadcasting</h2>
 <p><code>+</code>, <code>-</code>, <code>*</code>, <code>/</code> operate <strong>element by element</strong>. In particular <code>*</code> is the element-wise product, <strong>not</strong> matrix multiplication (that&#x27;s <code>matmul</code>, coming up).</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], [<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]])
 
 io.<span class="builtin">print</span>(a + a)                <span class="com"># [[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]</span>
@@ -115,22 +115,22 @@ io.<span class="builtin">print</span>(a * <span class="num">2</span>)           
 io.<span class="builtin">print</span>(-a)                   <span class="com"># negation</span></code></pre>
 <p>When the two shapes differ, they are combined by <strong>broadcasting</strong>. The rule:</p>
 <ol><li>Align the shapes from the <strong>right</strong>.</li><li>For each dimension, the sizes must be <strong>equal</strong>, or one of them must be <strong>1</strong>.</li><li>A size-1 dimension is <strong>stretched</strong> to match the other.</li></ol>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], [<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]])    <span class="com"># shape [2, 3]</span>
 
 io.<span class="builtin">print</span>(a + T.Tensor([[<span class="num">10</span>, <span class="num">20</span>, <span class="num">30</span>]]))      <span class="com"># [1,3] stretched over both rows</span>
 io.<span class="builtin">print</span>(a + T.Tensor([[<span class="num">100</span>], [<span class="num">200</span>]]))      <span class="com"># [2,1] stretched over all columns</span></code></pre>
 <p>The other element-wise operators are <code>**</code> (power), <code>%</code> (remainder), and <code>//</code> (floor division):</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>]) ** <span class="num">2</span>)     <span class="com"># [4.0, 9.0, 16.0]</span>
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">5</span>, <span class="num">7</span>, <span class="num">9</span>]) % <span class="num">3</span>)      <span class="com"># [2.0, 1.0, 0.0]</span>
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">5</span>, <span class="num">7</span>, <span class="num">9</span>]) // <span class="num">3</span>)     <span class="com"># [1.0, 2.0, 3.0]</span></code></pre>
 <h2 id="4-comparisons-logic-and-selection">4. Comparisons, logic, and selection</h2>
 <p>Comparisons produce a <strong>0/1 mask</strong> the same shape as the inputs. The methods are <code>eq</code>, <code>ne</code>, <code>lt</code>, <code>le</code>, <code>gt</code>, <code>ge</code>; the operators <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code> do the same.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>])
 
 io.<span class="builtin">print</span>(a.gt(<span class="num">2</span>))              <span class="com"># [0.0, 0.0, 1.0, 1.0]</span>
@@ -138,8 +138,8 @@ io.<span class="builtin">print</span>(a &gt; <span class="num">2</span>)        
 io.<span class="builtin">print</span>(a.eq(T.Tensor([<span class="num">1</span>, <span class="num">9</span>, <span class="num">3</span>, <span class="num">9</span>])))   <span class="com"># [1.0, 0.0, 1.0, 0.0]</span></code></pre>
 <blockquote><code>==</code> and <code>!=</code> are reserved for <strong>whole-tensor</strong> equality (they return a single <a class="xref" href="types.html#bool"><code>Bool</code></a>, true when the tensors have equal shape and values). For the element-wise comparison, use <a class="xref" href="stdlib.html#sym-t.eq"><code>t.eq(...)</code></a> / <code>t.ne(...)</code>.</blockquote>
 <p>Combine masks with <code>logicaland</code> / <code>logicalor</code> / <code>logicalxor</code> / <code>logicalnot</code>, and use them to select:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>])
 
 <span class="kw">var</span> mask = a.gt(<span class="num">1</span>).logicaland(a.lt(<span class="num">5</span>))         <span class="com"># 1 &lt; a &lt; 5</span>
@@ -150,14 +150,14 @@ io.<span class="builtin">print</span>(a.maximum(T.full([<span class="num">5</spa
 <p><a class="xref" href="stdlib.html#sym-where"><code>where(cond, a, b)</code></a> builds a new tensor taking elements from <a class="xref" href="stdlib.html#sym-a"><code>a</code></a> where <code>cond</code> is non-zero and from <code>b</code> otherwise (all three broadcast together).</p>
 <h2 id="5-matrix-products-dot-and-contraction">5. Matrix products, dot, and contraction</h2>
 <p><code>*</code> is element-wise, so matrix multiplication is the <strong><code>matmul</code></strong> method. It also works <strong>batched</strong>: for tensors of rank ≥ 2 it multiplies the last two dimensions and broadcasts the leading ones.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 
 io.<span class="builtin">print</span>(T.Tensor([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]]).matmul(T.Tensor([[<span class="num">5</span>, <span class="num">6</span>], [<span class="num">7</span>, <span class="num">8</span>]])))   <span class="com"># [[19.0, 22.0], [43.0, 50.0]]</span>
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>]).dot(T.Tensor([<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>])))                    <span class="com"># 32.0   — 1-D dot product</span></code></pre>
 <p><a class="xref" href="stdlib.html#sym-tensordot"><code>tensordot</code></a> generalizes <code>matmul</code> to contract over <strong>any</strong> chosen axes. Pass an integer <code>N</code> to contract the last <code>N</code> axes of the first tensor with the first <code>N</code> of the second (<code>N = 1</code> is matrix multiply; <code>N = 2</code> multiplies and sums every element), or a <code>[a-axes, b-axes]</code> pair to name the axes explicitly.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]])
 <span class="kw">var</span> b = T.Tensor([[<span class="num">5</span>, <span class="num">6</span>], [<span class="num">7</span>, <span class="num">8</span>]])
 
@@ -169,8 +169,8 @@ io.<span class="builtin">print</span>(T.tensordot(a, b, <span class="num">2</spa
 <span class="com"># contract x&#x27;s axes 1 and 2 with y&#x27;s axes 1 and 0:</span>
 io.<span class="builtin">print</span>(T.contract(x, y, [<span class="num">1</span>, <span class="num">2</span>], [<span class="num">1</span>, <span class="num">0</span>]).shape())     <span class="com"># [2, 5]</span></code></pre>
 <p>For the fully general case, <strong><code>einsum</code></strong> takes a subscript string. Repeated letters are summed, letters that survive to the right of <code>-&gt;</code> form the output:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> m = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]])
 
 io.<span class="builtin">print</span>(T.einsum(<span class="str">&quot;ij,jk-&gt;ik&quot;</span>, m, T.eye(<span class="num">2</span>)))   <span class="com"># matrix multiply -&gt; m</span>
@@ -178,8 +178,8 @@ io.<span class="builtin">print</span>(T.einsum(<span class="str">&quot;ij-&gt;ji
 io.<span class="builtin">print</span>(T.einsum(<span class="str">&quot;ii-&gt;&quot;</span>, m))                  <span class="com"># trace: 5.0</span></code></pre>
 <h2 id="6-reductions">6. Reductions</h2>
 <p>Reductions collapse the whole tensor to a scalar, or collapse a single <code>axis</code> to a lower-rank tensor.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], [<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]])
 
 io.<span class="builtin">print</span>(a.<span class="builtin">sum</span>())              <span class="com"># 21.0           — the whole tensor</span>
@@ -188,8 +188,8 @@ io.<span class="builtin">print</span>(a.<span class="builtin">sum</span>(<span c
 io.<span class="builtin">print</span>(a.mean(), a.<span class="builtin">min</span>(), a.<span class="builtin">max</span>())            <span class="com"># 3.5 1.0 6.0</span>
 io.<span class="builtin">print</span>(a.prod())             <span class="com"># 720.0</span></code></pre>
 <p>The full set: <code>sum</code>, <code>mean</code>, <code>prod</code>, <code>min</code>, <code>max</code>, <code>argmin</code>, <code>argmax</code>, <code>std</code>, <code>var</code>, <code>median</code>, <code>ptp</code> (max − min), <code>all</code>, <code>any</code>, <code>cumsum</code>, <code>cumprod</code>. Each takes an optional <code>axis</code>.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">5</span>, <span class="num">2</span>], [<span class="num">4</span>, <span class="num">0</span>, <span class="num">6</span>]])
 
 io.<span class="builtin">print</span>(a.argmax(<span class="num">1</span>))          <span class="com"># [1.0, 2.0]   — index of the max along each row</span>
@@ -198,8 +198,8 @@ io.<span class="builtin">print</span>(a.<span class="builtin">all</span>(), a.<s
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>]).cumsum())      <span class="com"># [1.0, 3.0, 6.0, 10.0]</span></code></pre>
 <h2 id="7-reshaping-and-structural-operations">7. Reshaping and structural operations</h2>
 <p>These rearrange elements without changing them:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], [<span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>]])
 
 io.<span class="builtin">print</span>(a.transpose())        <span class="com"># [[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]</span>
@@ -209,8 +209,8 @@ io.<span class="builtin">print</span>(a.permute([<span class="num">1</span>, <sp
 io.<span class="builtin">print</span>(a.swapaxes(<span class="num">0</span>, <span class="num">1</span>))     <span class="com"># swap two axes</span>
 io.<span class="builtin">print</span>(a.flip())             <span class="com"># reverse</span></code></pre>
 <p>Add or drop size-1 axes, broadcast to a shape, or repeat:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 
 io.<span class="builtin">print</span>(T.zeros([<span class="num">1</span>, <span class="num">3</span>, <span class="num">1</span>]).squeeze().shape())     <span class="com"># [3]   — drop size-1 axes</span>
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">1</span>, <span class="num">2</span>]).expanddims(<span class="num">0</span>).shape())   <span class="com"># [1, 2] — insert a size-1 axis</span>
@@ -218,21 +218,21 @@ io.<span class="builtin">print</span>(T.Tensor([[<span class="num">1</span>], [<
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">1</span>, <span class="num">2</span>]).repeat(<span class="num">2</span>))               <span class="com"># [1.0, 1.0, 2.0, 2.0]</span>
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">1</span>, <span class="num">2</span>]).tile([<span class="num">2</span>]))               <span class="com"># [1.0, 2.0, 1.0, 2.0]</span></code></pre>
 <p>Join several tensors, or split one apart:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> a = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]])
 
 io.<span class="builtin">print</span>(T.concatenate([a, a], <span class="num">0</span>).shape())                     <span class="com"># [4, 2]  — stack rows</span>
 io.<span class="builtin">print</span>(T.stack([T.Tensor([<span class="num">1</span>, <span class="num">2</span>]), T.Tensor([<span class="num">3</span>, <span class="num">4</span>])], <span class="num">0</span>))     <span class="com"># [[1,2],[3,4]] — new axis</span>
 io.<span class="builtin">print</span>(<span class="builtin">len</span>(T.split(a, <span class="num">2</span>, <span class="num">0</span>)))                                <span class="com"># 2  — split into 2 pieces</span></code></pre>
 <p><strong><code>apply</code></strong> maps a function over every element (the loop runs in native code):</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">1</span>, <span class="num">4</span>, <span class="num">9</span>]).apply(<span class="kw">Function</span>(x): <span class="kw">return</span> x ** <span class="num">0.5</span>))   <span class="com"># [1.0, 2.0, 3.0]</span></code></pre>
 <h2 id="8-linear-algebra">8. Linear algebra</h2>
 <p>The module-level functions operate on 2-D tensors:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> M = T.Tensor([[<span class="num">4</span>, <span class="num">3</span>], [<span class="num">6</span>, <span class="num">3</span>]])
 
 io.<span class="builtin">print</span>(T.det(M))                       <span class="com"># -6.0   — determinant</span>
@@ -244,8 +244,8 @@ io.<span class="builtin">print</span>(T.outer(T.Tensor([<span class="num">1</spa
 io.<span class="builtin">print</span>(T.cross(T.Tensor([<span class="num">1</span>, <span class="num">0</span>, <span class="num">0</span>]), T.Tensor([<span class="num">0</span>, <span class="num">1</span>, <span class="num">0</span>])))   <span class="com"># [0.0, 0.0, 1.0]</span></code></pre>
 <p>Also available: <code>inner</code>, <code>kron</code> (the Kronecker product), and <code>einsum</code> (Section 5).</p>
 <h2 id="9-sorting-and-searching">9. Sorting and searching</h2>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">3</span>, <span class="num">1</span>, <span class="num">2</span>]).sort())          <span class="com"># [1.0, 2.0, 3.0]</span>
 io.<span class="builtin">print</span>(T.Tensor([<span class="num">3</span>, <span class="num">1</span>, <span class="num">2</span>]).argsort())       <span class="com"># [1.0, 2.0, 0.0]  — the sorting order</span>
@@ -256,8 +256,8 @@ io.<span class="builtin">print</span>(T.nonzero(T.Tensor([<span class="num">0</s
 <p>This is what sets tensors apart from a plain array library: a tensor can compute the <strong>derivatives</strong> of a result with respect to its inputs. This is how you train a model by gradient descent.</p>
 <h3 id="the-idea">The idea</h3>
 <p>Gradient tracking is <strong>off by default</strong>. You opt a tensor in by making it a <em>leaf</em> of the computation — either at creation with <code>requiresgrad = True</code>, or afterwards with <a class="xref" href="stdlib.html#sym-t.requiresgrad"><code>t.requiresgrad(True)</code></a>. From then on, every differentiable operation involving that tensor records how the result was produced, building a <strong>graph</strong> behind the scenes. Calling <code>backward()</code> on a final scalar walks that graph in reverse and fills in each input&#x27;s <code>.grad</code>.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 
 <span class="kw">var</span> x = T.Tensor([<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>], requiresgrad = <span class="kw">True</span>)
 <span class="kw">var</span> y = x.square().<span class="builtin">sum</span>()       <span class="com"># y = x0² + x1² + x2²</span>
@@ -266,16 +266,16 @@ io.<span class="builtin">print</span>(x.grad)               <span class="com"># 
 <p>The gradient is exact: <a class="xref" href="stdlib.html#sym-d"><code>d(x²)/dx = 2x</code></a>, evaluated at <code>[1, 2, 3]</code>, is <code>[2, 4, 6]</code>.</p>
 <h3 id="what-backward-needs">What <code>backward</code> needs</h3>
 <p><code>backward()</code> with no argument requires the tensor it&#x27;s called on to be a <strong>scalar</strong> (a single element). If you want the gradient of a non-scalar tensor, pass a <em>seed</em> gradient of the same shape:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> x = T.Tensor([<span class="num">2</span>, <span class="num">3</span>], requiresgrad = <span class="kw">True</span>)
 <span class="kw">var</span> y = x * x                          <span class="com"># not a scalar</span>
 y.backward(T.ones([<span class="num">2</span>]))                <span class="com"># seed of ones</span>
 io.<span class="builtin">print</span>(x.grad)                       <span class="com"># [4.0, 6.0]</span></code></pre>
 <h3 id="gradients-accumulate-clear-them">Gradients accumulate — clear them</h3>
 <p><code>backward()</code> <strong>adds</strong> into <code>.grad</code> rather than replacing it. In a training loop you must reset the gradients each step with <code>zerograd()</code>, or they pile up:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> x = T.Tensor([<span class="num">1</span>, <span class="num">1</span>], requiresgrad = <span class="kw">True</span>)
 x.<span class="builtin">sum</span>().backward()
 x.<span class="builtin">sum</span>().backward()             <span class="com"># called twice without clearing</span>
@@ -285,8 +285,8 @@ io.<span class="builtin">print</span>(x.grad)               <span class="com"># 
 <h3 id="turning-gradients-off">Turning gradients off</h3>
 <p>Two tools stop gradient flow on purpose:</p>
 <ul><li><code>t.detach()</code> returns a copy of <code>t</code> that tracks nothing.</li><li><code>with T.nograd():</code> runs a whole block with tracking disabled — for inference, or for computing a parameter update (you don&#x27;t want the update itself recorded; see <a href="#why-the-update-rebinds-tensors-are-immutable">the next section</a>).</li></ul>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 <span class="kw">var</span> w = T.Tensor([<span class="num">1.0</span>, <span class="num">2.0</span>], requiresgrad = <span class="kw">True</span>)
 io.<span class="builtin">print</span>(w.detach().requiresgrad())    <span class="com"># False</span>
 <span class="kw">with</span> T.nograd():
@@ -300,8 +300,8 @@ io.<span class="builtin">print</span>(w.detach().requiresgrad())    <span class=
 <p>If detaching is what you intend, call <code>detach()</code> first or wrap the code in <code>with T.nograd():</code> and the warning stays quiet.</p>
 <h3 id="a-worked-example-fitting-a-line">A worked example: fitting a line</h3>
 <p>Here is a complete training loop. It fits <code>y = 2x + 1</code> from four data points by minimizing the mean squared error with gradient descent:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
 
 <span class="kw">var</span> xs = T.Tensor([[<span class="num">0</span>], [<span class="num">1</span>], [<span class="num">2</span>], [<span class="num">3</span>]])
 <span class="kw">var</span> ys = T.Tensor([[<span class="num">1</span>], [<span class="num">3</span>], [<span class="num">5</span>], [<span class="num">7</span>]])         <span class="com"># the targets: y = 2x + 1</span>
@@ -339,26 +339,26 @@ p.t.requiresgrad(<span class="kw">True</span>)</code></pre>
 <p>This is the <strong>functional</strong> update style of frameworks like JAX/Optax (their optimizers return new parameters each step), rather than PyTorch&#x27;s in-place mutation of a persistent buffer. Both are valid; Kirito&#x27;s immutable, pure-op tensors make the functional form the natural one.</p>
 <h2 id="11-saving-tensors">11. Saving tensors</h2>
 <p>A gradient-free tensor can be serialized — to text with the <a class="xref" href="stdlib.html#serialize"><code>serialize</code></a> module, or to a compact binary blob with <a class="xref" href="stdlib.html#dump"><code>dump</code></a> — and loaded back later. This is how you persist trained weights.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
-<span class="kw">var</span> ser = <span class="kw">import</span>(<span class="str">&quot;serialize&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<span class="kw">var</span> ser = <span class="builtin">import</span>(<span class="str">&quot;serialize&quot;</span>)
 
 <span class="kw">var</span> w = T.Tensor([[<span class="num">1.5</span>, <span class="num">2.5</span>], [<span class="num">3.5</span>, <span class="num">4.5</span>]])
 <span class="kw">var</span> saved = ser.dumps(w)               <span class="com"># a portable text snapshot</span>
 <span class="kw">var</span> loaded = ser.loads(saved)
 io.<span class="builtin">print</span>(loaded == w)                  <span class="com"># True</span></code></pre>
 <p>Only <strong>gradient-free</strong> tensors may be saved: trying to serialize a tensor that requires grad raises, so detach it first.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
-<span class="kw">var</span> ser = <span class="kw">import</span>(<span class="str">&quot;serialize&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<span class="kw">var</span> ser = <span class="builtin">import</span>(<span class="str">&quot;serialize&quot;</span>)
 
 <span class="kw">var</span> p = T.Tensor([<span class="num">1.0</span>, <span class="num">2.0</span>], requiresgrad = <span class="kw">True</span>)
 io.<span class="builtin">print</span>(ser.loads(ser.dumps(p.detach())) == T.Tensor([<span class="num">1.0</span>, <span class="num">2.0</span>]))   <span class="com"># True</span></code></pre>
 <h2 id="12-complex-tensors">12. Complex tensors</h2>
 <p>Pass <code>dtype = &quot;Complex&quot;</code> to hold complex numbers. The array operations apply just as before; <code>astype</code> converts between dtypes, and mixing a Float and a Complex tensor promotes the result to Complex.</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> T = <span class="kw">import</span>(<span class="str">&quot;tensor&quot;</span>)
-<span class="kw">var</span> C = <span class="kw">import</span>(<span class="str">&quot;complex&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> T = <span class="builtin">import</span>(<span class="str">&quot;tensor&quot;</span>)
+<span class="kw">var</span> C = <span class="builtin">import</span>(<span class="str">&quot;complex&quot;</span>)
 
 <span class="kw">var</span> z = T.Tensor([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]], dtype = <span class="str">&quot;Complex&quot;</span>)
 io.<span class="builtin">print</span>(z.dtype())            <span class="com"># Complex</span>

@@ -43,7 +43,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Every file scope is pre-bound with two names, so you never import anything to get the basics:</p>
 <ul><li><strong><code>arglist</code></strong> — the command-line arguments as a <a class="xref" href="types.html#list"><code>List</code></a> of Strings. For <code>ki greet.ki Ada --loud</code>, <code>arglist</code> is <code>[&quot;Ada&quot;, &quot;--loud&quot;]</code> (the interpreter and script name are stripped). It is <strong>empty in an imported module</strong> — arguments belong to the program you <em>run</em>, not to its libraries.</li><li><strong><code>argmain</code></strong> — a <a class="xref" href="types.html#bool"><code>Bool</code></a> that is <code>True</code> when this file was run directly and <code>False</code> when it was imported — so a file can guard its &quot;run me&quot; code with <a class="xref" href="course-04-control-loops.html#sym-if"><code>if argmain:</code></a>.</li></ul>
 <p>The standard idiom is to guard your program&#x27;s entry point so a file can be <strong>both</strong> a runnable script and an importable library:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> run = <span class="kw">Function</span>(args):
     io.<span class="builtin">print</span>(f<span class="str">&quot;got {len(args)} argument(s)&quot;</span>)
@@ -56,7 +56,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Run directly with <code>ki demo.ki one two</code> it prints the count and each argument; <code>import(&quot;demo&quot;)</code> from another file runs nothing and exposes <code>run</code> for reuse.</p>
 <h2 id="parsing-by-hand-gets-old-fast">Parsing by hand gets old fast</h2>
 <p>You <em>can</em> pick apart <code>arglist</code> yourself, but even simple needs — an option with a value, a flag, a default — turn into fiddly index juggling:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="com"># Imagine these came from the command line: a name, an optional --count, an optional --loud flag.</span>
 <span class="kw">var</span> args = [<span class="str">&quot;Ada&quot;</span>, <span class="str">&quot;--count&quot;</span>, <span class="str">&quot;3&quot;</span>, <span class="str">&quot;--loud&quot;</span>]
@@ -82,8 +82,8 @@ io.<span class="builtin">print</span>(f<span class="str">&quot;name={name} count
 <p><code>import(&quot;arg&quot;)</code> gives you a <a class="xref" href="stdlib.html#sym-Parser"><code>Parser</code></a>. You <strong>declare</strong> the arguments, then <strong><code>parse</code></strong> a list of strings yourself — typically <code>arglist</code>. The declaration methods chain (each returns the parser):</p>
 <ul><li><code id="sym-arg.Parser">arg.Parser(description = &quot;&quot;)</code> — create a parser.</li><li><code>p.positional(name, help = &quot;&quot;)</code> — a required positional argument, consumed in order.</li><li><code>p.option(name, default = None, help = &quot;&quot;)</code> — a <code>--name VALUE</code> option. <strong>The value is converted to the type of <code>default</code></strong> — an Integer default parses an Integer, a Float default a Float, otherwise it stays a String.</li><li><code>p.flag(name, help = &quot;&quot;)</code> — a boolean <code>--name</code> flag (default <code>False</code>, <code>True</code> when present).</li><li><code>p.parse(args)</code> — parse into a <a class="xref" href="types.html#dict"><code>Dict</code></a> keyed by name. Returns <strong><a class="xref" href="types.html#none"><code>None</code></a></strong> if <code>-h</code>/<code>--help</code> was given (after printing the help), so the program can stop.</li></ul>
 <p>Here is the hand-rolled parser above, rewritten — declarations replace all the index juggling:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="builtin">import</span>(<span class="str">&quot;arg&quot;</span>)
 
 <span class="kw">var</span> p = arg.Parser(<span class="str">&quot;greet someone&quot;</span>)
 p.positional(<span class="str">&quot;name&quot;</span>)
@@ -105,8 +105,8 @@ p.flag(<span class="str">&quot;loud&quot;</span>)
 <p>This prints <code>HELLO, ADA!</code> three times. <code>parse</code> returns a Dict; you read results by name (<code>opts[&quot;name&quot;]</code>, <code>opts[&quot;count&quot;]</code>, <code>opts[&quot;loud&quot;]</code>).</p>
 <h2 id="typed-options">Typed options</h2>
 <p>The <strong>default&#x27;s type</strong> decides how a value is parsed — you declare it once and every value comes back in the right type:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="builtin">import</span>(<span class="str">&quot;arg&quot;</span>)
 
 <span class="kw">var</span> p = arg.Parser()
 p.option(<span class="str">&quot;width&quot;</span>, <span class="num">80</span>)          <span class="com"># Integer default  -&gt; Integer values</span>
@@ -127,8 +127,8 @@ report (String)</code></pre>
 <p>If a value can&#x27;t be converted (<code>--width abc</code>), <code>parse</code> raises a clear, catchable error rather than handing you a bad value.</p>
 <h2 id="flags-short-forms-and-leftovers">Flags, short forms, <code>=</code>, and leftovers</h2>
 <p><code>parse</code> understands the common command-line spellings, and collects any <strong>extra</strong> positionals under the <code>&quot;rest&quot;</code> key:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="builtin">import</span>(<span class="str">&quot;arg&quot;</span>)
 
 <span class="kw">var</span> p = arg.Parser()
 p.positional(<span class="str">&quot;command&quot;</span>)
@@ -153,8 +153,8 @@ rest    = [&#x27;extra1&#x27;, &#x27;extra2&#x27;]</code></pre>
 <p>So <code>--level 2</code>, <code>--level=2</code>, a short <code>-l 2</code>, and a short <code>-v</code> flag all work; anything not claimed by a declared positional lands in <code>rest</code>.</p>
 <h2 id="automatic-help">Automatic <code>--help</code></h2>
 <p>You get a usage screen for free. When <code>-h</code> or <code>--help</code> appears anywhere, <code>parse</code> <strong>prints the help and returns <a class="xref" href="types.html#none"><code>None</code></a></strong> — your program checks for that and stops:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="builtin">import</span>(<span class="str">&quot;arg&quot;</span>)
 
 <span class="kw">var</span> p = arg.Parser(<span class="str">&quot;greet someone, maybe loudly&quot;</span>)
 p.positional(<span class="str">&quot;name&quot;</span>, <span class="str">&quot;who to greet&quot;</span>)
@@ -177,8 +177,8 @@ arguments:
 (parse returned None — program would stop here)</code></pre>
 <h2 id="handling-bad-input">Handling bad input</h2>
 <p>Unknown options, a missing required positional, and unconvertible values all raise — wrap <code>parse</code> in a <a class="xref" href="course-11-errors.html#sym-try"><code>try</code></a> to report them nicely instead of crashing:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="builtin">import</span>(<span class="str">&quot;arg&quot;</span>)
 
 <span class="kw">var</span> p = arg.Parser()
 p.positional(<span class="str">&quot;name&quot;</span>)
@@ -197,8 +197,8 @@ error: option --count expects an integer, got &#x27;ten&#x27;
 error: unknown option: --oops</code></pre>
 <h2 id="putting-it-together-a-tiny-cli">Putting it together — a tiny CLI</h2>
 <p>Here is a complete, idiomatic command-line program: it declares its interface, parses <code>arglist</code>, respects <code>--help</code>, and does real work. We drive it with an explicit list so the lesson runs, but in a real file the one line that changes is <code>p.parse(arglist)</code>:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
-<span class="kw">var</span> arg = <span class="kw">import</span>(<span class="str">&quot;arg&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> arg = <span class="builtin">import</span>(<span class="str">&quot;arg&quot;</span>)
 
 <span class="com"># A word-counting tool: `wc.ki &lt;text&gt; [--by-char] [--upper]`</span>
 <span class="kw">var</span> wordcount = <span class="kw">Function</span>(args):

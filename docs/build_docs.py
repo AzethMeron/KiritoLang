@@ -62,9 +62,10 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 
 # Kirito keywords / builtins for lightweight highlighting of ```kirito fences.
 KW = set("var Function if elif else while for in break continue return and or not "
-         "class try catch finally throw with as pass assert import discard True False None".split())
+         "class try catch finally throw with as pass todo assert discard switch case default "
+         "True False None".split())
 BUILTINS = set("print input len range sum min max abs round sorted enumerate zip map filter type "
-               "inspect all any reversed divmod isinstance ord chr bin oct hex pow Integer Float "
+               "inspect all any reversed divmod isinstance ord chr bin oct hex pow import Integer Float "
                "bitand bitor bitxor bitnot shl shr String Bool List Set Dict".split())
 
 

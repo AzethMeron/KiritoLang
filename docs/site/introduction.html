@@ -43,7 +43,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <h2 id="why-kirito">Why Kirito</h2>
 <ul><li><strong>High-level and fast to write</strong>: significant indentation, first-class functions, rich collections, exceptions, classes — with just enough abstraction and no boilerplate.</li><li><strong>Strongly typed at runtime</strong>: separate <a class="xref" href="types.html#integer"><code>Integer</code></a> and <a class="xref" href="types.html#float"><code>Float</code></a>, no silent coercions across incompatible types, and <em>enforced</em> type annotations when you want them (<a class="xref" href="course-06-functions-closures.html#sym-Function"><code>Function(d : Dict) -&gt; Float:</code></a> actually checks).</li><li><strong>A C++ framework</strong>: adding a new value type, function, or whole module from C++ is a few lines and is indistinguishable from a built-in to the evaluator.</li><li><strong>Fully encapsulated</strong>: one <code>KiritoVM</code> owns all of its state (no global mutable state), so multiple VMs coexist and the whole context is designed to be serializable.</li></ul>
 <h2 id="a-taste">A taste</h2>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">class</span> Greeter:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name : <span class="builtin">String</span>):

@@ -41,7 +41,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p>Kirito is dynamically typed — a name can hold any value — but it is also <strong>strongly</strong> typed: it never silently coerces incompatible values. On top of that, you can add optional <strong>type annotations</strong> to function parameters and return values. Unlike type <em>hints</em> in some languages, Kirito&#x27;s annotations are <strong>checked at runtime</strong>.</p>
 <h2 id="annotating-parameters-and-returns">Annotating parameters and returns</h2>
 <p>Add <code>: Type</code> after a parameter and <code>-&gt; Type</code> after the parameter list:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> repeat = <span class="kw">Function</span>(text : <span class="builtin">String</span>, times : <span class="builtin">Integer</span>) -&gt; <span class="builtin">String</span>:
     <span class="kw">return</span> text * times
@@ -52,7 +52,7 @@ io.<span class="builtin">print</span>(repeat(<span class="str">&quot;ab&quot;</s
 <p>This turns a whole class of bugs into immediate, located errors at the boundary of your function.</p>
 <h2 id="annotations-are-inheritance-aware">Annotations are inheritance-aware</h2>
 <p>An annotation is satisfied by the named type <strong>or any subclass</strong> of it. This matters once you have class hierarchies (Lesson 10):</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">class</span> Animal:
     <span class="kw">var</span> _init_ = <span class="kw">Function</span>(self, name):
@@ -69,7 +69,7 @@ io.<span class="builtin">print</span>(repeat(<span class="str">&quot;ab&quot;</s
 io.<span class="builtin">print</span>(describe(Dog(<span class="str">&quot;Rex&quot;</span>)))     <span class="com"># =&gt; Rex   (a Dog satisfies the Animal annotation)</span></code></pre>
 <h2 id="integer-and-float-are-distinct-no-implicit-widening"><a class="xref" href="types.html#integer"><code>Integer</code></a> and <a class="xref" href="types.html#float"><code>Float</code></a> are distinct — no implicit widening</h2>
 <p>An annotation checks the value&#x27;s <strong>exact type</strong> (or a subclass). <a class="xref" href="types.html#integer"><code>Integer</code></a> and <a class="xref" href="types.html#float"><code>Float</code></a> are separate types, so an Integer does <strong>not</strong> satisfy a <a class="xref" href="types.html#float"><code>Float</code></a> annotation — pass a Float, or convert with <a class="xref" href="types.html#float"><code>Float(n)</code></a>:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> half = <span class="kw">Function</span>(x : <span class="builtin">Float</span>) -&gt; <span class="builtin">Float</span>:
     <span class="kw">return</span> x / <span class="num">2.0</span>
@@ -79,7 +79,7 @@ io.<span class="builtin">print</span>(half(<span class="builtin">Float</span>(<s
 <p>Calling <code>half(3)</code> with a bare Integer raises <code>argument &#x27;x&#x27; must be Float, got Integer</code>. (Inside arithmetic, mixing an Integer and a Float still promotes to Float — it is only the annotation <em>check</em> that is strict.)</p>
 <h2 id="any-and-no-annotation-accept-everything"><a class="xref" href="course-07-annotations.html#sym-Any"><code>Any</code></a> and no annotation accept everything</h2>
 <p>Leaving a parameter unannotated, or annotating it <a class="xref" href="course-07-annotations.html#sym-Any"><code>Any</code></a>, accepts any value — use this when a function genuinely is generic:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> identity = <span class="kw">Function</span>(x : Any):
     <span class="kw">return</span> x
@@ -91,7 +91,7 @@ io.<span class="builtin">print</span>(identity(<span class="num">42</span>), ide
 io.<span class="builtin">print</span>(describe_type([<span class="num">1</span>, <span class="num">2</span>]))            <span class="com"># =&gt; List</span></code></pre>
 <h2 id="checking-types-yourself-type-and-isinstance">Checking types yourself: <code>type</code> and <a class="xref" href="builtins.html#sym-isinstance"><code>isinstance</code></a></h2>
 <p>When you need to branch on a value&#x27;s type at runtime, <code>type(x)</code> gives the type name, and <a class="xref" href="builtins.html#sym-isinstance"><code>isinstance(x, T)</code></a> tests membership (inheritance-aware), where <code>T</code> is a type-name String or a class:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> stringify_smart = <span class="kw">Function</span>(value) -&gt; <span class="builtin">String</span>:
     <span class="kw">if</span> <span class="builtin">isinstance</span>(value, <span class="str">&quot;Float&quot;</span>):

@@ -208,15 +208,17 @@ Installs `ki.exe` + `kpm.cmd` under `%LOCALAPPDATA%\Programs\Kirito` and adds it
 
 ### Packages (`kpm`)
 
-Kirito's package manager installs packages — collections of `.ki` modules — **straight from GitHub
-repositories**. There is no central index: you name an `owner/repo`.
+Kirito's package manager installs packages — collections of `.ki` modules — **straight from a git
+repository** (GitHub by default, GitLab too). There is no central index: you name an `owner/repo`.
 
 ```sh
 kpm install owner/repo            # install the package (and its dependencies) from GitHub
-kpm install owner/repo@v1.2.0     # pin a tag, branch, or commit
+kpm install owner/repo@^1.2.0     # pin a tag/branch/commit, or a semver constraint
+kpm install gitlab.com/owner/repo # install from GitLab (also: gitlab:owner/repo, or a full URL)
 kpm list                          # what's installed
-kpm update owner --all            # reinstall the latest
+kpm update --all                  # re-resolve + reinstall (or `kpm update <name>...`)
 kpm remove name                   # uninstall
+kpm update-kpm                    # update kpm itself; `kpm update-ki` updates the interpreter binary
 ```
 
 Installed packages land in `~/.kirito/packages/<name>/` and are importable directly —
@@ -235,13 +237,13 @@ A package repository carries a `kirito.json` manifest at its root:
 ```
 
 `modules` are repo-relative `.ki` paths; `dependencies` are other `owner/repo` packages installed
-first. `kpm` is itself written in Kirito (`kpm/kpm.ki`) — it just uses the `net`, `json`, and `io`
-modules — so it doubles as a worked example.
+first. `kpm` is itself written in Kirito (`kpm/kpm.ki`) — it just uses the `net`, `json`, `io`, `sys`,
+and `semver` modules — so it doubles as a worked example.
 
 ## Repository structure
 
 ```
-src/kirito/        The interpreter — a header-only C++20 core (~38 headers). One umbrella header,
+src/kirito/        The interpreter — a header-only C++20 core (~50 headers). One umbrella header,
   kirito.hpp         pulls in everything: lexer, parser, AST, the bytecode compiler + stack VM, the
                      value/object model, the arena + mark-sweep GC, and the standard library
                      (the stdlib_*.hpp modules: io, math, complex, json, net, time, hash, …).
@@ -251,9 +253,9 @@ CMakePresets.json  and the test executables. Presets: debug / release / asan / t
 
 examples/          Sample `.ki` programs (RPN calculator, word count, todo, stats, …), plus:
   big_projects/      Large pure-Kirito programs that double as interpreter stress tests:
-                     kgrad (tensor/autodiff/neural nets), sqldb (a networked SQL database),
-                     webserver (an HTTP/1.1 server + routing framework), and selfhost
-                     (a Kirito interpreter written in Kirito).
+                     kgrad (tensor/autodiff/neural nets), imaging (a Pillow-style image + video
+                     library), sqldb (a concurrent networked SQL database), webserver (a concurrent
+                     HTTP/1.1 server + routing framework), and selfhost (a Kirito interpreter in Kirito).
   http_client/       A `net` HTTP-client app + server + Python test harness.
   data/              Sample datasets (e.g. iris.csv) used by the examples.
 

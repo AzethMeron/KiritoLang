@@ -3,8 +3,8 @@
 A small **PyTorch-like deep-learning library** (`lib/nn.ki`) written in pure Kirito on top of the
 native `tensor` module's reverse-mode autograd, plus **ten worked projects** that train real models on
 real, downloaded datasets. Everything — the layers, losses, optimizers, the conv, the data download
-and CSV/gzip parsing — is Kirito. Dimensions are kept small so each project trains in a few seconds in
-the tree-walking interpreter.
+and CSV/gzip parsing — is Kirito. Dimensions are kept small so each project trains in a few seconds on
+the Kirito interpreter.
 
 ## The library — `lib/nn.ki`
 

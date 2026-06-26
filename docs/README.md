@@ -24,5 +24,6 @@ code blocks (use ` ```kirito ` for Kirito syntax highlighting).
 - **Introduction / Getting Started / Embedding / Extending** — overview, build, C++ integration.
 - **Language Guide / Recipes** — syntax-and-semantics reference and task-oriented snippets.
 - **Builtins / Standard Library** — every built-in function, module, and method.
-- **Course 1–3** — a hands-on lesson path with explained sample projects (FizzBuzz, word-frequency
-  counter, RPN calculator).
+- **Packages & kpm** — installing, versioning, and publishing packages.
+- **Course** — a hands-on lesson path: 16 core lessons (editor setup → capstone) plus 6 bonus lessons
+  for specialized libraries (regex, CLI programs, tabular data, linear algebra, tensors/autograd).

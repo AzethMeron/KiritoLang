@@ -28,8 +28,9 @@ test_client.py     Python harness: launches the server, tests it over HTTP
 - **Robust errors**: a missing route is `404`, a wrong method `405`, a bad JSON body `400`, and any
   handler exception becomes a `500` — the accept loop never dies on a bad request.
 
-The server is single-process and serves one connection at a time, matching Kirito's no-threads
-model (the same shape as the sqldb server).
+The server is **concurrent**: a stateless pool of connection-worker VMs (via the `parallel` module)
+serves many clients at once, each worker owning its own read-only `App` (the same `parallel`
+foundation as the sqldb server, minus the shared-state owner since handlers are pure).
 
 ## Running
 
@@ -62,4 +63,4 @@ Demo routes: `GET /`, `GET /hello/:name[?loud=1]`, `GET /api/time`, `GET /api/ad
 
 - One request per connection (`Connection: close`); no keep-alive, chunked encoding, or HTTPS.
 - Static files are read in text mode, so binary assets (images) aren't byte-faithful yet.
-- Single-threaded: long handlers block other clients (Kirito has no concurrency).
+- The worker pool is fixed-size (`parallel.cpucount()` workers); there is no per-request thread.

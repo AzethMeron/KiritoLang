@@ -22,7 +22,7 @@ syn match   kiritoNumber  "\<0[oO]\o\+\>"
 syn match   kiritoNumber  "\<0[bB][01]\+\>"
 syn match   kiritoNumber  "\<\d\+\>"
 syn match   kiritoNumber  "\<\d\+\.\d\+\([eE][-+]\?\d\+\)\?\>"
-syn match   kiritoSpecial "\<_\(init\|str\|add\|sub\|mul\|div\|floordiv\|mod\|pow\|eq\|ne\|lt\|le\|gt\|ge\|neg\|not\|call\|getitem\|setitem\|len\|contains\|iter\|enter\|exit\|super\)_\>"
+syn match   kiritoSpecial "\<_\(init\|str\|add\|sub\|mul\|div\|floordiv\|mod\|pow\|eq\|ne\|lt\|le\|gt\|ge\|neg\|not\|call\|getitem\|setitem\|len\|contains\|iter\|enter\|exit\|super\|getstate\|setstate\)_\>"
 
 syn region  kiritoString  start=+"+ skip=+\\"+ end=+"+ contains=kiritoEscape
 syn region  kiritoFString matchgroup=kiritoString start=+f"+ skip=+\\"+ end=+"+ contains=kiritoEscape,kiritoInterp

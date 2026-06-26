@@ -56,7 +56,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <pre><code>$ ki hello.ki</code></pre>
 <h2 id="your-first-program">Your first program</h2>
 <p>Output lives in the <a class="xref" href="stdlib.html#io"><code>io</code></a> module. You bring a module into scope with <code>import</code>, binding it to a name — by convention the module&#x27;s own name:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 io.<span class="builtin">print</span>(<span class="str">&quot;Hello, Kirito!&quot;</span>)</code></pre>
 <p><a class="xref" href="course-13-files-io.html#sym-io.print"><code>io.print</code></a> writes its arguments separated by spaces and adds a newline. It accepts any number of values of any type:</p>
 <pre><code>io.<span class="builtin">print</span>(<span class="str">&quot;the answer is&quot;</span>, <span class="num">42</span>, <span class="str">&quot;and pi is about&quot;</span>, <span class="num">3.14159</span>)
@@ -69,13 +69,13 @@ io.<span class="builtin">print</span>(seconds_per_day)</code></pre>
 <h2 id="reading-command-line-arguments">Reading command-line arguments</h2>
 <p>Every file runs with two names automatically in scope: <strong><code>arglist</code></strong>, the list of arguments the program was launched with (<code>arglist[0]</code> is the first one — Kirito does not put the program name in it), and <strong><code>argmain</code></strong>, a Bool that is <code>True</code> when <em>this</em> file was run directly and <code>False</code> when it was loaded by another file via <code>import</code>.</p>
 <pre><code><span class="com"># greet.ki — run as:  ki greet.ki Ada</span>
-<span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">if</span> <span class="builtin">len</span>(arglist) &gt; <span class="num">0</span>:
     io.<span class="builtin">print</span>(f<span class="str">&quot;Hello, {arglist[0]}!&quot;</span>)
 <span class="kw">else</span>:
     io.<span class="builtin">print</span>(<span class="str">&quot;Hello, stranger! (pass a name on the command line)&quot;</span>)</code></pre>
 <p><code>argmain</code> lets a file act as both a reusable module <em>and</em> a runnable program — put the &quot;run me directly&quot; code behind <a class="xref" href="course-04-control-loops.html#sym-if"><code>if argmain:</code></a>, so it doesn&#x27;t fire when someone imports the file:</p>
-<pre><code><span class="kw">var</span> io = <span class="kw">import</span>(<span class="str">&quot;io&quot;</span>)
+<pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 
 <span class="kw">var</span> greet = <span class="kw">Function</span>(name):           <span class="com"># importable by other files</span>
     <span class="kw">return</span> f<span class="str">&quot;Hello, {name}!&quot;</span>

@@ -128,7 +128,7 @@ format(-42, "+06d")      # "-00042"    (sign + zero-pad)
   one. Useful for detecting aliasing/shared references.
 
 > `print` and `input` are **not** builtins — they live in the `io` module:
-> `import("io").print(...)`. See the [standard library](07-stdlib.md#io) reference.
+> `import("io").print(...)`. See the [standard library](stdlib.html#io) reference.
 
 ## Notes
 

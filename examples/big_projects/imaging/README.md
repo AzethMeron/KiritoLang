@@ -9,7 +9,7 @@ tensor operation rather than a per-pixel loop.
 It is both a useful library and a substantial example program — and building it surfaced and fixed a
 real interpreter bug (a GC-rooting gap in `tensor.tolist()` for Float tensors; see the repo history).
 
-> Performance note: this is a *tree-walking interpreter*, so work that is unavoidably per-pixel in
+> Performance note: this runs on the Kirito interpreter, so work that is unavoidably per-pixel in
 > Kirito (PNG un-filtering, `getpixel`/`putpixel` loops, histogram passes) is slow. Keep images
 > modest (a few hundred pixels per side). The heavy numeric paths — conversions, resizing, flips and
 > all the convolution filters — run through bulk tensor ops and stay fast.
@@ -34,7 +34,7 @@ ki examples/big_projects/imaging/test_imaging.ki   # the self-test (asserts; pri
 
 ```
 kirito.json        the kpm manifest (name/version/modules)
-imaging.ki         the Image class + new/open/save/fromtensor/merge/blend + PNG/PPM/BMP codecs
+imaging.ki         the Image class + new/open/save/fromtensor/merge/blend + PNG/PPM/PGM/BMP codecs
 imageops.ki        ImageOps: invert/grayscale/mirror/flip/posterize/solarize/autocontrast/equalize/...
 imagefilter.ki     ImageFilter: convolution kernels (BLUR/SHARPEN/...) + Gaussian/Box/rank filters
 imagedraw.ki       ImageDraw: point/line/rectangle/ellipse/polygon (mutating primitives)
@@ -50,6 +50,7 @@ testdata/          tiny committed MJPEG + GIF assets the video self-test decodes
 ## Quick start
 
 ```kirito
+var io = import("io")
 var Image = import("imaging")
 var ImageFilter = import("imagefilter")
 var ImageOps = import("imageops")
@@ -72,7 +73,7 @@ The module object *is* the `Image` namespace, so it reads just like `from PIL im
 |---|---|
 | `Image.new(mode, size[, color])` | a blank image; `mode` is `"L"`/`"RGB"`/`"RGBA"`, `size` is `[w, h]` |
 | `Image.open(path)` / `Image.frombytes(bytes)` | decode a file / an in-memory blob (format sniffed) |
-| `img.save(path[, format])` / `img.tobytes(format)` | encode as PNG/PPM/BMP (by extension or explicit) |
+| `img.save(path[, format])` / `img.tobytes(format)` | encode as PNG/PPM/PGM/BMP (by extension or explicit) |
 | `img.size` / `img.width` / `img.height` / `img.mode` | dimensions and pixel mode |
 | `img.getpixel([x, y])` / `img.putpixel([x, y], v)` | read / write one pixel (`putpixel` mutates) |
 | `img.convert(mode)` | `L`↔`RGB`↔`RGBA` (RGB→L uses Pillow's ITU-R 601-2 luma) |
@@ -175,7 +176,7 @@ socket. The surface mirrors OpenCV: `read`/`grab`/`retrieve`, `isopened`, `get`/
 `CAP_PROP_*` ids (random-access seek on file backends), `release`, and `for frame in cap`.
 
 > **What about MP4 / H.264 / RTSP?** Those are out of reach in pure Kirito: a real video codec
-> (H.264/HEVC) is far beyond a tree-walked script, and Kirito has no subprocess to delegate to ffmpeg
+> (H.264/HEVC) is far beyond a pure-Kirito script, and Kirito has no subprocess to delegate to ffmpeg
 > the way OpenCV's FFMPEG backend does. Transcode to MJPEG first and open that —
 > `ffmpeg -i in.mp4 -c:v mjpeg out.mjpeg`, or for a camera
 > `ffmpeg -rtsp_transport tcp -i rtsp://host/stream -c:v mjpeg out.mjpeg`. The MJPEG-over-HTTP backend
