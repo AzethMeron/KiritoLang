@@ -345,6 +345,10 @@ inline bool kiLessThan(KiritoVM& vm, Handle a, Handle b) {
                         // would otherwise overflow the native stack), exactly as kiEquals does for ==
     const Object& x = vm.arena().deref(a);
     const Object& y = vm.arena().deref(b);
+    // Two Integers compare exactly (the scalar `<` operator does); routing them through `double` would
+    // collapse int64 values beyond 2^53 and mis-order sort/sorted/min/max and List comparisons.
+    if (x.kind() == ValueKind::Integer && y.kind() == ValueKind::Integer)
+        return static_cast<const IntVal&>(x).value() < static_cast<const IntVal&>(y).value();
     if (isNumeric(x) && isNumeric(y)) return asDouble(x) < asDouble(y);
     if (x.kind() == ValueKind::String && y.kind() == ValueKind::String)
         return static_cast<const StrVal&>(x).value() < static_cast<const StrVal&>(y).value();
@@ -1022,6 +1026,18 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
     auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
         return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
     };
+    // Like `bind`, but enforces a minimum positional arity before the impl runs. makeMethod's
+    // positional fast path forwards the call args verbatim, so a method that dereferences a[0]/a[1]
+    // would read past an empty span on an under-arity call (UB / nondeterministic). Methods with a
+    // required leading argument use this so a missing arg is a clean, deterministic error.
+    auto bindReq = [&](std::string nm, std::size_t minArgs, std::vector<std::string> params, NativeFn fn) {
+        NativeFn guarded = [nm, minArgs, fn](KiritoVM& v, std::span<const Handle> a) -> Handle {
+            if (a.size() < minArgs)
+                throw KiritoError(nm + "() expected at least " + std::to_string(minArgs) + " argument(s)");
+            return fn(v, a);
+        };
+        return makeMethod(vm, nm, std::move(params), std::move(guarded), std::vector<Handle>{self});
+    };
     auto recv = [](KiritoVM& vm, Handle self) -> const std::string& {
         return static_cast<StrVal&>(vm.arena().deref(self)).value();
     };
@@ -1107,21 +1123,21 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         });
     }
     if (name == "startswith")
-        return bind("startswith", {"prefix", "start", "end"}, [self, recv, window](KiritoVM& vm, std::span<const Handle> a) {
+        return bindReq("startswith", 1, {"prefix", "start", "end"}, [self, recv, window](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& p = asStr(vm, a[0], "startswith");
             auto [lo, hi] = window(vm, a, 1, s);
             return vm.makeBool(lo + p.size() <= hi && s.compare(lo, p.size(), p) == 0);
         });
     if (name == "endswith")
-        return bind("endswith", {"suffix", "start", "end"}, [self, recv, window](KiritoVM& vm, std::span<const Handle> a) {
+        return bindReq("endswith", 1, {"suffix", "start", "end"}, [self, recv, window](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& p = asStr(vm, a[0], "endswith");
             auto [lo, hi] = window(vm, a, 1, s);
             return vm.makeBool(hi >= p.size() && hi - p.size() >= lo && s.compare(hi - p.size(), p.size(), p) == 0);
         });
     if (name == "replace")
-        return bind("replace", {"old", "new", "count"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+        return bindReq("replace", 2, {"old", "new", "count"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
             std::string s = recv(vm, self);
             const std::string& from = asStr(vm, a[0], "replace");
             const std::string& to = asStr(vm, a[1], "replace");
@@ -1162,7 +1178,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             return vm.makeString(std::move(s));
         });
     if (name == "count")
-        return bind("count", {"sub", "start", "end"}, [self, recv, window](KiritoVM& vm, std::span<const Handle> a) {
+        return bindReq("count", 1, {"sub", "start", "end"}, [self, recv, window](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& sub = asStr(vm, a[0], "count");
             auto [lo, hi] = window(vm, a, 1, s);
@@ -1182,7 +1198,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             return vm.makeInt(n);
         });
     if (name == "find")
-        return bind("find", {"sub", "start", "end"}, [self, recv, window, byteToCp](KiritoVM& vm, std::span<const Handle> a) {
+        return bindReq("find", 1, {"sub", "start", "end"}, [self, recv, window, byteToCp](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& sub = asStr(vm, a[0], "find");
             auto [lo, hi] = window(vm, a, 1, s);
@@ -1233,7 +1249,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             return vm.alloc(std::move(list));
         });
     if (name == "join")
-        return bind("join", {"iterable"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+        return bindReq("join", 1, {"iterable"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& sep = recv(vm, self);
             auto items = vm.arena().deref(a[0]).iterate(vm);
             std::string out;
@@ -1279,7 +1295,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         });
     // index(sub[, start[, end]]): like find but raises if not found.
     if (name == "index")
-        return bind("index", {"sub", "start", "end"}, [self, recv, window, byteToCp](KiritoVM& vm, std::span<const Handle> a) {
+        return bindReq("index", 1, {"sub", "start", "end"}, [self, recv, window, byteToCp](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& sub = asStr(vm, a[0], "index");
             auto [lo, hi] = window(vm, a, 1, s);
@@ -1289,7 +1305,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         });
     if (name == "rfind" || name == "rindex") {
         bool raise = name == "rindex";
-        return bind(std::string(name).c_str(), {"sub", "start", "end"}, [self, recv, raise, window, byteToCp](KiritoVM& vm, std::span<const Handle> a) {
+        return bindReq(std::string(name), 1, {"sub", "start", "end"}, [self, recv, raise, window, byteToCp](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& sub = asStr(vm, a[0], "rfind");
             auto [lo, hi] = window(vm, a, 1, s);
@@ -1338,14 +1354,14 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
     if (name == "isupper") return caseClassify("isupper", false);
     // removeprefix / removesuffix (Python 3.9).
     if (name == "removeprefix")
-        return bind("removeprefix", {"prefix"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+        return bindReq("removeprefix", 1, {"prefix"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& p = asStr(vm, a[0], "removeprefix");
             if (s.size() >= p.size() && s.compare(0, p.size(), p) == 0) return vm.makeString(s.substr(p.size()));
             return vm.makeString(s);
         });
     if (name == "removesuffix")
-        return bind("removesuffix", {"suffix"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
+        return bindReq("removesuffix", 1, {"suffix"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
             const std::string& p = asStr(vm, a[0], "removesuffix");
             if (!p.empty() && s.size() >= p.size() && s.compare(s.size() - p.size(), p.size(), p) == 0)
@@ -1389,7 +1405,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         });
     if (name == "partition" || name == "rpartition") {
         bool right = name == "rpartition";
-        return bind(std::string(name).c_str(), {"sep"}, [self, recv, right](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bindReq(std::string(name), 1, {"sep"}, [self, recv, right](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const std::string& s = recv(vm, self);
             const std::string& sep = asStr(vm, a[0], "partition");
             if (sep.empty()) throw KiritoError("empty separator");
@@ -1411,7 +1427,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
     // levenshtein(other): the Unicode (code-point) edit distance to another String -> Integer, or to
     // EACH String in a List -> a List of Integers (the source is decoded once, reused per candidate).
     if (name == "levenshtein")
-        return bind("levenshtein", {"other"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bindReq("levenshtein", 1, {"other"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::vector<uint32_t> src = strCodepoints(recv(vm, self));
             const Object& arg = vm.arena().deref(a[0]);
             if (arg.kind() == ValueKind::String)
@@ -2416,6 +2432,15 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
     std::string body, signStr;
     bool numeric = (o.kind() == ValueKind::Integer || o.kind() == ValueKind::Float || o.kind() == ValueKind::Bool);
 
+    // An empty presentation type formats by value kind, matching `String()` (Python's no-type rule):
+    // a Float uses general ('g') notation, a Bool stringifies to "True"/"False", an Integer stays
+    // decimal, and anything else stringifies. (Without this, an empty-type Float/Bool wrongly fell into
+    // the Integer branch below — `format(3.14)` raised and `format(True)` gave "1".)
+    if (type == 0) {
+        if (o.kind() == ValueKind::Float) type = 'g';
+        else if (o.kind() == ValueKind::Bool) type = 's';
+    }
+
     if (type == 's' || (type == 0 && !numeric)) {
         body = vm.stringify(value);
         if (precision >= 0 && static_cast<std::size_t>(precision) < utf8Length(body)) {
@@ -2426,6 +2451,13 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
     } else if (type == 'b' || type == 'o' || type == 'x' || type == 'X' || type == 'd' || type == 0) {
         if (o.kind() != ValueKind::Integer && o.kind() != ValueKind::Bool)
             throw KiritoError("format type '" + std::string(1, type ? type : 'd') + "' needs an Integer");
+        // Reject specs that an integer presentation cannot honor (Python does), rather than silently
+        // dropping them: a precision is meaningless for an integer, and ',' grouping needs base 10.
+        if (precision >= 0)
+            throw KiritoError("format: precision not allowed for integer type '" + std::string(1, type ? type : 'd') + "'");
+        int base0 = type == 'b' ? 2 : type == 'o' ? 8 : (type == 'x' || type == 'X') ? 16 : 10;
+        if (comma && base0 != 10)
+            throw KiritoError("format: ',' not allowed with format type '" + std::string(1, type) + "'");
         int64_t v = o.kind() == ValueKind::Bool ? (static_cast<const BoolVal&>(o).value() ? 1 : 0)
                                                 : static_cast<const IntVal&>(o).value();
         bool neg = v < 0;

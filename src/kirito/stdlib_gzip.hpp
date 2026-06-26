@@ -55,6 +55,11 @@ inline std::string decompress(const std::string& data) {
     std::size_t t = data.size() - 8;
     uint32_t want = b(t) | (b(t + 1) << 8) | (b(t + 2) << 16) | (static_cast<uint32_t>(b(t + 3)) << 24);
     if (deflate::crc32(out) != want) throw deflate::DeflateError("gzip: CRC-32 mismatch (corrupt stream)");
+    // Also verify the ISIZE trailer (uncompressed length mod 2^32), as gzip(1)/Python do — catches a
+    // truncation/corruption that leaves the CRC slot intact but the length field wrong.
+    uint32_t isize = b(t + 4) | (b(t + 5) << 8) | (b(t + 6) << 16) | (static_cast<uint32_t>(b(t + 7)) << 24);
+    if ((static_cast<uint32_t>(out.size()) & 0xFFFFFFFFu) != isize)
+        throw deflate::DeflateError("gzip: ISIZE mismatch (corrupt or truncated stream)");
     return out;
 }
 

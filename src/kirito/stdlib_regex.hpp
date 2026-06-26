@@ -167,7 +167,11 @@ inline std::vector<reng::MatchResult> allMatches(const reng::Program& p, const s
 inline std::string expandTemplate(KiritoVM& vm, const std::string& tmpl, const MatchVal& m,
                                   const std::string& subj, const std::vector<std::size_t>& starts) {
     auto groupText = [&](int g) -> std::string {
-        if (g < 0 || g > m.numGroups || m.slots[2 * g] < 0) return "";
+        // An out-of-range group number is a template error (Python raises "invalid group reference"),
+        // not a silent empty string; a group that exists but did not participate expands to "".
+        if (g < 0 || g > m.numGroups)
+            throw KiritoError("invalid group reference " + std::to_string(g) + " in replacement template");
+        if (m.slots[2 * g] < 0) return "";
         return cpSlice(subj, starts, m.slots[2 * g], m.slots[2 * g + 1]);
     };
     std::string out;

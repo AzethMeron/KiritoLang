@@ -1519,22 +1519,20 @@ inline Handle TensorVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
             });
         }
     }
+    if (keys.size() > ndim()) throw KiritoError("too many indices for tensor");
+    const tensor::Shape& sh = shape();
     tensor::Shape idx;
-    for (Handle k : keys) {
-        const Object& o = vm.arena().deref(k);
+    for (std::size_t i = 0; i < keys.size(); ++i) {
+        const Object& o = vm.arena().deref(keys[i]);
         if (o.kind() != ValueKind::Integer) throw KiritoError("Tensor index must be Integer");
         int64_t v = static_cast<const IntVal&>(o).value();
-        if (v < 0) throw KiritoError("Tensor index out of range");
+        if (v < 0) v += static_cast<int64_t>(sh[i]);   // Python/NumPy negative indexing (consistent with slicing)
+        if (v < 0 || v >= static_cast<int64_t>(sh[i])) throw KiritoError("Tensor index out of range");
         idx.push_back(static_cast<std::size_t>(v));
     }
-    if (idx.size() > ndim()) throw KiritoError("too many indices for tensor");
-    const tensor::Shape& sh = shape();
     tensor::Shape st = tensor::rowMajorStrides(sh);
     std::size_t off = 0;
-    for (std::size_t i = 0; i < idx.size(); ++i) {
-        if (idx[i] >= sh[i]) throw KiritoError("Tensor index out of range");
-        off += idx[i] * st[i];
-    }
+    for (std::size_t i = 0; i < idx.size(); ++i) off += idx[i] * st[i];
     if (idx.size() == ndim()) {  // a single element -> a scalar value
         if (isComplex()) return cpx::make(vm, std::get<CT>(store).data[off]);
         return vm.makeFloat(std::get<FT>(store).data[off]);
@@ -1552,12 +1550,14 @@ inline Handle TensorVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
 
 inline void TensorVal::setItem(KiritoVM& vm, std::span<const Handle> keys, Handle value) {
     if (keys.size() != ndim()) throw KiritoError("Tensor element assignment needs a full index (one per dimension)");
+    const tensor::Shape& sh = shape();
     tensor::Shape idx;
-    for (Handle k : keys) {
-        const Object& o = vm.arena().deref(k);
+    for (std::size_t i = 0; i < keys.size(); ++i) {
+        const Object& o = vm.arena().deref(keys[i]);
         if (o.kind() != ValueKind::Integer) throw KiritoError("Tensor index must be Integer");
         int64_t v = static_cast<const IntVal&>(o).value();
-        if (v < 0) throw KiritoError("Tensor index out of range");
+        if (v < 0) v += static_cast<int64_t>(sh[i]);   // Python/NumPy negative indexing
+        if (v < 0 || v >= static_cast<int64_t>(sh[i])) throw KiritoError("Tensor index out of range");
         idx.push_back(static_cast<std::size_t>(v));
     }
     if (isComplex()) std::get<CT>(store).at(idx) = cpx::asComplex(vm, value, "Tensor element");
@@ -1861,8 +1861,10 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     // autograd-aware slice / gather (these carry the self-handle, unlike the [] protocol)
     if (name == "slice") return bind("slice", {"start", "stop", "step", "axis"}, [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         auto& t = self_t(vm, self);
-        std::size_t axis = (a.size() > 3 && vm.arena().deref(a[3]).kind() != ValueKind::None) ? static_cast<std::size_t>(Value(vm, a[3]).asInt("axis")) : 0;
-        if (axis >= t.ndim()) throw KiritoError("slice axis out of range");
+        int64_t ax = (a.size() > 3 && vm.arena().deref(a[3]).kind() != ValueKind::None) ? Value(vm, a[3]).asInt("axis") : 0;
+        if (ax < 0) ax += static_cast<int64_t>(t.ndim());   // NumPy-style negative axis (consistent with take/reductions)
+        if (ax < 0 || ax >= static_cast<int64_t>(t.ndim())) throw KiritoError("slice axis out of range");
+        std::size_t axis = static_cast<std::size_t>(ax);
         Handle sH = a.size() > 0 ? a[0] : vm.none();
         Handle eH = a.size() > 1 ? a[1] : vm.none();
         Handle stH = a.size() > 2 ? a[2] : vm.none();

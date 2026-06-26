@@ -99,12 +99,18 @@ inline cdouble asComplex(KiritoVM& vm, Handle h, const char* who = "Complex") {
 
 inline Handle make(KiritoVM& vm, cdouble z) { return vm.alloc(std::make_unique<ComplexVal>(z)); }
 
-// Reject the one true singularity of complex exponentiation: zero raised to a negative or non-real
-// power (std::pow would emit inf/nan). Matches Python's `0j ** -1` / `0j ** 1j` -> ZeroDivisionError
-// and Kirito's own `complex` division-by-zero guard. Other bases/powers are well-defined.
+// Complex exponentiation with the singularities handled like Python/numpy: zero to a negative or
+// non-real power raises (`0j ** -1` / `0j ** 1j` -> ZeroDivisionError; std::pow would emit inf/nan),
+// while `0 ** 0 == 1` (matching Kirito's scalar `0 ** 0` and Python `0j ** 0`; std::pow gives nan).
+// Other bases/powers are well-defined and go straight through std::pow.
 inline void checkPow(cdouble base, cdouble exp) {
     if (base == cdouble(0.0, 0.0) && (exp.real() < 0.0 || exp.imag() != 0.0))
         throw KiritoError("complex pow: zero to a negative or complex power");
+}
+inline cdouble cpow(cdouble base, cdouble exp) {
+    checkPow(base, exp);
+    if (base == cdouble(0.0, 0.0) && exp == cdouble(0.0, 0.0)) return cdouble(1.0, 0.0);  // 0 ** 0 == 1
+    return std::pow(base, exp);
 }
 
 }  // namespace cpx
@@ -121,7 +127,7 @@ inline Handle ComplexVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
         case BinOp::Div:
             if (b == cdouble(0.0, 0.0)) throw KiritoError("complex division by zero");
             return cpx::make(vm, z / b);
-        case BinOp::Pow: cpx::checkPow(z, b); return cpx::make(vm, std::pow(z, b));
+        case BinOp::Pow: return cpx::make(vm, cpx::cpow(z, b));
         case BinOp::Eq: return vm.makeBool(z == b);   // EXACT (std::complex::==); .compare() for tolerance
         case BinOp::Ne: return vm.makeBool(z != b);
         default: break;
@@ -582,9 +588,8 @@ public:
         // pow(z, w) and a cube root (no std::cbrt for complex; use the principal value). Zero raised
         // to a negative or non-real power is a singularity (Python raises ZeroDivisionError there).
         m.fn("pow", {{"z"}, {"w"}}, "Complex", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            cdouble z = cpx::asComplex(vm, a[0]), w = cpx::asComplex(vm, a[1]);
-            cpx::checkPow(z, w);
-            return cpx::make(vm, std::pow(z, w));
+            if (a.size() != 2) throw KiritoError("complex.pow expects 2 arguments");
+            return cpx::make(vm, cpx::cpow(cpx::asComplex(vm, a[0]), cpx::asComplex(vm, a[1])));
         });
         m.fn("cbrt", {{"z"}}, "Complex", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             return cpx::make(vm, std::pow(cpx::asComplex(vm, a[0]), cdouble(1.0 / 3.0, 0.0)));

@@ -2,6 +2,7 @@
 #define KIRITO_STDLIB_TIME_HPP
 
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <ctime>
@@ -316,8 +317,16 @@ public:
                 secs = duration_cast<seconds>(system_clock::now().time_since_epoch()).count();
             else if (args[0].isInt())
                 secs = args[0].asInt("datetime timestamp");   // exact: an Integer epoch must not lose precision via double
-            else
-                secs = static_cast<int64_t>(args[0].asFloat("datetime timestamp"));
+            else {
+                // Casting a non-finite or out-of-range double to int64 is UB (and GCC's -fsanitize=undefined
+                // does not flag float-cast-overflow), so guard before the cast — like math.floor/ceil.
+                double d = args[0].asFloat("datetime timestamp");
+                if (std::isnan(d)) throw KiritoError("datetime: cannot convert NaN to a timestamp");
+                if (std::isinf(d)) throw KiritoError("datetime: cannot convert infinity to a timestamp");
+                if (d >= 9223372036854775808.0 || d < -9223372036854775808.0)
+                    throw KiritoError("datetime: timestamp out of representable range");
+                secs = static_cast<int64_t>(d);
+            }
             return vm.alloc(std::make_unique<DateTime>(secs));
         });
 

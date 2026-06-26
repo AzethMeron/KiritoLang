@@ -129,7 +129,7 @@ public:
 
     std::vector<std::string> inspectMembers() const override {
         return {"read(size) -> String", "readline() -> String", "readlines() -> List",
-                "write(data)", "writelines(lines)", "seek(offset, whence)", "tell() -> Integer",
+                "write(data)", "writelines(lines)", "seek(offset, whence) -> Integer", "tell() -> Integer",
                 "flush()", "close()"};
     }
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override {
@@ -198,8 +198,10 @@ public:
         if (name == "seek")
             return bind("seek", {"offset", "whence"}, [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 file(vm, self).requireOpen();
+                if (a.empty()) throw KiritoError("seek expects an offset");
                 int64_t off = argInt(vm, a[0], "seek");
                 int64_t whence = (a.size() > 1) ? argInt(vm, a[1], "seek") : 0;  // 0=set, 1=cur, 2=end
+                if (whence < 0 || whence > 2) throw KiritoError("seek: whence must be 0 (set), 1 (cur), or 2 (end)");
                 auto& s = file(vm, self).stream;
                 s.clear();
                 // Resolve to an ABSOLUTE target first, then position both pointers there. An fstream's
@@ -286,12 +288,9 @@ public:
         if (name == "read")
             return bind("read", {"size"}, [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 std::optional<std::size_t> n;
-                if (!a.empty()) {
-                    const Object& o = vm.arena().deref(a[0]);
-                    if (o.kind() == ValueKind::Integer) {
-                        int64_t want = static_cast<const IntVal&>(o).value();
-                        if (want >= 0) n = static_cast<std::size_t>(want);
-                    }
+                if (!a.empty() && vm.arena().deref(a[0]).kind() != ValueKind::None) {
+                    int64_t want = argInt(vm, a[0], "read");   // raise on a non-Integer size, not silently read-all
+                    if (want >= 0) n = static_cast<std::size_t>(want);
                 }
                 return vm.makeString(io(vm, self).streamRead(n));
             });
@@ -312,8 +311,10 @@ public:
         if (name == "seek")
             return bind("seek", {"offset", "whence"}, [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 auto& b = io(vm, self);
+                if (a.empty()) throw KiritoError("seek expects an offset");
                 int64_t off = argInt(vm, a[0], "seek");
                 int whence = a.size() > 1 ? static_cast<int>(argInt(vm, a[1], "seek")) : 0;
+                if (whence < 0 || whence > 2) throw KiritoError("seek: whence must be 0 (set), 1 (cur), or 2 (end)");
                 int64_t base = whence == 1 ? static_cast<int64_t>(b.pos)
                              : whence == 2 ? static_cast<int64_t>(b.buf.size()) : 0;
                 int64_t np = base + off;

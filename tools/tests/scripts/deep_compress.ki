@@ -131,13 +131,17 @@ assert throws(Function(): return gzip.decompress(zlib.compress(Bytes([1, 2, 3]))
 # inflate (raw) cannot read a zlib stream (the 2-byte header derails it)
 assert throws(Function(): return zlib.inflate(zlib.compress("abc"))), "inflate rejects zlib stream"
 
-# --- DOCUMENTED-VS-ACTUAL: gzip ISIZE (uncompressed-length) trailer is NOT validated. ---
-# A strict gunzip(1) verifies the last 4 bytes equal the inflated length; Kirito's gzip.decompress
-# checks only the CRC-32, so a stream with all-wrong ISIZE bytes still decompresses (CRC still guards
-# integrity, so this is lax validation, not silent corruption). Pin the real behavior.
+# --- gzip ISIZE (uncompressed-length) trailer IS validated, like a strict gunzip(1). ---
+# gzip.decompress verifies both the CRC-32 and the final 4-byte ISIZE field, so a stream with a
+# corrupt ISIZE is rejected rather than silently accepted.
 var giorig = gzip.compress(Bytes("payload".encode()))
 var gio = giorig[0:len(giorig)-4] + Bytes([255, 255, 255, 255])
-assert gzip.decompress(gio) == Bytes("payload".encode()), "gzip ignores a corrupt ISIZE trailer (lax)"
+var isize_raised = False
+try:
+    discard gzip.decompress(gio)
+catch as e:
+    isize_raised = True
+assert isize_raised, "gzip rejects a corrupt ISIZE trailer"
 
 # =============================================================================================
 # 5. hash — KNOWN VECTORS + String/Bytes agreement + determinism + lengths

@@ -610,6 +610,14 @@ var decode = Function(s):
         if bits >= 8:
             bits = bits - 8
             out.append((buffer // (2 ** bits)) % 256)
+    # A canonical base64 stream leaves no usable bits over: 6 leftover bits means a lone trailing
+    # character (an invalid length), and any non-zero leftover bits mean a truncated/corrupted input.
+    # Reject both rather than silently dropping data (Python's base64 raises here too). Padding-less but
+    # otherwise-valid input has zero leftover bits and still decodes.
+    if bits == 6:
+        throw "invalid base64: a lone trailing character (invalid length)"
+    if bits > 0 and buffer % (2 ** bits) != 0:
+        throw "invalid base64: truncated or corrupted input"
     return out
 
 # URL-safe variant: '+' -> '-', '/' -> '_'. Encodes/decodes by translating to/from the standard form.

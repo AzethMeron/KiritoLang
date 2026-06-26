@@ -34,7 +34,7 @@ var du = inspect(dump.dumps([1, 2, 3]))      # the binary blob is now Bytes
 assert "Bytes object:" in du and "decode(encoding) -> String" in du and "hex() -> String" in du, "Bytes blob members"
 
 var sk = inspect(net.Socket())
-assert "Socket object:" in sk and "connect(host, port)" in sk and "recv(size) -> Bytes" in sk, "Socket members"
+assert "Socket object:" in sk and "connect(host, port)" in sk and "recv(n) -> Bytes" in sk, "Socket members"
 
 # --- a frozen-source (Kirito) module exposes its API, not the injected arglist/argmain env bindings ---
 var cins = inspect(import("copy"))

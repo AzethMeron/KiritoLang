@@ -56,7 +56,7 @@ class SocketVal : public NativeClass<SocketVal> {
 public:
     static constexpr const char* kTypeName = "Socket";
     std::vector<std::string> inspectMembers() const override {
-        return {"connect(host, port)", "bind(host, port)", "listen(backlog)", "accept() -> Socket", "send(data) -> Integer", "recv(size) -> Bytes", "recvall() -> Bytes", "settimeout(seconds)", "close()", "detach() -> Integer"};
+        return {"connect(host, port)", "bind(host, port)", "listen(backlog)", "accept() -> Socket", "send(data) -> Integer", "recv(n) -> Bytes", "recvall() -> Bytes", "settimeout(seconds)", "close()", "detach() -> Integer"};
     }
     netcompat::socket_t fd = netcompat::kInvalidSocket;
     bool closed = false;
@@ -242,6 +242,10 @@ inline UrlParts splitUrl(const std::string& url) {
     std::size_t slash = rest.find('/');
     std::string hostport = slash == std::string::npos ? rest : rest.substr(0, slash);
     p.path = slash == std::string::npos ? "" : rest.substr(slash);
+    // Strip any "user:pass@" userinfo so it doesn't mangle host/port (Python's urlsplit excludes
+    // userinfo from hostname/port). The authority host is everything after the LAST '@'.
+    std::size_t at = hostport.rfind('@');
+    if (at != std::string::npos) hostport = hostport.substr(at + 1);
     // IPv6 literals are bracketed: `[::1]:8080`. Keep the brackets in `host`; the port (if any)
     // is the `:NNNN` after `]`. Without this the plain `find(':')` would split the address itself.
     if (!hostport.empty() && hostport[0] == '[') {
@@ -829,11 +833,23 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     auto bind = [&](const char* nm, std::vector<std::string> params, NativeFn fn) {
         return makeMethod(vm, nm, std::move(params), std::move(fn), std::vector<Handle>{self});
     };
+    // bind + a minimum-arity guard: makeMethod's positional path forwards the call args verbatim, so a
+    // method that dereferences a[0]/a[1] would read past an empty span on an under-arity call (UB — and
+    // socket.send() would transmit whatever that stale slot pointed at). Methods with required leading
+    // args use this so a missing arg is a clean error before any deref.
+    auto bindReq = [&](std::string nm, std::size_t minArgs, std::vector<std::string> params, NativeFn fn) {
+        NativeFn guarded = [nm, minArgs, fn](KiritoVM& v, std::span<const Handle> a) -> Handle {
+            if (a.size() < minArgs)
+                throw KiritoError(nm + "() expected at least " + std::to_string(minArgs) + " argument(s)");
+            return fn(v, a);
+        };
+        return makeMethod(vm, nm, std::move(params), std::move(guarded), std::vector<Handle>{self});
+    };
     auto sock = [](KiritoVM& vm, Handle self) -> SocketVal& {
         return static_cast<SocketVal&>(vm.arena().deref(self));
     };
     if (name == "connect")
-        return bind("connect", {"host", "port"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bindReq("connect", 2, {"host", "port"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto& s = sock(vm, self);
             sockaddr_in addr{};
             int64_t port = asInt(vm, a[1]);
@@ -845,7 +861,7 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             return vm.none();
         });
     if (name == "bind")
-        return bind("bind", {"host", "port"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bindReq("bind", 2, {"host", "port"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto& s = sock(vm, self);
             int yes = 1;
             ::setsockopt(s.fd, SOL_SOCKET, SO_REUSEADDR,
@@ -887,7 +903,7 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             return vm.alloc(std::make_unique<SocketVal>(c));
         });
     if (name == "send")
-        return bind("send", {"data"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bindReq("send", 1, {"data"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             // Accept a String or Bytes (Python-style): text callers pass a String, binary callers Bytes.
             Object& o = vm.arena().deref(a[0]);
             std::string data;
@@ -898,7 +914,7 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             return vm.makeInt(static_cast<int64_t>(data.size()));
         });
     if (name == "recv")
-        return bind("recv", {"size"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bind("recv", {"n"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {  // param `n` matches the docs (recv([n]))
             int64_t reqN = a.empty() ? 4096 : asInt(vm, a[0]);
             if (reqN < 0) throw KiritoError("recv size must be non-negative");
             std::size_t n = static_cast<std::size_t>(std::min<int64_t>(reqN, 64ll * 1024 * 1024));  // cap the buffer; recv returns <= size anyway
@@ -913,7 +929,7 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
             return vm.alloc(std::make_unique<BytesVal>(net::recvAll(sock(vm, self).fd)));
         });
     if (name == "settimeout")
-        return bind("settimeout", {"seconds"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bindReq("settimeout", 1, {"seconds"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const Object& t = vm.arena().deref(a[0]);
             double secs = t.kind() == ValueKind::Float
                               ? static_cast<const FloatVal&>(t).value()
@@ -969,6 +985,7 @@ inline Handle ResponseVal::getAttr(KiritoVM& vm, Handle self, std::string_view n
     if (name == "header")
         return bind("header", {"name", "default"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             auto& r = static_cast<ResponseVal&>(vm.arena().deref(self));
+            if (a.empty()) throw KiritoError("header() expected at least 1 argument (the header name)");
             std::string want = net::asciiLower(argString(vm, a[0], "header"));
             const DictVal& hd = static_cast<const DictVal&>(vm.arena().deref(r.headersH));
             for (Handle k : hd.keys())

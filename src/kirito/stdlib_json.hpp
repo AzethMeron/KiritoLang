@@ -237,6 +237,18 @@ inline void escapeString(const std::string& s, std::string& out) {
     out += '"';
 }
 
+// JSON-canonical text for a dict key (object keys must be strings). Bool/None keys use JSON's
+// `true`/`false`/`null` (not Kirito's `"True"`/`"None"`, which would not round-trip); other non-string
+// scalars use their str() text. (Non-string keys already sit outside strict JSON, but at least emit
+// the canonical tokens so a Bool/None key is valid JSON.)
+inline void writeJsonKey(KiritoVM& vm, Handle k, std::string& out) {
+    const Object& ko = vm.arena().deref(k);
+    if (ko.kind() == ValueKind::String) { escapeString(static_cast<const StrVal&>(ko).value(), out); return; }
+    if (ko.kind() == ValueKind::Bool) { escapeString(static_cast<const BoolVal&>(ko).value() ? "true" : "false", out); return; }
+    if (ko.kind() == ValueKind::None) { escapeString("null", out); return; }
+    escapeString(vm.stringify(k), out);
+}
+
 // JSON float text. Finite values use the SHORTEST round-tripping form (so dumps->loads recovers the
 // exact double — important now that Float == is exact; the lossy display %.15g would not survive the
 // cycle). Non-finite values use the Python-`json` spelling (NaN / Infinity / -Infinity) which our
@@ -272,9 +284,7 @@ inline void write(KiritoVM& vm, Handle h, std::string& out, fum::unordered_set<c
         for (Handle k : d.keys()) {
             if (!first) out += ", ";
             first = false;
-            const Object& ko = vm.arena().deref(k);
-            if (ko.kind() == ValueKind::String) escapeString(static_cast<const StrVal&>(ko).value(), out);
-            else escapeString(vm.stringify(k), out);  // non-string keys become strings, JSON-style
+            writeJsonKey(vm, k, out);
             out += ": ";
             write(vm, *d.find(vm.arena(), k), out, active);
         }
@@ -322,9 +332,7 @@ inline void writeIndented(KiritoVM& vm, Handle h, std::string& out,
             if (!first) out += ",\n";
             first = false;
             out += pad;
-            const Object& ko = vm.arena().deref(k);
-            if (ko.kind() == ValueKind::String) escapeString(static_cast<const StrVal&>(ko).value(), out);
-            else escapeString(vm.stringify(k), out);
+            writeJsonKey(vm, k, out);
             out += ": ";
             writeIndented(vm, *d.find(vm.arena(), k), out, active, indent, depth + 1);
         }
