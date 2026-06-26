@@ -698,7 +698,7 @@ if argmain:
                 cmdVersion()
             case "update-kpm", "self-update", "selfupdate":
                 cmdSelfUpdate(rest)
-            case "update-ki", 'upgrade-ki", "upgrade-kirito", "self-upgrade":
+            case "update-ki", "upgrade-ki", "upgrade-kirito", "self-upgrade":
                 cmdUpgradeKi(rest)
             case "help", "-h", "--help":
                 usage()
