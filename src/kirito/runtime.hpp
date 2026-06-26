@@ -1103,7 +1103,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         });
     // apply(fn) — a new String with `fn` applied to each character (fn takes/returns a String).
     if (name == "apply")
-        return bind("apply", {"fn"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        return bindReq("apply", 1, {"fn"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Handle fn = a[0];
             std::string s = recv(vm, self);                  // copy: immutable, GC-safe across calls
             std::vector<std::size_t> starts = utf8Starts(s);

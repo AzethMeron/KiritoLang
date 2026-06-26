@@ -160,6 +160,7 @@ public:
             });
         if (name == "_setstate_")
             return bind("_setstate_", {"state"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                requireArgs(a, 1, "_setstate_");
                 KiritoDispatcher& d = requireDispatcher(vm, "parallel.Queue");
                 auto& qv = static_cast<QueueVal&>(vm.arena().deref(self));
                 qv.q = d.queueById(static_cast<uint64_t>(argInt(vm, a[0], "Queue _setstate_")));
@@ -262,6 +263,7 @@ public:
             });
         if (name == "_setstate_")
             return bind("_setstate_", {"state"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                requireArgs(a, 1, "_setstate_");
                 KiritoDispatcher& d = requireDispatcher(vm, "parallel.Lock");
                 auto& lv = static_cast<LockVal&>(vm.arena().deref(self));
                 lv.lock = d.lockById(static_cast<uint64_t>(argInt(vm, a[0], "Lock _setstate_")));
@@ -317,6 +319,7 @@ public:
             });
         if (name == "_setstate_")
             return bind("_setstate_", {"state"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                requireArgs(a, 1, "_setstate_");
                 KiritoDispatcher& d = requireDispatcher(vm, "parallel.Event");
                 auto& v = static_cast<EventVal&>(vm.arena().deref(self));
                 v.event = d.eventById(static_cast<uint64_t>(argInt(vm, a[0], "Event _setstate_")));
@@ -375,6 +378,7 @@ public:
             });
         if (name == "_setstate_")
             return bind("_setstate_", {"state"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                requireArgs(a, 1, "_setstate_");
                 KiritoDispatcher& d = requireDispatcher(vm, "parallel.Semaphore");
                 auto& v = static_cast<SemaphoreVal&>(vm.arena().deref(self));
                 v.sem = d.semaphoreById(static_cast<uint64_t>(argInt(vm, a[0], "Semaphore _setstate_")));
@@ -434,6 +438,7 @@ public:
             });
         if (name == "_setstate_")
             return bind("_setstate_", {"state"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                requireArgs(a, 1, "_setstate_");
                 KiritoDispatcher& d = requireDispatcher(vm, "parallel.Barrier");
                 auto& v = static_cast<BarrierVal&>(vm.arena().deref(self));
                 v.bar = d.barrierById(static_cast<uint64_t>(argInt(vm, a[0], "Barrier _setstate_")));

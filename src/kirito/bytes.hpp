@@ -303,6 +303,7 @@ inline Handle BytesVal::getAttr(KiritoVM& vm, Handle self, std::string_view name
     // apply(fn) — a new Bytes with `fn` applied to each byte (fn takes/returns an Integer 0..255).
     if (name == "apply")
         return makeMethod(vm, "apply", {"fn"}, [self, self_b](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("apply expects a function");
             Handle fn = a[0];
             std::string src = self_b(vm, self).data;
             std::string out;
@@ -322,6 +323,7 @@ inline Handle BytesVal::getAttr(KiritoVM& vm, Handle self, std::string_view name
         }, std::vector<Handle>{self});
     if (name == "_setstate_")
         return makeMethod(vm, "_setstate_", {"state"}, [self, self_b](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            if (a.empty()) throw KiritoError("_setstate_ expects the serialized state");
             self_b(vm, self).data = bytesutil::encode(Value(vm, a[0]).asString("Bytes state"), "latin-1");
             return vm.none();
         }, std::vector<Handle>{self});

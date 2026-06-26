@@ -57,7 +57,11 @@ inline Shape broadcastShapes(const Shape& a, const Shape& b) {
     for (std::size_t i = 0; i < n; ++i) {
         std::size_t da = i + a.size() < n ? 1 : a[i + a.size() - n];
         std::size_t db = i + b.size() < n ? 1 : b[i + b.size() - n];
-        if (da == db || da == 1 || db == 1) out[i] = std::max(da, db);
+        // A size-1 axis broadcasts to the other extent — including 0: NumPy makes (1)·(0) -> 0, so a
+        // zero-length axis wins (`std::max` would wrongly pick 1 and then index an empty buffer -> UB).
+        if (da == db) out[i] = da;
+        else if (da == 1) out[i] = db;
+        else if (db == 1) out[i] = da;
         else throw TensorError("tensors are not broadcastable to a common shape");
     }
     return out;

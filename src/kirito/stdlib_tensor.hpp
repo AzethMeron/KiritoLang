@@ -1636,6 +1636,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     if (name == "size") return bind("size", {}, [self, self_t](KiritoVM& vm, std::span<const Handle>) { return vm.makeInt(static_cast<int64_t>(self_t(vm, self).size())); });
     if (name == "dtype") return bind("dtype", {}, [self, self_t](KiritoVM& vm, std::span<const Handle>) { return vm.makeString(self_t(vm, self).dtypeName()); });
     if (name == "reshape") return bind("reshape", {"shape"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "reshape");
         tensor::Shape ns = tns::readShape(Value(vm, a[0]));
         return tns::wrap([&]() { return tns::g_reshape(vm, self, ns); });
     });
@@ -1643,6 +1644,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return tns::wrap([&]() { return tns::g_transpose(vm, self); });
     });
     if (name == "permute") return bind("permute", {"axes"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "permute");
         tensor::Shape ax = tns::readShape(Value(vm, a[0]));
         return tns::wrap([&]() { return tns::g_permute(vm, self, ax); });
     });
@@ -1650,6 +1652,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return tns::wrap([&]() { return tns::g_flatten(vm, self); });
     });
     if (name == "apply") return bind("apply", {"fn"}, [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "apply");
         Handle fn = a[0];
         auto& t = self_t(vm, self);
         tns::warnDetach(vm, "apply()", t);
@@ -1670,6 +1673,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return tns::make(vm, std::move(out));
     });
     if (name == "astype") return bind("astype", {"dtype"}, [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "astype");
         auto& t = self_t(vm, self);
         tns::warnDetach(vm, "astype()", t);
         bool toComplex = tns::wantsComplex(vm, a[0]);
@@ -1684,11 +1688,13 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return tns::make(vm, std::move(out));
     });
     if (name == "matmul") return bind("matmul", {"other"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "matmul");
         const auto* o = dynamic_cast<const TensorVal*>(&vm.arena().deref(a[0]));
         if (!o) throw KiritoError("matmul expects a Tensor");
         return tns::wrap([&]() { return tns::g_matmul(vm, self, a[0]); });
     });
     if (name == "dot") return bind("dot", {"other"}, [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "dot");
         auto& t = self_t(vm, self);
         const auto* o = dynamic_cast<const TensorVal*>(&vm.arena().deref(a[0]));
         if (!o) throw KiritoError("dot expects a Tensor");
@@ -1775,6 +1781,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         if (auto it = kCmp.find(std::string(name)); it != kCmp.end()) {
             BinOp cop = it->second;
             return bind(std::string(name).c_str(), {"other"}, [self, cop](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                requireArgs(a, 1, "comparison");
                 const FT& x = tns::reqFloat(tns::asT(vm, self), "comparison");
                 return tns::wrap([&]() -> Handle {
                     const auto* o = dynamic_cast<const TensorVal*>(&vm.arena().deref(a[0]));
@@ -1787,6 +1794,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     if (name == "logicaland" || name == "logicalor" || name == "logicalxor") {
         std::string nm(name);
         return bind(nm.c_str(), {"other"}, [self, nm](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            requireArgs(a, 1, nm.c_str());
             const FT& x = tns::reqFloat(tns::asT(vm, self), "logical op");
             const auto* o = dynamic_cast<const TensorVal*>(&vm.arena().deref(a[0]));
             if (!o) throw KiritoError("logical op expects a Tensor");
@@ -1808,12 +1816,14 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
     if (name == "maximum" || name == "minimum") {
         bool isMax = name == "maximum";
         return bind(isMax ? "maximum" : "minimum", {"other"}, [self, isMax](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            requireArgs(a, 1, isMax ? "maximum" : "minimum");
             const auto* o = dynamic_cast<const TensorVal*>(&vm.arena().deref(a[0]));
             if (!o) throw KiritoError("maximum/minimum expects a Tensor");
             return tns::wrap([&]() { return tns::g_maxmin(vm, self, a[0], isMax); });
         });
     }
     if (name == "clip") return bind("clip", {"lo", "hi"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 2, "clip");
         double lo = Value(vm, a[0]).asFloat("lo"), hi = Value(vm, a[1]).asFloat("hi");
         return tns::wrap([&]() { return tns::g_clip(vm, self, lo, hi); });
     });
@@ -1823,10 +1833,12 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return tns::wrap([&]() { return tns::g_squeeze(vm, self, axis); });
     });
     if (name == "expanddims") return bind("expanddims", {"axis"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "expanddims");
         int64_t axis = Value(vm, a[0]).asInt("axis");
         return tns::wrap([&]() { return tns::g_expandDims(vm, self, axis); });
     });
     if (name == "swapaxes") return bind("swapaxes", {"axis1", "axis2"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 2, "swapaxes");
         int64_t a1 = Value(vm, a[0]).asInt("axis1"), a2 = Value(vm, a[1]).asInt("axis2");
         return tns::wrap([&]() { return tns::g_swapaxes(vm, self, a1, a2); });
     });
@@ -1835,10 +1847,12 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return tns::wrap([&]() { return tns::g_flip(vm, self, axis); });
     });
     if (name == "broadcastto") return bind("broadcastto", {"shape"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "broadcastto");
         tensor::Shape ns = tns::readShape(Value(vm, a[0]));
         return tns::wrap([&]() { return tns::g_broadcastToShape(vm, self, ns); });
     });
     if (name == "repeat") return bind("repeat", {"count", "axis"}, [self, self_t, axisOf](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "repeat");
         int64_t count = Value(vm, a[0]).asInt("count");
         if (count < 0) throw KiritoError("repeat count must be non-negative");
         tns::warnDetach(vm, "repeat()", self_t(vm, self));
@@ -1850,6 +1864,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         });
     });
     if (name == "tile") return bind("tile", {"reps"}, [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "tile");
         tensor::Shape reps = tns::readShape(Value(vm, a[0]));
         auto& t = self_t(vm, self);
         tns::warnDetach(vm, "tile()", t);
@@ -1970,6 +1985,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return st.build().handle();
     });
     if (name == "_setstate_") return bind("_setstate_", {"state"}, [self, self_t](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "_setstate_");
         auto& t = self_t(vm, self);
         auto items = Value(vm, a[0]).items();
         if (items.size() < 3) throw KiritoError("Tensor _setstate_: malformed state");
@@ -1994,6 +2010,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return vm.none();
     });
     if (name == "pow") return bind("pow", {"p"}, [self](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        requireArgs(a, 1, "pow");
         double p = Value(vm, a[0]).asFloat("p");
         return tns::wrap([&]() { return tns::g_pow(vm, self, p); });
     });

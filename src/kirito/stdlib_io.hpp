@@ -156,6 +156,7 @@ public:
             });
         if (name == "write")
             return bind("write", {"data"}, [self, file](KiritoVM& vm, std::span<const Handle> a) {
+                requireArgs(a, 1, "write");
                 file(vm, self).streamWrite(ioRawBytes(vm, a[0], "write"));  // String or Bytes
                 return vm.none();
             });
@@ -176,6 +177,7 @@ public:
             });
         if (name == "writelines")
             return bind("writelines", {"lines"}, [self, file](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                requireArgs(a, 1, "writelines");
                 auto items = vm.arena().deref(a[0]).iterate(vm);
                 auto& f = file(vm, self);
                 for (Handle h : items.value()) f.streamWrite(ioRawBytes(vm, h, "writelines"));  // String or Bytes
@@ -401,6 +403,7 @@ public:
         auto me = [](KiritoVM& vm, Handle self) -> StdStream& { return static_cast<StdStream&>(vm.arena().deref(self)); };
         if (name == "write")
             return bind("write", {"data"}, [self, me](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                requireArgs(a, 1, "write");
                 me(vm, self).streamWrite(argString(vm, a[0], "write"));
                 return vm.none();
             });

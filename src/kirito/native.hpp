@@ -26,6 +26,14 @@ inline int64_t argInt(KiritoVM& vm, Handle h, const char* who) {
     if (o.kind() != ValueKind::Integer) throw KiritoError(std::string(who) + " expects an Integer");
     return static_cast<const IntVal&>(o).value();
 }
+// Reject an under-arity positional call before the impl dereferences a[0]/a[1]/... `makeMethod`'s
+// positional fast path forwards the call's args verbatim (no padding), so a method whose body
+// indexes a fixed `a[i]` must guard first — else it reads past the span (UB). One place to do it so
+// every native method gives the same clean "expected at least N argument(s)" error.
+inline void requireArgs(std::span<const Handle> a, std::size_t n, const char* who) {
+    if (a.size() < n)
+        throw KiritoError(std::string(who) + "() expected at least " + std::to_string(n) + " argument(s)");
+}
 
 // ============================================================================================
 // Extension API — how C++ code adds new functions, modules, and types to Kirito.
