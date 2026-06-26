@@ -212,6 +212,9 @@ public:
                 std::streamoff target = off;
                 if (whence == 1) target = static_cast<std::streamoff>(s.tellg()) + off;
                 else if (whence == 2) { s.seekg(0, std::ios::end); target = static_cast<std::streamoff>(s.tellg()) + off; }
+                // A negative absolute target would put the stream in a fail state and make tell() return
+                // -1 silently; reject it (BytesIO::seek guards the same way).
+                if (target < 0) throw KiritoError("seek: resulting position is negative");
                 s.seekg(target, std::ios::beg);
                 s.seekp(target, std::ios::beg);
                 return vm.makeInt(static_cast<int64_t>(s.tellg()));    // Python returns the new position

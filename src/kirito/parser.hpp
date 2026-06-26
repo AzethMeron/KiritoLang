@@ -636,13 +636,16 @@ private:
     // language keywords from colliding with method/attribute names.
     std::string parseMemberName() {
         const Token& t = peek();
-        if (t.type == TokenType::Identifier || !t.text.empty()) {
-            // Reject tokens whose text isn't an identifier (operators/punctuation have empty text,
-            // numbers have digit text). A keyword token's text is its spelling — accept it.
-            char c0 = t.text.empty() ? '\0' : t.text[0];
-            if (t.type == TokenType::Identifier || ((c0 == '_' || std::isalpha(static_cast<unsigned char>(c0))))) {
+        // A member name is an identifier or a keyword used as an attribute (set.discard(), obj.type) —
+        // the keyword token carries its spelling as text. A String/Number *literal* token also carries
+        // text (so `obj."foo"` must NOT sneak through as `obj.foo`), so exclude the literal token types
+        // explicitly instead of sniffing text[0].
+        bool isLiteral = t.type == TokenType::String || t.type == TokenType::FString ||
+                         t.type == TokenType::Integer || t.type == TokenType::Float;
+        if (!isLiteral && !t.text.empty()) {
+            char c0 = t.text[0];
+            if (t.type == TokenType::Identifier || c0 == '_' || std::isalpha(static_cast<unsigned char>(c0)))
                 return advance().text;
-            }
         }
         throw KiritoError("expected a member name after '.'", peek().span);
     }
@@ -919,13 +922,17 @@ private:
                 throw KiritoError("single '}' in f-string", t.span);
             } else if (c == '\\' && !t.raw && i + 1 < raw.size()) {
                 char e = raw[i + 1];
-                if (e == 'x' && i + 3 < raw.size()) {
+                if (e == 'x') {
                     auto hex = [](char d) -> int {
                         if (d >= '0' && d <= '9') return d - '0';
                         if (d >= 'a' && d <= 'f') return d - 'a' + 10;
                         if (d >= 'A' && d <= 'F') return d - 'A' + 10;
                         return -1;
                     };
+                    // Require two hex digits — short of that (`f"ab\x4"`) must raise, not silently fall
+                    // through to the default escape arm (which would drop the backslash -> "abx4").
+                    if (i + 3 >= raw.size())
+                        throw KiritoError("invalid \\x escape (expected two hex digits)", t.span);
                     int hi = hex(raw[i + 2]), lo = hex(raw[i + 3]);
                     if (hi < 0 || lo < 0)
                         throw KiritoError("invalid \\x escape (expected hex digit)", t.span);

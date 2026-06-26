@@ -106,6 +106,9 @@ inline void sendAll(netcompat::socket_t fd, const std::string& data) {
 }
 
 inline std::string recvAll(netcompat::socket_t fd) {
+    // Ceiling so a hostile/garrulous peer that never closes the connection raises instead of streaming
+    // until the process OOMs (consistent with the 256 MiB ceiling the other resource guards use).
+    constexpr std::size_t kMaxRecvAll = 256ull * 1024 * 1024;
     std::string out;
     char buf[4096];
     while (true) {
@@ -113,6 +116,7 @@ inline std::string recvAll(netcompat::socket_t fd) {
         if (n < 0) throw KiritoError("recv failed: " + netcompat::lastError());
         if (n == 0) break;
         out.append(buf, static_cast<std::size_t>(n));
+        if (out.size() > kMaxRecvAll) throw KiritoError("recvall: received data exceeds the size limit");
     }
     return out;
 }

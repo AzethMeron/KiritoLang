@@ -217,8 +217,15 @@ struct Huffman {
     }
 };
 
-inline void inflateBlock(BitReader& br, const Huffman& lit, const Huffman& dist, std::string& out) {
+// Cap on inflate output (matches the 256 MiB ceiling used by the other resource guards). Without it
+// a tiny crafted stream — a "zip bomb" reachable via net.get().content -> gzip/zlib.decompress on
+// untrusted data — expands without bound and OOMs the process. Raise instead, like the other guards.
+inline constexpr std::size_t kMaxInflateOut = 256ull * 1024 * 1024;
+
+inline void inflateBlock(BitReader& br, const Huffman& lit, const Huffman& dist, std::string& out,
+                         std::size_t maxOut) {
     while (true) {
+        if (out.size() > maxOut) throw DeflateError("decompressed data exceeds the size limit");
         int sym = lit.decode(br);
         if (sym == 256) break;
         if (sym < 256) {
@@ -250,29 +257,37 @@ inline Huffman fixedDistHuffman() {
     Huffman h; h.build(lengths, 5); return h;
 }
 
-inline std::string inflate(const std::string& in) {
+// `consumed`, if non-null, receives the number of input bytes the stream occupied (rounded up to the
+// next byte boundary past the final block) — gzip needs it to find the trailer / a following member.
+// `inflate(in)` is the simple public entry point; gzip uses this directly for the consumed count.
+inline std::string inflateImpl(const std::string& in, std::size_t maxOut, std::size_t* consumed) {
     BitReader br(in);
     std::string out;
     bool final = false;
     while (!final) {
+        if (out.size() > maxOut) throw DeflateError("decompressed data exceeds the size limit");
         final = br.bit() != 0;
         int type = static_cast<int>(br.bits(2));
-        if (type == 0) {
-            // stored block
+        switch (type) {
+        case 0: {  // stored block
             br.alignByte();
             std::size_t p = br.bytePos();
             if (p + 4 > in.size()) throw DeflateError("truncated stored block header");
             uint16_t len = static_cast<uint16_t>(static_cast<uint8_t>(in[p]) | (static_cast<uint8_t>(in[p + 1]) << 8));
             p += 4;  // skip LEN + NLEN
             if (p + len > in.size()) throw DeflateError("truncated stored block");
+            if (out.size() + len > maxOut) throw DeflateError("decompressed data exceeds the size limit");
             out.append(in, p, len);
             br.setBytePos(p + len);
-        } else if (type == 1) {
+            break;
+        }
+        case 1: {  // fixed Huffman
             static const Huffman lit = fixedLitHuffman();
             static const Huffman dist = fixedDistHuffman();
-            inflateBlock(br, lit, dist, out);
-        } else if (type == 2) {
-            // dynamic Huffman
+            inflateBlock(br, lit, dist, out, maxOut);
+            break;
+        }
+        case 2: {  // dynamic Huffman
             int hlit = static_cast<int>(br.bits(5)) + 257;
             int hdist = static_cast<int>(br.bits(5)) + 1;
             int hclen = static_cast<int>(br.bits(4)) + 4;
@@ -303,13 +318,20 @@ inline std::string inflate(const std::string& in) {
             std::vector<int> distLengths(lengths.begin() + hlit, lengths.end());
             Huffman lit; lit.build(litLengths, 15);
             Huffman dist; dist.build(distLengths, 15);
-            inflateBlock(br, lit, dist, out);
-        } else {
+            inflateBlock(br, lit, dist, out, maxOut);
+            break;
+        }
+        default:
             throw DeflateError("invalid block type");
         }
     }
+    if (consumed) { br.alignByte(); *consumed = br.bytePos(); }
     return out;
 }
+
+// Public single-argument entry point (the type `&inflate` callers — zlib/net — expect). Output is
+// bounded by the zip-bomb guard; use inflateImpl when the consumed-byte count is needed (gzip).
+inline std::string inflate(const std::string& in) { return inflateImpl(in, kMaxInflateOut, nullptr); }
 
 // ---- zlib wrapper (RFC 1950): 2-byte header + deflate + 4-byte Adler-32 ----------------------
 inline std::string zlibCompress(const std::string& in) {

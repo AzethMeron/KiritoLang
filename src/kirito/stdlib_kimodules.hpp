@@ -2641,6 +2641,10 @@ var _expand = Function(tok):
     rest = clean(rest)
     # split the (possibly partial / x) version into up to 3 parts
     var parts = rest.split("-")[0].split(".")
+    # reject a 4th+ component (1.2.3.4) — `valid` is strict about this, so a range must be too, else
+    # validrange("1.2.3.4") would disagree with valid("1.2.3.4")
+    if len(parts) > 3:
+        throw "invalid version (too many components): " + rest
     var prepart = []
     var dash = rest.find("-")
     if dash >= 0:

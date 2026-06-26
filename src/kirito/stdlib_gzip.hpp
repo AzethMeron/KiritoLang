@@ -33,34 +33,55 @@ inline std::string compress(const std::string& data) {
     return out;
 }
 
-// Parse a gzip stream: validate the header, skip the optional FEXTRA/FNAME/FCOMMENT/FHCRC fields per
-// FLG, INFLATE the body, and verify the CRC-32 trailer.
+// Parse a gzip stream and return its decompressed contents. A `.gz` may hold several gzip members
+// concatenated (RFC 1952 §2.2 — `cat a.gz b.gz`, what `gunzip` accepts), so loop: for each member
+// validate the header, skip the optional FEXTRA/FNAME/FCOMMENT/FHCRC fields per FLG, INFLATE the body
+// (the inflate reports how many bytes it consumed so we can locate the trailer + the next member),
+// and verify the CRC-32 + ISIZE trailer. Output is the members' bodies concatenated.
 inline std::string decompress(const std::string& data) {
     auto b = [&](std::size_t i) -> unsigned { return static_cast<unsigned char>(data[i]); };
     if (data.size() < 18) throw deflate::DeflateError("gzip: stream too short");
-    if (b(0) != 0x1f || b(1) != 0x8b) throw deflate::DeflateError("gzip: bad magic (not a gzip stream)");
-    if (b(2) != 0x08) throw deflate::DeflateError("gzip: unsupported compression method");
-    unsigned flg = b(3);
-    std::size_t pos = 10;                        // fixed header: magic, CM, FLG, MTIME, XFL, OS
-    if (flg & 0x04) {                            // FEXTRA: 2-byte length, then that many bytes
-        if (pos + 2 > data.size()) throw deflate::DeflateError("gzip: truncated FEXTRA");
-        std::size_t xlen = b(pos) | (b(pos + 1) << 8);
-        pos += 2 + xlen;
+    std::string result;
+    std::size_t off = 0;
+    bool any = false;
+    while (off < data.size()) {                  // consume members until the input is exactly exhausted
+        // A member needs >=10 header + body + 8 trailer; leftover bytes that can't form one, or that
+        // don't begin with the gzip magic, are corruption / trailing junk — reject (like Python's
+        // gzip.decompress), not silently ignore.
+        if (off + 18 > data.size())
+            throw deflate::DeflateError(any ? "gzip: trailing data after the last member"
+                                            : "gzip: stream too short");
+        if (b(off) != 0x1f || b(off + 1) != 0x8b)
+            throw deflate::DeflateError(any ? "gzip: trailing data is not a valid gzip member"
+                                            : "gzip: bad magic (not a gzip stream)");
+        if (b(off + 2) != 0x08) throw deflate::DeflateError("gzip: unsupported compression method");
+        unsigned flg = b(off + 3);
+        std::size_t pos = off + 10;              // fixed header: magic, CM, FLG, MTIME, XFL, OS
+        if (flg & 0x04) {                        // FEXTRA: 2-byte length, then that many bytes
+            if (pos + 2 > data.size()) throw deflate::DeflateError("gzip: truncated FEXTRA");
+            std::size_t xlen = b(pos) | (b(pos + 1) << 8);
+            pos += 2 + xlen;
+        }
+        if (flg & 0x08) { while (pos < data.size() && data[pos] != 0) ++pos; ++pos; }  // FNAME (NUL-terminated)
+        if (flg & 0x10) { while (pos < data.size() && data[pos] != 0) ++pos; ++pos; }  // FCOMMENT
+        if (flg & 0x02) pos += 2;                // FHCRC
+        if (pos + 8 > data.size()) throw deflate::DeflateError("gzip: truncated header/stream");
+        std::size_t consumed = 0;
+        std::string out = deflate::inflateImpl(data.substr(pos), deflate::kMaxInflateOut, &consumed);
+        std::size_t t = pos + consumed;          // the 8-byte CRC-32 + ISIZE trailer follows the body
+        if (t + 8 > data.size()) throw deflate::DeflateError("gzip: truncated stream");
+        uint32_t want = b(t) | (b(t + 1) << 8) | (b(t + 2) << 16) | (static_cast<uint32_t>(b(t + 3)) << 24);
+        if (deflate::crc32(out) != want) throw deflate::DeflateError("gzip: CRC-32 mismatch (corrupt stream)");
+        // Also verify the ISIZE trailer (uncompressed length mod 2^32), as gzip(1)/Python do — catches a
+        // truncation/corruption that leaves the CRC slot intact but the length field wrong.
+        uint32_t isize = b(t + 4) | (b(t + 5) << 8) | (b(t + 6) << 16) | (static_cast<uint32_t>(b(t + 7)) << 24);
+        if ((static_cast<uint32_t>(out.size()) & 0xFFFFFFFFu) != isize)
+            throw deflate::DeflateError("gzip: ISIZE mismatch (corrupt or truncated stream)");
+        result += out;
+        off = t + 8;
+        any = true;
     }
-    if (flg & 0x08) { while (pos < data.size() && data[pos] != 0) ++pos; ++pos; }  // FNAME (NUL-terminated)
-    if (flg & 0x10) { while (pos < data.size() && data[pos] != 0) ++pos; ++pos; }  // FCOMMENT
-    if (flg & 0x02) pos += 2;                    // FHCRC
-    if (pos + 8 > data.size()) throw deflate::DeflateError("gzip: truncated header/stream");
-    std::string out = deflate::inflate(data.substr(pos, data.size() - pos - 8));
-    std::size_t t = data.size() - 8;
-    uint32_t want = b(t) | (b(t + 1) << 8) | (b(t + 2) << 16) | (static_cast<uint32_t>(b(t + 3)) << 24);
-    if (deflate::crc32(out) != want) throw deflate::DeflateError("gzip: CRC-32 mismatch (corrupt stream)");
-    // Also verify the ISIZE trailer (uncompressed length mod 2^32), as gzip(1)/Python do — catches a
-    // truncation/corruption that leaves the CRC slot intact but the length field wrong.
-    uint32_t isize = b(t + 4) | (b(t + 5) << 8) | (b(t + 6) << 16) | (static_cast<uint32_t>(b(t + 7)) << 24);
-    if ((static_cast<uint32_t>(out.size()) & 0xFFFFFFFFu) != isize)
-        throw deflate::DeflateError("gzip: ISIZE mismatch (corrupt or truncated stream)");
-    return out;
+    return result;
 }
 
 }  // namespace gzipfmt

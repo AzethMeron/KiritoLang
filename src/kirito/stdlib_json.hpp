@@ -148,6 +148,10 @@ private:
                                 cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
                             else fail("invalid low surrogate in \\u escape");
                         }
+                        // An UNPAIRED surrogate (a lone \uD800 high, or a lone low) is not a valid code
+                        // point and would encode to invalid UTF-8; substitute U+FFFD (like browsers /
+                        // WHATWG) so the decoded String is always well-formed UTF-8.
+                        if (cp >= 0xD800 && cp <= 0xDFFF) cp = 0xFFFD;
                         utf8Encode(cp, out);  // shared encoder (builtins.hpp), 4-byte-capable
                         break;
                     }

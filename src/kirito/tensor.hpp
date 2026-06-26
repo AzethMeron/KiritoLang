@@ -324,7 +324,9 @@ T determinant(const Tensor<T>& t) {
         std::size_t piv = k;
         for (std::size_t i = k + 1; i < n; ++i)
             if (std::abs(a[i * n + k]) > std::abs(a[piv * n + k])) piv = i;
-        if (std::abs(a[piv * n + k]) < 1e-15) return T{};
+        double pmag = std::abs(a[piv * n + k]);   // |pivot| is real for both real and complex T
+        if (!std::isfinite(pmag)) throw TensorError("matrix contains a non-finite value (inf or NaN)");
+        if (pmag < 1e-15) return T{};
         if (piv != k) {
             for (std::size_t j = 0; j < n; ++j) std::swap(a[k * n + j], a[piv * n + j]);
             det = -det;
@@ -350,7 +352,9 @@ Tensor<T> inverse(const Tensor<T>& t) {
         std::size_t piv = k;
         for (std::size_t i = k + 1; i < n; ++i)
             if (std::abs(a[i * n + k]) > std::abs(a[piv * n + k])) piv = i;
-        if (std::abs(a[piv * n + k]) < 1e-15) throw TensorError("matrix is singular (no inverse)");
+        double pmag = std::abs(a[piv * n + k]);   // |pivot| is real for both real and complex T
+        if (!std::isfinite(pmag)) throw TensorError("matrix contains a non-finite value (inf or NaN)");
+        if (pmag < 1e-15) throw TensorError("matrix is singular (no inverse)");
         if (piv != k)
             for (std::size_t j = 0; j < n; ++j) {
                 std::swap(a[k * n + j], a[piv * n + j]);
