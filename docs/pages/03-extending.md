@@ -265,7 +265,7 @@ Override only what your type supports; every slot defaults to a clear "unsupport
 
 | Slot | Triggered by |
 |------|-------------|
-| `binary(vm, op, self, rhs)` | `a + b`, `a < b`, … (`BinOp::Add/Sub/Mul/Div/FloorDiv/Mod/Pow/Eq/Ne/Lt/Le/Gt/Ge`) |
+| `binary(vm, op, self, rhs)` | `a + b`, `a < b`, `x in c`, … (`BinOp::Add/Sub/Mul/Div/FloorDiv/Mod/Pow/Eq/Ne/Lt/Le/Gt/Ge/In/NotIn`) |
 | `unary(vm, op, self)` | `-a`, `not a` (`UnOp::Neg/Not`) |
 | `call(vm, args)` | `obj(...)` — makes the value itself callable |
 | `getAttr(vm, self, name)` | `obj.field` |
@@ -311,23 +311,28 @@ state in a `KiritoDispatcher`-owned object addressed by an integer id, then expo
 `_setstate_` so serialization carries only that id, and register a deserializer that rebuilds the
 handle and rebinds it via `vm.dispatcher()`:
 
+The shape of it (a **pattern sketch** — `myObj(...)` and `myObjById(...)` stand in for your own
+accessor and your own dispatcher lookup, which you add alongside the registry your type owns; this is
+not a literal copy-paste API):
+
 ```cpp
 // _getstate_ emits the shared object's id; _setstate_ rebinds to the same object in another VM.
 if (name == "_getstate_")
     return makeMethod(vm, "_getstate_", {}, [self](KiritoVM& v, std::span<const Handle>) {
-        return v.makeInt(static_cast<int64_t>(thing(v, self).id()));
+        return v.makeInt(static_cast<int64_t>(myObj(v, self).id()));        // your accessor -> the C++ object
     }, {self});
 if (name == "_setstate_")
     return makeMethod(vm, "_setstate_", {"state"}, [self](KiritoVM& v, std::span<const Handle> a) {
         // v.dispatcher() is the coordinator shared by all worker VMs; look the object up by id.
         static_cast<MyVal&>(v.arena().deref(self)).obj =
-            v.dispatcher()->thingById(static_cast<uint64_t>(argInt(v, a[0], "_setstate_")));
+            myObjById(v, static_cast<uint64_t>(argInt(v, a[0], "_setstate_")));  // your dispatcher-backed lookup
         return v.none();
     }, {self});
 ```
 
 `vm.dispatcher()` is null for a bare VM, so guard on it (a value that needs cross-VM identity only makes
-sense under a dispatcher). See `stdlib_parallel.hpp` for the full pattern. Live resources that *can't*
+sense under a dispatcher). See `stdlib_parallel.hpp` (`QueueVal` and the dispatcher's `queueById`) for a
+complete, compiling instance of this pattern. Live resources that *can't*
 meaningfully cross (open sockets, file handles) should simply omit `_getstate_` — serialization then
 raises a clear error instead of silently breaking.
 

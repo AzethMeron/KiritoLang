@@ -384,8 +384,8 @@ struct AssertStmt : Stmt {
 };
 
 // `switch SUBJECT:` with `case V[, V2...]:` arms and an optional `default:`. No fallthrough — exactly
-// one arm runs. Case values are constant literals; the evaluator builds a hash jump-table once so
-// dispatch is O(1) regardless of arm count, and values may mix types (case 1 / case "x" / case True).
+// one arm runs. Case values are constant literals; the compiler lowers the switch to an exact-match
+// comparison chain (see compiler.hpp), and values may mix types (case 1 / case "x" / case True).
 struct CaseClause {
     std::vector<ExprPtr> values;  // one or more literal values selecting this arm
     Block body;
@@ -395,12 +395,6 @@ struct SwitchStmt : Stmt {
     std::vector<CaseClause> cases;
     bool hasDefault = false;
     Block defaultBody;
-    // Evaluator-side memo: a canonical-key -> case-index jump table built once on first execution,
-    // so dispatch is O(1) regardless of arm count. The key is a string encoding of a literal's
-    // type+value (computed identically for case literals and the runtime subject), keeping the AST
-    // free of value-layer types. `mutable` so the const-AST walk can populate the cache.
-    mutable bool tableBuilt = false;
-    mutable fum::unordered_map<std::string, std::size_t> jump;
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 

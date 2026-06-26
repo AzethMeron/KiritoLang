@@ -76,6 +76,7 @@ A `KiritoVM` owns its arena, global environment, and module registry. Key method
 | `install<Module>()` | Register a C++-authored module (see *Extending*). |
 | `registerSourceModule(name, src)` | Register a module whose body is Kirito source. |
 | `addLibPath(dir)` | Add a module import path (prefer `dispatcher.addLibPath` so workers inherit it). |
+| `setArgs(List)` | Set the command-line arguments a directly-run script sees as `arglist` (and makes `argmain` True). |
 | `arena()` | The value arena, for `deref(Handle)` etc. |
 
 ## Values and handles
@@ -103,6 +104,17 @@ if (d.has("a")) std::printf("a = %lld\n", (long long)d.get("a").asInt());   // 1
 The full `Value`/`Args`/builder reference — and how to author your own functions, modules, and types
 with it — is in [Extending Kirito](extending.html).
 
+### Lifetime & rooting
+
+The VM has a precise mark-sweep GC that runs on allocation. A `Handle`/`Value` your C++ code holds in
+a local is **not** itself a GC root — if you keep one across a later `runSource`, `alloc`, or explicit
+`collectGarbage()`, the value it points at may be collected and the handle then dangles (a
+`"dangling handle"` error on next use). The builders root their intermediates only *during* `build()`.
+So when you hold a value across further VM work, protect it: `registerGlobal(name, h)` to keep it
+reachable from the module scope, or root it with a `RootScope` (`RootScope rs(vm); rs.add(h);`) /
+`vm.pushTemp(h)` for the duration you need it. Values you read and use immediately (as in the snippets
+above) need no rooting.
+
 ## Errors
 
 Runtime and parse problems are thrown as `KiritoError`, which carries a `SourceSpan{line, col}` and
@@ -112,7 +124,7 @@ a message. An uncaught Kirito `throw` surfaces to the embedder as a `KiritoError
 try {
     dispatcher.mainVM().runSource("1 / 0\n");
 } catch (const kirito::KiritoError& e) {
-    std::fprintf(stderr, "%d:%d: %s\n", e.span.line, e.span.col, e.what());
+    std::fprintf(stderr, "%u:%u: %s\n", e.span.line, e.span.col, e.what());   // span.line/col are uint32_t
 }
 ```
 

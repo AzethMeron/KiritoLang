@@ -163,7 +163,7 @@ io.print("ngn:" if "no such group" in caught(Function(): return m.group("nope"))
 
 # ---- empty pattern -----------------------------------------------------------------------------
 io.print(re.findall("", "abc"))                     # findall on empty pattern returns one empty per position
-io.print(re.split("", "abc"))                       # split returns ["abc"] (no non-empty match)
+io.print(re.split("", "abc"))                       # split on empty matches (Python 3.7+): ['', 'a', 'b', 'c', '']
 
 # ---- unicode handling: code-point indices ------------------------------------------------------
 var s = "café"                                      # 4 code points

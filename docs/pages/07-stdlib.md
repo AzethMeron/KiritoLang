@@ -209,8 +209,10 @@ Matrices are arbitrary-shape (any rows × cols). Shape-specific operations (`det
 - `m + n`, `m - n`, `m * n` — matrix addition/subtraction, and matrix or scalar multiplication. A
   scalar must be the **right** operand (`A * 2`, not `2 * A`).
 - `m.transpose() → Matrix` — the transpose.
-- `m.determinant() → Float` — determinant (square matrices).
-- `m.inverse() → Matrix` — inverse (raises if singular).
+- `m.determinant() → Float` — determinant (square matrices). A matrix whose elimination produces a
+  pivot below ~`1e-15` is treated as singular (a conservative guard: it reports a clear "singular"
+  error rather than returning an ill-conditioned, near-garbage inverse).
+- `m.inverse() → Matrix` — inverse (raises if singular, per the pivot threshold above).
 - `m.trace() → Float` — sum of the diagonal.
 - `m.sum() → Float` — sum of every element.
 - `m.apply(fn) → Matrix` — a new matrix with `fn` applied to each element.
@@ -389,6 +391,7 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
 ### Indexing & slicing
 
 - `t[i, j, ...]` — integer index (full → element, partial → sub-tensor); `t[i, j] = v` assigns.
+  Negative indices count from the end of each axis (`t[-1]` is the last row), like NumPy/slicing.
 - `t[start:stop:step]` — slice the **first** axis (negative bounds count from the end; returns a detached copy).
 - `t[mask]` — boolean selection where `mask` is a same-shape 0/1 tensor (→ 1-D).
 - `t[[i, j, k]]` — fancy index: gather those rows along axis 0.
@@ -633,7 +636,11 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 - `r.status` (`Integer`, alias `r.statuscode`), `r.reason` (`String`), `r.ok` (`Bool`, true for a 1xx–3xx status, i.e. `100 ≤ status < 400`).
 - `r.url` — the final URL (after any redirects).
 - `r.text` — the decoded response body (`String`); `r.body` is an alias.
-- `r.content` — the **raw** response body as [`Bytes`](types.html#bytes) — for binary downloads (images, `.gz`, …). E.g. `gzip.decompress(net.get(url).content)`.
+- `r.content` — the response body as [`Bytes`](types.html#bytes), after any HTTP `Content-Encoding`/
+  `Transfer-Encoding` is decoded (gzip/deflate/chunked), exactly like Python `requests`' `.content`.
+  For a genuine binary download — an image, or a `.gz` file served *without* `Content-Encoding: gzip` —
+  this is the raw bytes, so `gzip.decompress(net.get(url).content)` unpacks a fetched `.gz`. (If the
+  server sets `Content-Encoding: gzip`, the body is already decompressed here.)
 - `r.headers` — a Dict of response headers; `r.header(name[, default])` looks one up
   **case-insensitively** (returning `default`, or `None`, when absent).
 - `r.cookies` — a Dict of cookies set by the server.
@@ -822,8 +829,10 @@ Literals and `.` (any char except newline; `\n` too under DOTALL); character cla
 `[^...]`, ranges `a-z`; shorthands `\d \D \w \W \s \S` (ASCII); anchors `^ $`, `\b \B`, `\A \z \Z`;
 groups `(...)`, non-capturing `(?:...)`, named `(?P<name>...)` or `(?<name>...)`; alternation `|`;
 quantifiers `* + ?`, `{n}`, `{n,}`, `{n,m}`, each greedy or **lazy** with a trailing `?`; escapes
-`\n \t \r \f \v \a \xHH \uHHHH`, octal `\0`/`\NNN` (and `\b` is a backspace *inside* a class), and
-any escaped metacharacter; inline flags `(?i)` / `(?m)` / `(?s)`.
+`\n \t \r \f \v \a \xHH \uHHHH`, octal `\0NN` (a leading-zero octal escape; `\b` is a backspace
+*inside* a class), and any escaped metacharacter; inline flags `(?i)` / `(?m)` / `(?s)`. A bare
+`\1`–`\9` is **rejected** (it reads as a backreference, which is unsupported) — write an octal
+character as `\0NN`.
 
 The engine is validated against a large, classic regular-expression test corpus (run through
 Kirito in `tools/tests/scripts/spec_regex_corpus.ki`): zero false positives/negatives, and every
@@ -1385,7 +1394,7 @@ and `+build` (a leading `v`/`=` is tolerated, e.g. `v1.2.3`).
   tilde (`~1.2`), comparators (`>=1.0.0 <2.0.0`), x-ranges (`1.2.x`, `1.x`, `*`), hyphen ranges
   (`1.0.0 - 2.0.0`), AND (space) and OR (`||`). Prereleases are excluded unless a comparator in the
   matched set pins the same `major.minor.patch` (node-semver's default).
-- `validrange(range: String) → Bool` — is `range` a parseable range? (`kpm` uses this to tell a
+- `validrange(rng: String) → Bool` — is `rng` a parseable range? (`kpm` uses this to tell a
   semver constraint from a literal git ref like `main`.)
 - `sort(versions: List) / rsort(versions) → List` — sort by precedence, ascending / descending
   (invalid versions are dropped).

@@ -64,4 +64,14 @@ io.print(u["host"] == "host.com" and u["port"] == "8443")
 var bio = io.BytesIO("hello world")
 io.print(raises(Function(): return bio.read(2.0)) and raises(Function(): return bio.seek(0, 9)))
 
+# --- Set algebra via operators: - (difference) and </<=/>/>= (subset/superset) ---
+io.print(({1, 2, 3} - {2}) == {1, 3})
+io.print({1, 2} <= {1, 2, 3} and {1, 2, 3} >= {1, 2})
+io.print(({1, 2} < {1, 2, 3}) and not ({1, 2} < {1, 2}))   # proper subset
+io.print(raises(Function(): return {1, 2} - [2]))          # RHS must be a Set
+
+# --- regex.split splits on empty matches (Python 3.7+), consistent with findall ---
+io.print(rx.split("x*", "abc") == ["", "a", "b", "c", ""])
+io.print(rx.split(",", "a,b,c") == ["a", "b", "c"])        # non-empty separator unchanged
+
 io.print("OK round3-fixes")

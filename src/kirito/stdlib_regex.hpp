@@ -362,7 +362,8 @@ public:
                 for (auto& r : redetail::allMatches(R.prog, text, -1)) {
                     if (maxsplit > 0 && splits >= maxsplit) break;
                     int aPos = r.slots[0], bPos = r.slots[1];
-                    if (aPos == bPos && aPos == lastEnd) continue;   // skip an empty match at the cut point
+                    // Split on empty matches too (Python 3.7+), so an empty-capable pattern yields the
+                    // leading/inter-character ''s — consistent with findall over the same matches.
                     out.add(vm.makeString(cpSlice(s, starts, lastEnd, aPos)));
                     for (int g = 1; g <= R.prog.numGroups; ++g)        // include captured groups (Python)
                         out.add(r.slots[2 * g] < 0 ? vm.none()

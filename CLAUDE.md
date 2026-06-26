@@ -140,7 +140,9 @@ a stability fuzzer, and a benchmark). Working today:
 - `List`/`Set`/`Dict` with literals, indexing, slicing, iteration, `in`, and methods (append/pop/
   reverse/insert/remove/index/extend/copy/clear/count; keys/values/items/get/pop/update/setdefault/
   popitem/clear; add/discard/contains/union/intersection/difference/symmetricdifference/issubset/
-  issuperset/isdisjoint/pop/clear/...); `len`. Every container — `List`/`Set`/`Dict` and the
+  issuperset/isdisjoint/pop/clear/...); `len`. **Set algebra also via operators** (Kirito has no
+  `|`/`&`/`^` tokens): `-` is difference and `<`/`<=`/`>`/`>=` are proper-/subset and proper-/superset.
+  Every container — `List`/`Set`/`Dict` and the
   sequences `String`/`Bytes` — has **`apply(fn)`** (like `tensor.apply`): a new container of the same
   type with `fn` mapped over the elements (over a Dict's *values*, keeping keys; over a String's
   characters; over a Bytes' bytes). Built-in containers also describe their methods under `inspect`. Lists support lexicographic ordering (`<`/`<=`/`>`/`>=`,
@@ -245,7 +247,8 @@ a stability fuzzer, and a benchmark). Working today:
   - `tensor` — dense **N-dimensional** arrays in C++ (`tensor.hpp`, a generic `Tensor<T>` engine;
     CPU-only, GPU-ready single-buffer design). dtype **Float** (default) or **Complex**
     (the engine is generic in T). `Tensor(nested[, dtype][, requiresgrad])`/`zeros`/`ones`/`full`/`eye`/`arange`;
-    `t[i,j,...]` (full index → scalar, partial → sub-tensor) + assignment; **NumPy-style indexing**
+    `t[i,j,...]` (full index → scalar, partial → sub-tensor; negative indices count from the end) +
+    assignment; **NumPy-style indexing**
     (`t[a:b:c]` axis-0 slice, `t[mask]` boolean, `t[[i,j]]` fancy, plus grad-aware `t.slice`/`t.take`);
     +,-,*,/ **element-wise** with NumPy **broadcasting** (mixed Float/Complex promotes) and scalar ops
     (`/`, `//`, `%` all **raise on a zero divisor**, like scalar arithmetic);

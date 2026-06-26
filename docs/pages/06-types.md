@@ -239,7 +239,9 @@ io.print(xs[0], xs[-1], xs[1:3])   # 1 4 [2, 3]
 ## Set
 
 An unordered collection of unique, hashable values. Supports `in`, `len`, iteration, and the usual
-set algebra (also via operators where natural).
+set algebra. Since Kirito has no `|`/`&`/`^` operators, the operator forms are `a - b` (difference)
+and `a < b`/`a <= b`/`a > b`/`a >= b` (proper-/subset, proper-/superset); union, intersection, and
+symmetric difference are the methods below (`==`/`!=` compare by membership).
 
 ```kirito
 var a = {1, 2, 3}

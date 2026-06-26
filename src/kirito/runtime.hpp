@@ -887,6 +887,34 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
     return Object::getAttr(vm, self, name);
 }
 
+// Set algebra via operators. Kirito has no |/&/^ tokens, so the natural operators are `-` (difference)
+// and the ordering comparisons as (proper) subset/superset (Python semantics). All require a Set on
+// the right; anything else defers to the base (a clear "unsupported operator" error). union/
+// intersection/symmetricdifference stay as methods; ==/!= go through equals().
+inline Handle SetVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
+    const Object& ro = vm.arena().deref(rhs);
+    if (ro.kind() != ValueKind::Set) return Object::binary(vm, op, self, rhs);
+    const SetVal& a = static_cast<const SetVal&>(vm.arena().deref(self));
+    const SetVal& b = static_cast<const SetVal&>(ro);
+    auto subset = [&](const SetVal& x, const SetVal& y) {        // x is a subset of y
+        for (Handle e : x.items()) if (!y.contains(vm.arena(), e)) return false;
+        return true;
+    };
+    switch (op) {
+        case BinOp::Sub: {                                      // difference: in a, not in b
+            RootScope rs(vm);
+            auto r = std::make_unique<SetVal>();
+            for (Handle e : a.items()) if (!b.contains(vm.arena(), e)) r->add(vm.arena(), e);
+            return vm.alloc(std::move(r));
+        }
+        case BinOp::Le: return vm.makeBool(subset(a, b));                          // a <= b
+        case BinOp::Ge: return vm.makeBool(subset(b, a));                          // a >= b
+        case BinOp::Lt: return vm.makeBool(a.count < b.count && subset(a, b));     // a < b (proper)
+        case BinOp::Gt: return vm.makeBool(b.count < a.count && subset(b, a));     // a > b (proper)
+        default: return Object::binary(vm, op, self, rhs);
+    }
+}
+
 // --- slicing helper --------------------------------------------------------------------------
 
 // Concrete indices for a Python slice over [0,len). start/stop/step are Integer handles or None.

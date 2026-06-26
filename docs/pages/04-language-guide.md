@@ -258,6 +258,11 @@ var typed = Function(d : Dict) -> Float:
 Annotations are checked at runtime (inheritance-aware for classes). `Any` or no annotation accepts
 anything. Inline form: `Function(x): return x * x`.
 
+> The **inline** body's `return` takes a single expression (a trailing comma there belongs to the
+> enclosing list — e.g. as the next call argument). To return several values from an inline function,
+> wrap them: `Function(): return [a, b]`; or use an indented block body, where `return a, b` packs into
+> a list as usual.
+
 ## Packing and unpacking
 
 A bare comma sequence packs into a List; the left side of `=`, `var`, and `for` unpacks any iterable,

@@ -49,7 +49,8 @@ inline std::chrono::duration<double> waitDuration(double seconds) {
 }
 
 // A blocking, cross-VM coordination object. shutdown() aborts every Waitable so no blocked worker can
-// stall teardown; a blocked op then returns Aborted and the worker unwinds (raising parallel.Aborted).
+// stall teardown; a blocked op then returns Aborted and the worker unwinds (raising a catchable
+// "operation aborted" error — caught by a bare `catch`; there is no typed parallel.Aborted class).
 class Waitable {
 public:
     virtual ~Waitable() = default;

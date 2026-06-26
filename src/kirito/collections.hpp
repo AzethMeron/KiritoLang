@@ -268,6 +268,10 @@ public:
                 "apply(fn) -> Set", "copy() -> Set", "clear()"};
     }
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
+    // Set algebra via the operators Kirito has: `-` (difference) and `<`/`<=`/`>`/`>=` (proper-/
+    // subset, proper-/superset). (Kirito has no |/&/^ tokens; union/intersection/symmetricdifference
+    // remain methods. `==`/`!=` go through equals().)
+    Handle binary(KiritoVM&, BinOp op, Handle self, Handle rhs) override;
 };
 
 }  // namespace kirito
