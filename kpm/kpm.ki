@@ -44,7 +44,7 @@ var json = import("json")
 var sys = import("sys")
 var semver = import("semver")
 
-var KPM_VERSION = "1.1.0"
+var KPM_VERSION = "1.2.0"
 
 var RAW = "https://raw.githubusercontent.com"
 var API = "https://api.github.com"
