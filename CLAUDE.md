@@ -577,8 +577,8 @@ Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
   a **literal git ref** (`@main`, a sha) or a **semver constraint** (`@^1.2.0`, `@1.x`, `@">=1 <2"`)
   resolved against the repo's tags by the `semver` module (`validrange` tells them apart;
   `maxsatisfying` picks the highest matching tag); the chosen constraint is recorded in `.kpm.json`
-  so `update`/`outdated` re-resolve it. **Self-maintenance**: `kpm self-update` refreshes `kpm.ki`
-  from GitHub (path via `$KPM_SELF`, set by the launcher), and `kpm upgrade-ki` downloads the latest
+  so `update`/`outdated` re-resolve it. **Self-maintenance**: `kpm update-kpm` refreshes `kpm.ki`
+  from GitHub (path via `$KPM_SELF`, set by the launcher), and `kpm update-ki` downloads the latest
   release binary for `sys.platform`/`sys.arch`, `io.chmod`s it executable, and atomically swaps it in
   over the running interpreter (`sys.executable` / `$KPM_KI_PATH`; Windows moves the old exe aside
   first) — both version-check against `sys.version` and no-op when current (`--force` overrides).

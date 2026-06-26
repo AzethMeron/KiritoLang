@@ -11,8 +11,8 @@
 #   kpm outdated                                     show which installed packages have a newer version
 #   kpm where                                        print the packages directory
 #   kpm version                                      print the kpm + ki versions
-#   kpm self-update [--force]                        update kpm.ki itself from GitHub
-#   kpm upgrade-ki  [--force]                        update the `ki` interpreter binary itself
+#   kpm update-kpm  [--force]                        update kpm.ki itself from GitHub
+#   kpm update-ki   [--force]                        update the `ki` interpreter binary itself
 #   kpm help
 #
 # Versioning: an `@<ref>` is either a literal git ref (branch / tag / commit, e.g. `@main`) OR a
@@ -36,7 +36,7 @@
 #
 # Environment: $GITHUB_TOKEN (or $KPM_GITHUB_TOKEN) is sent as a bearer token, lifting GitHub's
 # unauthenticated API rate limit (60/hr -> 5000/hr) and reaching private repos. $KPM_SELF /
-# $KPM_KI_PATH (set by the launcher) point self-update / upgrade-ki at the files to replace.
+# $KPM_KI_PATH (set by the launcher) point update-kpm / update-ki at the files to replace.
 
 var io = import("io")
 var net = import("net")
@@ -49,7 +49,7 @@ var KPM_VERSION = "1.1.0"
 var RAW = "https://raw.githubusercontent.com"
 var API = "https://api.github.com"
 var GH = "https://github.com"
-# The Kirito project's own repository — the source for `self-update` and `upgrade-ki`.
+# The Kirito project's own repository — the source for `update-kpm` and `update-ki`.
 var KIRITO_REPO = "AzethMeron/KiritoLang"
 
 # ---------------------------------------------------------------- locations
@@ -464,8 +464,8 @@ var usage = Function():
     io.print("  kpm outdated                                     show packages with a newer version")
     io.print("  kpm where                                        print the packages directory")
     io.print("  kpm version                                      print the kpm + ki versions")
-    io.print("  kpm self-update [--force]                        update kpm itself")
-    io.print("  kpm upgrade-ki  [--force]                        update the ki interpreter")
+    io.print("  kpm update-kpm  [--force]                        update kpm itself")
+    io.print("  kpm update-ki   [--force]                        update the ki interpreter")
     io.print("  kpm help")
     io.print("")
     io.print("an @constraint is a git ref (@main) or a semver range (@^1.2.0, @1.x, @\">=1 <2\")")
@@ -491,9 +491,9 @@ if argmain:
             io.print(packagesDir())
         elif cmd == "version" or cmd == "--version" or cmd == "-v":
             cmdVersion()
-        elif cmd == "self-update" or cmd == "selfupdate":
+        elif cmd == "update-kpm" or cmd == "self-update" or cmd == "selfupdate":
             cmdSelfUpdate(rest)
-        elif cmd == "upgrade-ki" or cmd == "upgrade-kirito" or cmd == "self-upgrade":
+        elif cmd == "update-ki" or cmd == "upgrade-ki" or cmd == "upgrade-kirito" or cmd == "self-upgrade":
             cmdUpgradeKi(rest)
         elif cmd == "help" or cmd == "-h" or cmd == "--help":
             usage()

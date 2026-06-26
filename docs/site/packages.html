@@ -49,8 +49,8 @@ kpm outdated                      # show which installed packages have a newer v
 kpm remove name ...               # uninstall
 kpm where                         # print the packages directory
 kpm version                       # print the kpm + ki versions
-kpm self-update [--force]         # update kpm itself from GitHub
-kpm upgrade-ki  [--force]         # update the ki interpreter binary itself
+kpm update-kpm  [--force]         # update kpm itself from GitHub
+kpm update-ki   [--force]         # update the ki interpreter binary itself
 kpm help</code></pre>
 <p><a class="xref" href="embedding.html#sym-install"><code>install</code></a>/<code>add</code>/<a class="xref" href="stdlib.html#sym-i"><code>i</code></a>, <code>remove</code>/<code>rm</code>/<code>uninstall</code>, <code>list</code>/<code>ls</code>, and <code>update</code>/<code>upgrade</code> are aliases.</p>
 <h2 id="where-packages-install">Where packages install</h2>
@@ -82,7 +82,7 @@ git push --tags</code></pre>
 <ul><li><code id="sym-kpm">kpm update &lt;name&gt;...</code> or <code>kpm update --all</code> re-reads each package&#x27;s recorded constraint and reinstalls the highest tag that now satisfies it (a constraint-less install just refetches its ref).</li><li><code>kpm outdated</code> reports, per package, the installed version versus the newest available under its recorded constraint.</li></ul>
 <h2 id="updating-kpm-and-kirito-itself">Updating kpm and Kirito itself</h2>
 <p><code>kpm</code> can maintain both itself and the interpreter:</p>
-<ul><li><code>kpm self-update [--force]</code> refreshes <code>kpm.ki</code> from GitHub (the launcher points it at the installed copy via <code>$KPM_SELF</code>).</li><li><code>kpm upgrade-ki [--force]</code> downloads the latest release binary for your platform (<code>sys.platform</code>/<code>sys.arch</code>), makes it executable, and atomically swaps it in over the running interpreter (located via <code>sys.executable</code>, overridable with <code>$KPM_KI_PATH</code>; on Windows the old binary is moved aside first, since a running <code>.exe</code> can&#x27;t be overwritten in place).</li></ul>
+<ul><li><code>kpm update-kpm [--force]</code> refreshes <code>kpm.ki</code> from GitHub (the launcher points it at the installed copy via <code>$KPM_SELF</code>).</li><li><code>kpm update-ki [--force]</code> downloads the latest release binary for your platform (<code>sys.platform</code>/<code>sys.arch</code>), makes it executable, and atomically swaps it in over the running interpreter (located via <code>sys.executable</code>, overridable with <code>$KPM_KI_PATH</code>; on Windows the old binary is moved aside first, since a running <code>.exe</code> can&#x27;t be overwritten in place).</li></ul>
 <p>Both compare versions first (against <code>sys.version</code> and the latest GitHub release) and <strong>no-op when already current</strong> — pass <code>--force</code> to reinstall anyway.</p>
 <h2 id="authentication-rate-limits">Authentication &amp; rate limits</h2>
 <p><code>kpm</code> uses GitHub&#x27;s public REST API (to list tags / releases) and raw file endpoints (to download modules). Set <strong><code>$GITHUB_TOKEN</code></strong> (or <code>$KPM_GITHUB_TOKEN</code>) and <code>kpm</code> sends it as a bearer token, which lifts GitHub&#x27;s unauthenticated API rate limit (60 → 5000 requests/hour) and lets you install from <strong>private</strong> repositories.</p>

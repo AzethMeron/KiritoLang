@@ -694,7 +694,7 @@ Process environment and platform.
 - `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.7.0"`); the same
   value `ki --version` prints. `kpm` compares it against the latest GitHub release to self-upgrade.
 - `executable` — the absolute path of the running `ki` binary (a `String`, or `""` if it can't be
-  determined). `kpm upgrade-ki` uses it to locate the binary to replace.
+  determined). `kpm update-ki` uses it to locate the binary to replace.
 - `getenv(name: String, default = None)` — an environment variable, or `default` if unset.
 - `setenv(name: String, value: String) → None` — set a variable.
 - `unsetenv(name: String) → None` — remove a variable.

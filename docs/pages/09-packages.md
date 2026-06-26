@@ -17,8 +17,8 @@ kpm outdated                      # show which installed packages have a newer v
 kpm remove name ...               # uninstall
 kpm where                         # print the packages directory
 kpm version                       # print the kpm + ki versions
-kpm self-update [--force]         # update kpm itself from GitHub
-kpm upgrade-ki  [--force]         # update the ki interpreter binary itself
+kpm update-kpm  [--force]         # update kpm itself from GitHub
+kpm update-ki   [--force]         # update the ki interpreter binary itself
 kpm help
 ```
 
@@ -119,9 +119,9 @@ still installable from a branch (`@main`), but then version constraints have not
 
 `kpm` can maintain both itself and the interpreter:
 
-- `kpm self-update [--force]` refreshes `kpm.ki` from GitHub (the launcher points it at the installed
+- `kpm update-kpm [--force]` refreshes `kpm.ki` from GitHub (the launcher points it at the installed
   copy via `$KPM_SELF`).
-- `kpm upgrade-ki [--force]` downloads the latest release binary for your platform
+- `kpm update-ki [--force]` downloads the latest release binary for your platform
   (`sys.platform`/`sys.arch`), makes it executable, and atomically swaps it in over the running
   interpreter (located via `sys.executable`, overridable with `$KPM_KI_PATH`; on Windows the old
   binary is moved aside first, since a running `.exe` can't be overwritten in place).
