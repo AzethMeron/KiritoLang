@@ -31,8 +31,16 @@
 # commit message/branch is a decision for the author), but after debug+release pass it prints a clear
 # READY-TO-PUSH marker, then continues into asan.
 #
-# Usage:  scripts/post_work_check.sh [--no-asan]
-#   --no-asan   run debug + release only (the commit gate); skip the slow asan + tsan passes.
+# DISK HYGIENE: the build dirs are large and ALL FOUR together (~1.3 GB debug + 1.3 GB release + ~12 GB
+# asan + ~9 GB tsan ≈ 24 GB) can fill a small disk mid-run (a `No space left on device` build abort).
+# So each variant's build dir is REMOVED as soon as that variant's tests PASS — peak on-disk footprint
+# is then a single variant at a time. A variant that FAILS keeps its dir (so you can re-run
+# `ctest --test-dir build-<v> --rerun-failed --output-on-failure` or attach a debugger); the logs under
+# /tmp/pw_<v>.*.log are always kept regardless. Pass --keep-builds to retain every build dir.
+#
+# Usage:  scripts/post_work_check.sh [--no-asan] [--keep-builds]
+#   --no-asan       run debug + release only (the commit gate); skip the slow asan + tsan passes.
+#   --keep-builds   do NOT delete a variant's build dir after it passes (keep all artifacts).
 #
 # Exit status is non-zero if ANY variant fails to build or has a failing test.
 
@@ -40,7 +48,14 @@ set -u
 cd "$(dirname "$0")/../.."
 
 NO_ASAN=0
-[ "${1:-}" = "--no-asan" ] && NO_ASAN=1
+KEEP_BUILDS=0
+for arg in "$@"; do
+    case "$arg" in
+        --no-asan)     NO_ASAN=1 ;;
+        --keep-builds) KEEP_BUILDS=1 ;;
+        *) echo "unknown option: $arg" >&2; exit 2 ;;
+    esac
+done
 
 JOBS="$( { nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4; } )"
 [ "$JOBS" -lt 2 ] 2>/dev/null && JOBS=2
@@ -87,9 +102,14 @@ run_variant() {
     fi
     if env $pre ctest --test-dir "$dir" -j"$JOBS" >"/tmp/pw_$name.test.log" 2>&1; then
         echo "[$name] $(grep -E 'tests passed' "/tmp/pw_$name.test.log" | tail -1)"
+        # Tests passed: drop this variant's build dir so the four don't pile up and fill the disk
+        # (the next variant builds from scratch anyway). Logs under /tmp/pw_$name.* are kept.
+        if [ "$KEEP_BUILDS" -eq 0 ]; then rm -rf "$dir" && echo "[$name] cleaned $dir (passed)"; fi
         return 0
     fi
+    # Failed: keep the build dir for investigation (re-run failed tests / attach a debugger).
     echo "[$name] TESTS FAILED:"; grep -A8 'The following tests FAILED' "/tmp/pw_$name.test.log" | tail -10
+    echo "[$name] build dir kept for debugging: $dir"
     FAILED=1; return 1
 }
 

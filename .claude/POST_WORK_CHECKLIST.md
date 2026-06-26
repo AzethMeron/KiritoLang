@@ -37,6 +37,12 @@ The routine to run **after every change, before declaring it done**. The mechani
    executables register in `tools/tests/CMakeLists.txt`, and the `tools/scripts/` and `errors/` directories are
    globbed, so the routine never enumerates test files and stays correct as tests come and go.
 
+   > Disk hygiene: the four build dirs together are large (~1.3 GB debug + 1.3 GB release + ~12 GB asan
+   > + ~9 GB tsan ≈ 24 GB) and have filled a small disk mid-run (`No space left on device`). The
+   > routine therefore **deletes each variant's build dir as soon as that variant's tests pass**, so
+   > peak footprint is one variant at a time; a *failed* variant keeps its dir for debugging, and the
+   > `/tmp/pw_<v>.*.log` logs are always retained. Pass `--keep-builds` to retain every build dir.
+
    > Why push between release and asan? asan is slow, and this environment has rolled the container
    > back to an earlier commit mid-run before. Pushing the green debug+release state first means the
    > work survives regardless; the asan pass then only ever *adds* a fix on top.
