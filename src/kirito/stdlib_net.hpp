@@ -612,6 +612,17 @@ inline Handle netOpt(KiritoVM& vm, Handle opts, const char* key) {
     return p ? *p : vm.none();
 }
 
+// Encode a Dict of params as application/x-www-form-urlencoded (`k=v&...`, percent-encoded). The one
+// implementation shared by the request body (`data=`), the query string (`params=`), and `urlencode`.
+inline std::string formUrlencode(KiritoVM& vm, Handle dict) {
+    std::string out;
+    for (const auto& [k, v] : Value(vm, dict).pairs()) {
+        if (!out.empty()) out += "&";
+        out += net::percentEncode(k.str()) + "=" + net::percentEncode(v.str());
+    }
+    return out;
+}
+
 // The core HTTP driver: build the request from `opts`, follow redirects, accumulate cookies, and
 // return a Response. `opts` is a Dict (or none) with keys: headers, params, data, json, auth,
 // timeout, allowredirects, maxredirects, verify, cookies.
@@ -631,10 +642,7 @@ inline Handle netRequest(KiritoVM& vm, const std::string& method0, const std::st
     } else if (vm.arena().deref(dataH).kind() != ValueKind::None) {
         const Object& d = vm.arena().deref(dataH);
         if (d.kind() == ValueKind::Dict) {
-            for (const auto& [k, v] : Value(vm, dataH).pairs()) {
-                if (!body.empty()) body += "&";
-                body += net::percentEncode(k.str()) + "=" + net::percentEncode(v.str());
-            }
+            body = formUrlencode(vm, dataH);
             contentType = "application/x-www-form-urlencoded";
         } else if (const auto* db = dynamic_cast<const BytesVal*>(&d)) {
             body = db->data;  // raw bytes, not the b'...' repr (Bytes is a NativeClass, kind Instance)
@@ -672,11 +680,7 @@ inline Handle netRequest(KiritoVM& vm, const std::string& method0, const std::st
     std::string url = url0;
     Handle paramsH = netOpt(vm, opts, "params");
     if (vm.arena().deref(paramsH).kind() == ValueKind::Dict) {
-        std::string qs;
-        for (const auto& [k, v] : Value(vm, paramsH).pairs()) {
-            if (!qs.empty()) qs += "&";
-            qs += net::percentEncode(k.str()) + "=" + net::percentEncode(v.str());
-        }
+        std::string qs = formUrlencode(vm, paramsH);
         if (!qs.empty()) url += (url.find('?') == std::string::npos ? "?" : "&") + qs;
     }
 
@@ -1054,12 +1058,7 @@ public:
             return val(vm, net::percentDecode(Args(vm, a, "unquote")[0].asString("s")));
         });
         m.fn("urlencode", {{"params", "Dict"}}, "String", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::string out;
-            for (const auto& [k, v] : Args(vm, a, "urlencode")[0].pairs()) {
-                if (!out.empty()) out += "&";
-                out += net::percentEncode(k.str()) + "=" + net::percentEncode(v.str());
-            }
-            return val(vm, out);
+            return val(vm, formUrlencode(vm, a[0]));
         });
         m.fn("parseqs", {{"query", "String"}}, "Dict", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::string q = Args(vm, a, "parseqs")[0].asString("parseqs");

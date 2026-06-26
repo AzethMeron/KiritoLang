@@ -85,6 +85,19 @@ public:
     Handle getAttr(KiritoVM&, Handle self, std::string_view name) override;
 };
 
+// The one implementation of the "find a key within its hash bucket" probe, shared by Dict (a bucket
+// of {key, value}) and Set (a bucket of value): `keyOf` extracts the comparable key Handle from a
+// bucket element, and equality goes through the value protocol. Returns the index or -1.
+template <class Bucket, class KeyOf>
+inline std::ptrdiff_t probeBucket(const ObjectArena& arena, const Bucket& bucket, const Object& key,
+                                  KeyOf keyOf) {
+    for (std::size_t i = 0; i < bucket.size(); ++i)
+        if (arena.deref(keyOf(bucket[i])).equals(arena, key)) return static_cast<std::ptrdiff_t>(i);
+    return -1;
+}
+inline Handle dictKeyOf(const std::pair<Handle, Handle>& e) { return e.first; }
+inline Handle setKeyOf(Handle e) { return e; }
+
 // Hash-bucketed mapping. Keys must be hashable; lookup hashes then compares with the value
 // protocol's equals within the bucket.
 class DictVal : public Object {
@@ -100,8 +113,8 @@ public:
         const Object& k = arena.deref(key);
         if (!k.hashable()) throw KiritoError("unhashable type '" + k.typeName() + "'");
         auto& bucket = buckets[k.hash()];
-        for (auto& [ek, ev] : bucket)
-            if (arena.deref(ek).equals(arena, k)) { ev = value; return; }
+        auto i = probeBucket(arena, bucket, k, dictKeyOf);
+        if (i >= 0) { bucket[static_cast<std::size_t>(i)].second = value; return; }
         bucket.emplace_back(key, value);
         ++count;
     }
@@ -110,9 +123,8 @@ public:
         if (!k.hashable()) throw KiritoError("unhashable type '" + k.typeName() + "'");
         auto it = buckets.find(k.hash());
         if (it == buckets.end()) return nullptr;
-        for (const auto& [ek, ev] : it->second)
-            if (arena.deref(ek).equals(arena, k)) return &ev;
-        return nullptr;
+        auto i = probeBucket(arena, it->second, k, dictKeyOf);
+        return i >= 0 ? &it->second[static_cast<std::size_t>(i)].second : nullptr;
     }
     std::vector<Handle> keys() const {
         std::vector<Handle> out;
@@ -171,13 +183,11 @@ public:
         auto it = buckets.find(k.hash());
         if (it == buckets.end()) return false;
         auto& bucket = it->second;
-        for (std::size_t i = 0; i < bucket.size(); ++i)
-            if (arena.deref(bucket[i].first).equals(arena, k)) {
-                bucket.erase(bucket.begin() + i);
-                --count;
-                return true;
-            }
-        return false;
+        auto i = probeBucket(arena, bucket, k, dictKeyOf);
+        if (i < 0) return false;
+        bucket.erase(bucket.begin() + i);
+        --count;
+        return true;
     }
 
     Handle getItem(KiritoVM&, std::span<const Handle> keys) override;
@@ -205,8 +215,7 @@ public:
         const Object& v = arena.deref(value);
         if (!v.hashable()) throw KiritoError("unhashable type '" + v.typeName() + "'");
         auto& bucket = buckets[v.hash()];
-        for (Handle e : bucket)
-            if (arena.deref(e).equals(arena, v)) return false;
+        if (probeBucket(arena, bucket, v, setKeyOf) >= 0) return false;
         bucket.push_back(value);
         ++count;
         return true;
@@ -216,9 +225,7 @@ public:
         if (!v.hashable()) return false;
         auto it = buckets.find(v.hash());
         if (it == buckets.end()) return false;
-        for (Handle e : it->second)
-            if (arena.deref(e).equals(arena, v)) return true;
-        return false;
+        return probeBucket(arena, it->second, v, setKeyOf) >= 0;
     }
     std::vector<Handle> items() const {
         std::vector<Handle> out;

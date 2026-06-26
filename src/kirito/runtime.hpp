@@ -634,17 +634,17 @@ inline Handle DictVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
         return bind("values", {}, [self, dict](KiritoVM& vm, std::span<const Handle>) -> Handle {
             RootScope rs(vm);
             auto list = std::make_unique<ListVal>();
-            for (Handle k : dict(vm, self).keys()) list->elems.push_back(rs.add(*dict(vm, self).find(vm.arena(), k)));
+            for (const auto& [k, v] : dict(vm, self).pairs()) list->elems.push_back(rs.add(v));
             return vm.alloc(std::move(list));
         });
     if (name == "items")
         return bind("items", {}, [self, dict](KiritoVM& vm, std::span<const Handle>) -> Handle {
             RootScope rs(vm);
             auto list = std::make_unique<ListVal>();
-            for (Handle k : dict(vm, self).keys()) {
+            for (const auto& [k, v] : dict(vm, self).pairs()) {   // pairs(): one walk, no per-key re-probe
                 auto pair = std::make_unique<ListVal>();
                 pair->elems.push_back(k);
-                pair->elems.push_back(*dict(vm, self).find(vm.arena(), k));
+                pair->elems.push_back(v);
                 list->elems.push_back(rs.add(vm.alloc(std::move(pair))));
             }
             return vm.alloc(std::move(list));
@@ -782,13 +782,10 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             const Object& v = vm.arena().deref(a[0]);
             if (!v.hashable()) throw KiritoError("unhashable type");
             auto it = s.buckets.find(v.hash());
-            if (it != s.buckets.end())
-                for (std::size_t i = 0; i < it->second.size(); ++i)
-                    if (vm.arena().deref(it->second[i]).equals(vm.arena(), v)) {
-                        it->second.erase(it->second.begin() + i);
-                        --s.count;
-                        return vm.none();
-                    }
+            if (it != s.buckets.end()) {
+                auto i = probeBucket(vm.arena(), it->second, v, setKeyOf);
+                if (i >= 0) { it->second.erase(it->second.begin() + i); --s.count; return vm.none(); }
+            }
             throw KiritoError("remove: value not in Set");
         });
     if (name == "copy")
@@ -805,13 +802,10 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             const Object& v = vm.arena().deref(a[0]);
             if (!v.hashable()) return vm.none();
             auto it = s.buckets.find(v.hash());
-            if (it != s.buckets.end())
-                for (std::size_t i = 0; i < it->second.size(); ++i)
-                    if (vm.arena().deref(it->second[i]).equals(vm.arena(), v)) {
-                        it->second.erase(it->second.begin() + i);
-                        --s.count;
-                        break;
-                    }
+            if (it != s.buckets.end()) {
+                auto i = probeBucket(vm.arena(), it->second, v, setKeyOf);
+                if (i >= 0) { it->second.erase(it->second.begin() + i); --s.count; }
+            }
             return vm.none();
         });
     if (name == "clear")

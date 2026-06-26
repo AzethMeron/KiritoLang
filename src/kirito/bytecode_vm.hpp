@@ -218,17 +218,9 @@ public:
                     break;
                 }
 
-                case Op::BuildList: {
-                    std::size_t n = in.a, base = stack_.size() - n;
-                    auto list = std::make_unique<ListVal>();
-                    list->elems.reserve(n);
-                    for (std::size_t i = 0; i < n; ++i) list->elems.push_back(stack_[base + i]);
-                    Handle r = vm_.alloc(std::move(list));
-                    stack_.resize(base);
-                    push(r);
-                    break;
-                }
-                case Op::BuildPack: {  // bare-comma packing -> List (identical storage to a list literal)
+                case Op::BuildList:
+                case Op::BuildPack: {  // bare-comma packing builds the same List as a list literal —
+                                       // one implementation, two opcodes kept only for disassembly clarity
                     std::size_t n = in.a, base = stack_.size() - n;
                     auto list = std::make_unique<ListVal>();
                     list->elems.reserve(n);
