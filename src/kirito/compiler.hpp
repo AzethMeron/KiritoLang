@@ -1,6 +1,7 @@
 #ifndef KIRITO_COMPILER_HPP
 #define KIRITO_COMPILER_HPP
 
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <functional>
@@ -9,17 +10,20 @@
 #include <variant>
 #include <vector>
 
+#include "fum/unordered_map.hpp"
 #include "fum/unordered_set.hpp"
 #include "ast.hpp"
 #include "bytecode.hpp"
 #include "builtins.hpp"   // floatToRoundtrip for exact switch-case float keys
+#include "locals.hpp"     // collectBlockDecls + capturedLocals for slot-addressed locals
 #include "vm.hpp"
 
 namespace kirito {
 
 // Compile a body once, caching the Proto on the VM. Defined below; forward-declared so the compiler
 // can eagerly compile a nested class body (a genuine error there propagates as a KiritoError).
-inline const Proto* protoForBody(KiritoVM& vm, const ast::Block& body, bool isFunction);
+inline const Proto* protoForBody(KiritoVM& vm, const ast::Block& body, bool isFunction,
+                                 const ast::FunctionExpr* fnDef = nullptr);
 
 // Compiles a Block (a function body, the top-level program, or a class body) into a Proto — the AST's
 // second visitor, alongside the parser. It emits stack-machine instructions that reuse the runtime's
@@ -31,10 +35,12 @@ public:
 
     // Compile a whole body. isFunction picks the implicit tail: a function falls off the end
     // returning None; the top-level program returns its last expression value (the REPL echo).
-    void compile(const ast::Block& body, bool isFunction) {
+    void compile(const ast::Block& body, bool isFunction, const ast::FunctionExpr* fnDef = nullptr) {
+        if (fnDef) assignLocalSlots(*fnDef, body);  // slot-address this function's non-captured locals
         compileBlock(body);
         if (isFunction) { emit(Op::LoadNone); emit(Op::Return); }
         else { emit(Op::LoadResult); emit(Op::Return); }
+        proto_.localCount = nextSlot_;  // includes $with hidden slots allocated during compilation
     }
 
     // Compile a single expression to a self-contained Proto (push the value, return it) — for a
@@ -51,9 +57,30 @@ private:
     void patch(std::size_t at, uint32_t target) { proto_.code[at].a = target; }
 
     uint32_t addConst(Handle h) {
+        std::string key = scalarConstKey(h);  // dedup repeated scalar literals -> one consts slot
+        if (!key.empty()) {
+            auto it = constDedup_.find(key);
+            if (it != constDedup_.end()) return it->second;
+        }
         proto_.consts.push_back(h);
         vm_.pushTemp(h);  // rooted while compiling; the VM pins it permanently once the Proto is kept
-        return static_cast<uint32_t>(proto_.consts.size() - 1);
+        uint32_t idx = static_cast<uint32_t>(proto_.consts.size() - 1);
+        if (!key.empty()) constDedup_.emplace(key, idx);
+        return idx;
+    }
+    // Canonical dedup key for a scalar constant. Empty for a non-scalar (never deduped). Floats key on
+    // exact bits so -0.0/0.0 and distinct NaNs never collapse into one shared constant.
+    std::string scalarConstKey(Handle h) const {
+        const Object& o = vm_.arena().deref(h);
+        switch (o.kind()) {
+            case ValueKind::None: return "N";
+            case ValueKind::Bool: return static_cast<const BoolVal&>(o).value() ? "B1" : "B0";
+            case ValueKind::Integer: return "I" + std::to_string(static_cast<const IntVal&>(o).value());
+            case ValueKind::Float:
+                return "F" + std::to_string(std::bit_cast<uint64_t>(static_cast<const FloatVal&>(o).value()));
+            case ValueKind::String: return "S" + static_cast<const StrVal&>(o).value();
+            default: return std::string();
+        }
     }
     uint32_t addName(const std::string& n) {
         for (std::size_t i = 0; i < proto_.names.size(); ++i)
@@ -68,6 +95,53 @@ private:
     void emitCall0(SourceSpan span) {  // call the value on top of stack with no arguments
         proto_.calls.push_back(CallSpec{0, {}});
         emit(Op::Call, static_cast<uint32_t>(proto_.calls.size() - 1), span);
+    }
+
+    // --- slot-addressed locals -------------------------------------------------------------------
+    // A function body's non-captured, non-parameter locals get a frame slot (direct array index at
+    // run time) instead of a name lookup. Captured locals (referenced by a nested function/class) and
+    // parameters stay name-based — they live in the scope's vars_, where closures and the call binder
+    // find them. Module and class bodies never enable slots (slotsEnabled_ stays false): class bodies
+    // rely on scope.locals() to harvest methods, and module scopes are dynamic.
+    void assignLocalSlots(const ast::FunctionExpr& fn, const ast::Block& body) {
+        slotsEnabled_ = true;
+        NameSet captured = capturedLocals(fn.params, body);
+        NameSet params;
+        for (const auto& p : fn.params) params.insert(p.name);
+        NameSet decls;
+        collectBlockDecls(body, decls);
+        for (const auto& name : decls)
+            if (!captured.count(name) && !params.count(name)) defineSlot(name);
+    }
+    uint32_t defineSlot(const std::string& name) {
+        uint32_t slot = nextSlot_++;
+        slotOf_.emplace(name, slot);
+        proto_.localNames.push_back(name);  // localNames[slot] == name
+        return slot;
+    }
+    int slotOf(const std::string& name) const {
+        auto it = slotOf_.find(name);
+        return it == slotOf_.end() ? -1 : static_cast<int>(it->second);
+    }
+    // A compiler-generated hidden local ($withN): always slottable inside a function scope.
+    void ensureHiddenSlot(const std::string& name) {
+        if (slotsEnabled_ && slotOf(name) < 0) defineSlot(name);
+    }
+    // Emit a read / declare / rebind of a name, choosing the slot fast path when the name is slotted.
+    void emitLoad(const std::string& name, SourceSpan span) {
+        int s = slotOf(name);
+        if (s >= 0) emit(Op::LoadLocal, static_cast<uint32_t>(s), span);
+        else emit(Op::LoadName, addName(name), span);
+    }
+    void emitStore(const std::string& name, SourceSpan span) {
+        int s = slotOf(name);
+        if (s >= 0) emit(Op::StoreLocal, static_cast<uint32_t>(s), span);
+        else emit(Op::StoreName, addName(name), span);
+    }
+    void emitAssign(const std::string& name, SourceSpan span) {
+        int s = slotOf(name);
+        if (s >= 0) emit(Op::AssignLocal, static_cast<uint32_t>(s), span);
+        else emit(Op::AssignName, addName(name), span);
     }
 
     // The switch-dispatch key of a literal scalar, matching scalarSwitchKey() at run time, so the
@@ -110,10 +184,10 @@ private:
     void visit(const ast::VarDeclStmt& s) override {
         compileExpr(*s.init);
         if (s.names.size() == 1 && s.starIndex == -1) {
-            emit(Op::StoreName, addName(s.names[0]), s.span);
+            emitStore(s.names[0], s.span);
         } else {
             emit(Op::Unpack, addUnpack(static_cast<uint32_t>(s.names.size()), s.starIndex), s.span);
-            for (const auto& name : s.names) emit(Op::StoreName, addName(name), s.span);  // slot0 on top
+            for (const auto& name : s.names) emitStore(name, s.span);  // first target on top
         }
         emit(Op::ClearResult);
     }
@@ -144,7 +218,7 @@ private:
     void compileAssignTarget(const ast::Expr& target, SourceSpan span) {
         switch (target.exprKind()) {
             case ast::ExprKind::Name: {
-                emit(Op::AssignName, addName(static_cast<const ast::NameExpr&>(target).name), span);
+                emitAssign(static_cast<const ast::NameExpr&>(target).name, span);
             } break;
             case ast::ExprKind::Index: {
                 const auto& idx = static_cast<const ast::IndexExpr&>(target);
@@ -196,10 +270,10 @@ private:
         uint32_t top = here();
         std::size_t exit = emit(Op::ForIter, 0, s.span);  // exhausted -> pops the cursor, jumps to end
         if (s.vars.size() == 1 && s.starIndex == -1) {
-            emit(Op::StoreName, addName(s.vars[0]), s.span);
+            emitStore(s.vars[0], s.span);
         } else {
             emit(Op::Unpack, addUnpack(static_cast<uint32_t>(s.vars.size()), s.starIndex), s.span);
-            for (const auto& v : s.vars) emit(Op::StoreName, addName(v), s.span);  // slot0 on top
+            for (const auto& v : s.vars) emitStore(v, s.span);  // first target on top
         }
         frames_.push_back(CFrame{CFrame::Loop, 1, {}, {}, nullptr});  // break must pop the live cursor
         compileBlock(s.body);
@@ -375,8 +449,8 @@ private:
                 } else {
                     sawCatchAll = true;
                 }
-                if (!h.name.empty()) emit(Op::StoreName, addName(h.name), s.span);  // bind the exception
-                else emit(Op::Pop);                                                 // or drop it
+                if (!h.name.empty()) emitStore(h.name, s.span);  // bind the exception
+                else emit(Op::Pop);                              // or drop it
                 compileBlock(h.body);
                 toHandled.push_back(emit(Op::Jump));  // -> Lhandled
             }
@@ -408,14 +482,15 @@ private:
     void visit(const ast::WithStmt& s) override {
         compileExpr(*s.context);
         std::string mgr = "$with" + std::to_string(withCounter_++);  // '$' can't appear in a user name
-        emit(Op::StoreName, addName(mgr), s.span);
-        emit(Op::LoadName, addName(mgr), s.span);
+        ensureHiddenSlot(mgr);  // slot it inside a function scope (never captured); name-based elsewhere
+        emitStore(mgr, s.span);
+        emitLoad(mgr, s.span);
         emit(Op::GetAttr, addName("_enter_"), s.span);
         emitCall0(s.span);
-        if (!s.name.empty()) emit(Op::StoreName, addName(s.name), s.span);
+        if (!s.name.empty()) emitStore(s.name, s.span);
         else emit(Op::Pop);
         auto emitExit = [this, mgr, span = s.span] {
-            emit(Op::LoadName, addName(mgr), span);
+            emitLoad(mgr, span);
             emit(Op::GetAttr, addName("_exit_"), span);
             emitCall0(span);
             emit(Op::Pop);  // discard the _exit_ return value
@@ -448,7 +523,7 @@ private:
             emit(Op::LoadNone);
     }
 
-    void visit(const ast::NameExpr& e) override { emit(Op::LoadName, addName(e.name), e.span); }
+    void visit(const ast::NameExpr& e) override { emitLoad(e.name, e.span); }
 
     void visit(const ast::UnaryExpr& e) override {
         compileExpr(*e.operand);
@@ -613,18 +688,23 @@ private:
     std::vector<CFrame> frames_;
     int withCounter_ = 0;  // unique hidden-local index per `with` (holds the context manager)
     int depth_ = 0;
+    bool slotsEnabled_ = false;                      // true only when compiling a true function body
+    fum::unordered_map<std::string, uint32_t> slotOf_;  // slotted local name -> frame slot index
+    uint32_t nextSlot_ = 0;                          // next free slot (becomes proto_.localCount)
+    fum::unordered_map<std::string, uint32_t> constDedup_;  // scalar const key -> consts index
 };
 
 // Compile a body once and cache the Proto on the VM (keyed by the body's address). The compiler
 // handles every node, so this never fails to produce a Proto — a genuine program error (a deep nest,
 // an invalid assignment target, ...) propagates out as a KiritoError, exactly as the parser's do.
-inline const Proto* protoForBody(KiritoVM& vm, const ast::Block& body, bool isFunction) {
+inline const Proto* protoForBody(KiritoVM& vm, const ast::Block& body, bool isFunction,
+                                 const ast::FunctionExpr* fnDef) {
     const void* key = &body;
     if (vm.protoTried(key)) return vm.protoGet(key);
     RootScope rs(vm);  // roots the constants the compiler materialises until they are pinned
     auto p = std::make_unique<Proto>();
     Compiler c(vm, *p);
-    c.compile(body, isFunction);
+    c.compile(body, isFunction, fnDef);
     for (Handle h : p->consts) vm.pinConst(h);  // survive past rs; live for the VM's lifetime
     const Proto* result = p.get();
     vm.protoPut(key, std::move(p));

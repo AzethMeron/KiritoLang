@@ -31,6 +31,9 @@ enum class Op : uint8_t {
     LoadName,         // a: push the value bound to names[a] (NameError if undefined)
     StoreName,        // a: define names[a] = pop() in the current scope (var)
     AssignName,       // a: rebind the nearest existing names[a] = pop() (NameError if undefined)
+    LoadLocal,        // a: push frame slot a; if unwritten, fall back to LoadName via localNames[a]
+    StoreLocal,       // a: frame slot a = pop()  (a non-captured function local — var/for/with/catch)
+    AssignLocal,      // a: if slot a written, slot a = pop(); else rebind via AssignName(localNames[a])
     Pop,              //    discard the top of stack
     Dup,              //    push a copy of the top of stack
     UnaryOp,          // a: (UnOp) replace top with op(top)
@@ -111,6 +114,8 @@ struct Proto {
     std::vector<UnpackSpec> unpacks;                  // Unpack targets
     std::vector<const ast::ClassStmt*> classes;       // BuildClass targets (name/base/body)
     std::vector<SwitchTable> switches;                // SwitchDispatch targets (compile-time case tables)
+    uint32_t localCount = 0;                           // frame slots to reserve for slot-addressed locals
+    std::vector<std::string> localNames;              // slot -> name (for the LoadLocal fallback + errors)
 };
 
 class KiritoVM;
@@ -120,7 +125,8 @@ class KiritoVM;
 // returns its last expression). Defined in bytecode_vm.hpp (after the runtime), so the call sites
 // (KiFunction::callFull / KiritoVM::evalIn / the module loaders) only need this declaration.
 Handle runBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body, Handle ownerClass,
-                       bool hasOwner, bool isFunction, std::string frameLabel = "<module>");
+                       bool hasOwner, bool isFunction, std::string frameLabel = "<module>",
+                       const ast::FunctionExpr* fnDef = nullptr);
 // Compile and evaluate a single expression against `scope` (a parameter's default value).
 Handle runBytecodeExpr(KiritoVM& vm, Handle scope, const ast::Expr& e);
 

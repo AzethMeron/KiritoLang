@@ -45,6 +45,25 @@ int main() {
     });
     CHECK(sumResult == "499999500000");
 
+    // A tight numeric loop INSIDE a function (1,000,000 iterations) — exercises slot-addressed locals
+    // (s/i/a/b are non-captured function locals) plus the numeric fast path. The module-scope loop
+    // above, by contrast, is name-based; this is the workload slot-addressing targets.
+    std::string fnLoopResult;
+    double tFnLoop = timeMs([&] {
+        fnLoopResult = vm.stringify(vm.runSource(
+            "var run = Function(n):\n"
+            "    var s = 0\n"
+            "    var i = 0\n"
+            "    while i < n:\n"
+            "        var a = i * 2\n"
+            "        var b = a + 3\n"
+            "        s = s + a + b\n"
+            "        i = i + 1\n"
+            "    return s\n"
+            "run(1000000)\n"));
+    });
+    CHECK(fnLoopResult == "2000001000000");
+
     // List building and summation.
     std::string listResult;
     double tList = timeMs([&] {
@@ -74,7 +93,8 @@ int main() {
     });
     CHECK(strResult == "20000");
 
-    std::printf("bench: fib(27) %.0f ms | loop 1e6 %.0f ms | list 1e5 %.0f ms | strjoin 2e4 %.0f ms | live=%zu\n",
-                tFib, tLoop, tList, tStr, vm.liveCount());
+    std::printf("bench: fib(27) %.0f ms | loop 1e6 %.0f ms | fnloop 1e6 %.0f ms | list 1e5 %.0f ms | "
+                "strjoin 2e4 %.0f ms | live=%zu\n",
+                tFib, tLoop, tFnLoop, tList, tStr, vm.liveCount());
     return RUN_TESTS();
 }

@@ -1857,7 +1857,7 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
     // Compile (once) and execute the body on the bytecode engine — the sole execution path.
     auto runBody = [&](Handle bodyScope) -> Handle {
         return runBytecodeBody(vm, bodyScope, def_->body, hasOwner ? ownerClass : Handle{}, hasOwner,
-                               /*isFunction=*/true, def_->name.empty() ? "<function>" : def_->name);
+                               /*isFunction=*/true, def_->name.empty() ? "<function>" : def_->name, def_);
     };
 
     if (named.empty() && positional.size() == params.size() && *def_->fastBindable) {
@@ -1963,6 +1963,16 @@ inline Handle applyUnaryOp(KiritoVM& vm, UnOp op, Handle operand) {
 }
 
 inline Handle applyBinaryOp(KiritoVM& vm, BinOp op, Handle lhs, Handle rhs) {
+    // Fast path: numeric arithmetic/ordering (Integer/Float, any mix) goes straight to the shared
+    // numericBinary primitives, skipping the Eq/Ne/In branch checks and the virtual binary() call on
+    // the hottest operator path. Exactly equivalent — IntVal/FloatVal::binary delegate here anyway,
+    // with identical wraparound / Python-3 `/` / raise-on-zero-divisor / exact-compare semantics.
+    // Eq/Ne (exact structural) and In/NotIn keep their dedicated handling; `Integer * sequence` is
+    // naturally excluded since a sequence operand is non-numeric.
+    if (op != BinOp::Eq && op != BinOp::Ne && op != BinOp::In && op != BinOp::NotIn) {
+        const Object& l = vm.arena().deref(lhs);
+        if (isNumeric(l) && isNumeric(vm.arena().deref(rhs))) return numericBinary(vm, op, lhs, rhs);
+    }
     // Equality never raises on a type mismatch (1 == "x" is False); it uses structural equals, unless
     // a user class overrides it. Ordering/arithmetic dispatch through binary(); in/not in via contains.
     if (op == BinOp::Eq || op == BinOp::Ne) {

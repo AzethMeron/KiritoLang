@@ -20,6 +20,7 @@
 #include "ast.hpp"
 #include "common.hpp"
 #include "environment.hpp"
+#include "locals.hpp"
 #include "vm.hpp"
 
 namespace kirito {
@@ -65,38 +66,10 @@ private:
         scopes_.pop_back();
     }
 
-    // Pre-pass: record every name a block binds into the current scope, descending into the blocks
-    // that share this scope (if/while/for/try/with/switch) but NOT into nested functions/class bodies
-    // (those are their own scopes).
-    void collectDecls(const ast::Block& block) {
-        for (const auto& s : block) collectStmtDecls(*s);
-    }
-    void collectStmtDecls(const ast::Stmt& s) {
-        if (const auto* v = dynamic_cast<const ast::VarDeclStmt*>(&s)) {
-            for (const auto& n : v->names) declare(n);
-        } else if (const auto* f = dynamic_cast<const ast::ForStmt*>(&s)) {
-            for (const auto& n : f->vars) declare(n);
-            collectDecls(f->body);
-        } else if (const auto* c = dynamic_cast<const ast::ClassStmt*>(&s)) {
-            declare(c->name);  // the class name binds in THIS scope; its body is a separate scope
-        } else if (const auto* i = dynamic_cast<const ast::IfStmt*>(&s)) {
-            for (const auto& [cond, b] : i->branches) collectDecls(b);
-            if (i->orelse) collectDecls(*i->orelse);
-        } else if (const auto* w = dynamic_cast<const ast::WhileStmt*>(&s)) {
-            collectDecls(w->body);
-        } else if (const auto* t = dynamic_cast<const ast::TryStmt*>(&s)) {
-            collectDecls(t->body);
-            for (const auto& h : t->handlers) { if (!h.name.empty()) declare(h.name); collectDecls(h.body); }
-            if (t->hasFinally) collectDecls(t->finallyBody);
-        } else if (const auto* wi = dynamic_cast<const ast::WithStmt*>(&s)) {
-            if (!wi->name.empty()) declare(wi->name);
-            collectDecls(wi->body);
-        } else if (const auto* sw = dynamic_cast<const ast::SwitchStmt*>(&s)) {
-            for (const auto& cl : sw->cases) collectDecls(cl.body);
-            if (sw->hasDefault) collectDecls(sw->defaultBody);
-        }
-        // ExprStmt / Discard / Assign / Return / Throw / Break / Continue / Pass / Todo / Assert bind nothing.
-    }
+    // Pre-pass: record every name a block binds into the current scope. The traversal lives in
+    // locals.hpp (collectBlockDecls), shared with the compiler's slot-assignment pass so both agree on
+    // exactly which names a scope binds.
+    void collectDecls(const ast::Block& block) { kirito::collectBlockDecls(block, scopes_.back()); }
 
     // --- reference checking ---------------------------------------------------------------------
     void checkBlock(const ast::Block& block) { for (const auto& s : block) checkStmt(*s); }

@@ -58,6 +58,7 @@ public:
     BytecodeVM& operator=(const BytecodeVM&) = delete;
 
     Handle run(const Proto& proto) {
+        for (uint32_t i = 0; i < proto.localCount; ++i) push(vm_.undefined());  // reserve frame slots
         const std::vector<Instr>& code = proto.code;
         std::size_t ip = 0;
         while (true) {
@@ -86,6 +87,26 @@ public:
                     Handle v = pop();
                     if (!envAssign(vm_.arena(), scope(), proto.names[in.a], v))
                         throw KiritoError("name '" + proto.names[in.a] + "' is not defined", in.span);
+                } break;
+
+                case Op::LoadLocal: {
+                    Handle h = getLocal(in.a);
+                    if (h == vm_.undefined()) {  // unwritten: behave exactly like LoadName (walk the chain)
+                        auto found = envLookup(vm_.arena(), scope(), proto.localNames[in.a]);
+                        if (!found) throw KiritoError("name '" + proto.localNames[in.a] + "' is not defined", in.span);
+                        h = *found;
+                    }
+                    push(h);
+                } break;
+                case Op::StoreLocal: { setLocal(in.a, pop()); } break;
+                case Op::AssignLocal: {
+                    Handle v = pop();
+                    if (getLocal(in.a) == vm_.undefined()) {  // no local binding yet: rebind nearest existing
+                        if (!envAssign(vm_.arena(), scope(), proto.localNames[in.a], v))
+                            throw KiritoError("name '" + proto.localNames[in.a] + "' is not defined", in.span);
+                    } else {
+                        setLocal(in.a, v);
+                    }
                 } break;
 
                 case Op::UnaryOp: {
@@ -353,6 +374,10 @@ private:
     void push(Handle h) { stack_.push_back(h); }
     Handle pop() { Handle h = stack_.back(); stack_.pop_back(); return h; }
     Handle peek(std::size_t fromTop) const { return stack_[stack_.size() - 1 - fromTop]; }
+    // Slot-addressed locals live just above the reserved scope/result/owner slots (the operand stack
+    // sits above them); reserved once at frame entry and never popped, so these indices stay valid.
+    Handle getLocal(uint32_t i) const { return stack_[kOperandBase + i]; }
+    void setLocal(uint32_t i, Handle h) { stack_[kOperandBase + i] = h; }
 
     template <typename F>
     auto located(SourceSpan span, F&& fn) -> decltype(fn()) {
@@ -401,7 +426,8 @@ private:
 };
 
 inline Handle runBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body, Handle ownerClass,
-                              bool hasOwner, bool isFunction, std::string frameLabel) {
+                              bool hasOwner, bool isFunction, std::string frameLabel,
+                              const ast::FunctionExpr* fnDef) {
     // Root the scope (and owning class) across BOTH compilation and execution: first-run compilation
     // materialises constants and so may trigger GC, and the top-level scope is not otherwise rooted
     // here (unlike a function call scope, which callFull already roots). The BytecodeVM re-roots them
@@ -409,7 +435,7 @@ inline Handle runBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body
     RootScope rs(vm);
     rs.add(scope);
     if (hasOwner) rs.add(ownerClass);
-    const Proto* proto = protoForBody(vm, body, isFunction);
+    const Proto* proto = protoForBody(vm, body, isFunction, fnDef);
     BytecodeVM bc(vm, scope, ownerClass, hasOwner, std::move(frameLabel));
     return bc.run(*proto);
 }

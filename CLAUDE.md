@@ -420,9 +420,10 @@ a stability fuzzer, and a benchmark). Working today:
   tight arithmetic loop put ~25% of run time in `malloc`/`free` from per-operation value boxing, and
   recycling those fixed-size blocks cut the instruction count ~25% (sum_loop) with no semantic change.
   It is thread-local (safe: one OS thread per VM, share-nothing multiprocessing) and **bypassed under
-  asan/tsan** so the sanitizers still instrument every allocation. (Slot-addressed locals were
-  investigated and *rejected*: an inline-cache prototype measured break-even because the flat-vector
-  scopes already make name lookup cheap — name resolution is not the bottleneck; allocation was.)
+  asan/tsan** so the sanitizers still instrument every allocation. (A runtime *inline-cache* prototype
+  for name lookup was rejected — it measured break-even because the flat-vector scopes already make name
+  lookup cheap and the cache itself allocated; v1.9's slot-addressed locals instead resolve slots at
+  COMPILE time with zero added allocation — see the bytecode-VM section below.)
 - **Sample projects** in `examples/` (complex linear-system solver, rule34 image downloader,
   word-frequency analyzer, RPN calculator, and three `tabular`-library data-analysis demos —
   `tabular_iris.ki` on the bundled `examples/data/iris.csv`, `tabular_sales.ki`, `tabular_survey.ki`) demonstrate
@@ -502,8 +503,20 @@ are shared free functions in `runtime.hpp`). A **compile-time, scope-aware name-
 defined` for any reference bound to no parameter, no `var`/`for`/`class`/`catch`/`with` name in an
 enclosing lexical scope, no run-scope/REPL binding, and no builtin — resolution is by scope
 *membership*, so recursion/mutual-recursion/forward-references resolve, and an undefined name is a
-compile error (not catchable at run time). **Slot-addressed locals** (turning resolved locals into
-indexed access) are the next enrichment.
+compile error (not catchable at run time). **Slot-addressed locals are implemented** (v1.9): the
+compiler assigns each function's non-captured body locals (`var`/`for`/`with`/`catch`/unpack targets +
+the hidden `with` manager) a frame slot, lowered to `LoadLocal`/`StoreLocal`/`AssignLocal` — a direct
+index into the call frame's operand stack (`stack_[3 + slot]`, zero added allocation) instead of a name
+lookup. Captured locals (referenced by a nested function/class, found via a free-variable analysis in
+`locals.hpp` shared with the resolver) and **parameters** stay name-based in the scope's `vars_`, where
+closures and the call binder resolve them by name; an unwritten slot transparently falls back to a name
+lookup, so semantics (closures, read-before-assign, the `var`-shadowing rule) are byte-for-byte
+unchanged. Module and class bodies are never slotted (a class body harvests its methods via
+`scope.locals()`; module scopes are dynamic). Two companion v1.9 wins ride along: a **numeric binary
+fast path** (Integer/Float arithmetic in `applyBinaryOp` skips the virtual dispatch, delegating straight
+to the shared `numericBinary` with identical wraparound/Python-3-division/exact-compare semantics) and
+**constant deduplication** (repeated scalar literals share one `consts` slot, floats keyed on exact
+bits). Measured ~10% on function-local arithmetic loops; no regression on call-heavy/module-level code.
 
 ## The Archive is reference only
 

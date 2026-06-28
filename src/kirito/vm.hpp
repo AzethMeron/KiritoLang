@@ -33,6 +33,9 @@ public:
         none_ = arena_.alloc(std::make_unique<NoneVal>());
         true_ = arena_.alloc(std::make_unique<BoolVal>(true));
         false_ = arena_.alloc(std::make_unique<BoolVal>(false));
+        // A distinct sentinel marking an as-yet-unwritten slot-addressed local. Never reaches Kirito
+        // code: LoadLocal/AssignLocal detect it and fall back to a name lookup. Kept as a GC root.
+        undefined_ = arena_.alloc(std::make_unique<NoneVal>());
         global_ = arena_.alloc(std::make_unique<EnvValue>());
         smallInts_.reserve(kSmallIntHi - kSmallIntLo + 1);
         for (int64_t v = kSmallIntLo; v <= kSmallIntHi; ++v)
@@ -53,6 +56,7 @@ public:
 
     // Interned singletons.
     Handle none() const { return none_; }
+    Handle undefined() const { return undefined_; }  // sentinel for an unwritten slot-addressed local
     Handle makeBool(bool v) const { return v ? true_ : false_; }
 
     // Value-construction helpers — also the embedding surface for C++ callers.
@@ -106,7 +110,7 @@ public:
         arena_.clearMarks();
         std::vector<Handle> work;
         auto enqueue = [&](Handle h) { if (arena_.markIfUnmarked(h)) work.push_back(h); };
-        enqueue(none_); enqueue(true_); enqueue(false_); enqueue(global_);
+        enqueue(none_); enqueue(true_); enqueue(false_); enqueue(undefined_); enqueue(global_);
         for (Handle h : smallInts_) enqueue(h);
         if (replScopeReady_) enqueue(replScope_);
         for (const auto& [name, h] : moduleCache_) enqueue(h);
@@ -246,6 +250,7 @@ private:
     Handle none_;
     Handle true_;
     Handle false_;
+    Handle undefined_;
     Handle global_;
     std::vector<std::unique_ptr<ast::Program>> chunks_;
     std::vector<std::unique_ptr<NativeModule>> nativeModules_;
