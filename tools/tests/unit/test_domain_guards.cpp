@@ -55,7 +55,7 @@ int main() {
     CHECK(raised("discard import(\"math\").prod([1000000000000, 1000000000000])"));
     CHECK(ok("import(\"math\").prod([2.0, 3.0])") == "6.0");
 
-    // === complex: matches cmath (log/log10 of 0, pow zero-to-negative, atanh +/-1 raise) ===
+    // === complex: domain errors (log/log10 of 0, pow zero-to-negative, atanh +/-1 raise) ===
     CHECK(has(err("discard import(\"complex\").log(import(\"complex\").zero)"), "math domain error"));
     CHECK(raised("discard import(\"complex\").log10(import(\"complex\").zero)"));
     CHECK(has(err("discard import(\"complex\").pow(import(\"complex\").zero, import(\"complex\").of(0-1,0))"),
@@ -88,7 +88,7 @@ int main() {
     CHECK(raised("discard Integer(\"0b -1\")"));
     CHECK(ok("Integer(\"  -5 \")") == "-5");
     CHECK(ok("Integer(\"-0xFF\")") == "-255");
-    CHECK(raised("discard Float(\"0x1p4\")"));               // C99 hex float rejected (Python parity)
+    CHECK(raised("discard Float(\"0x1p4\")"));               // C99 hex float rejected
     CHECK(ok("Float(\"1.5e3\")") == "1500.0");
     CHECK(has(err("discard pow(7, 2, 0-5)"), "modulus must be positive"));
     CHECK(ok("pow(2, 10, 1000)") == "24");

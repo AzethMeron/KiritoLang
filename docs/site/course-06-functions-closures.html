@@ -57,7 +57,7 @@ io.<span class="builtin">print</span>(greet(<span class="str">&quot;Ada&quot;</s
 <span class="kw">var</span> result = log(<span class="str">&quot;starting up&quot;</span>)     <span class="com"># =&gt; [log] starting up</span>
 io.<span class="builtin">print</span>(result)                     <span class="com"># =&gt; None</span></code></pre>
 <h2 id="default-parameter-values-and-keyword-arguments">Default parameter values and keyword arguments</h2>
-<p>A parameter can have a default, used when the caller omits it. Defaults are evaluated <strong>at call time, once per call</strong> — so a mutable default like <code>xs = []</code> is a <em>fresh</em> list on every call (no Python-style shared-default surprise). You can also pass arguments <strong>by name</strong>, in any order — clearer at the call site and order-independent:</p>
+<p>A parameter can have a default, used when the caller omits it. Defaults are evaluated <strong>at call time, once per call</strong> — so a mutable default like <code>xs = []</code> is a <em>fresh</em> list on every call (no shared-default surprise). You can also pass arguments <strong>by name</strong>, in any order — clearer at the call site and order-independent:</p>
 <pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> power = <span class="kw">Function</span>(base, exponent = <span class="num">2</span>):
     <span class="kw">return</span> base ** exponent

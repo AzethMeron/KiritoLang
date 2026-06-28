@@ -755,7 +755,7 @@ inline const FT& reqFloat(const TensorVal& t, const char* who) {
 
 // --- slicing / fancy indexing ---
 
-// A resolved single-axis slice (Python semantics; stop exclusive in the walk direction).
+// A resolved single-axis slice (stop exclusive in the walk direction).
 struct SliceRange { std::ptrdiff_t start, stop, step; };
 inline SliceRange resolveSlice(KiritoVM& vm, Handle sH, Handle eH, Handle stH, std::size_t len) {
     std::ptrdiff_t n = static_cast<std::ptrdiff_t>(len);
@@ -1526,7 +1526,7 @@ inline Handle TensorVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
         const Object& o = vm.arena().deref(keys[i]);
         if (o.kind() != ValueKind::Integer) throw KiritoError("Tensor index must be Integer");
         int64_t v = static_cast<const IntVal&>(o).value();
-        if (v < 0) v += static_cast<int64_t>(sh[i]);   // Python/NumPy negative indexing (consistent with slicing)
+        if (v < 0) v += static_cast<int64_t>(sh[i]);   // negative indexing (consistent with slicing)
         if (v < 0 || v >= static_cast<int64_t>(sh[i])) throw KiritoError("Tensor index out of range");
         idx.push_back(static_cast<std::size_t>(v));
     }
@@ -1556,7 +1556,7 @@ inline void TensorVal::setItem(KiritoVM& vm, std::span<const Handle> keys, Handl
         const Object& o = vm.arena().deref(keys[i]);
         if (o.kind() != ValueKind::Integer) throw KiritoError("Tensor index must be Integer");
         int64_t v = static_cast<const IntVal&>(o).value();
-        if (v < 0) v += static_cast<int64_t>(sh[i]);   // Python/NumPy negative indexing
+        if (v < 0) v += static_cast<int64_t>(sh[i]);   // negative indexing
         if (v < 0 || v >= static_cast<int64_t>(sh[i])) throw KiritoError("Tensor index out of range");
         idx.push_back(static_cast<std::size_t>(v));
     }
@@ -1578,7 +1578,7 @@ inline Handle TensorVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return ax;                                  // always a valid 0..nd-1 once an axis is given
     };
     // compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool — tolerant whole-tensor comparison (same
-    // shape + every element within tolerance, cmath.isclose), since `==` is now exact. Signatured for
+    // shape + every element within tolerance), since `==` is now exact. Signatured for
     // keyword args/defaults + inspect.
     if (name == "compare") {
         std::vector<NativeParam> sig;

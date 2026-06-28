@@ -1,6 +1,6 @@
 // A large corpus of regular-expression test vectors driven through Kirito's engine. The bulk are
 // the classic, public-domain vectors that have been reused for decades (Henry Spencer's regexp
-// suite -> PCRE -> Python's Lib/test/test_re.py "tests" table), re-authored here as plain data and
+// suite -> PCRE -> the canonical re_tests "tests" table), re-authored here as plain data and
 // pruned of every case that needs a DELIBERATELY-EXCLUDED feature (backreferences, lookaround) —
 // those are covered separately as must-raise cases. On top of the classic table this adds difficult
 // cases (empty-bodied loops, deep nesting, pathological alternations) and a structured fuzz.

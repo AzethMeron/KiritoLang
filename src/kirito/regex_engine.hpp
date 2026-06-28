@@ -149,7 +149,7 @@ private:
         Node atom = parseAtom();
         int32_t c = peek();
         // A quantifier needs a repeatable atom: a zero-width anchor or an empty inline-flag group
-        // has "nothing to repeat" (matching Python). Note an empty *group* `(?:)*` is a Group node,
+        // has "nothing to repeat". Note an empty *group* `(?:)*` is a Group node,
         // so it stays repeatable.
         bool zeroWidth = atom.kind == Node::Anchor || atom.kind == Node::Empty;
         if (zeroWidth && (c == '*' || c == '+' || c == '?'))
@@ -188,7 +188,7 @@ private:
                 n.kids.push_back(std::move(atom));
                 return n;
             }
-            pos_ = save;  // not a valid {..}: treat '{' as a literal (Python-lenient)
+            pos_ = save;  // not a valid {..}: treat '{' as a literal (lenient)
         }
         return atom;
     }

@@ -277,7 +277,7 @@ assert sh1.tally == 0 and sh2.tally == 0, "both instances read the class default
 sh1.bump()
 assert sh1.tally == 1 and sh2.tally == 0, "COW: sh1 shadows; sh2 still sees the class default"
 
-# Parameter defaults are evaluated per-call (a mutable default is fresh each call — not Python's footgun).
+# Parameter defaults are evaluated per-call (a mutable default is fresh each call — no shared-default footgun).
 var collect = Function(x, acc = []):
     acc.append(x)
     return acc
@@ -361,7 +361,7 @@ finally:
 assert order == ["body", "fin"], "finally runs on normal exit"
 
 # When a MATCHED catch handler re-throws (or throws anew), the inner `finally` STILL runs before the
-# exception propagates — as the doc ("finally runs ... on re-thrown") and Python require. (The old
+# exception propagates — as the doc ("finally runs ... on re-thrown") requires. (The old
 # tree-walker had a bug that skipped it; the bytecode engine handles it correctly.)
 order = []
 try:

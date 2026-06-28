@@ -78,9 +78,9 @@ autocmd BufRead,BufNewFile *.ki set filetype=kirito
 
 ## Quick fallback (any editor)
 
-Kirito's surface looks a lot like Python (significant indentation, `#` comments, similar control
-flow), so as a stopgap you can just tell your editor to treat `.ki` files as **Python** — you'll get
-~80% of the benefit instantly. The dedicated grammars above add the Kirito-specific keywords
+Kirito uses significant indentation and `#` comments, so as a stopgap you can tell your editor to
+treat `.ki` files with its **Python** syntax mode — you'll get ~80% of the benefit instantly. The
+dedicated grammars above add the Kirito-specific keywords
 (`Function`, `var`, `switch`/`case`/`default`, `catch`/`throw`, `todo`, `discard`) and the fact that
 `print`/`input` are *not* builtins (they live in the `io` module).
 

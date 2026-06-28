@@ -205,7 +205,7 @@ var ziplongest = Function(lists, fillvalue = None):
     return out
 
 var groupby = Function(iterable, key = None):
-    # Group CONSECUTIVE elements sharing a key -> list of [key, [members...]] (like Python).
+    # Group CONSECUTIVE elements sharing a key -> list of [key, [members...]].
     var out = []
     var haveCur = False
     var curKey = None
@@ -410,7 +410,7 @@ var multimode = Function(data):
     return out
 
 var quantiles = Function(data, n = 4):
-    # Cut points dividing sorted data into n equal groups (exclusive method, like Python default).
+    # Cut points dividing sorted data into n equal groups (exclusive method, the default).
     var s = sorted(data)
     var ld = len(s)
     if ld < 2:
@@ -486,7 +486,7 @@ var closest = Function(query, candidates):
     return candidates[best]
 
 # Every candidate whose similarity to `query` is at least `cutoff`, as [candidate, score] pairs sorted
-# by score descending (like Python's difflib.get_close_matches, but score-annotated).
+# by score descending (a get-close-matches helper, score-annotated).
 var fuzzymatch = Function(query, candidates, cutoff = 0.6):
     var dists = query.levenshtein(candidates)
     var scored = []
@@ -612,7 +612,7 @@ var decode = Function(s):
             out.append((buffer // (2 ** bits)) % 256)
     # A canonical base64 stream leaves no usable bits over: 6 leftover bits means a lone trailing
     # character (an invalid length), and any non-zero leftover bits mean a truncated/corrupted input.
-    # Reject both rather than silently dropping data (Python's base64 raises here too). Padding-less but
+    # Reject both rather than silently dropping data. Padding-less but
     # otherwise-valid input has zero leftover bits and still decodes.
     if bits == 6:
         throw "invalid base64: a lone trailing character (invalid length)"
@@ -778,7 +778,7 @@ var nsmallest = Function(n, items):
     return out
 
 var nlargest = Function(n, items):
-    if n <= 0:           # match nsmallest (and Python): a non-positive n yields [], not a tail slice
+    if n <= 0:           # match nsmallest: a non-positive n yields [], not a tail slice
         return []
     var s = sorted(items, None, True)
     return s[0:n]
@@ -834,7 +834,7 @@ var insortleft = Function(a, x):
 var insortright = Function(a, x):
     a.insert(bisectright(a, x), x)
 
-# Python-style convenience aliases: bare `bisect`/`insort` mean the right-hand variants.
+# Convenience aliases: bare `bisect`/`insort` mean the right-hand variants.
 var bisect = bisectright
 var insort = insortright
 )KI";
@@ -2150,8 +2150,8 @@ var readcsv = Function(source, header = True, infer = True):
 
 // --- xml: a dependency-free ElementTree-style XML parser/serializer in pure Kirito ---
 inline constexpr std::string_view xml = R"KI(
-# A small, dependency-free XML parser/serializer in pure Kirito, in the spirit of Python's
-# ElementTree. Parses elements, attributes, text, nested children, comments, the XML declaration,
+# A small, dependency-free XML parser/serializer in pure Kirito, in the ElementTree style.
+# Parses elements, attributes, text, nested children, comments, the XML declaration,
 # CDATA sections, and the standard entities; serializes a tree back to XML. Tag/attribute access is
 # via an `Element` tree: `.tag`, `.attrib`, `.text`, `.children`, with `find`/`findall`/`get`.
 

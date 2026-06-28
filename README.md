@@ -87,12 +87,12 @@ Kirito is young and makes deliberate trade-offs. The notable current limits:
 - **Integers are fixed-width `int64`** with well-defined two's-complement wraparound on overflow;
   arbitrary-precision integers are a future enrichment.
 - **Equality (`==`) is always exact; tolerance is only ever via `.compare`.** Float/Integer `==` is
-  exact IEEE-754 (like Python): `0.1 + 0.2 == 0.3` is `False`, `NaN` never equals anything (not even
+  exact IEEE-754: `0.1 + 0.2 == 0.3` is `False`, `NaN` never equals anything (not even
   itself), an infinity equals only an identical infinity — so `==`/`!=` agree with `<`/`>` and with
   hashing. The same rule holds for every native numeric type — **`Complex`, `Matrix`, `Tensor`,
   `ComplexMatrix`** all compare bit-exactly with `==`. For *approximate* comparison they each carry
-  **`.compare(other, rel_tol = 1e-9, abs_tol = 0.0)`** (math.isclose semantics) — the single,
-  explicit way to ask "are these close?".
+  **`.compare(other, rel_tol = 1e-9, abs_tol = 0.0)`** (close when `|a - b| <= max(rel_tol * max(|a|, |b|),
+  abs_tol)`) — the single, explicit way to ask "are these close?".
 - **Unicode case mapping** (`upper`/`lower`) covers ASCII, Latin-1 and Latin Extended-A, not the full
   Unicode case-folding tables.
 - **Not yet implemented:** comprehensions, generators, and variadic parameters. (Complex numbers

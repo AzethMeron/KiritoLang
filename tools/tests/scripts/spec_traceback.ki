@@ -1,4 +1,4 @@
-# sys.traceback(): the Python-style call chain of the most recent error this VM unwound.
+# sys.traceback(): the call chain of the most recent error this VM unwound.
 # We print only the stable parts (function label + line), not the machine-specific file path.
 var io = import("io")
 var sys = import("sys")

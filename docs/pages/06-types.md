@@ -64,7 +64,7 @@ The arithmetic operators are `+`, `-`, `*`, the three division forms below, and 
   `shl` / `shr` provide bitwise and/or/xor/not and left/right shifts on Integers
   (`bitand(0xFF, 0x0F) == 15`, `shl(1, 8) == 256`).
 - `n.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` — an approximate-equality test (the
-  `math.isclose` semantics shared with [Float](#float)); handy when comparing against a Float result.
+  same relative/absolute tolerance shared with [Float](#float)); handy when comparing against a Float result.
 
 ```kirito
 var n = 255
@@ -106,7 +106,7 @@ This design keeps `==`/`!=` **consistent** with the rest of the model:
 - **NaN is never equal to anything**, including itself: `nan == nan` is `False`, `nan != nan` is
   `True`. `inf == inf` and `0.0 == -0.0` are `True`.
 
-For *approximate* comparison, call `.compare` on either number — the `math.isclose` semantics:
+For *approximate* comparison, call `.compare` on either number — a relative/absolute tolerance test:
 
 ```kirito
 io.print((0.1 + 0.2).compare(0.3))            # True   (close enough)
@@ -174,7 +174,7 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 
 ## Bytes
 
-An **immutable sequence of raw bytes** (0–255), like Python's `bytes` — the byte-exact counterpart to
+An **immutable sequence of raw bytes** (0–255) — the byte-exact counterpart to
 the Unicode `String`. A `String` holds UTF-8 and indexes by *code point*, so it merges valid
 multi-byte sequences and cannot address arbitrary binary; `Bytes` indexes by *byte*, which is what
 binary data needs (network downloads, compressed streams, file contents). Iterating yields Integers,

@@ -21,11 +21,11 @@ assert String(math.nan) == "nan", "nan repr"
 assert String(True) == "True" and String(False) == "False", "bool repr"
 assert String(None) == "None", "None repr"
 
-# --- strings: stringify is identity; nested-in-collection is QUOTED (repr) like Python ---
+# --- strings: stringify is identity; nested-in-collection is QUOTED (repr) ---
 assert String("hello") == "hello" and String("") == "", "string identity repr"
 assert String(["a", "b"]) == "['a', 'b']", "strings quoted (repr) inside a List"
 assert String([1, "two", 3.0, True, None]) == "[1, 'two', 3.0, True, None]", "mixed list repr"
-assert String(["it's", "say \"hi\""]) == "[\"it's\", 'say \"hi\"']", "repr picks the quote like Python"
+assert String(["it's", "say \"hi\""]) == "[\"it's\", 'say \"hi\"']", "repr picks the quote"
 
 # --- collections ---
 assert String([]) == "[]" and String([1]) == "[1]" and String([1, 2, 3]) == "[1, 2, 3]", "list repr"

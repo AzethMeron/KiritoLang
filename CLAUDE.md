@@ -12,7 +12,7 @@ It is the source of truth for what Kirito is, how we build it, and how we work.
 **Kirito** — a from-scratch, dynamically-typed, strongly-typed general-purpose scripting language.
 Source files use the `.ki` extension. The language namespace is `Kirito`.
 
-Main idea for the language: it should be high-level language like Python that's fast to develop in. We want just right level of abstraction to allow for that without demanind "boilerplate code" from the user. At the same time, Kirito is supposed to be a C++ framework - users should be able to easily implement and wire-in new objects / functions / modules in C++ Kirito's framework.
+Main idea for the language: it should be a high-level language that's fast to develop in. We want just right level of abstraction to allow for that without demanind "boilerplate code" from the user. At the same time, Kirito is supposed to be a C++ framework - users should be able to easily implement and wire-in new objects / functions / modules in C++ Kirito's framework.
 
 Furthemore, Kirito is expected to be capable of being extension language that can be integrated into bigger application in C++. It's therefore important that single "proccess" of Kirito is expected to be fully encapsulated in single object of KiritoVM class.
 
@@ -34,7 +34,7 @@ control structure (a flat instruction stream + an explicit operand stack instead
 
 From the design notes and `Archive/V2/main.ki`, Kirito should support:
 
-- `var` declarations; `#` line comments. **Python-style significant indentation**: blocks are
+- `var` declarations; `#` line comments. **Significant indentation**: blocks are
   introduced by `:` + newline + indent (no braces).
 - **Reference assignment semantics**: `A = B + C` allocates a new value, and `A`
   is bound to it. Assignment binds names to values; it does not deep-copy. `var` declares in the
@@ -47,7 +47,7 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   `d.get(key = k, default = 0)`), **native-object methods** (matrix/regex/io/net/…), and signatured
   builtins/stdlib functions (the shared `makeMethod` helper gives any native member function keyword
   support). Parameters and the return value take optional **enforcing type
-  annotations** (`Function(d : Dict) -> Float:`): unlike Python hints these are *checked at runtime* —
+  annotations** (`Function(d : Dict) -> Float:`): unlike advisory type hints these are *checked at runtime* —
   the argument must be an instance of the named type (inheritance-aware: a subclass satisfies a base
   annotation) and the function must return that type, else a clear error. `Any` / no annotation
   accepts anything.
@@ -64,14 +64,14 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
 - **Numerics**: separate `Integer` (int64) and `Float` (double); integer literals may be decimal,
   hex (`0xFF`), octal (`0o17`), or binary (`0b1010`) (case-insensitive prefix, full-width
   two's-complement), and float literals allow scientific notation (`1e10`, `1.5e3`, `2e-3`).
-  **Python-3 division** — `/` always yields `Float`, `//` is
+  **True division** — `/` always yields `Float`, `//` is
   floor division, `%` modulo, `**` right-assoc exponentiation. Integer arithmetic is fixed-width
   int64 with **well-defined two's-complement wraparound** on overflow (no UB); arbitrary-precision
-  integers are a future enrichment. **Float `==`/`!=` is EXACT IEEE-754** (like Python): `0.1 + 0.2
+  integers are a future enrichment. **Float `==`/`!=` is EXACT IEEE-754**: `0.1 + 0.2
   == 0.3` is `False`, `NaN != NaN`, `inf == inf`, `0.0 == -0.0` — so equality agrees with `<`/`>`
   (trichotomy) and with hashing (distinct-but-close floats are distinct Set/Dict keys). For
   *approximate* comparison every Integer/Float has **`.compare(other, rel_tol = 1e-9, abs_tol = 0.0)
-  -> Bool`** (math.isclose semantics). **The boundary rule is: ONLY `==`/`!=` are exact — every native
+  -> Bool`** (close when `|a - b| <= max(rel_tol * max(|a|, |b|), abs_tol)`). **The boundary rule is: ONLY `==`/`!=` are exact — every native
   numeric type (`Complex`, real `Matrix`, `Tensor`, `ComplexMatrix`/complex `Matrix`) compares
   bit-exactly with `==` and carries the same `.compare(other, rel_tol, abs_tol)` method. METHODS, by
   contrast, MAY (and should) be tolerant — `.compare` and predicates like `complex.is_zero` use a
@@ -82,13 +82,13 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
 - Built-in types, dynamically typed: `None`, `Bool`, `Integer`, `Float`, `String`,
   and collections `List`, `Set`, `Dict` (plus an internal `Array` — same value model as `List`, no
   literal/constructor exposed to Kirito). Values are hashable where it makes
-  sense. **Stringification is Python-like str-vs-repr**: a bare `print(s)`/`String(s)` shows a
+  sense. **Stringification has a str-vs-repr distinction**: a bare `print(s)`/`String(s)` shows a
   String's raw text, but a String *nested in a container* prints in **repr form** (quoted + escaped):
   `print(["a", "b"])` → `['a', 'b']`, `print({"k": "v"})` → `{'k': 'v'}`, so `[""]` (→ `['']`) is
   distinguishable from `[]`. Numeric/math depth was a *later* enrichment (the general scripting core
   came first) and is now delivered: the native `matrix` and `complex` modules (complex numbers +
   real/complex matrices and vectors).
-- **`Bytes`** — an immutable sequence of raw bytes (0–255), like Python's `bytes`: the byte-exact
+- **`Bytes`** — an immutable sequence of raw bytes (0–255): the byte-exact
   counterpart to the Unicode (code-point) `String`. `b[i]` is an Integer byte, slicing yields Bytes,
   iteration yields Integers; `+` concatenates, `*` repeats, lexicographic ordering, hashable. Convert
   with `s.encode([enc])` (String → Bytes) and `b.decode([enc])` (Bytes → String); encodings `utf-8`
@@ -97,19 +97,19 @@ From the design notes and `Archive/V2/main.ki`, Kirito should support:
   This is the right type for binary I/O — `net.get(url).content`, `io.open(path, "rb")`, gzip/zlib —
   because a String, being UTF-8, merges valid multi-byte sequences and so cannot address arbitrary
   bytes.
-- **Classes**: user-defined types in the Python spirit — `class` with methods and instance
+- **Classes**: user-defined types — `class` with methods and instance
   attributes, instantiated by calling the class. A class is just another first-class value, in the
   same value/object model as built-ins, so a C++-defined type and a Kirito `class` look alike to
-  the VM. Special methods use Python's dunder names with **single** underscores:
+  the VM. Special methods use dunder names with **single** underscores:
   `_init_`, `_str_`, `_add_`/`_sub_`/`_mul_`/`_div_`/`_floordiv_`/`_mod_`/`_pow_`,
   `_eq_`/`_ne_`/`_lt_`/`_le_`/`_gt_`/`_ge_`, `_neg_`/`_not_`, `_call_`, `_getitem_`/`_setitem_`
   (variadic keys: `m[i, j] = v`), `_len_`, `_contains_`, `_iter_`, `_enter_`/`_exit_`. Members whose
   name has a **single leading underscore and no trailing underscore** (e.g. `_count`) are **private**
   — accessible only from within a method of the same class **or a subclass** (privacy is per class
-  *chain*, not per defining class — there is no Python-style name mangling). Non-function class-body
+  *chain*, not per defining class — there is no name mangling). Non-function class-body
   `var`s are shared class attributes: instances read them through the class and copy-on-write on
   assignment. Parameter **defaults are evaluated at call time**, once per call in the call scope (so
-  a mutable default like `xs = []` is a fresh list each call — not Python's shared-once footgun).
+  a mutable default like `xs = []` is a fresh list each call — not a shared-once footgun).
   `self._super_()` returns a *parent view*
   of self (method lookup starts at the base of the currently-running method's class) — for extending
   inherited methods/constructors; it climbs one level per call (so multi-level chains compose),
@@ -122,9 +122,9 @@ Every step must keep `main.ki`-style programs as the north star.
 **Status:** the language is broadly implemented and tested end-to-end (`src/kirito/*.hpp`, the
 `ki` runner, an extensive CTest suite incl. golden `.ki` scripts, an embedding integration test,
 a stability fuzzer, and a benchmark). Working today:
-- Arithmetic (Python-3 division), `var`/reference-assignment, comparisons, `in`/`not in`.
+- Arithmetic (true division), `var`/reference-assignment, comparisons, `in`/`not in`.
 - Indentation blocks with `if/elif/else`/`while`/`for`/`break`/`continue`/`pass`/`todo`, `and`/`or`/`not`.
-  Tabs and spaces both work but ambiguous mixing is rejected (Python-3 rule: measured with tab=8
+  Tabs and spaces both work but ambiguous mixing is rejected (measured with tab=8
   and tab=1, both must agree). Line endings are universal: the lexer normalizes CRLF and lone CR to
   LF up front, so Windows/WSL-copied (`\r\n`) sources lex identically to Unix `\n` (a stray `\r` on a
   blank line no longer corrupts the indent/dedent stream).
@@ -146,7 +146,7 @@ a stability fuzzer, and a benchmark). Working today:
   sequences `String`/`Bytes` — has **`apply(fn)`** (like `tensor.apply`): a new container of the same
   type with `fn` mapped over the elements (over a Dict's *values*, keeping keys; over a String's
   characters; over a Bytes' bytes). Built-in containers also describe their methods under `inspect`. Lists support lexicographic ordering (`<`/`<=`/`>`/`>=`,
-  element-by-element then by length, like Python) and `+` concatenation (and `*` Integer repetition,
+  element-by-element then by length) and `+` concatenation (and `*` Integer repetition,
   guarded against huge counts), enabling multi-key sorts via
   a list-returning `key`. Ordered collections have an efficient in-place
   `sort([key][, reverse])` that is **stable** by default (so is the `sorted()` builtin); keys are
@@ -154,16 +154,16 @@ a stability fuzzer, and a benchmark). Working today:
 - **Unicode** `String` (code-point indexing/slicing/iteration), `*` repetition, and methods
   (upper/lower [Unicode-aware]/strip/split/join/replace/startswith/endswith/find/rfind/index/count/
   is{digit,alpha,alnum,space,lower,upper}/removeprefix/removesuffix/ljust/rjust/center/zfill/
-  — search/replace methods honor Python's optional args (strip(chars), split(sep, maxsplit),
+  — search/replace methods honor optional args (strip(chars), split(sep, maxsplit),
   replace(old, new, count), find/index/rfind/rindex/count/startswith/endswith with code-point
   [start[, end]]) — and the format mini-spec's `#` alternate form adds the 0b/0o/0x base prefix —
   partition/rpartition, and `levenshtein` (the Unicode/code-point edit distance to a String, or to
   each String in a List — computed in C++; the `string` module's `similarity`/`closest`/`fuzzymatch`
   build fuzzy matching on it) and `.format()`.
-- **User-defined `class`es** with methods, attributes, inheritance, Python-style operator methods
+- **User-defined `class`es** with methods, attributes, inheritance, operator methods
   (`_add_`/`_str_`/`_getitem_`/...), and private `_members`.
 - **Exceptions**: `try`/`catch [Type as e]`/`finally`/`throw` (typed matching via the class chain).
-  Python-style indented blocks, but **C++-style keyword names** (`catch`/`throw`, not `except`/`raise`).
+  Indentation-based blocks, but **C++-style keyword names** (`catch`/`throw`, not `except`/`raise`).
   A bare `catch` also catches **any `std::exception`** crossing the native boundary (surfaced as a
   catchable String), so a C++ module that throws can't escape a Kirito `try`.
 - **Context managers**: `with ... as ...` (enter/exit protocol).
@@ -194,7 +194,7 @@ a stability fuzzer, and a benchmark). Working today:
   or a type-name String; typed `catch` likewise matches built-in types, e.g. `catch String as e`),
   `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), `bitand`/`bitor`/`bitxor`/`bitnot`
   and `shl`/`shr` (bitwise ops + shifts on Integers — Kirito has no `&`/`|`/`^`/`~`/`<<`/`>>`
-  operators), `format` (Python mini-format-spec:
+  operators), `format` (mini-format-spec:
   fill/align/sign/width/`,`/precision/type), and the
   `Integer`/`Float`/`String`/`Bool`/`List`/`Set`/`Dict` constructors/converters. `inspect(x)` returns
   a String describing the public methods/attributes (with signatures + annotations) of a class,
@@ -230,7 +230,7 @@ a stability fuzzer, and a benchmark). Working today:
     **binary mode** (`"rb"`/`"wb"`/`"ab"`/`"r+b"`) makes read/readline/iteration yield `Bytes` and
     write accept `Bytes` (the stream is always byte-exact internally),
     `BytesIO` (an in-memory byte buffer with a read/write cursor; note its reads return **String** —
-    Kirito Strings are byte-transparent — unlike Python's bytes-returning BytesIO), plus filesystem helpers (exists/remove/
+    Kirito Strings are byte-transparent), plus filesystem helpers (exists/remove/
     rename/mkdir/chmod/getcwd/listdir/isfile/isdir/getsize/walk) and os.path-style path helpers
     (dirname/basename/splitext/join). `chmod(path, mode)` sets POSIX permission bits from an octal
     Integer (e.g. `0o755`). Module members are rebindable (`ModuleValue::setAttr`).
@@ -239,7 +239,7 @@ a stability fuzzer, and a benchmark). Working today:
     domain error` rather than returning silent `NaN`/`inf` rubbish (`sqrt(-1)`, `log(0)`, `asin(2)`,
     `acosh(0)`, `atanh(1)`, `gamma(0)`, `pow(-2, 0.5)`, `fmod(x, 0)`, …); a `NaN` argument passes
     through and genuine overflow-to-`inf` is not a domain error. The same policy holds across the
-    numeric stack — the **`complex`** analytic set raises exactly where Python's `cmath` does
+    numeric stack — the **`complex`** analytic set raises on the same out-of-domain inputs
     (`log`/`log10` of `0`, `atanh(±1)`, zero to a negative/complex power) and **`tensor`** element-wise
     math raises on an out-of-domain element (consistent with the tensor engine's div-by-zero guard).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
@@ -337,8 +337,8 @@ a stability fuzzer, and a benchmark). Working today:
   - `sys` — environment (getenv/setenv/unsetenv/environ), `platform`, `arch` (x64/arm64/x86), `version`
     (the interpreter's semver string, == `ki --version`), `executable` (absolute path of the running
     `ki` binary, for self-replacement), `exit`.
-  - `time` — high-precision clocks (time/timens/monotonic/perfcounterns), sleep, and Python-like
-    calendar time (`now`/`datetime`/`make`/`strptime`; `DateTime` with fields, iso/format,
+  - `time` — high-precision clocks (time/timens/monotonic/perfcounterns), sleep, and calendar
+    time (`now`/`datetime`/`make`/`strptime`; `DateTime` with fields, iso/format,
     add/sub/diff arithmetic). `DateTime` has **value equality + hashing** by instant (epoch), so two
     DateTimes for the same instant compare equal and can be Dict/Set keys, and it is serializable.
   - `zlib` — compress/decompress (standard zlib streams, RFC 1950), raw deflate/inflate — a
@@ -354,7 +354,7 @@ a stability fuzzer, and a benchmark). Working today:
     takes a `String` **or** a `Bytes` (so binary data hashes correctly).
   - `regex` — a from-scratch, **linear-time** regular-expression library (`regex_engine.hpp`: a
     recursive-descent parser → bytecode compiler → Thompson-NFA Pike VM with capture tracking; NO
-    `std::regex`, NO backtracking, so `(a+)+b`-style patterns can't blow up). Python-`re`-style API:
+    `std::regex`, NO backtracking, so `(a+)+b`-style patterns can't blow up). A high-level API:
     `compile`/`match`/`search`/`fullmatch`/`findall`/`finditer`/`sub` (string or callable repl)/
     `split`/`escape`, `IGNORECASE`/`MULTILINE`/`DOTALL` flags, capturing/non-capturing/named groups,
     greedy+lazy quantifiers, classes/anchors/boundaries, on Unicode code points. Backreferences and
@@ -409,11 +409,11 @@ a stability fuzzer, and a benchmark). Working today:
   the same VM still works, and re-importing an already-finished module (a non-cyclic diamond) is fine.
   The env/package paths live in the CLI only (`src/kirito/cli_paths.hpp`,
   unit-tested), not the embeddable VM core. The `ki` CLI
-  is Python-like: REPL with no file (multi-line blocks via a `...` continuation prompt until a blank
+  is interactive: REPL with no file (multi-line blocks via a `...` continuation prompt until a blank
   line), runs a file otherwise. Every file scope is pre-bound with **`arglist`** (the command-line
   arguments as a List — populated only in a directly-run file; **empty** in an imported module) and
-  **`argmain`** (a Bool: True iff the file is run directly, False when imported — Kirito's
-  `__name__ == "__main__"`). Small-integer interning, flat-vector scopes, a
+  **`argmain`** (a Bool: True iff the file is run directly, False when imported — the
+  run-directly-vs-imported flag). Small-integer interning, flat-vector scopes, a
   no-temporaries fast call path, and other non-invasive perf wins. **Every `Object` is allocated
   through a thread-local small-object pool** (`pool.hpp`, a segregated free-list keyed by size class up
   to 224 B — covering Int/Float/Bool/Str/List/Set/Dict/Instance/Class/Function/EnvValue): profiling a
@@ -514,7 +514,7 @@ lookup, so semantics (closures, read-before-assign, the `var`-shadowing rule) ar
 unchanged. Module and class bodies are never slotted (a class body harvests its methods via
 `scope.locals()`; module scopes are dynamic). Two companion v1.9 wins ride along: a **numeric binary
 fast path** (Integer/Float arithmetic in `applyBinaryOp` skips the virtual dispatch, delegating straight
-to the shared `numericBinary` with identical wraparound/Python-3-division/exact-compare semantics) and
+to the shared `numericBinary` with identical wraparound/true-division/exact-compare semantics) and
 **constant deduplication** (repeated scalar literals share one `consts` slot, floats keyed on exact
 bits). Measured ~10% on function-local arithmetic loops; no regression on call-heavy/module-level code.
 

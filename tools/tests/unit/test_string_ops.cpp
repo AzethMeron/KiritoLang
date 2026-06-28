@@ -118,7 +118,7 @@ n
     CHECK_THROWS(vm.runSource("\"abc\".levenshtein(5)"));                     // bad argument type
     CHECK_THROWS(vm.runSource("\"abc\".levenshtein([\"ok\", 7])"));          // non-String in List
     // the `string` module's fuzzy helpers, built on it
-    CHECK(evalStr(vm, "import(\"string\").closest(\"pyhton\", [\"python\", \"ruby\", \"rust\"])") == "python");
+    CHECK(evalStr(vm, "import(\"string\").closest(\"swft\", [\"swift\", \"ruby\", \"rust\"])") == "swift");
     CHECK(evalStr(vm, "import(\"string\").similarity(\"abc\", \"abc\")") == "1.0");
 
     return RUN_TESTS();

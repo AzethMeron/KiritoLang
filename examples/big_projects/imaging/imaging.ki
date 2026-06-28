@@ -1,4 +1,4 @@
-# imaging.ki -- a pure-Kirito image library in the spirit of Python's Pillow (PIL).
+# imaging.ki -- a pure-Kirito image library in the spirit of Pillow (PIL).
 #
 # Pixels live in a `tensor` of shape (height, width, channels), dtype Float, values 0..255. The
 # `tensor` standard library is the numerical backend: conversions, resizing, flips, point ops and

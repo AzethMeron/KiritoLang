@@ -21,7 +21,7 @@ assert 0 ** 0 == 1, "0**0 = 1 (math convention)"
 assert 2 ** 63 == -9223372036854775808, "2**63 wraps to MIN"
 assert 0xFFFFFFFFFFFFFFFF == -1, "all-ones int64 == -1 (two's complement literal)"
 assert -7 // 2 == -4 and 7 // -2 == -4, "floor division rounds toward negative infinity"
-assert -7 % 2 == 1 and 7 % -2 == -1, "mod sign follows divisor (Python rule)"
+assert -7 % 2 == 1 and 7 % -2 == -1, "mod sign follows divisor"
 assert 1 / 2 == 0.5, "/ always yields Float"
 assert type(1 / 1) == "Float", "/ returns Float even when divisible"
 assert type(4 // 2) == "Integer", "// of two ints is Integer"
@@ -422,7 +422,7 @@ assert min([3, 1, 2], key = Function(x): return -x) == 3, "min with key"
 assert max(default = "fallback") == "fallback" if False else max([], default = "fallback") == "fallback", "max empty with default"
 assert abs(-5) == 5 and abs(-5.5) == 5.5, "abs"
 assert round(3.14159, 2) == 3.14, "round"
-# Kirito uses half-away-from-zero (doc'd), not Python's half-to-even
+# Kirito uses half-away-from-zero (doc'd), not half-to-even
 assert round(0.5) == 1 and round(-0.5) == -1, "round half away from zero"
 assert round(2.5) == 3 and round(-2.5) == -3, "round half away from zero (2.5)"
 assert sorted([3, 1, 2]) == [1, 2, 3], "sorted"
@@ -448,7 +448,7 @@ catch as e:
     threw = True
 assert threw, "huge range raises"
 # divmod
-assert divmod(7, 2) == [3, 1] and divmod(-7, 2) == [-4, 1], "divmod with Python floor semantics"
+assert divmod(7, 2) == [3, 1] and divmod(-7, 2) == [-4, 1], "divmod with floor semantics"
 # pow with mod
 assert pow(2, 10) == 1024 and pow(2, 10, 100) == 24, "pow 2-arg / 3-arg modular"
 # bitwise + shifts

@@ -43,7 +43,7 @@ assert re.search("hello", "HELLO", re.IGNORECASE).group() == "HELLO", "IGNORECAS
 assert re.search("(?i)abc", "ABC").group() == "ABC", "inline (?i) flag"
 assert re.findall("(?m)^\\w+", "one\ntwo\nthree") == ["one", "two", "three"], "MULTILINE ^"
 
-# --- findall variants (Python-shaped results) ---
+# --- findall variants (result shape per group count) ---
 assert re.findall("\\w+", "a bb ccc") == ["a", "bb", "ccc"], "0 groups -> whole matches"
 assert re.findall("(\\w)\\w*", "foo bar") == ["f", "b"], "1 group -> that group"
 assert re.findall("(\\w+)=(\\d+)", "a=1 b=22") == [["a", "1"], ["b", "22"]], ">1 groups -> tuples"

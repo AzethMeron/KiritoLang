@@ -155,7 +155,7 @@ public:
                 return vm.alloc(std::move(out));
             });
         // --- serialization (serialize / dump): the full Mersenne-Twister state, so a restored
-        // generator continues the exact same stream (reproducible checkpoints, like Python's). The
+        // generator continues the exact same stream (reproducible checkpoints). The
         // standard engine's stream operators emit/parse its complete internal state. ---
         if (name == "_getstate_")
             return bind("_getstate_", {}, [self, rng](KiritoVM& vm, std::span<const Handle>) -> Handle {

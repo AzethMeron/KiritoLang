@@ -179,7 +179,7 @@ inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         return vm.alloc(std::move(list));
     });
     // compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool — tolerant whole-matrix comparison
-    // (cmath.isclose per element), since `==` is now exact. Signatured: keyword args/defaults + inspect.
+    // (rel/abs tolerance per element), since `==` is now exact. Signatured: keyword args/defaults + inspect.
     if (name == "compare") {
         std::vector<NativeParam> sig;
         sig.emplace_back("other");

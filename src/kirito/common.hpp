@@ -39,7 +39,7 @@ enum class UnOp { Neg, Not };
 
 // One frame of an error's call-stack traceback — the function, source file, and line that were
 // executing. Accumulated as an error unwinds (each escaped VM frame appends itself, innermost first),
-// so a Python-style "Traceback (most recent call last)" can be reconstructed. VM-local: lives only on
+// so a "Traceback (most recent call last)" can be reconstructed. VM-local: lives only on
 // the in-flight exception and the VM's last-traceback snapshot.
 struct TraceFrame {
     std::string function;  // the function's name, "<function>" (anonymous), or "<module>" (top level)
@@ -47,7 +47,7 @@ struct TraceFrame {
     uint32_t line = 0;     // line being executed (the call site for outer frames, the error site innermost)
 };
 
-// Render a traceback as a Python-style "most recent call last" block: the accumulated frames are
+// Render a traceback as a "most recent call last" block: the accumulated frames are
 // innermost-first, so print them in reverse (outermost frame first, the error site last). Empty for
 // an empty traceback. Shared by `sys.traceback()` and the CLI's uncaught-error reporter.
 inline std::string formatTraceback(const std::vector<TraceFrame>& tb) {

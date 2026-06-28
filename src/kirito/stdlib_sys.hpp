@@ -155,8 +155,8 @@ public:
 
         // --- filesystem location / path helpers (system facilities; pair naturally with `io`) ---
         m.fn("gettempdir", {}, "String", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
-            // The system temp directory (honors TMPDIR/TMP/TEMP, falls back to /tmp), like Python's
-            // tempfile.gettempdir — a stable scratch location to build temp file paths for `io`.
+            // The system temp directory (honors TMPDIR/TMP/TEMP, falls back to /tmp) — a stable
+            // scratch location to build temp file paths for `io`.
             std::error_code ec;
             auto p = std::filesystem::temp_directory_path(ec);
             return val(vm, ec ? std::string("/tmp") : p.string());
@@ -179,7 +179,7 @@ public:
         });
 
         m.fn("exit", {{"code", "Integer", vm.makeInt(0)}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            // Python semantics: None/no-arg -> 0; an Integer -> that status; anything else is treated as
+            // None/no-arg -> 0; an Integer -> that status; anything else is treated as
             // an error message printed to stderr with status 1 (rather than silently exiting 0, which
             // would mask a failure).
             if (a.empty()) std::exit(0);
@@ -191,7 +191,7 @@ public:
             return none(vm);  // unreachable
         });
 
-        // traceback() -> the Python-style call chain of the MOST RECENT error this VM unwound, as a
+        // traceback() -> the call chain of the MOST RECENT error this VM unwound, as a
         // String ("" if none yet). Useful inside a `catch` to see where the exception came from (which
         // file / function / line, innermost last). The traceback is VM-local — it reflects only errors
         // raised in this VM, and is replaced by each new caught error.

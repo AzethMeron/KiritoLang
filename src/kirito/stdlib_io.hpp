@@ -217,7 +217,7 @@ public:
                 if (target < 0) throw KiritoError("seek: resulting position is negative");
                 s.seekg(target, std::ios::beg);
                 s.seekp(target, std::ios::beg);
-                return vm.makeInt(static_cast<int64_t>(s.tellg()));    // Python returns the new position
+                return vm.makeInt(static_cast<int64_t>(s.tellg()));    // returns the new position
             });
         if (name == "_enter_")
             return bind("_enter_", {}, [self](KiritoVM&, std::span<const Handle>) { return self; });
@@ -225,7 +225,7 @@ public:
     }
 };
 
-// An in-memory binary buffer, like Python's io.BytesIO: an efficient growable byte buffer with a
+// An in-memory binary buffer: an efficient growable byte buffer with a
 // read/write cursor. write() appends/overwrites at the cursor; read() consumes from it; getvalue()
 // returns the whole contents as a byte String. Useful as a sink for code that "writes a file"
 // (e.g. encoding an image) without touching disk.
@@ -474,7 +474,7 @@ public:
         // The three standard streams, as rebindable module members. io.print / write / input / read
         // act on whatever io.stdout / io.stdin currently hold, so `io.stdout = io.open("log","w")`
         // redirects output to a file (and rebinding back, or to io.stderr, restores it).
-        // __stdout__/__stderr__/__stdin__ keep the originals (like Python) so you can always rebind
+        // __stdout__/__stderr__/__stdin__ keep the originals so you can always rebind
         // back to the terminal: `io.stdout = io.__stdout__`.
         Handle out = vm.alloc(std::make_unique<StdStream>(StdStream::Dir::Out));
         Handle err = vm.alloc(std::make_unique<StdStream>(StdStream::Dir::Err));
@@ -670,7 +670,7 @@ public:
             if (ec) throw KiritoError("getsize: " + ec.message());
             return val(vm, static_cast<int64_t>(sz));
         });
-        // walk(dir) -> List of file paths under dir, recursively (flattened; simpler than Python's
+        // walk(dir) -> List of file paths under dir, recursively (flattened; simpler than
         // (dirpath, dirnames, filenames) triples but covers the common "visit every file" case).
         m.fn("walk", {{"dir", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             List out(vm);

@@ -49,7 +49,7 @@ var closest = Function(query, candidates):
     return candidates[best]
 
 # Every candidate whose similarity to `query` is at least `cutoff`, as [candidate, score] pairs sorted
-# by score descending (like Python's difflib.get_close_matches, but score-annotated).
+# by score descending (score-annotated close matches).
 var fuzzymatch = Function(query, candidates, cutoff = 0.6):
     var dists = query.levenshtein(candidates)
     var scored = []

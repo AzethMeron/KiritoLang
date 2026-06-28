@@ -146,7 +146,7 @@ public:
 };
 
 // Wrap a member function's positional implementation so it ALSO accepts keyword arguments, without
-// touching the impl. `params` names the positional slots (Python-ish names). On a keyword call,
+// touching the impl. `params` names the positional slots. On a keyword call,
 // positionals fill left-to-right, keywords bind by name, any slot left as a hole before the last
 // supplied one is filled with None, and trailing unset slots are dropped — so the impl receives
 // exactly the variable-length span it always did (its own None/arity checks still apply). A

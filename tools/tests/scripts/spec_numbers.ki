@@ -10,7 +10,7 @@ assert 0x10 + 0b1 + 0o7 == 24, "mixed-base expression"
 assert 0xFFFFFFFFFFFFFFFF == -1, "full-width two's-complement wraparound"
 assert 0x8000000000000000 == -9223372036854775808, "sign bit"
 
-# --- arithmetic + Python-3 division semantics ---
+# --- arithmetic + true-division semantics ---
 assert 1 + 2 * 3 == 7, "precedence"
 assert 2 ** 3 ** 2 == 512, "** right-assoc"
 assert -2 ** 2 == -4, "unary vs pow"

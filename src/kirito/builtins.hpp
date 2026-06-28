@@ -94,7 +94,7 @@ inline void utf8Encode(unsigned cp, std::string& out) {
     }
 }
 
-// Render a double the Python way: shortest sensible form, always with a decimal point
+// Render a double: shortest sensible form, always with a decimal point
 // (so 2.0 prints "2.0", not "2"), while non-finite values pass through.
 inline std::string floatToString(double d) {
     char buf[32];
@@ -109,8 +109,8 @@ inline std::string floatToString(double d) {
     return s;
 }
 
-// Render a double in its SHORTEST form that still round-trips exactly (parse(repr(d)) == d), like
-// Python's repr/json. Used where a float must survive a serialize/parse cycle (json) — unlike the
+// Render a double in its SHORTEST form that still round-trips exactly (parse(repr(d)) == d).
+// Used where a float must survive a serialize/parse cycle (json) — unlike the
 // display floatToString, which favours a clean %.15g and so isn't always round-trippable. Clean for
 // ordinary values (0.1 -> "0.1") yet exact for awkward ones (0.1+0.2 -> "0.30000000000000004").
 inline std::string floatToRoundtrip(double d) {
@@ -256,9 +256,9 @@ private:
     double value_;
 };
 
-// Python-style repr of a String: quoted and escaped, so it reads back unambiguously when shown inside
+// repr of a String: quoted and escaped, so it reads back unambiguously when shown inside
 // a container ([""] vs [] must differ; ["a", "b"] not [a, b]). Prefers single quotes, switching to
-// double only when the text has a single quote but no double (matching Python's str repr).
+// double only when the text has a single quote but no double.
 inline std::string reprString(const std::string& s) {
     char quote = '\'';
     if (s.find('\'') != std::string::npos && s.find('"') == std::string::npos) quote = '"';
@@ -280,7 +280,7 @@ inline std::string reprString(const std::string& s) {
 // Stringify a value as it should appear as an *element* of a container: a String is repr'd (quoted),
 // everything else uses its normal str() — and nested containers recurse through this same helper for
 // their own elements, so quoting is consistent at every depth. This is the str()-vs-repr distinction:
-// a bare `print(s)` shows the raw text, but `print([s])` shows the quoted form, exactly like Python.
+// a bare `print(s)` shows the raw text, but `print([s])` shows the quoted form.
 inline std::string stringifyChild(StringifyCtx& ctx, Handle h) {
     const Object& o = ctx.arena.deref(h);
     if (o.kind() == ValueKind::String) return reprString(static_cast<const StrVal&>(o).value());

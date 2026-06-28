@@ -45,7 +45,7 @@ pairs.sort(Function(p): return p[0])
 pairs
 )") == "[[1, 'a'], [1, 'c'], [1, 'e'], [2, 'b'], [2, 'd']]");
 
-    // stability under reverse: equal keys still keep original order (Python semantics)
+    // stability under reverse: equal keys still keep original order
     CHECK(evalStr(vm, R"(
 var pairs = [[1, "a"], [1, "b"], [1, "c"]]
 pairs.sort(Function(p): return p[0], True)
@@ -96,7 +96,7 @@ ok
     // hostile: genuinely un-orderable elements (mixing types) throw cleanly
     CHECK_THROWS(vm.runSource("var a = [1, \"two\", 3]\na.sort()\n"));
 
-    // Lists ARE orderable (lexicographic, like Python): sorting and list-keyed sort both work.
+    // Lists ARE orderable (lexicographic): sorting and list-keyed sort both work.
     CHECK(evalStr(vm, "var a = [[2], [1], [1, 0]]\na.sort()\na") == "[[1], [1, 0], [2]]");
     CHECK(evalStr(vm, "var a = [3, 1, 2]\na.sort(Function(x): return [x % 2, x])\na") == "[2, 1, 3]");
     // but ordering a List against a non-List still raises

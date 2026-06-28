@@ -44,7 +44,7 @@ public:
     // Windows (or copied through a CRLF filesystem, e.g. Windows -> WSL) lexes identically to Unix
     // LF. Indentation, blank-line detection and multiline strings are then all measured against '\n'
     // alone — without this, a '\r' left on a blank line defeats the blank-line check and corrupts the
-    // indent/dedent stream. Matches Python's universal-newline source handling.
+    // indent/dedent stream. Universal-newline source handling.
     static std::string normalizeNewlines(std::string_view s) {
         std::string out;
         out.reserve(s.size());
@@ -124,7 +124,7 @@ private:
     // Tabs and spaces are both allowed, but indentation must be UNAMBIGUOUS: every indent is
     // measured two ways — tabs as 8 columns ("wide") and tabs as 1 column ("narrow") — and the two
     // measures must agree on the relation (deeper/same/shallower) to each enclosing level. This is
-    // Python 3's rule and rejects e.g. a tab where the surrounding block used 8 spaces.
+    // the indentation rule and rejects e.g. a tab where the surrounding block used 8 spaces.
     bool handleIndentation(std::vector<Token>& out) {
         int wide = 0, narrow = 0;
         size_t scan = pos_;

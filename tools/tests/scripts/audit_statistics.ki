@@ -57,7 +57,7 @@ try:
     discard st.mode([])
 catch as e:
     modeEmptyRaised = True
-assert modeEmptyRaised, "mode of empty -> raises (like Python's StatisticsError)"
+assert modeEmptyRaised, "mode of empty -> raises"
 
 # --- multimode ----------------------------------------------------------------------------------
 assert st.multimode([1, 2, 2, 3]) == [2], "single-mode multimode returns one-element list"
@@ -137,7 +137,7 @@ assert len(st.quantiles([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])) == 3, "default quantil
 assert len(st.quantiles([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 10)) == 9, "quantiles n=10 yields 9 cuts"
 assert len(st.quantiles([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2)) == 1, "quantiles n=2 yields 1 cut (median-ish)"
 assert len(st.quantiles([1, 2, 3, 4], 1)) == 0, "quantiles n=1 yields 0 cuts"
-# At n=4 on a perfect arithmetic sequence: cuts at 2.75, 5.5, 8.25 (Python's exclusive method).
+# At n=4 on a perfect arithmetic sequence: cuts at 2.75, 5.5, 8.25 (the exclusive method).
 var qs = st.quantiles([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 assert near(qs[0], 2.75), "quartile Q1"
 assert near(qs[1], 5.5), "quartile Q2 (median)"

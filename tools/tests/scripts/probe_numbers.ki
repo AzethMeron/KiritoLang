@@ -55,7 +55,7 @@ assert throws(Function(): return rng.randrange(5, 0)), "randrange backwards empt
 # --- numeric edges: division, floor, power, wraparound, bases ---
 assert 7 / 2 == 3.5, "true division is Float"
 assert 7 // 2 == 3 and -7 // 2 == -4, "floor division rounds down"
-assert 7 % 3 == 1 and -7 % 3 == 2, "python modulo sign"
+assert 7 % 3 == 1 and -7 % 3 == 2, "modulo sign follows divisor"
 assert 2 ** 10 == 1024 and 2 ** -1 == 0.5, "power"
 assert -2 ** 2 == -4, "unary binds looser than power"
 assert 0xFF == 255 and 0o17 == 15 and 0b1010 == 10, "base literals"

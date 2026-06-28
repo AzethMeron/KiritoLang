@@ -50,7 +50,7 @@ public:
 
         // `ok` is an optional domain predicate: if the (non-NaN) argument is outside the function's
         // mathematical domain, raise a clear "math domain error" instead of returning NaN/inf rubbish.
-        // A NaN argument always passes through (math.sqrt(nan) -> nan, like Python), and overflow to
+        // A NaN argument always passes through (math.sqrt(nan) -> nan), and overflow to
         // inf (e.g. exp(1000)) is a range, not a domain, condition and is left as-is.
         auto unary = [&](const char* nm, double (*f)(double), bool (*ok)(double) = nullptr) {
             m.fn(nm, {{"x", "Number"}}, "Float", [f, ok, nm](KiritoVM& vm, std::span<const Handle> a) -> Handle {
@@ -232,7 +232,7 @@ public:
                 return static_cast<const IntVal&>(o).value();
             };
             int64_t n = geti(a[0], comb ? "comb" : "perm");
-            // perm(n) (k omitted / None) means perm(n, n) == n!  (Python); comb always needs both.
+            // perm(n) (k omitted / None) means perm(n, n) == n!; comb always needs both.
             bool haveK = a.size() > 1 && vm.arena().deref(a[1]).kind() != ValueKind::None;
             int64_t k = haveK ? geti(a[1], comb ? "comb" : "perm") : n;
             if (n < 0 || k < 0) throw KiritoError("comb/perm require non-negative Integers");

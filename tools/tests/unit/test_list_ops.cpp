@@ -1,4 +1,4 @@
-// List ordering/concatenation (lexicographic, Python-style) and the string-indexing fast path
+// List ordering/concatenation (lexicographic) and the string-indexing fast path
 // (O(1) ASCII indexing — a perf cliff found via the SQL example project). Behavior + a light
 // scaling sanity check.
 #include <chrono>

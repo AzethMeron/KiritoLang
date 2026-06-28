@@ -94,7 +94,7 @@ int main() {
         CHECK(re(vm, "re.findall(\"(\\\\w)\\\\w*\", \"foo bar\")") == "['f', 'b']");           // 1 group -> that group
         CHECK(re(vm, "re.findall(\"(\\\\w+)=(\\\\d+)\", \"a=1 b=22\")") == "[['a', '1'], ['b', '22']]");  // >1 -> tuples
         CHECK(re(vm, "len(re.finditer(\"\\\\d+\", \"1 22 333\"))") == "3");
-        CHECK(re(vm, "re.findall(\"\\\\d*\", \"a1b\")") == "['', '1', '', '']");                   // empty matches, Python-style
+        CHECK(re(vm, "re.findall(\"\\\\d*\", \"a1b\")") == "['', '1', '', '']");                   // empty matches included
     }
 
     // -------------------------------------------------- sub (string & callable repl) and split

@@ -71,7 +71,7 @@ var multimode = Function(data):
     return out
 
 var quantiles = Function(data, n = 4):
-    # Cut points dividing sorted data into n equal groups (exclusive method, like Python default).
+    # Cut points dividing sorted data into n equal groups (exclusive method, the default).
     var s = sorted(data)
     var ld = len(s)
     if ld < 2:

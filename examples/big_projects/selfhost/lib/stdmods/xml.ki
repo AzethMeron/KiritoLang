@@ -1,4 +1,4 @@
-# A small, dependency-free XML parser/serializer in pure Kirito, in the spirit of Python's
+# A small, dependency-free XML parser/serializer in pure Kirito, in the spirit of
 # ElementTree. Parses elements, attributes, text, nested children, comments, the XML declaration,
 # CDATA sections, and the standard entities; serializes a tree back to XML. Tag/attribute access is
 # via an `Element` tree: `.tag`, `.attrib`, `.text`, `.children`, with `find`/`findall`/`get`.

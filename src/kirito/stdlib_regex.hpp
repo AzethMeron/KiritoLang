@@ -21,7 +21,7 @@ namespace kirito {
 
 // The `regex` module: a full-featured regular-expression library backed by reng (regex_engine.hpp),
 // whose Thompson-NFA / Pike-VM core guarantees LINEAR-TIME matching — no catastrophic backtracking.
-// The API mirrors Python's `re`: compile() yields a reusable Regex; module-level match/search/...
+// The API: compile() yields a reusable Regex; module-level match/search/...
 // compile on the fly. Positions and spans are code-point indices, matching Kirito's String model.
 
 // --- a small helper: slice a UTF-8 string by code-point indices ------------------------------------
@@ -91,7 +91,7 @@ public:
                 MatchVal& M = me(vm, self);
                 if (a.empty()) return M.groupString(vm, 0);
                 if (a.size() == 1) return M.groupString(vm, M.groupOf(vm, a[0]));
-                // several keys -> a List of the requested groups (Python returns a tuple)
+                // several keys -> a List of the requested groups
                 List out(vm);
                 for (Handle k : a) out.add(M.groupString(vm, M.groupOf(vm, k)));
                 return out.build().handle();
@@ -145,7 +145,7 @@ inline Handle makeMatch(KiritoVM& vm, Handle subject, const reng::MatchResult& r
     return vm.alloc(std::make_unique<MatchVal>(subject, r.slots, p.numGroups, p.groupNames, p.nameToGroup));
 }
 
-// Successive non-overlapping matches over the whole text (Python finditer semantics, incl. the
+// Successive non-overlapping matches over the whole text (incl. the
 // empty-match advance). Returns the raw results so callers can build Matches/strings/splits.
 inline std::vector<reng::MatchResult> allMatches(const reng::Program& p, const std::vector<int32_t>& text,
                                                  int maxCount, int startPos = 0) {
@@ -167,7 +167,7 @@ inline std::vector<reng::MatchResult> allMatches(const reng::Program& p, const s
 inline std::string expandTemplate(KiritoVM& vm, const std::string& tmpl, const MatchVal& m,
                                   const std::string& subj, const std::vector<std::size_t>& starts) {
     auto groupText = [&](int g) -> std::string {
-        // An out-of-range group number is a template error (Python raises "invalid group reference"),
+        // An out-of-range group number is a template error (an invalid group reference),
         // not a silent empty string; a group that exists but did not participate expands to "".
         if (g < 0 || g > m.numGroups)
             throw KiritoError("invalid group reference " + std::to_string(g) + " in replacement template");
@@ -362,10 +362,10 @@ public:
                 for (auto& r : redetail::allMatches(R.prog, text, -1)) {
                     if (maxsplit > 0 && splits >= maxsplit) break;
                     int aPos = r.slots[0], bPos = r.slots[1];
-                    // Split on empty matches too (Python 3.7+), so an empty-capable pattern yields the
+                    // Split on empty matches too, so an empty-capable pattern yields the
                     // leading/inter-character ''s — consistent with findall over the same matches.
                     out.add(vm.makeString(cpSlice(s, starts, lastEnd, aPos)));
-                    for (int g = 1; g <= R.prog.numGroups; ++g)        // include captured groups (Python)
+                    for (int g = 1; g <= R.prog.numGroups; ++g)        // include captured groups
                         out.add(r.slots[2 * g] < 0 ? vm.none()
                                 : vm.makeString(cpSlice(s, starts, r.slots[2 * g], r.slots[2 * g + 1])));
                     lastEnd = bPos; ++splits;

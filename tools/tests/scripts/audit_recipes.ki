@@ -48,8 +48,8 @@ assert soloLines == ["solo"], "recipe1 edge: single line no trailing newline"
 io.remove(tmppath)
 
 # Adversarial: trailing newline does NOT add an empty entry after iteration
-# (consistent with Python; the doc strips the line so a fully-trimmed entry
-# would also flag a real difference).
+# (the doc strips the line so a fully-trimmed entry would also flag a real
+# difference).
 with io.open(tmppath, "w") as out:
     discard out.write("a\nb\n")
 var twoLines = []
@@ -105,7 +105,7 @@ assert padCounts.get("", 0) == 4, "recipe2 edge: empty tokens from runs of space
 var people = [["Ann", 30], ["Bo", 25], ["Cy", 41]]
 var byAge = sorted(people, Function(p): return p[1])
 assert byAge == [["Bo", 25], ["Ann", 30], ["Cy", 41]], "recipe3: sort by p[1]"
-# Doc shows `String(byAge)` => bracket form (nested strings are repr-quoted, like Python).
+# Doc shows `String(byAge)` => bracket form (nested strings are repr-quoted).
 assert String(byAge) == "[['Bo', 25], ['Ann', 30], ['Cy', 41]]", "recipe3: stringified form"
 
 # Adversarial: empty input.
@@ -178,7 +178,7 @@ assert g2["fresh"] == ["x"], "recipe5 edge: factory runs on missing key access"
 g2["fresh"].append("y")
 assert g2["fresh"] == ["x", "y"], "recipe5 edge: factory result is persistent"
 
-# Adversarial: numeric factory (defaultdict(int) Python idiom).
+# Adversarial: numeric factory (the defaultdict(int) counting idiom).
 var g3 = col.defaultdict(Function(): return 0)
 for ch in "abracadabra":
     g3[ch] = g3[ch] + 1

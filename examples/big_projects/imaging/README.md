@@ -1,7 +1,7 @@
 # imaging — a Pillow-style image library in pure Kirito
 
 A from-scratch image-processing library written entirely in Kirito (`.ki`), in the spirit of
-Python's [Pillow](https://python-pillow.org/) (PIL). Pixels are stored in a **`tensor`** of shape
+[Pillow](https://python-pillow.org/) (PIL). Pixels are stored in a **`tensor`** of shape
 `(height, width, channels)`, and the `tensor` standard library is the numerical backend: every
 conversion, geometric transform, point operation and convolution filter is expressed as a vectorised
 tensor operation rather than a per-pixel loop.

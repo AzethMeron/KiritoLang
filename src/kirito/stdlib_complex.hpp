@@ -28,7 +28,7 @@ namespace kirito {
 
 using cdouble = std::complex<double>;
 
-// Tolerant complex comparison (cmath.isclose): |a-b| <= max(rel_tol*max(|a|,|b|), abs_tol), with |.|
+// Tolerant complex comparison (rel/abs tolerance): |a-b| <= max(rel_tol*max(|a|,|b|), abs_tol), with |.|
 // the complex magnitude. NaN is never close; a non-equal infinity is never close. Powers the tolerant
 // `.compare()` on Complex / ComplexMatrix / Tensor (their `==` is EXACT). Local so this header needn't
 // depend on runtime.hpp's floatClose (which is included after the stdlib headers in the umbrella).
@@ -99,9 +99,9 @@ inline cdouble asComplex(KiritoVM& vm, Handle h, const char* who = "Complex") {
 
 inline Handle make(KiritoVM& vm, cdouble z) { return vm.alloc(std::make_unique<ComplexVal>(z)); }
 
-// Complex exponentiation with the singularities handled like Python/numpy: zero to a negative or
-// non-real power raises (`0j ** -1` / `0j ** 1j` -> ZeroDivisionError; std::pow would emit inf/nan),
-// while `0 ** 0 == 1` (matching Kirito's scalar `0 ** 0` and Python `0j ** 0`; std::pow gives nan).
+// Complex exponentiation with the singularities handled explicitly: zero to a negative or
+// non-real power raises (`0j ** -1` / `0j ** 1j` is a domain error; std::pow would emit inf/nan),
+// while `0 ** 0 == 1` (matching Kirito's scalar `0 ** 0`; std::pow gives nan).
 // Other bases/powers are well-defined and go straight through std::pow.
 inline void checkPow(cdouble base, cdouble exp) {
     if (base == cdouble(0.0, 0.0) && (exp.real() < 0.0 || exp.imag() != 0.0))
@@ -150,7 +150,7 @@ inline Handle ComplexVal::getAttr(KiritoVM& vm, Handle self, std::string_view na
     };
     if (name == "re" || name == "real") return vm.makeFloat(z.real());
     if (name == "im" || name == "imag") return vm.makeFloat(z.imag());
-    // .compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool — tolerant comparison (cmath.isclose), since
+    // .compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool — tolerant comparison (rel/abs tolerance), since
     // `==` is now exact. Signatured so it takes keyword args/defaults and shows under inspect.
     if (name == "compare") {
         std::vector<NativeParam> sig;
@@ -561,7 +561,7 @@ public:
         // Each accepts a Complex or a real number and returns a Complex. `bad` is an optional domain
         // predicate (a non-capturing lambda → function pointer): when it returns a message, raise it
         // instead of letting std:: emit silent inf/nan at a true singularity. Like the `math` module,
-        // Kirito's complex analytic functions raise at exactly the points cmath raises — log/log10 of
+        // Kirito's complex analytic functions raise at exactly the genuine singularities — log/log10 of
         // zero, atanh of ±1 — while remaining defined on the rest of the plane (e.g. sqrt(-1)=i,
         // log(-1)=iπ, asin(2), acosh(0) are all valid and must NOT raise).
         auto unary = [&](const char* nm, cdouble (*f)(const cdouble&), const char* (*bad)(const cdouble&) = nullptr) {
@@ -595,7 +595,7 @@ public:
                              ? "math domain error (atanh of ±1)" : nullptr;
               });
         // pow(z, w) and a cube root (no std::cbrt for complex; use the principal value). Zero raised
-        // to a negative or non-real power is a singularity (Python raises ZeroDivisionError there).
+        // to a negative or non-real power is a singularity (a domain error there).
         m.fn("pow", {{"z"}, {"w"}}, "Complex", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             if (a.size() != 2) throw KiritoError("complex.pow expects 2 arguments");
             return cpx::make(vm, cpx::cpow(cpx::asComplex(vm, a[0]), cpx::asComplex(vm, a[1])));

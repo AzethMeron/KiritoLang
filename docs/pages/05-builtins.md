@@ -22,10 +22,10 @@ parameter name.
   (truncates toward zero; rejects NaN/∞/out-of-range), or a `String` in decimal or `0x`/`0o`/`0b`
   form (surrounding whitespace and a single leading sign allowed). Raises on anything else or an
   unparseable String — including a doubled sign or a space after the sign/prefix (`"--5"`, `"+ 5"`,
-  `"0x-5"`), matching Python's `int()`.
+  `"0x-5"`).
 - `Float(x) → Float` — convert to a double. Accepts `Integer`, `Bool`, or a numeric `String`
   (decimal/scientific notation, plus `"inf"`/`"nan"`). Raises if a String doesn't parse; a C99
-  hex-float literal (`"0x1p4"`) is rejected too, matching Python's `float()`.
+  hex-float literal (`"0x1p4"`) is rejected too.
 - `String(x) → String` — the `str()` form of any value (the same text `io.print` would emit).
 - `Bool(x) → Bool` — the truthiness of `x` (empty collections/`0`/`""`/`None` are `False`).
 - `List([iterable]) → List` — an empty list, or a new list built from any iterable. `List(iterable = xs)`.
@@ -75,7 +75,7 @@ parameter name.
 - `round(x[, ndigits]) → Number` — with `ndigits` omitted (or `None`), round to the nearest
   `Integer`; with `ndigits` given, round to that many decimal places, yielding a `Float`.
   `round(pi, ndigits = 2)`. Ties round **half away from zero** (`round(0.5) == 1`, `round(-1.5) == -2`),
-  not Python's round-half-to-even.
+  not round-half-to-even.
 - `divmod(a, b) → List` — `[a // b, a % b]` in one step, using floor semantics.
 - `pow(base, exp[, mod]) → Number` — exponentiation; the 3-argument form is modular,
   `(base ** exp) % mod`, computed efficiently over non-negative Integers (`mod` must be positive and
@@ -95,7 +95,7 @@ parameter name.
 
 > Float `==` is **exact** IEEE-754 bit equality (so `0.1 + 0.2 == 0.3` is `False`). For an approximate
 > check, use the **`.compare`** method on a number: `x.compare(other, rel_tol = 1e-9, abs_tol = 0.0)`
-> (`math.isclose` semantics) — see [Float](types.html#float).
+> (relative/absolute tolerance) — see [Float](types.html#float).
 
 ## Formatting with `format`
 

@@ -68,7 +68,7 @@ assert pd.Series([1.7, 2.9, -1.7]).astype("Integer").tolist() == [1, 2, -1], "as
 assert pd.Series([0, 1, 0]).astype("Bool").tolist() == [False, True, False], "astype Bool from Integer"
 
 # =================================================================== head/tail with negative / zero n
-# n is fed straight into a Python-style slice, so a NEGATIVE n is a from-the-end slice, not clamped.
+# n is fed straight into a slice, so a NEGATIVE n is a from-the-end slice, not clamped.
 var hs = pd.Series([1, 2, 3, 4, 5])
 assert hs.head(-1).tolist() == [1, 2, 3, 4], "Series.head(-1) drops the LAST element (slice semantics, not clamp)"
 assert hs.head(0).tolist() == [], "Series.head(0) is empty"

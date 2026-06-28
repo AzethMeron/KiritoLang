@@ -261,13 +261,13 @@ public:
             count_ = 0;
             cv_.notify_all();
             // If this generation was already broken (an earlier waiter timed out / reset), every
-            // wait() in it must report Broken — including this last arrival, per Python semantics.
+            // wait() in it must report Broken — including this last arrival.
             return brokenGen_ == gen ? WaitResult::Broken : WaitResult::Ok;
         }
         auto ready = [&] { return aborted_ || generation_ != gen || brokenGen_ == gen; };
         if (timeout) {
             if (!cv_.wait_for(lk, waitDuration(*timeout), ready)) {
-                brokenGen_ = gen;  // a timed-out waiter breaks the barrier (Python semantics)
+                brokenGen_ = gen;  // a timed-out waiter breaks the barrier
                 cv_.notify_all();
                 return WaitResult::Broken;
             }

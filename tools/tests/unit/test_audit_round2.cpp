@@ -89,7 +89,7 @@ got
     CHECK(ev(vm, "inspect(\"x\").find(\"split(sep, maxsplit) -> List\") >= 0") == "True");
     CHECK(ev(vm, "inspect(\"x\").find(\"String value:\") >= 0") == "True");
 
-    // --- container repr: strings quoted when nested, like Python ---------------------------------
+    // --- container repr: strings quoted when nested ----------------------------------------------
     CHECK(ev(vm, "String([\"a\", \"b\"])") == "['a', 'b']");
     CHECK(ev(vm, "String([\"\"])") == "['']");                // empty string distinguishable from []
     CHECK(ev(vm, "String([])") == "[]");
@@ -144,7 +144,7 @@ x == rng.randint(0, 1000000)
     CHECK_THROWS(vm.runSource("discard import(\"functools\").reduce(Function(a, b): return a + b, [])"));
     CHECK(ev(vm, "import(\"itertools\").accumulate([1, 2, 3])") == "[1, 3, 6]");
 
-    // --- statistics.mode on empty raises (parity with Python) ------------------------------------
+    // --- statistics.mode on empty raises ---------------------------------------------------------
     CHECK_THROWS(vm.runSource("discard import(\"statistics\").mode([])"));
     CHECK(ev(vm, "import(\"statistics\").mode([1, 2, 2, 3])") == "2");
 

@@ -57,7 +57,7 @@ namespace kirito {
 // the host. ~256 MB of characters is far beyond any legitimate scripting use.
 inline constexpr uint64_t kMaxRepeat = 256ull * 1024 * 1024;
 
-// --- numeric helpers (Python semantics) -----------------------------------------------------
+// --- numeric helpers ------------------------------------------------------------------------
 
 inline bool isNumeric(const Object& o) {
     return o.kind() == ValueKind::Integer || o.kind() == ValueKind::Float;
@@ -68,7 +68,7 @@ inline double asDouble(const Object& o) {
                : static_cast<const FloatVal&>(o).value();
 }
 inline bool floatEqual(double l, double r) {
-    // EXACT IEEE-754 equality (like Python): NaN != NaN (not even itself), inf == inf, 0.0 == -0.0.
+    // EXACT IEEE-754 equality: NaN != NaN (not even itself), inf == inf, 0.0 == -0.0.
     // `==`/`!=` thus agree with `<`/`>` (trichotomy holds) and with hashing, so distinct-but-close
     // floats no longer collide as Set/Dict keys. For "approximately equal", use the .compare(other,
     // rel_tol=, abs_tol=) method on Integer/Float.
@@ -209,7 +209,7 @@ inline bool IntVal::equals(const ObjectArena&, const Object& other) const {
     return false;
 }
 inline Handle IntVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
-    // `Integer * seq` is sequence repetition (Python allows either order) — defer to the sequence,
+    // `Integer * seq` is sequence repetition (either order is allowed) — defer to the sequence,
     // whose `*` already takes an Integer count. Covers List/Array/String/Bytes (3 * "ab" == "ababab").
     if (op == BinOp::Mul) {
         Object& r = vm.arena().deref(rhs);
@@ -245,8 +245,8 @@ inline Handle FloatVal::unary(KiritoVM& vm, UnOp op, Handle) {
     throw KiritoError("Float does not support this unary operator");
 }
 
-// `.compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool` — approximate equality (math.isclose
-// semantics) shared by Integer and Float, since `==` is now exact IEEE-754. The receiver is captured
+// `.compare(other, rel_tol=1e-9, abs_tol=0.0) -> Bool` — approximate equality (rel/abs tolerance)
+// shared by Integer and Float, since `==` is now exact IEEE-754. The receiver is captured
 // so the GC keeps it alive while the bound method exists; the signature gives keyword args + inspect.
 inline Handle makeNumericCompare(KiritoVM& vm, Handle self) {
     std::vector<NativeParam> sig;
@@ -321,7 +321,7 @@ inline Handle StrVal::binary(KiritoVM& vm, BinOp op, Handle, Handle rhs) {
 
 // --- Collection out-of-line members ----------------------------------------------------------
 
-// Resolve an Integer key against a sequence length, supporting Python negative indices.
+// Resolve an Integer key against a sequence length, supporting negative indices (count from the end).
 inline std::size_t sequenceIndex(KiritoVM& vm, std::size_t size, Handle key) {
     const Object& k = vm.arena().deref(key);
     if (k.kind() != ValueKind::Integer)
@@ -338,8 +338,8 @@ inline std::size_t sequenceIndex(KiritoVM& vm, std::size_t size, Handle key) {
 inline bool kiEquals(KiritoVM& vm, Handle a, Handle b);
 
 // Ordering for sort()/comparisons: numbers numerically, Strings and Lists lexicographically, else a
-// type error. List ordering compares element-by-element (recursively) and breaks ties by length,
-// matching Python — enabling the common multi-key sort idiom (key returns a [k1, k2, ...] list).
+// type error. List ordering compares element-by-element (recursively) and breaks ties by length —
+// enabling the common multi-key sort idiom (key returns a [k1, k2, ...] list).
 inline bool kiLessThan(KiritoVM& vm, Handle a, Handle b) {
     EqualsGuard guard;  // bound the element-wise recursion on nested lists (a cyclic/deep structure
                         // would otherwise overflow the native stack), exactly as kiEquals does for ==
@@ -378,7 +378,7 @@ inline void ListVal::setItem(KiritoVM& vm, std::span<const Handle> keys, Handle 
 }
 inline Handle ListVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
     const Object& b = vm.arena().deref(rhs);
-    // `+` concatenates two Lists into a new List (Python-style).
+    // `+` concatenates two Lists into a new List.
     if (op == BinOp::Add) {
         if (b.kind() != ValueKind::List && b.kind() != ValueKind::Array)
             throw KiritoError("can only concatenate List to List, not '" + b.typeName() + "'");
@@ -389,7 +389,7 @@ inline Handle ListVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
         out->elems.insert(out->elems.end(), be.begin(), be.end());
         return vm.alloc(std::move(out));
     }
-    // `*` repeats a List by an Integer count (Python-style: element handles are shared, so
+    // `*` repeats a List by an Integer count (element handles are shared, so
     // `[[0]] * 3` is three references to the same inner list). Guarded against absurd counts.
     if (op == BinOp::Mul) {
         if (b.kind() != ValueKind::Integer)
@@ -438,7 +438,7 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
                 auto& list = static_cast<ListVal&>(vm.arena().deref(self));
                 if (list.elems.empty()) throw KiritoError("pop from empty List");
                 // pop() removes the last element; pop(i) removes (and returns) index i (negative
-                // counts from the end, like Python).
+                // counts from the end).
                 int64_t idx = static_cast<int64_t>(list.elems.size()) - 1;
                 if (!a.empty()) {
                     const Object& o = vm.arena().deref(a[0]);
@@ -539,7 +539,7 @@ inline Handle ListVal::getAttr(KiritoVM& vm, Handle self, std::string_view name)
             "index", {"value", "start", "end"}, [self, self_list](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 if (a.empty()) throw KiritoError("index expects a value");
                 auto& e = self_list(vm, self).elems;
-                // Optional [start[, end]] search window (Python-style: negatives count from the end).
+                // Optional [start[, end]] search window (negatives count from the end).
                 int64_t n = static_cast<int64_t>(e.size()), start = 0, end = n;
                 auto clampIdx = [&](Handle h, int64_t dflt) {
                     if (vm.arena().deref(h).kind() == ValueKind::None) return dflt;
@@ -882,7 +882,7 @@ inline Handle SetVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
 }
 
 // Set algebra via operators. Kirito has no |/&/^ tokens, so the natural operators are `-` (difference)
-// and the ordering comparisons as (proper) subset/superset (Python semantics). All require a Set on
+// and the ordering comparisons as (proper) subset/superset. All require a Set on
 // the right; anything else defers to the base (a clear "unsupported operator" error). union/
 // intersection/symmetricdifference stay as methods; ==/!= go through equals().
 inline Handle SetVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
@@ -975,7 +975,7 @@ inline const std::string& asStr(KiritoVM& vm, Handle h, const char* what) {
     return static_cast<const StrVal&>(o).value();
 }
 
-// Map a Python-style code-point index (negative counts from the end, out-of-range clamps) to a byte
+// Map a code-point index (negative counts from the end, out-of-range clamps) to a byte
 // offset into a UTF-8 string — for the optional start/end of the search methods.
 inline std::size_t cpIndexToByte(const std::string& s, int64_t cp) {
     auto starts = utf8Starts(s);
@@ -1139,7 +1139,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             if (a.size() > 2 && vm.arena().deref(a[2]).kind() != ValueKind::None)
                 count = argInt(vm, a[2], "replace");
             if (from.empty() && count != 0) {
-                // Python semantics: an empty pattern matches at every code-point boundary, so the
+                // An empty pattern matches at every code-point boundary, so the
                 // replacement is interleaved between characters (and at both ends).
                 std::string out;
                 int64_t done = 0;
@@ -1177,7 +1177,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
             auto [lo, hi] = window(vm, a, 1, s);
             int64_t n = 0;
             if (sub.empty()) {
-                // Python: the empty string occurs at every code-point boundary in the window
+                // The empty string occurs at every code-point boundary in the window
                 // (so "abc".count("") == 4 — before each character and after the last).
                 auto starts = utf8Starts(s);
                 starts.push_back(s.size());
@@ -1219,7 +1219,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
                 while (i < n) {
                     while (i < n && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
                     if (i >= n) break;
-                    if (reached()) {  // remaining text is the final field — Python keeps its trailing whitespace
+                    if (reached()) {  // remaining text is the final field — keep its trailing whitespace
                         list->elems.push_back(rs.add(vm.makeString(s.substr(i, n - i))));
                         break;
                     }
@@ -1326,7 +1326,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c >= 0x80; });
     if (name == "isspace") return classify("isspace", [](unsigned c) {
         return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v'; });
-    // islower/isupper (Python semantics): ignore uncased chars, require >=1 cased char, and every
+    // islower/isupper: ignore uncased chars, require >=1 cased char, and every
     // cased char must be of the requested case. (A char is "cased" if it has a different upper/lower form.)
     auto caseClassify = [&](const char* nm, bool wantLower) {
         return bind(nm, {}, [self, recv, wantLower](KiritoVM& vm, std::span<const Handle>) -> Handle {
@@ -1345,7 +1345,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
     };
     if (name == "islower") return caseClassify("islower", true);
     if (name == "isupper") return caseClassify("isupper", false);
-    // removeprefix / removesuffix (Python 3.9).
+    // removeprefix / removesuffix.
     if (name == "removeprefix")
         return bindReq("removeprefix", 1, {"prefix"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& s = recv(vm, self);
@@ -1470,7 +1470,7 @@ inline Handle ListVal::slice(KiritoVM& vm, Handle s, Handle e, Handle st) {
 }
 // Value equality that respects a user class's `_eq_` (so `in`, `index`, `count`, `remove` on a List
 // agree with the `==` operator), falling back to structural equality. Tries either operand's `_eq_`
-// (matching Python's `x == e or e == x`), so it works regardless of which side is the instance.
+// (matching `x == e or e == x`), so it works regardless of which side is the instance.
 inline bool kiEquals(KiritoVM& vm, Handle a, Handle b) {
     auto viaEq = [&](Handle x, Handle y) -> std::optional<bool> {
         Object& o = vm.arena().deref(x);
@@ -1925,7 +1925,7 @@ inline Handle applyBinaryOp(KiritoVM& vm, BinOp op, Handle lhs, Handle rhs) {
     // Fast path: numeric arithmetic/ordering (Integer/Float, any mix) goes straight to the shared
     // numericBinary primitives, skipping the Eq/Ne/In branch checks and the virtual binary() call on
     // the hottest operator path. Exactly equivalent — IntVal/FloatVal::binary delegate here anyway,
-    // with identical wraparound / Python-3 `/` / raise-on-zero-divisor / exact-compare semantics.
+    // with identical wraparound / true-division `/` / raise-on-zero-divisor / exact-compare semantics.
     // Eq/Ne (exact structural) and In/NotIn keep their dedicated handling; `Integer * sequence` is
     // naturally excluded since a sequence operand is non-numeric.
     if (op != BinOp::Eq && op != BinOp::Ne && op != BinOp::In && op != BinOp::NotIn) {
@@ -2378,7 +2378,7 @@ inline std::string inspectValue(KiritoVM& vm, Handle h) {
     }
 }
 
-// Python-style mini format-spec: [[fill]align][sign][#][0][width][,][.precision][type].
+// Mini format-spec: [[fill]align][sign][#][0][width][,][.precision][type].
 // Supports align <^>= , sign +/-/space, zero-pad, width, thousands ',', precision, and types
 // b/o/x/X/d/f/e/g/s/% . Returns the formatted String. Raises on a malformed spec.
 inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string& spec) {
@@ -2395,7 +2395,7 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
     else if (i < spec.size() && isAlign(spec[i])) { align = spec[i]; ++i; }
     if (i < spec.size() && (spec[i] == '+' || spec[i] == '-' || spec[i] == ' ')) { sign = spec[i]; ++i; }
     if (i < spec.size() && spec[i] == '#') { alt = true; ++i; }  // alternate form (base prefix for b/o/x)
-    // The '0' flag zero-pads to the width. Python applies the '0' fill even when an explicit align is
+    // The '0' flag zero-pads to the width. The '0' fill applies even when an explicit align is
     // given (format(7, ">06d") == "000007"); only an explicit FILL char overrides it. Default align
     // for a bare '0' is sign-aware '='.
     if (i < spec.size() && spec[i] == '0') { zero = true; if (fill == ' ') fill = '0'; if (!align) align = '='; ++i; }
@@ -2430,7 +2430,7 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
     std::string body, signStr;
     bool numeric = (o.kind() == ValueKind::Integer || o.kind() == ValueKind::Float || o.kind() == ValueKind::Bool);
 
-    // An empty presentation type formats by value kind, matching `String()` (Python's no-type rule):
+    // An empty presentation type formats by value kind, matching `String()` (the no-type rule):
     // a Float uses general ('g') notation, a Bool stringifies to "True"/"False", an Integer stays
     // decimal, and anything else stringifies. (Without this, an empty-type Float/Bool wrongly fell into
     // the Integer branch below — `format(3.14)` raised and `format(True)` gave "1".)
@@ -2449,7 +2449,7 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
     } else if (type == 'b' || type == 'o' || type == 'x' || type == 'X' || type == 'd' || type == 0) {
         if (o.kind() != ValueKind::Integer && o.kind() != ValueKind::Bool)
             throw KiritoError("format type '" + std::string(1, type ? type : 'd') + "' needs an Integer");
-        // Reject specs that an integer presentation cannot honor (Python does), rather than silently
+        // Reject specs that an integer presentation cannot honor, rather than silently
         // dropping them: a precision is meaningless for an integer, and ',' grouping needs base 10.
         if (precision >= 0)
             throw KiritoError("format: precision not allowed for integer type '" + std::string(1, type ? type : 'd') + "'");
@@ -2468,8 +2468,8 @@ inline std::string applyFormatSpec(KiritoVM& vm, Handle value, const std::string
         std::reverse(digits.begin(), digits.end());
         if (comma && base == 10) digits = groupThousands(digits);
         signStr = neg ? "-" : (sign == '+' ? "+" : sign == ' ' ? " " : "");
-        // `#` alternate form prepends the base prefix (after the sign, before any zero-padding, like
-        // Python: format(255, "#08x") -> "0x0000ff"). Uppercase 'X' uses an uppercase "0X".
+        // `#` alternate form prepends the base prefix (after the sign, before any zero-padding:
+        // format(255, "#08x") -> "0x0000ff"). Uppercase 'X' uses an uppercase "0X".
         if (alt && base != 10)
             signStr += base == 2 ? "0b" : base == 8 ? "0o" : (type == 'X' ? "0X" : "0x");
         body = digits;
@@ -2541,7 +2541,7 @@ inline void KiritoVM::installBuiltins() {
         return vm.importModule(static_cast<const StrVal&>(a).value());
     });
 
-    // Type constructors double as converters (Python style): Integer("42"), String(n), ...
+    // Type constructors double as converters: Integer("42"), String(n), ...
     // Signatured so they accept a keyword arg (Integer(x = "42")) and describe themselves to inspect.
     defSig("Integer", {{"x"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> args) -> Handle {
         if (args.size() != 1) throw KiritoError("Integer expected 1 argument");
@@ -2566,7 +2566,7 @@ inline void KiritoVM::installBuiltins() {
                     while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
                     bool neg = false;
                     if (i < s.size() && (s[i] == '+' || s[i] == '-')) { neg = (s[i] == '-'); ++i; }
-                    // Detect base from a 0x/0X/0o/0O/0b/0B prefix (Python-style); default base 10.
+                    // Detect base from a 0x/0X/0o/0O/0b/0B prefix; default base 10.
                     int base = 10;
                     if (i + 1 < s.size() && s[i] == '0') {
                         char c = static_cast<char>(std::tolower(static_cast<unsigned char>(s[i + 1])));
@@ -2579,7 +2579,7 @@ inline void KiritoVM::installBuiltins() {
                     // std::stoll independently re-skips whitespace and re-parses a sign, which would
                     // let "--5", "+ 5", "0x-5", "0b -1" slip through after we already consumed our own
                     // sign/prefix. Require an actual base digit right here so such malformed input is
-                    // rejected, matching Python's int().
+                    // rejected by the Integer() constructor.
                     auto isBaseDigit = [base](char ch) -> bool {
                         if (ch >= '0' && ch <= '9') return (ch - '0') < (base < 10 ? base : 10);
                         char lc = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -2613,8 +2613,8 @@ inline void KiritoVM::installBuiltins() {
             case ValueKind::String: {
                 const std::string& s = static_cast<const StrVal&>(o).value();
                 try {
-                    // strtod accepts C99 hex-float syntax ("0x1p4"); Python's float() rejects it. Refuse
-                    // the 0x/0X prefix for parity (decimal "inf"/"nan" still parse, like Python).
+                    // strtod accepts C99 hex-float syntax ("0x1p4"); the Float() constructor rejects it.
+                    // Refuse the 0x/0X prefix (decimal "inf"/"nan" still parse).
                     std::size_t j = 0;
                     while (j < s.size() && std::isspace(static_cast<unsigned char>(s[j]))) ++j;
                     if (j < s.size() && (s[j] == '+' || s[j] == '-')) ++j;
@@ -2723,14 +2723,14 @@ inline void KiritoVM::installBuiltins() {
         if (!isNumeric(xo)) throw KiritoError("round expects a number");
         double x = asDouble(xo);
         // ndigits given (and not the None default) -> round to that many decimals, yielding a Float;
-        // otherwise round to the nearest Integer (Python semantics).
+        // otherwise round to the nearest Integer.
         if (a.size() >= 2 && vm.arena().deref(a[1]).kind() != ValueKind::None) {
             const Object& no = vm.arena().deref(a[1]);
             if (no.kind() != ValueKind::Integer) throw KiritoError("round ndigits must be an Integer");
             int64_t nd = static_cast<const IntVal&>(no).value();
             // Extreme ndigits: beyond a double's reach, pow(10, nd) would overflow to inf and yield
             // NaN. Rounding to more places than a double holds is a no-op; rounding past its magnitude
-            // gives a signed zero (matching Python's round(x, 10**18) / round(x, -10**18)).
+            // gives a signed zero (e.g. round(x, 10**18) / round(x, -10**18)).
             if (nd > 323) return vm.makeFloat(x);
             if (nd < -323) return vm.makeFloat(std::copysign(0.0, x));
             // Scale with long double so the intermediate x*f doesn't double-round (e.g. 2.675*100 in
@@ -2743,7 +2743,7 @@ inline void KiritoVM::installBuiltins() {
         if (std::isinf(x)) throw KiritoError("cannot round infinity to Integer");
         if (x >= 9223372036854775808.0 || x < -9223372036854775808.0)
             throw KiritoError("rounded value out of Integer range");
-        return vm.makeInt(static_cast<int64_t>(std::llround(x)));  // Python: round(x) -> Integer
+        return vm.makeInt(static_cast<int64_t>(std::llround(x)));  // round(x) -> Integer
     });
     // range is variadic by position (range(stop) / range(start, stop) / range(start, stop, step))
     // but also names its three parameters: start, stop (alias end), and step. Positionals bind by the
@@ -2812,7 +2812,7 @@ inline void KiritoVM::installBuiltins() {
         bool isFloat = false;
         double f = 0;
         int64_t n = 0;
-        if (a.size() > 1) {  // optional start value (default 0), like Python's sum(it, start)
+        if (a.size() > 1) {  // optional start value (default 0): sum(it, start)
             const Object& st = vm.arena().deref(a[1]);
             if (st.kind() == ValueKind::Float) { isFloat = true; f = static_cast<const FloatVal&>(st).value(); }
             else if (st.kind() == ValueKind::Integer) { int64_t v = static_cast<const IntVal&>(st).value(); n = v; f = static_cast<double>(v); }
@@ -2828,7 +2828,7 @@ inline void KiritoVM::installBuiltins() {
     });
     // min/max are variadic (a single iterable, or several positional values) and accept the keyword
     // options `key` (a function producing the comparison key) and `default` (returned for an empty
-    // single-iterable, else an empty sequence raises) — matching Python. inspect shows them as
+    // single-iterable, else an empty sequence raises). inspect shows them as
     // variadic (...). who = "min"/"max".
     auto extremum = [](KiritoVM& vm, std::span<const Handle> a, std::span<const NamedArg> named,
                        bool wantMax, const char* who) -> Handle {
@@ -2975,7 +2975,7 @@ inline void KiritoVM::installBuiltins() {
     });
     defSig("format", {{"value"}, {"spec", "String", makeString("")}}, "String",
            [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-        // format(value[, spec]) -> String, applying a Python mini-format-spec. No spec == String().
+        // format(value[, spec]) -> String, applying a mini-format-spec. No spec == String().
         if (a.size() < 1 || a.size() > 2) throw KiritoError("format expected 1 or 2 arguments");
         std::string spec;
         if (a.size() == 2) {
@@ -3115,7 +3115,7 @@ inline void KiritoVM::installBuiltins() {
             if (exp < 0) throw KiritoError("pow exponent must be non-negative with a modulus");
             if (mod == 0) throw KiritoError("pow modulus must be non-zero");
             // A negative modulus would make `((base % mod) + mod) % mod` produce a silently-wrong
-            // residue (C++ truncated `%` vs Python's floor `%`); reject it (docs scope this to
+            // residue (C++ truncated `%` vs Kirito's floor `%`); reject it (docs scope this to
             // non-negative Integers) instead of returning a misleading number.
             if (mod < 0) throw KiritoError("pow modulus must be positive");
             __extension__ __int128 result = 1 % mod, b = ((base % mod) + mod) % mod;

@@ -1,8 +1,8 @@
-# AUTO-GENERATED from CPython's Lib/test/re_tests.py — the classic Spencer/PCRE/Python-re corpus,
+# AUTO-GENERATED from the classic Spencer/PCRE regex corpus (Lib/test/re_tests.py),
 # run in full through Kirito's `regex` module. Patterns/subjects are stored as code-point lists
 # (rebuilt with chr()) so arbitrary bytes survive Kirito's string literals. Every case is checked
-# against Python's recorded outcome (SUCCEED/FAIL/SYNTAX_ERROR) and group result; non-participating
-# groups and out-of-range refs are rendered 'None'/'Error' exactly as Python's harness does.
+# against the recorded reference outcome (SUCCEED/FAIL/SYNTAX_ERROR) and group result; non-participating
+# groups and out-of-range refs are rendered 'None'/'Error' exactly as the reference harness does.
 # Deliberately-excluded features (backreferences, lookaround) must be rejected *gracefully* (a
 # clean error, never a crash/hang) — counted as gracefulReject, never as a false negative.
 var io = import("io")
@@ -473,7 +473,7 @@ for cse in cases:
             else:
                 correct = correct + 1
 
-# Hard correctness: no false negatives/positives, no group mismatches, no Python-invalid pattern accepted.
+# Hard correctness: no false negatives/positives, no group mismatches, no syntactically-invalid pattern accepted.
 assert falseNeg == 0, "regex corpus false negatives: " + String(falseNeg)
 assert falsePos == 0, "regex corpus false positives: " + String(falsePos)
 assert groupMismatch == 0, "regex corpus group mismatches: " + String(groupMismatch)

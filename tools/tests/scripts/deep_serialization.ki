@@ -53,7 +53,7 @@ assert json.parse("1.5e3") == 1500.0, "json scientific notation"
 assert throws(Function(): return json.parse("+1")), "json rejects a leading +"
 assert throws(Function(): return json.parse(".5")), "json rejects a leading dot"
 assert throws(Function(): return json.parse("--1")), "json rejects a double minus"
-# Non-finite floats use the Python-json spelling and parse back (round-trippable, see below).
+# Non-finite floats use the bareword JSON spelling and parse back (round-trippable, see below).
 assert json.parse("Infinity") == math.inf, "json accepts bareword Infinity"
 assert json.parse("-Infinity") == -math.inf, "json accepts bareword -Infinity"
 assert math.isnan(json.parse("NaN")), "json accepts bareword NaN"
@@ -62,7 +62,7 @@ assert throws(Function(): return json.parse("0x10")), "json rejects hex"
 assert isinstance(json.parse("999999999999999999999999"), "Float"), "json huge int -> Float"
 
 # ================================================================= JSON: stringify of non-finite floats
-# Non-finite floats use the Python-json spelling NaN / Infinity / -Infinity, which json.parse accepts
+# Non-finite floats use the bareword spelling NaN / Infinity / -Infinity, which json.parse accepts
 # back — so a structure containing a non-finite Float round-trips through dumps -> loads.
 assert json.dumps(math.nan) == "NaN", "json.dumps(NaN) -> 'NaN'"
 assert json.dumps(math.inf) == "Infinity", "json.dumps(Infinity) -> 'Infinity'"

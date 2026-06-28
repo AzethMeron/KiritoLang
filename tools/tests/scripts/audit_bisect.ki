@@ -38,7 +38,7 @@ var oracle_right = Function(a, x) -> Integer:
     return len(a)
 
 # --- aliases ------------------------------------------------------------------------------------
-assert b.bisect == b.bisectright, "bare bisect = bisectright (Python alias)"
+assert b.bisect == b.bisectright, "bare bisect = bisectright (alias)"
 assert b.insort == b.insortright, "bare insort = insortright"
 
 # --- empty list ---------------------------------------------------------------------------------

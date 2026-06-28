@@ -28,13 +28,13 @@ int main() {
     CHECK(evalInt(vm, "2 ** 3 ** 2") == 512);  // right-associative
     CHECK(evalInt(vm, "-2 ** 2") == -4);       // ** binds tighter than unary minus
 
-    // Python floor division and modulo (sign follows divisor)
+    // floor division and modulo (sign follows divisor)
     CHECK(evalInt(vm, "7 // 2") == 3);
     CHECK(evalInt(vm, "-7 // 2") == -4);
     CHECK(evalInt(vm, "7 % 3") == 1);
     CHECK(evalInt(vm, "-7 % 3") == 2);
 
-    // Python-3 division always yields Float
+    // true division always yields Float
     CHECK(evalFloat(vm, "4 / 2") == 2.0);
     CHECK(evalFloat(vm, "1 / 2") == 0.5);
 

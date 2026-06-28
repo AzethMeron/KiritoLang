@@ -12,7 +12,7 @@ var sumto = Function(n):
 io.print(sumto(10))
 
 # closures capturing a function-scoped local: `k` is captured (-> name-based, shared), so all three
-# see its final value (Kirito's Python-style function scoping); the loop counter `i` stays slotted.
+# see its final value (Kirito's function-level scoping); the loop counter `i` stays slotted.
 var makeAdders = Function():
     var fns = []
     var i = 0

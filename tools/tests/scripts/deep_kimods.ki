@@ -29,15 +29,15 @@ assert it.count(0, 5, 1) == [0], "count step overshoots stop after first"
 assert it.count(2, 3, 12) == [2, 5, 8, 11], "count step 3 stops before 12"
 assert raises(Function(): return it.count(0, 1)), "count without stop raises (no lazy generators)"
 
-# --- repeat / cycle: times is REQUIRED (Python makes repeat's count optional/infinite). ----------
-# FINDING (doc/parity): itertools.repeat(value) with no count is a TypeError here; Python returns an
-# endless iterator. Documented signature is repeat(value, times) so this is by-design but un-Pythonic.
+# --- repeat / cycle: times is REQUIRED (no optional/infinite count form). -------------------------
+# FINDING (doc): itertools.repeat(value) with no count is a TypeError here (no endless iterator).
+# Documented signature is repeat(value, times) so this is by-design.
 assert raises(Function(): return it.repeat("x")), "repeat requires times (no infinite form)"
 assert it.repeat("x", 0) == [], "repeat times=0 -> empty"
 assert it.repeat([1], 2) == [[1], [1]], "repeat repeats the SAME reference twice"
 var rr = it.repeat([0], 2)
 rr[0].append(9)
-assert rr[1] == [0, 9] and id(rr[0]) == id(rr[1]), "FINDING: repeat shares ONE reference -- mutating one slot mutates all (Python parity)"
+assert rr[1] == [0, 9] and id(rr[0]) == id(rr[1]), "FINDING: repeat shares ONE reference -- mutating one slot mutates all"
 assert it.cycle([], 5) == [], "cycle of an empty iterable -> empty regardless of times"
 assert it.cycle([1, 2], 0) == [], "cycle times=0 -> empty"
 
@@ -157,8 +157,8 @@ assert len(dq) == 3 and dq[0] == 0 and dq[2] == 2, "deque grows at both ends"
 assert dq[-1] == 2, "deque negative index works (List _getitem_)"
 assert dq.pop() == 2 and dq.popleft() == 0, "deque pop/popleft return the ends"
 assert len(dq) == 1, "deque length after popping both ends"
-# Documented-as-absent (Python deque has these; Kirito's does not) -> attribute errors.
-assert raises(Function(): return col.deque([1, 2]).rotate(1)), "FINDING: deque has NO rotate (Python parity gap, undocumented)"
+# Documented-as-absent (Kirito's deque does not have these) -> attribute errors.
+assert raises(Function(): return col.deque([1, 2]).rotate(1)), "FINDING: deque has NO rotate (undocumented gap)"
 assert raises(Function(): return col.deque([1, 2]).index(2)), "deque has NO index method"
 assert raises(Function(): return col.deque([1, 2]).clear()), "deque has NO clear method"
 assert raises(Function(): return col.deque([1, 2], 5)), "deque ctor takes NO maxlen argument (no eviction)"
@@ -183,7 +183,7 @@ for p in tiedpairs:
     assert p[1] == 1, "all three tie at count 1"
     tiednames.append(p[0])
 assert sorted(tiednames) == ["apple", "mango", "zebra"], "FINDING: mostcommon tie order is NOT insertion order (doc 07-stdlib.md:986 wrong); only the SET of entries is stable"
-# Counter has NO Python +/-/update arithmetic.
+# Counter has NO +/-/update arithmetic.
 assert raises(Function(): return ctr.update(["a"])), "Counter has NO update method"
 # mostcommon() with no arg returns ALL, sorted by count descending (counts themselves are correct)
 var allmc = col.Counter(["x", "x", "x", "y", "y", "z"]).mostcommon()
@@ -223,8 +223,8 @@ var tw = import("textwrap")
 assert tw.wrap("aa bb cc", 5) == ["aa bb", "cc"], "wrap packs words up to exactly width"
 assert tw.wrap("", 10) == [], "wrap of empty text -> [] (no lines)"
 assert tw.wrap("solo", 2) == ["solo"], "wrap of a single over-width word keeps it whole"
-# FINDING (parity): Python's textwrap breaks words longer than width by default (break_long_words);
-# Kirito's wrap NEVER splits a word, so an over-long word becomes its own un-truncated line.
+# FINDING: Kirito's wrap NEVER splits a word (no break_long_words), so an over-long word becomes its
+# own un-truncated line.
 assert tw.wrap("hi superlongword bye", 5) == ["hi", "superlongword", "bye"], "FINDING: long words are NOT broken (no break_long_words); each becomes its own line"
 assert tw.wrap("a b c d e", 3) == ["a b", "c d", "e"], "wrap fills greedily within width"
 
@@ -232,20 +232,19 @@ assert tw.wrap("a b c d e", 3) == ["a b", "c d", "e"], "wrap fills greedily with
 assert tw.fill("a b c d", 3) == "a b\nc d", "fill joins wrapped lines with newline"
 assert tw.fill("", 10) == "", "fill of empty text -> empty string"
 
-# --- indent: prefixes lines -- including a WHITESPACE-ONLY line (differs from Python's predicate). -
+# --- indent: prefixes lines -- including a WHITESPACE-ONLY line. ----------------------------------
 assert tw.indent("a\nb", "> ") == "> a\n> b", "indent prefixes each content line"
 assert tw.indent("p1\n\np2", "# ") == "# p1\n\n# p2", "indent leaves a truly empty line unprefixed"
-# FINDING (parity): Python's indent default predicate skips whitespace-ONLY lines; Kirito prefixes
-# any line of length > 0, so a line of spaces gets the prefix.
-assert tw.indent("a\n   \nb", ">") == ">a\n>   \n>b", "FINDING: a whitespace-only line IS prefixed (Python would skip it)"
+# FINDING: indent prefixes any line of length > 0, so a line of spaces gets the prefix.
+assert tw.indent("a\n   \nb", ">") == ">a\n>   \n>b", "FINDING: a whitespace-only line IS prefixed"
 
 # --- dedent: common-prefix removal; blank lines ignored for the common amount; tabs counted as 1. -
 assert tw.dedent("    a\n    b") == "a\nb", "dedent strips the common 4-space prefix"
 assert tw.dedent("    a\n\n    b") == "a\n\nb", "dedent ignores blank lines when measuring"
 assert tw.dedent("  a\n      b") == "a\n    b", "dedent removes only the COMMON amount"
 assert tw.dedent("abc") == "abc", "dedent with no common indent is a no-op"
-# FINDING (parity): dedent measures indent by character count (tab == 1), not by Python's
-# whitespace-equality rule -- so a tab-indented block and a space-indented block are treated alike.
+# FINDING: dedent measures indent by character count (tab == 1), not by a whitespace-equality rule
+# -- so a tab-indented block and a space-indented block are treated alike.
 assert tw.dedent("\ta\n\tb") == "a\nb", "FINDING: tabs counted as a single indent char (not expanded)"
 
 io.print("ok textwrap")
@@ -373,15 +372,15 @@ h.heappush(hp, 0)
 assert hp[0] == 0, "heappush mutates the heap in place"
 assert h.heappop(hp) == 0 and hp[0] == 1, "heappop removes and returns the root"
 
-# --- nlargest and nsmallest agree on a non-positive n: both yield [] (like Python). ---------------
+# --- nlargest and nsmallest agree on a non-positive n: both yield []. -----------------------------
 assert h.nsmallest(-2, [5, 4, 3, 2, 1]) == [], "nsmallest(negative) -> []"
 assert h.nlargest(-2, [5, 4, 3, 2, 1]) == [], "nlargest(negative) -> [] (fixed: was a tail slice)"
 assert h.nlargest(0, [3, 1, 2]) == [] and h.nsmallest(0, [3, 1, 2]) == [], "n=0 agrees: both []"
 
 # --- merge is GIGO-TOLERANT: it re-heaps every element, so it sorts even unsorted inputs. ---------
-# FINDING (doc/parity): docs say merge takes 'already-sorted inputs', but the impl heappushes every
-# element and drains -- so it actually returns sorted output regardless of input order (Python's
-# heapq.merge assumes sorted inputs and would produce GARBAGE on unsorted input).
+# FINDING (doc): docs say merge takes 'already-sorted inputs', but the impl heappushes every
+# element and drains -- so it actually returns sorted output regardless of input order (a true k-way
+# merge would assume sorted inputs and produce GARBAGE on unsorted input).
 assert h.merge([[3, 1], [2]]) == [1, 2, 3], "FINDING: merge sorts even UNSORTED inputs (full re-heap, not a k-way merge)"
 assert h.merge([]) == [], "merge of no lists"
 assert h.merge([[5], [], [1, 3]]) == [1, 3, 5], "merge with an empty sublist"
@@ -446,16 +445,16 @@ assert type(st.median([1, 2, 3])) == "Float" and st.median([1, 2, 3]) == 2.0, "m
 assert st.median([1, 2, 3, 4]) == 2.5 and type(st.median([1, 2, 3, 4])) == "Float", "median even -> Float average"
 assert st.median([3, 1, 2]) == 2.0, "median sorts internally"
 
-# --- mode: single, first-to-reach-max tie-break, and the EMPTY -> raises (parity with Python). -----
+# --- mode: single, first-to-reach-max tie-break, and the EMPTY -> raises. --------------------------
 assert st.mode([1, 1, 2, 3]) == 1, "mode picks the most common"
-assert st.mode([4, 4, 5, 5]) == 4, "FINDING-PARITY: tie -> the value that reaches the max count FIRST (Python's mode is also single but errors on multimodal in <3.8)"
-# Parity with Python: statistics.mode([]) raises (StatisticsError there, a clear message here).
+assert st.mode([4, 4, 5, 5]) == 4, "FINDING: tie -> the value that reaches the max count FIRST (mode is single-valued)"
+# statistics.mode([]) raises with a clear message.
 var modeEmptyRaised = False
 try:
     discard st.mode([])
 catch as e:
     modeEmptyRaised = True
-assert modeEmptyRaised, "mode of an empty list raises (parity with Python)"
+assert modeEmptyRaised, "mode of an empty list raises"
 assert st.multimode([]) == [], "multimode of empty -> [] (consistent)"
 assert st.multimode([1, 2, 3]) == [1, 2, 3], "all-distinct: every value is a mode"
 
@@ -474,7 +473,7 @@ assert near(st.pvariance(sv), 4.0), "population variance of the canonical set"
 assert near(st.variance(sv), st.pvariance(sv) * 8.0 / 7.0), "sample == population * n/(n-1)"
 assert near(st.stdev(sv) * st.stdev(sv), st.variance(sv)), "stdev^2 == variance"
 
-# --- quantiles: n=1 -> 0 cuts; default n=4 -> 3 cuts at Python's exclusive positions. -------------
+# --- quantiles: n=1 -> 0 cuts; default n=4 -> 3 cuts at the exclusive-method positions. ------------
 assert st.quantiles([1, 2, 3], 1) == [], "quantiles n=1 -> no cut points"
 var qs = st.quantiles([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 assert len(qs) == 3 and near(qs[0], 2.75) and near(qs[1], 5.5) and near(qs[2], 8.25), "default quartiles (exclusive method)"

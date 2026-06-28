@@ -64,7 +64,7 @@ var f = Function():
 f()
 )") == "1");
 
-    // a return inside finally overrides the try's return (Python semantics)
+    // a return inside finally overrides the try's return
     CHECK(evalStr(vm, R"(
 var f = Function():
     try:

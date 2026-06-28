@@ -86,8 +86,8 @@ assert "".upper() == "" and "".split() == [] and "".strip() == "", "empty string
 assert "a".split(",") == ["a"], "split with no separator present"
 assert ",".split(",") == ["", ""], "split on lone separator"
 assert "aaa".replace("a", "") == "", "replace to empty"
-assert "abc".find("") == 0 and "abc".count("") == 4, "empty-needle search (count: one per boundary, like Python)"
-assert "aaa".replace("", "-") == "-a-a-a-", "empty-pattern replace interleaves (Python)"
+assert "abc".find("") == 0 and "abc".count("") == 4, "empty-needle search (count: one per boundary)"
+assert "aaa".replace("", "-") == "-a-a-a-", "empty-pattern replace interleaves"
 assert "hello".startswith("") and "hello".endswith(""), "empty prefix/suffix"
 
 io.print("OK")

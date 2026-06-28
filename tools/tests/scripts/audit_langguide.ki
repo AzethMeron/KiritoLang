@@ -395,7 +395,7 @@ var defFresh = Function(x, xs = []):
     xs.append(x)
     return xs
 assert defFresh(1) == [1], "first call fresh default"
-assert defFresh(2) == [2], "second call gets a NEW fresh list (no Python footgun)"
+assert defFresh(2) == [2], "second call gets a NEW fresh list (no shared-default footgun)"
 
 # Type annotations runtime-checked, inheritance-aware
 class AnimAudit:

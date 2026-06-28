@@ -37,7 +37,7 @@ io.print(raises(Function(): return net.Socket().send()))       # socket send() n
 io.print(raises(Function(): return tm.datetime(1e30)) and raises(Function(): return tm.datetime(0.0 / 0.0)))
 io.print(tm.datetime(1700000000.5).year == 2023)
 
-# --- complex 0 ** 0 == 1 (consistent with scalar + Python); negatives still raise ---
+# --- complex 0 ** 0 == 1 (consistent with scalar); negatives still raise ---
 io.print(c.zero ** c.zero == c.one and c.pow(c.zero, c.zero) == c.one)
 io.print(raises(Function(): return c.zero ** c.of(0 - 1, 0)))
 
@@ -70,7 +70,7 @@ io.print({1, 2} <= {1, 2, 3} and {1, 2, 3} >= {1, 2})
 io.print(({1, 2} < {1, 2, 3}) and not ({1, 2} < {1, 2}))   # proper subset
 io.print(raises(Function(): return {1, 2} - [2]))          # RHS must be a Set
 
-# --- regex.split splits on empty matches (Python 3.7+), consistent with findall ---
+# --- regex.split splits on empty matches, consistent with findall ---
 io.print(rx.split("x*", "abc") == ["", "a", "b", "c", ""])
 io.print(rx.split(",", "a,b,c") == ["a", "b", "c"])        # non-empty separator unchanged
 

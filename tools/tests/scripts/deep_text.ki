@@ -60,7 +60,7 @@ catch as e:
     joinBad = True
 check("join-nonstring-raises", joinBad, True)
 
-# replace(old, new, count) — incl. empty-old interleave (Python semantics)
+# replace(old, new, count) — incl. empty-old interleave
 check("replace-all", "a.b.c".replace(".", "-"), "a-b-c")
 check("replace-count", "aaaa".replace("a", "b", 2), "bbaa")
 check("replace-count0", "aaaa".replace("a", "b", 0), "aaaa")
@@ -485,7 +485,7 @@ check("re-string-attr", m1.string, "log 2024-06-07 ok")
 var m2 = re.search(r"(\d+)?-(\d+)", "-5")
 check("re-optgroup-none", m2.group(1) == None, True)
 check("re-optgroup-two", m2.group(2), "5")
-# capture inside repetition keeps the LAST iteration (Python semantics)
+# capture inside repetition keeps the LAST iteration
 check("re-repeat-capture", re.search(r"(\d)+", "abc123").group(1), "3")
 # multi-key group(...) returns a List
 check("re-group-multi", m1.group(1, 2), ["2024", "06"])

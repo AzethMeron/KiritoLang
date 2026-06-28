@@ -114,7 +114,7 @@ int main() {
         CHECK(ev(vm, "var d = import(\"dump\")\nvar t = 1e-308 * 0.001\nd.loads(d.dumps(t)) == t") == "True");
     }
 
-    // ---- json emits and re-parses the Python-json non-finite spelling (NaN / Infinity /
+    // ---- json emits and re-parses the bareword non-finite spelling (NaN / Infinity /
     //      -Infinity), so a structure with a non-finite Float round-trips (was lowercase nan/inf,
     //      which json.parse rejected).
     {
@@ -173,7 +173,7 @@ int main() {
     }
     {
         KiritoVM vm;
-        // heapq.nlargest with a non-positive n returns [] (matches nsmallest + Python), not a tail slice
+        // heapq.nlargest with a non-positive n returns [] (matches nsmallest), not a tail slice
         CHECK(ev(vm, "import(\"heapq\").nlargest(-2, [5, 4, 3, 2, 1])") == "[]");
         CHECK(ev(vm, "import(\"heapq\").nlargest(0, [3, 1, 2])") == "[]");
         CHECK(ev(vm, "import(\"heapq\").nlargest(2, [5, 4, 3, 2, 1])") == "[5, 4]");

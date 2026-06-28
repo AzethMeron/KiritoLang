@@ -13,7 +13,7 @@
 
 namespace kirito {
 
-// Kirito's special (operator) methods use Python's dunder names with single underscores:
+// Kirito's special (operator) methods use dunder names with single underscores:
 // _init_, _str_, _add_, _eq_, _getitem_, _call_, ... These map an operator/protocol slot to the
 // method name a class may define.
 inline const char* binOpMethod(BinOp op) {

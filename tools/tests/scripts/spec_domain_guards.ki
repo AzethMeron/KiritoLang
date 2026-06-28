@@ -28,7 +28,7 @@ io.print(raises(Function(): return math.fmod(1, 0)))
 io.print(math.isnan(math.sqrt(math.nan)) and math.isinf(math.exp(1000)))   # NaN/overflow do NOT raise
 io.print(math.sqrt(0) == 0.0 and math.pow(2, 10) == 1024.0)                # valid still works
 
-# --- complex: matches cmath (log/log10 of 0, pow zero-to-negative, atanh +/-1 raise) ---------------
+# --- complex: domain errors (log/log10 of 0, pow zero-to-negative, atanh +/-1 raise) ---------------
 io.print(raises(Function(): return c.log(c.zero)) and raises(Function(): return c.log10(c.zero)))
 io.print(raises(Function(): return c.pow(c.zero, c.of(0 - 1, 0))) and raises(Function(): return c.zero ** c.of(0 - 1, 0)))
 io.print(raises(Function(): return c.atanh(c.one)) and raises(Function(): return c.atanh(c.of(0 - 1, 0))))
@@ -51,7 +51,7 @@ io.print(t.Tensor([0 - 8.0]).pow(3.0).tolist() == [0 - 512.0])           # integ
 io.print(raises(Function(): return Integer("--5")) and raises(Function(): return Integer("+ 5")))
 io.print(raises(Function(): return Integer("0x-5")) and raises(Function(): return Integer("0b -1")))
 io.print(Integer("  -5 ") == -5 and Integer("-0xFF") == -255)            # well-formed still works
-io.print(raises(Function(): return Float("0x1p4")))                       # C99 hex float rejected (Python parity)
+io.print(raises(Function(): return Float("0x1p4")))                       # C99 hex float rejected
 io.print(Float("1.5e3") == 1500.0 and Float("-inf") < 0)                 # valid floats still parse
 io.print(raises(Function(): return pow(7, 2, 0 - 5)))                     # negative modulus rejected
 io.print(pow(2, 10, 1000) == 24)                                          # valid modular pow

@@ -93,7 +93,7 @@ io.print(Bool(0), Bool(42), Bool(""), Bool("hi"), Bool([]))
 # => False True False True False
 ```
 
-**`Bool` is its own type, not a number.** Unlike Python, `True` is *not* `1`: `True == 1` is `False`,
+**`Bool` is its own type, not a number.** `True` is *not* `1`: `True == 1` is `False`,
 and Bools are deliberately **not numeric** — `True + 1`, `abs(True)`, `sum([True, False])`, and
 `sorted([True, False])` all raise a type error rather than treating `True`/`False` as `1`/`0`. When
 you really want to count truth values, convert explicitly with `Integer(flag)` (`Integer(True) == 1`).
@@ -173,8 +173,8 @@ io.print(0.1 + 0.2 == 0.3)        # => False    (but the stored bits differ!)
 
 The display is clean, but `0.1 + 0.2` is stored as `0.30000000000000004`, which is not the same double
 as `0.3`. This is not a Kirito quirk — it is how binary floating point works everywhere. When you want
-to compare Floats *up to a small tolerance*, call `.compare` on either number (the same idea as
-Python's `math.isclose`):
+to compare Floats *up to a small tolerance*, call `.compare` on either number (a small
+relative/absolute tolerance):
 
 ```kirito
 var io = import("io")

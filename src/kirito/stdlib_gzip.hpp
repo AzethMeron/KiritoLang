@@ -46,8 +46,8 @@ inline std::string decompress(const std::string& data) {
     bool any = false;
     while (off < data.size()) {                  // consume members until the input is exactly exhausted
         // A member needs >=10 header + body + 8 trailer; leftover bytes that can't form one, or that
-        // don't begin with the gzip magic, are corruption / trailing junk — reject (like Python's
-        // gzip.decompress), not silently ignore.
+        // don't begin with the gzip magic, are corruption / trailing junk — reject,
+        // not silently ignore.
         if (off + 18 > data.size())
             throw deflate::DeflateError(any ? "gzip: trailing data after the last member"
                                             : "gzip: stream too short");
@@ -72,7 +72,7 @@ inline std::string decompress(const std::string& data) {
         if (t + 8 > data.size()) throw deflate::DeflateError("gzip: truncated stream");
         uint32_t want = b(t) | (b(t + 1) << 8) | (b(t + 2) << 16) | (static_cast<uint32_t>(b(t + 3)) << 24);
         if (deflate::crc32(out) != want) throw deflate::DeflateError("gzip: CRC-32 mismatch (corrupt stream)");
-        // Also verify the ISIZE trailer (uncompressed length mod 2^32), as gzip(1)/Python do — catches a
+        // Also verify the ISIZE trailer (uncompressed length mod 2^32), as gzip(1) does — catches a
         // truncation/corruption that leaves the CRC slot intact but the length field wrong.
         uint32_t isize = b(t + 4) | (b(t + 5) << 8) | (b(t + 6) << 16) | (static_cast<uint32_t>(b(t + 7)) << 24);
         if ((static_cast<uint32_t>(out.size()) & 0xFFFFFFFFu) != isize)

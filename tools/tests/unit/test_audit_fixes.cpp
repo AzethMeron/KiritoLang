@@ -132,7 +132,7 @@ int main() {
         CHECK(ev(vm, cls + "type(C().label)") == "String");
         CHECK(ev(vm, cls + "var a = C()\nvar b = C()\ndiscard a.bump()\ndiscard a.bump()\n[a.n, b.n]") == "[7, 5]");
     }
-    // ---- String.count("") / replace("") follow Python's boundary semantics (code-point aware) ----
+    // ---- String.count("") / replace("") boundary semantics (code-point aware) ----
     {
         KiritoVM vm;
         CHECK(ev(vm, "\"abc\".count(\"\")") == "4");
@@ -190,7 +190,7 @@ int main() {
         }
         CHECK(threw);
     }
-    // ---- Counter.mostcommon([n]) takes the optional Python-style count ----
+    // ---- Counter.mostcommon([n]) takes the optional count ----
     {
         KiritoVM vm;
         const std::string c = "var c = import(\"collections\").Counter([\"a\", \"b\", \"a\", \"c\", \"a\", \"b\"])\n";

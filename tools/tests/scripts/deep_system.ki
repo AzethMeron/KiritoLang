@@ -68,7 +68,7 @@ discard fx.read(11)
 assert fx.tell() == 11, "tell after an exact read is the byte length"
 fx.close()
 # ...and after an over-long read tell() still reports the position (the EOF bit is cleared for
-# tell, matching Python and the doc's "current byte position") rather than -1.
+# tell, matching the doc's "current byte position") rather than -1.
 var fe = io.open(fp, "r")
 assert fe.read(1000) == "012XY56789Z", "over-long read returns what's there"
 assert fe.read() == "", "read at EOF returns empty"
@@ -144,7 +144,7 @@ assert b2.read() == "ef", "read after end-relative seek"
 assert b2.seek(-100, 0) == 0, "negative absolute seek clamps to 0"
 assert b2.read() == "abcdef", "read after clamped seek"
 
-# write beyond the end zero-fills the gap (like Python), no garbage
+# write beyond the end zero-fills the gap, no garbage
 var b3 = io.BytesIO("ab")
 discard b3.seek(5)
 discard b3.write("Z")
@@ -168,7 +168,7 @@ assert b5.readline() == "", "BytesIO readline at EOF is empty"
 var b6 = io.BytesIO(Bytes([200, 0, 13, 255]).decode("latin-1"))
 assert b6.getvalue().encode("latin-1") == Bytes([200, 0, 13, 255]), "BytesIO byte round-trip"
 
-# ADVERSARIAL: reading after a seek BEYOND end returns empty (like File and Python's BytesIO), not
+# ADVERSARIAL: reading after a seek BEYOND end returns empty (like File and BytesIO), not
 # a crash — the cursor sits past the buffer and read/readline yield "". (Was a SIGABRT before the
 # fix: avail = size - pos underflowed and substr(pos,...) threw.)
 var bx = io.BytesIO("abc")

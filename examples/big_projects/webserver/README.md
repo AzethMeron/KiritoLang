@@ -56,8 +56,8 @@ Demo routes: `GET /`, `GET /hello/:name[?loud=1]`, `GET /api/time`, `GET /api/ad
   `http.ki` by measuring the UTF-8 byte length via `BytesIO` (`byte_len`). This points at a missing
   language facility: a direct "byte length of a String".
 - **Block-bodied inline functions can't be call arguments.** Only single-expression
-  `Function(x): expr` works inline; a multi-line handler must be bound to a name first (mirrors
-  Python's lambda-vs-def). `app.ki` defines each handler as a named function — see its header note.
+  `Function(x): expr` works inline; a multi-line handler must be bound to a name first (the
+  block-bodied-vs-inline function split). `app.ki` defines each handler as a named function — see its header note.
 
 ## Known limitations
 

@@ -309,7 +309,7 @@ struct WhileStmt : Stmt {
     void accept(StmtVisitor& v) const override { v.visit(*this); }
 };
 
-// `for var in iterable: <block>` — var is bound in the enclosing scope (Python semantics).
+// `for var in iterable: <block>` — var is bound in the enclosing scope.
 // `for v in it` or, with unpacking, `for k, v in it` / `for a, *rest in it`. `vars` holds the loop
 // name(s); `starIndex` marks a `*name` (or -1). Single-variable loops keep one entry, starIndex -1.
 struct ForStmt : Stmt {

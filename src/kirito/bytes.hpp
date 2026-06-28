@@ -19,7 +19,7 @@ namespace kirito {
 #  pragma GCC diagnostic ignored "-Wshadow"
 #endif
 
-// An immutable sequence of raw bytes (0–255), like Python's `bytes`. Distinct from String, which is
+// An immutable sequence of raw bytes (0–255). Distinct from String, which is
 // Unicode (code-point) text: a String holds UTF-8 and indexes by code point, so it cannot losslessly
 // hold or address arbitrary binary. Bytes indexes by byte (b[i] -> Integer 0–255), so it is the right
 // type for binary I/O — network downloads, compressed data, file contents. Convert with
@@ -35,7 +35,7 @@ public:
 
     bool truthy() const override { return !data.empty(); }
 
-    // repr like Python: b'...' with printable ASCII verbatim and \xHH / \n \t \r \\ \' for the rest.
+    // repr: b'...' with printable ASCII verbatim and \xHH / \n \t \r \\ \' for the rest.
     std::string str(StringifyCtx&) const override {
         std::string out = "b'";
         for (unsigned char c : data) {
@@ -69,7 +69,7 @@ public:
 
     std::optional<int64_t> length(KiritoVM&) override { return static_cast<int64_t>(data.size()); }
 
-    // b[i] -> the byte at i as an Integer (Python negative indexing).
+    // b[i] -> the byte at i as an Integer (negative indices count from the end).
     Handle getItem(KiritoVM& vm, std::span<const Handle> keys) override {
         const Object& k = vm.arena().deref(singleKey(*this, keys));
         if (k.kind() != ValueKind::Integer)
@@ -128,7 +128,7 @@ public:
             for (int64_t i = 0; i < nrep; ++i) out += data;
             return vm.alloc(std::make_unique<BytesVal>(std::move(out)));
         }
-        if (const auto* o = dynamic_cast<const BytesVal*>(&b)) {  // lexicographic ordering (Python-like)
+        if (const auto* o = dynamic_cast<const BytesVal*>(&b)) {  // lexicographic ordering
             switch (op) {
                 case BinOp::Lt: { return vm.makeBool(data < o->data); } break;
                 case BinOp::Le: { return vm.makeBool(data <= o->data); } break;
@@ -184,7 +184,7 @@ inline std::string encode(const std::string& s, const std::string& enc) {
 
 // Well-formed UTF-8 check: correct lead/continuation bytes, no overlong encodings, no surrogates,
 // in range. Used so decode("utf-8") can't silently fabricate a String whose bytes aren't valid
-// UTF-8 (which would then misbehave under code-point indexing/len) — Python raises here too.
+// UTF-8 (which would then misbehave under code-point indexing/len) — this raises instead.
 inline bool validUtf8(const std::string& s) {
     std::size_t i = 0, n = s.size();
     while (i < n) {

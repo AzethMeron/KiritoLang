@@ -27,7 +27,7 @@ assert C.of(1, 2) * C.of(3, 4) == C.of(-5, 10), "mul"
 assert C.of(1, 1) / C.of(1, 1) == C.one, "div"
 assert -C.of(2, -3) == C.of(-2, 3), "neg"
 # `**` goes through std::pow (exp/log), so the result is 2i only within tolerance — Complex `==` is
-# now exact, so use the tolerant `.compare()` (cmath.isclose) for a computed value.
+# now exact, so use the tolerant `.compare()` (rel/abs epsilon) for a computed value.
 assert (C.of(1, 1) ** C.of(2, 0)).compare(C.of(0, 2)), "pow ((1+i)^2 = 2i)"
 # a Complex with zero imaginary part equals the corresponding real number
 assert C.of(2, 0) == 2, "Complex == real number"

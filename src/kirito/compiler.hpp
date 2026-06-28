@@ -473,7 +473,7 @@ private:
         }
         for (std::size_t j : endJumps) patch(j, here());  // Lend
         // NB: unlike most statements, `try` does NOT clear the result — it carries the value of the
-        // last expression in the executed body/handler (Python-style), so the REPL echoes it.
+        // last expression in the executed body/handler, so the REPL echoes it.
     }
 
     // `with CTX as NAME:` — call CTX._enter_() (bound to NAME), run the body, and ALWAYS call

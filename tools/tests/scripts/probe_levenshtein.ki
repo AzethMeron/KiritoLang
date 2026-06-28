@@ -66,11 +66,11 @@ assert string.similarity("kitten", "sitting") == 1.0 - 3.0 / 7, "ratio"
 # List form
 var sims = string.similarity("abc", ["abc", "abd", "xyz"])
 assert len(sims) == 3 and sims[0] == 1.0 and sims[2] == 0.0, "similarity List form"
-assert string.closest("pyhton", ["python", "java", "ruby"]) == "python", "closest typo-fix"
+assert string.closest("swft", ["swift", "java", "ruby"]) == "swift", "closest typo-fix"
 assert string.closest("zzz", []) == None, "closest of empty is None"
 var fm = string.fuzzymatch("ruby", ["ruby", "rust", "ruler", "java"], cutoff = 0.5)
 assert fm[0][0] == "ruby" and fm[0][1] == 1.0, "fuzzymatch exact first, score 1.0"
-assert string.fuzzymatch("zzzzz", ["python", "java"], cutoff = 0.9) == [], "high cutoff filters all"
+assert string.fuzzymatch("zzzzz", ["swift", "java"], cutoff = 0.9) == [], "high cutoff filters all"
 
 # --- large input does not blow up (long strings) ---
 var big1 = "a" * 300

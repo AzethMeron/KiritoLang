@@ -49,8 +49,8 @@ assert string.similarity("kitten", "sitting") == 1.0 - 3.0 / 7, "similarity rati
 var sims = string.similarity("abc", ["abc", "abd", "xyz", ""])
 assert sims == [1.0, 1.0 - 1.0 / 3, 0.0, 0.0], "similarity against a List -> per-candidate scores"
 assert string.similarity("", []) == [], "similarity against an empty List is empty"
-var langs = ["python", "javascript", "ruby", "rust", "kotlin"]
-assert string.closest("pyhton", langs) == "python", "closest fixes a typo"
+var langs = ["swift", "javascript", "ruby", "rust", "kotlin"]
+assert string.closest("swft", langs) == "swift", "closest fixes a typo"
 assert string.closest("rist", langs) == "rust", "closest picks nearest"
 assert string.closest("x", []) == None, "closest of empty candidates is None"
 # fuzzymatch returns [candidate, score] pairs, score-descending, filtered by cutoff

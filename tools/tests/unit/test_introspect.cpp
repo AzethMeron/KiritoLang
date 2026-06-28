@@ -22,7 +22,7 @@ int main() {
         CHECK(run(vm, "String(any([]))") == "False");
         CHECK(run(vm, "String(reversed([1, 2, 3]))") == "[3, 2, 1]");
         CHECK(run(vm, "String(divmod(17, 5))") == "[3, 2]");
-        CHECK(run(vm, "String(divmod(-7, 3))") == "[-3, 2]");  // Python floor semantics
+        CHECK(run(vm, "String(divmod(-7, 3))") == "[-3, 2]");  // floor semantics
         CHECK(run(vm, "ord(\"A\")") == "65");
         CHECK(run(vm, "ord(\"é\")") == "233");               // é (literal UTF-8)
         CHECK(run(vm, "chr(65)") == "A");

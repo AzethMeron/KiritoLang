@@ -72,7 +72,7 @@ public:
     Handle newScope(Handle parent) { return alloc(std::make_unique<EnvValue>(parent)); }
     // A module/file scope under global, with the per-file `arglist` and `argmain` bound into it.
     // `isMain` is true for a directly-run file (or the REPL), false for an imported module — so a
-    // file can do `if argmain:` like Python's `if __name__ == "__main__"`. Defined in runtime.hpp
+    // file can do `if argmain:` to run code only when executed directly. Defined in runtime.hpp
     // (it needs ListVal). The command-line arguments are set once by the embedder via setArgs().
     Handle newModuleScope(bool isMain = true);
     void setArgs(const std::vector<std::string>& args);
@@ -188,7 +188,7 @@ public:
 
     // VM-local traceback of the most recent error (the call chain it unwound through, innermost-first).
     // Filled by the bytecode VM as an exception escapes its frames; read by `sys.traceback()` inside a
-    // `catch`, and by the CLI to print a Python-style traceback for an uncaught error.
+    // `catch`, and by the CLI to print a traceback for an uncaught error.
     void setLastTraceback(std::vector<TraceFrame> tb) { lastTraceback_ = std::move(tb); }
     const std::vector<TraceFrame>& lastTraceback() const { return lastTraceback_; }
 

@@ -190,7 +190,7 @@ inline Url parseUrl(const std::string& url) {
 }
 
 // --- URL helpers (urllib.parse style) --------------------------------------------------------
-// Percent-encode all but the RFC 3986 "unreserved" set (Python urllib.parse.quote default).
+// Percent-encode all but the RFC 3986 "unreserved" set (the quote default).
 inline std::string percentEncode(const std::string& s) {
     static const char* hex = "0123456789ABCDEF";
     std::string out;
@@ -246,7 +246,7 @@ inline UrlParts splitUrl(const std::string& url) {
     std::size_t slash = rest.find('/');
     std::string hostport = slash == std::string::npos ? rest : rest.substr(0, slash);
     p.path = slash == std::string::npos ? "" : rest.substr(slash);
-    // Strip any "user:pass@" userinfo so it doesn't mangle host/port (Python's urlsplit excludes
+    // Strip any "user:pass@" userinfo so it doesn't mangle host/port (urlsplit excludes
     // userinfo from hostname/port). The authority host is everything after the LAST '@'.
     std::size_t at = hostport.rfind('@');
     if (at != std::string::npos) hostport = hostport.substr(at + 1);
@@ -912,7 +912,7 @@ inline Handle SocketVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
         });
     if (name == "send")
         return bindReq("send", 1, {"data"}, [self, sock](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            // Accept a String or Bytes (Python-style): text callers pass a String, binary callers Bytes.
+            // Accept a String or Bytes: text callers pass a String, binary callers Bytes.
             Object& o = vm.arena().deref(a[0]);
             std::string data;
             if (o.kind() == ValueKind::String) data = static_cast<StrVal&>(o).value();

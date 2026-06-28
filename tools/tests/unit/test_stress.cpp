@@ -60,7 +60,7 @@ int main() {
         CHECK(run(vm, "3 * [1, 2]") == "[1, 2, 1, 2, 1, 2]");
         CHECK(run(vm, "[1, 2] * 0") == "[]");
         CHECK(run(vm, "[1, 2] * -3") == "[]");
-        // repetition shares element handles (Python semantics)
+        // repetition shares element handles
         CHECK(run(vm, "var x = [[0]] * 3\nx[0].append(9)\nString(x)") == "[[0, 9], [0, 9], [0, 9]]");
         // guarded against absurd counts
         CHECK(err(vm, "[0] * 100000000000").find("too large") != std::string::npos);
@@ -94,7 +94,7 @@ int main() {
         std::string nan = "var nan = import(\"math\").nan\n";
         CHECK(run(vm, nan + "String(nan == nan)") == "False");
         CHECK(run(vm, nan + "String(nan < 1 or nan > 1)") == "False");
-        // Integer and Float that compare equal collapse to one dict key (like Python)
+        // Integer and Float that compare equal collapse to one dict key
         CHECK(run(vm, "var d = {}\nd[1] = \"i\"\nd[1.0] = \"f\"\nString(len(d))") == "1");
         // 0.0 and -0.0 are the same key
         CHECK(run(vm, "var d = {}\nd[0.0] = 1\nd[-1.0 * 0.0] = 2\nString(len(d))") == "1");

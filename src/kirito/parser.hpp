@@ -15,7 +15,7 @@ namespace kirito {
 
 // Recursive descent: statements at the top, expressions by precedence level
 // (comparison < add < mul < unary < pow < primary), with ** right-associative — so -2**2 == -4
-// and 2**3**2 == 512, matching Python.
+// and 2**3**2 == 512.
 class Parser {
 public:
     explicit Parser(std::vector<Token> tokens) : toks_(std::move(tokens)) {}
@@ -780,7 +780,7 @@ private:
                 advance();
                 // parseDouble (not std::stod) so a subnormal literal like 5e-324 yields the value
                 // instead of crashing with an uncaught std::out_of_range. A literal too large for
-                // double overflows to +inf (Python/JS source semantics, and consistent with runtime
+                // double overflows to +inf (consistent with runtime
                 // float overflow) rather than throwing — never crash the parser on a huge literal.
                 double d;
                 try {

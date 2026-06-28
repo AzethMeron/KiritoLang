@@ -40,7 +40,7 @@ check(0.0 ** 0 == 1.0)
 check(0 ** 0.0 == 1.0)
 n = n + 3
 
-# negative integer exponent promotes to Float (Python-3); 0**-n raises (1/0)
+# negative integer exponent promotes to Float; 0**-n raises (1/0)
 check(2 ** -1 == 0.5)
 check(type(2 ** -1) == "Float")
 var negpow_raised = 0
@@ -75,7 +75,7 @@ check(-9223372036854775808 * -1 == -9223372036854775808)   # -MIN overflows back
 check(abs(-9223372036854775808) == -9223372036854775808)    # abs(MIN) cannot be represented
 n = n + 4
 
-# // floors toward -inf, % takes the sign of the divisor (Python), across all sign combinations
+# // floors toward -inf, % takes the sign of the divisor, across all sign combinations
 check(-7 // 2 == -4 and 7 // -2 == -4 and -7 // -2 == 3)
 check(-7 % 3 == 2 and 7 % -3 == -2 and -7 % -3 == -1)
 check(divmod(-7, 3) == [-3, 2])
@@ -252,7 +252,7 @@ n = n + 3
 # =================================================================================================
 # complex — 0**0, is_zero vs ==zero thresholds, Euler, ordering, matrices, vectors
 # =================================================================================================
-# COMPLEX 0**0 == 1 (matches real 0**0 and Python; std::pow's nan is special-cased to 1)
+# COMPLEX 0**0 == 1 (matches real 0**0; std::pow's nan is special-cased to 1)
 check(C.zero ** C.zero == C.one)
 check(C.pow(C.zero, C.zero) == C.one)
 n = n + 2

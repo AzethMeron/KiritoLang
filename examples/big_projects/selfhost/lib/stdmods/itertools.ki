@@ -171,7 +171,7 @@ var ziplongest = Function(lists, fillvalue = None):
     return out
 
 var groupby = Function(iterable, key = None):
-    # Group CONSECUTIVE elements sharing a key -> list of [key, [members...]] (like Python).
+    # Group CONSECUTIVE elements sharing a key -> list of [key, [members...]].
     var out = []
     var haveCur = False
     var curKey = None

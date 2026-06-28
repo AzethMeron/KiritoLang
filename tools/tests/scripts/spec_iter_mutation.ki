@@ -1,8 +1,8 @@
 # ===================================================== MUTATING A COLLECTION WHILE ITERATING OVER IT
 # Kirito's `for` iterates a SNAPSHOT taken at loop start (Object::iterate returns a vector of the
 # element/key handles up front). So structural mutation during a loop is well-defined and SAFE: no
-# "dict changed size during iteration" error (unlike Python), no skipped elements when removing
-# (unlike Python's list footgun), and never an infinite loop when appending. This spec pins exactly
+# "dict changed size during iteration" error, no skipped elements when removing (no list-mutation
+# footgun), and never an infinite loop when appending. This spec pins exactly
 # that behavior. In-place mutation of a still-referenced nested object IS visible (same object).
 var io = import("io")
 
@@ -55,7 +55,7 @@ var d = {"a": 1, "b": 2}
 var kc = 0
 for k in d:
     kc = kc + 1
-    d["c"] = 3                 # would be a RuntimeError in Python; fine in Kirito
+    d["c"] = 3                 # fine in Kirito (snapshot iteration)
 assert kc == 2, "dict key iteration uses a snapshot: new keys are not visited"
 assert len(d) == 3, "...the new key was still added"
 

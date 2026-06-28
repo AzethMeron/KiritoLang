@@ -92,7 +92,7 @@ assert dB[True] == "t" and dB[False] == "f", "Bool usable as Dict key"
 assert True in {True, False}, "Bool usable as Set element"
 
 # Logical operators on truthy/falsy: short-circuit returns operand value
-assert (1 and 2) == 2 and (0 or 3) == 3, "and/or return operand (Python style)"
+assert (1 and 2) == 2 and (0 or 3) == 3, "and/or return the operand value"
 assert not True == False, "not True is False"
 assert not 0 == True, "not 0 is True"
 
@@ -787,7 +787,7 @@ assert len(sC) == 0, "clear"
 assert {1, 2, 3, 4}.apply(Function(x): return x % 2) == {0, 1}, "Set.apply collapses dup"
 assert Set().apply(Function(x): return x) == Set(), "apply empty"
 
-# Set ordering operators are subset/superset (Python semantics)
+# Set ordering operators are subset/superset
 assert ({1} < {1, 2}) and ({1, 2} <= {1, 2}) and ({1, 2, 3} > {1, 2}) and not ({1} > {1, 2}), "Set </<=/> are subset/superset"
 assert ({1, 2, 3} - {2}) == {1, 3}, "Set - is difference"
 

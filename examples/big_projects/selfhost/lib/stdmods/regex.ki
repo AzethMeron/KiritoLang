@@ -853,9 +853,9 @@ class Regex:
             if maxsplit > 0 and done >= maxsplit:
                 break
             if slots[1] == slots[0]:
-                continue                  # skip empty matches in split (Python-like)
+                continue                  # skip empty matches in split
             out.append(string[last:slots[0]])
-            # Python keeps any captured groups in the result, between the split pieces.
+            # captured groups are kept in the result, between the split pieces.
             var mt = Match(self._prog, string, slots)
             var g = 1
             while g <= self._prog["ngroups"]:

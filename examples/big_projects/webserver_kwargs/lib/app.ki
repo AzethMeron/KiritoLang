@@ -5,7 +5,7 @@
 #
 # Note on style: a *block-bodied* function must be bound to a name (it can't be written inline as a
 # call argument — only single-expression `Function(x): expr` can). So each handler is a named
-# function, then registered. This mirrors Python's lambda-vs-def split.
+# function, then registered. This reflects the block-bodied-vs-inline function split.
 
 var framework = import(name = "framework")
 var http = import(name = "http")

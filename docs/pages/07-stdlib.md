@@ -98,7 +98,7 @@ error` rather than silently returning `nan`/`inf` rubbish — `sqrt(-1)`, `log(0
 `acos(2)`, `acosh(0)`, `atanh(1)`, `log2(0)`, `log10(0)`, `log1p(-1)`, `gamma(0)`/`gamma(-1)`,
 `lgamma(0)`, `pow(-2, 0.5)` (negative base, non-integer exponent), `pow(0, -1)` (zero to a negative
 power), `fmod(x, 0)`, and a `log` base `≤ 0` or `== 1` all raise. A NaN argument passes through
-unchanged (`sqrt(nan) → nan`, like Python), and a genuine *range* condition — overflow to infinity such
+unchanged (`sqrt(nan) → nan`), and a genuine *range* condition — overflow to infinity such
 as `exp(1000) → inf` — is not a domain error and does not raise. Results are `Float` unless noted.
 
 - Constants: `pi`, `e`, `tau`, `inf`, `nan` (all `Float`).
@@ -197,7 +197,7 @@ Matrices are arbitrary-shape (any rows × cols). Shape-specific operations (`det
 - `m[i, j] = v` — element assignment.
 - `m1 == m2 → Bool` — **exact** equality (same shape, every element bit-equal; `NaN` never equal). For
   computed matrices use the tolerant `.compare` below.
-- `m.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` — tolerant comparison (math.isclose per
+- `m.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` — tolerant comparison (relative/absolute tolerance per
   element). When the target has **exact zeros** (e.g. an identity's off-diagonals) pass an `abs_tol`,
   since `rel_tol` alone can't match a near-zero element: `(A * A.inverse()).compare(matrix.identity(2), abs_tol = 1e-9)`.
 - `m.get(i, j) → Float` — explicit element access (the method form of `m[i, j]`).
@@ -247,7 +247,7 @@ the real axis, so any function or operator below also accepts plain `Integer`/`F
   left operand when mixing with a number (`z + 2`, not `2 + z`). Division by zero raises.
 - `z1 == z2 → Bool` — **exact** equality (real and imaginary parts bit-equal; `NaN` never equal); a
   `Complex` with zero imaginary part also equals the matching real number (`Complex(2, 0) == 2`).
-- `z.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` — tolerant comparison (math.isclose on the
+- `z.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` — tolerant comparison (relative/absolute tolerance on the
   complex magnitude); use it for computed values, e.g. `(1+i)**2 ≈ 2i`.
 - Complex numbers are **unordered**: `<`, `<=`, `>`, `>=` raise.
 - `z.conjugate() → Complex` — the complex conjugate.
@@ -270,7 +270,7 @@ Scalar reductions (one per line):
 The analytic math set — the complex extensions of the `math` functions — each take a `Complex` or a
 number and return a `Complex`. They are defined across the whole complex plane (so `sqrt(-1)` → `i`,
 `log(-1)` → `iπ`, `asin(2)`/`acosh(0)` are valid), but the true singularities raise a `math domain
-error` exactly where Python's `cmath` does: `log(0)`/`log10(0)`, `atanh(±1)`, and `pow`/`**` of zero to
+error` on the same out-of-domain inputs: `log(0)`/`log10(0)`, `atanh(±1)`, and `pow`/`**` of zero to
 a negative or non-real power (`zero ** -1`):
 
 - `exp(z)`
@@ -371,7 +371,7 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
 - `a == b → Bool` — equal shape and **exact** element-wise equality (`NaN` never equal); distinct
   from the elementwise `.eq()` mask. Use `a.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` for
   a tolerant whole-tensor check (a `solve`/`inv` result vs its literal) — pass an `abs_tol` when the
-  target contains exact zeros (`rel_tol` alone can't match a near-zero element, like math.isclose).
+  target contains exact zeros (`rel_tol` alone can't match a near-zero element).
 - `t.matmul(other) → Tensor` — matrix product (2-D), or **batched** over the leading dimensions for
   rank ≥ 2.
 - `t.dot(other) → Number` — the dot product of two 1-D tensors.
@@ -637,7 +637,7 @@ chunked transfer-encoding is decoded, and `gzip`/`deflate` responses are decompr
 - `r.url` — the final URL (after any redirects).
 - `r.text` — the decoded response body (`String`); `r.body` is an alias.
 - `r.content` — the response body as [`Bytes`](types.html#bytes), after any HTTP `Content-Encoding`/
-  `Transfer-Encoding` is decoded (gzip/deflate/chunked), exactly like Python `requests`' `.content`.
+  `Transfer-Encoding` is decoded (gzip/deflate/chunked).
   For a genuine binary download — an image, or a `.gz` file served *without* `Content-Encoding: gzip` —
   this is the raw bytes, so `gzip.decompress(net.get(url).content)` unpacks a fetched `.gz`. (If the
   server sets `Content-Encoding: gzip`, the body is already decompressed here.)
@@ -742,8 +742,7 @@ The UTC fields and epoch seconds are Integer **attributes** (no parentheses):
 - `dt.hour` — the hour (0–23).
 - `dt.minute` — the minute (0–59).
 - `dt.second` — the second (0–59).
-- `dt.weekday` — the day of the week, **0 = Sunday … 6 = Saturday** (C convention; note this differs
-  from Python's `0 = Monday`).
+- `dt.weekday` — the day of the week, **0 = Sunday … 6 = Saturday** (C convention; Sunday-based, not Monday-based).
 - `dt.yearday` — the day of the year.
 - `dt.timestamp` — epoch seconds.
 
@@ -1262,7 +1261,7 @@ Binary search / ordered insertion into a sorted List.
 - `bisectright(a, x) → Integer` — the rightmost insertion index that keeps `a` sorted.
 - `insortleft(a, x) → None` — insert `x` into the sorted List `a` at the leftmost valid position.
 - `insortright(a, x) → None` — insert `x` into the sorted List `a` at the rightmost valid position.
-- `bisect(a, x)` / `insort(a, x)` — Python-style aliases for the `*right` variants.
+- `bisect(a, x)` / `insort(a, x)` — aliases for the `*right` variants.
 
 ---
 

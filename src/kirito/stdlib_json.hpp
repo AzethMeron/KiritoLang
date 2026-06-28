@@ -69,7 +69,7 @@ private:
         if (c == 't') { if (match("true")) return vm_.makeBool(true); fail("invalid literal"); }
         if (c == 'f') { if (match("false")) return vm_.makeBool(false); fail("invalid literal"); }
         if (c == 'n') { if (match("null")) return vm_.none(); fail("invalid literal"); }
-        // Non-finite floats, Python-json style (and what dumps emits): NaN / Infinity / -Infinity.
+        // Non-finite floats (and what dumps emits): NaN / Infinity / -Infinity.
         if (c == 'N') { if (match("NaN")) return roots_.add(vm_.makeFloat(std::nan(""))); fail("invalid literal"); }
         if (c == 'I') { if (match("Infinity")) return roots_.add(vm_.makeFloat(HUGE_VAL)); fail("invalid literal"); }
         if (c == '-' && s_.compare(pos_, 9, "-Infinity") == 0) { pos_ += 9; return roots_.add(vm_.makeFloat(-HUGE_VAL)); }
@@ -253,7 +253,7 @@ inline void writeJsonKey(KiritoVM& vm, Handle k, std::string& out) {
 
 // JSON float text. Finite values use the SHORTEST round-tripping form (so dumps->loads recovers the
 // exact double — important now that Float == is exact; the lossy display %.15g would not survive the
-// cycle). Non-finite values use the Python-`json` spelling (NaN / Infinity / -Infinity) which our
+// cycle). Non-finite values use the spelling (NaN / Infinity / -Infinity) which our
 // parser accepts back (plain lowercase nan/inf would be rejected by JSON readers, including ours).
 inline std::string jsonFloat(double d) {
     if (std::isnan(d)) return "NaN";
@@ -368,7 +368,7 @@ public:
             else json::write(vm, args[0], out, active);
             return val(vm, std::move(out));
         });
-        // Python-compatible aliases.
+        // Convenience aliases.
         m.alias("loads", "parse");
         m.alias("dumps", "stringify");
     }

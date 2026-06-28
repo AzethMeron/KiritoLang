@@ -85,7 +85,7 @@ inline int daysInMonthUTC(int64_t year, int month) {
 // Minimal strptime covering the common UTC fields (%Y %m %d %H %M %S and literal separators). Avoids
 // the platform strptime (absent on Windows). Returns false if the text doesn't match the format —
 // which includes out-of-range fields (month 99, day 32, hour 25) and any unconverted trailing input,
-// so malformed text fails to parse (like Python's strptime) instead of silently normalizing to a
+// so malformed text fails to parse instead of silently normalizing to a
 // garbage-but-plausible date. (Construction via `time.make` deliberately keeps C-mktime rollover.)
 inline bool strptimeCompat(const char* s, const char* fmt, std::tm& tm) {
     auto num = [&](int width, int& out) -> bool {
@@ -126,7 +126,7 @@ inline bool strptimeCompat(const char* s, const char* fmt, std::tm& tm) {
     return true;
 }
 
-// A point in calendar time, broken into fields (like Python's datetime). Constructed from a Unix
+// A point in calendar time, broken into fields. Constructed from a Unix
 // timestamp (seconds since the epoch, UTC). Exposes year/month/day/hour/minute/second plus
 // formatting; immutable once built.
 class DateTime : public NativeClass<DateTime> {
@@ -161,7 +161,7 @@ public:
 
     // Value semantics: two DateTimes are equal when they denote the same instant (epoch). The epoch
     // is an exact int64, so equality and hash agree — a DateTime is hashable (usable as a Dict/Set
-    // key), like Python's.
+    // key).
     bool equals(const ObjectArena&, const Object& other) const override {
         const auto* d = dynamic_cast<const DateTime*>(&other);
         return d && d->epoch == epoch;
