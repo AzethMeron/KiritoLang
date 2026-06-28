@@ -210,9 +210,10 @@ Matrices are arbitrary-shape (any rows × cols). Shape-specific operations (`det
   scalar must be the **right** operand (`A * 2`, not `2 * A`).
 - `m.transpose() → Matrix` — the transpose.
 - `m.determinant() → Float` — determinant (square matrices). A matrix whose elimination produces a
-  pivot below ~`1e-15` is treated as singular (a conservative guard: it reports a clear "singular"
-  error rather than returning an ill-conditioned, near-garbage inverse).
-- `m.inverse() → Matrix` — inverse (raises if singular, per the pivot threshold above).
+  pivot below ~`1e-15` is treated as singular and the determinant is reported as `0.0` (a conservative
+  guard against an ill-conditioned, near-garbage value).
+- `m.inverse() → Matrix` — inverse. **Raises** `"singular"` if the matrix is singular (pivot below the
+  threshold above) — unlike `determinant`, which returns `0.0`.
 - `m.trace() → Float` — sum of the diagonal.
 - `m.sum() → Float` — sum of every element.
 - `m.apply(fn) → Matrix` — a new matrix with `fn` applied to each element.
@@ -254,7 +255,8 @@ the real axis, so any function or operator below also accepts plain `Integer`/`F
 - `z.modulus() → Float` — the magnitude `|z|` (also `z.magnitude()` / `z.abs()`).
 - `z.argument() → Float` — the phase angle in radians (also `z.arg()` / `z.phase()`).
 - `z.norm2() → Float` — the squared magnitude `|z|²` (no square root).
-- `z.is_zero() → Bool` — True when `z` is (numerically) zero.
+- `z.is_zero() → Bool` — True when `z` is (numerically) zero: magnitude below `1e-10` (a tolerant
+  check, deliberately unlike the exact `==`).
 
 ### Module functions
 
@@ -986,7 +988,7 @@ rather than a lazy sequence.
 
 ## itertools
 
-- `count(start = 0, step = 1, stop = None) → List` — integers from `start` by `step`; supply `stop` since the result is eager.
+- `count(start = 0, step = 1, stop = None) → List` — integers from `start` by `step`; supply `stop` since the result is eager. (Parameter order is `start, step, stop` — `step` comes before `stop`, unlike `range(start, stop, step)`.)
 - `repeat(value, times) → List` — `value` repeated `times` times.
 - `cycle(iterable, times) → List` — the iterable repeated `times` times.
 - `chain(lists) → List` — concatenate the iterables in a list-of-iterables (`chain([[1,2],[3,4]])`).
@@ -1039,7 +1041,9 @@ rather than a lazy sequence.
 - `c.items() → List` — `[value, count]` pairs.
 - `c.mostcommon([n: Integer]) → List` — `[value, count]` pairs, highest count first. The sort is
   stable, but the underlying Dict is unordered, so the relative order of *tied* counts is
-  unspecified (don't rely on it). With `n`, only the top `n`.
+  unspecified (don't rely on it). With `n`, only the top `n`; `n = 0` gives `[]`, and a **negative**
+  `n` returns all but the `|n|` least-common pairs (an end-slice — don't pass a negative `n` expecting
+  an empty list).
 
 ### defaultdict object
 
