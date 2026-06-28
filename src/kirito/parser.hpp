@@ -869,9 +869,18 @@ private:
         std::size_t e = rawCode.find_last_not_of(" \t");
         std::string code = (b == std::string::npos) ? std::string() : rawCode.substr(b, e - b + 1);
         if (code.empty()) throw KiritoError("f-string '{...}' must contain a single expression", span);
-        Lexer lex(code);
-        Parser sub(lex.tokenize());
-        ast::Program prog = sub.parseProgram();
+        // The embedded expression is lexed/parsed by a FRESH Lexer+Parser that starts at line 1, so any
+        // error it raises carries a span relative to the `{expr}` text (e.g. "1:10"), not the real file
+        // position. Re-anchor such an error to the f-string token's span so the diagnostic points at the
+        // f-string on the correct source line instead of line 1.
+        ast::Program prog;
+        try {
+            Lexer lex(code);
+            Parser sub(lex.tokenize());
+            prog = sub.parseProgram();
+        } catch (const KiritoError& err) {
+            throw KiritoError(err.what(), span);
+        }
         if (prog.stmts.size() != 1)
             throw KiritoError("f-string '{...}' must contain a single expression", span);
         auto* es = dynamic_cast<ast::ExprStmt*>(prog.stmts[0].get());

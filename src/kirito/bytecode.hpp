@@ -7,6 +7,7 @@
 
 #include "ast.hpp"
 #include "common.hpp"
+#include "fum/unordered_map.hpp"
 #include "handle.hpp"
 
 namespace kirito {
@@ -60,6 +61,7 @@ enum class Op : uint8_t {
     ForIter,          // a: advance the cursor on top; if exhausted pop it and ip=a, else push next item
     Unpack,           // a: (unpacks[a]) pop an iterable -> push its n spread slots, last target on top
     SwitchMatch,      //    v=pop, subj=pop -> push Bool(subj and v are the same scalar by type+value)
+    SwitchDispatch,   // a: (switches[a]) pop subject -> ip = the arm offset for key(subject), else default (O(1))
     SetupBlock,       // a: push an exception block (try/with): on a throw, unwind here with the exc value
     PopBlock,         //    pop the innermost exception block (left normally)
     Reraise,          //    pop an exception value -> re-throw it (unmatched catch / after a finally)
@@ -73,6 +75,15 @@ enum class Op : uint8_t {
 struct UnpackSpec {
     uint32_t count = 0;
     int32_t starIndex = -1;
+};
+
+// A switch's compile-time dispatch table: every (literal-scalar) case value's key mapped to the
+// bytecode offset of its arm, plus the default offset. Built once by the compiler so SwitchDispatch
+// runs in O(1) — hash the subject's key once and jump — instead of an O(n) per-case comparison chain.
+// (A switch with any non-literal case value falls back to the SwitchMatch comparison chain instead.)
+struct SwitchTable {
+    fum::unordered_map<std::string, uint32_t> targets;  // scalar key (scalarSwitchKey form) -> arm offset
+    uint32_t defaultTarget = 0;                          // arm to run when no case key matches
 };
 
 // A call site's static shape: how many leading positional args, then the names of the trailing
@@ -99,6 +110,7 @@ struct Proto {
     std::vector<CallSpec> calls;                      // Call targets
     std::vector<UnpackSpec> unpacks;                  // Unpack targets
     std::vector<const ast::ClassStmt*> classes;       // BuildClass targets (name/base/body)
+    std::vector<SwitchTable> switches;                // SwitchDispatch targets (compile-time case tables)
 };
 
 class KiritoVM;

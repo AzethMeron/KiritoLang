@@ -294,6 +294,18 @@ public:
                     pop(); pop();
                     push(vm_.makeBool(match));
                 } break;
+                case Op::SwitchDispatch: {
+                    // O(1): hash the subject's key ONCE and jump to the precompiled arm offset (or the
+                    // default). A non-scalar / NaN subject has no key -> default, matching SwitchMatch.
+                    Handle subj = pop();
+                    const SwitchTable& tbl = proto.switches[in.a];
+                    auto sk = scalarSwitchKey(vm_, subj);
+                    ip = tbl.defaultTarget;
+                    if (sk) {
+                        auto it = tbl.targets.find(*sk);
+                        if (it != tbl.targets.end()) ip = it->second;
+                    }
+                } break;
 
                 case Op::SetupBlock: { blocks_.push_back({in.a, stack_.size()}); } break;
                 case Op::PopBlock: { blocks_.pop_back(); } break;

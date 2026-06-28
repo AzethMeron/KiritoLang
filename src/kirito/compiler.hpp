@@ -248,9 +248,11 @@ private:
         emit(Op::Throw, 0, s.span);
     }
 
-    // `switch SUBJECT:` — no fallthrough, exact type+value matching (case 1 != case 1.0). Compiled as
-    // a comparison chain: keep the subject on the stack, test each case value with SwitchMatch, jump to
-    // the matching arm; if none match, run `default`. Duplicate literal case values are a compile error.
+    // `switch SUBJECT:` — no fallthrough, exact type+value matching (case 1 != case 1.0). When every
+    // case value is a compile-time literal scalar (the documented + common form), it compiles to a
+    // single SwitchDispatch against a hash table built once now — O(1) at run time, independent of the
+    // case count. Otherwise (a non-literal case value) it falls back to a SwitchMatch comparison chain.
+    // Duplicate literal case values are a compile error.
     void visit(const ast::SwitchStmt& s) override {
         // Duplicate literal case values are rejected — but the error is observable only when the
         // switch is REACHED (catchable, raised at run time, like the old jump-table build), so on a
@@ -268,6 +270,35 @@ private:
                             emit(Op::ClearResult);
                             return;
                         }
+        }
+        // Fast path: all case values are literal scalars -> one O(1) hash dispatch built at compile time.
+        auto litKey = [](const ast::Expr& e) -> std::optional<std::string> {
+            if (const auto* lit = dynamic_cast<const ast::LiteralExpr*>(&e)) return literalSwitchKey(*lit);
+            return std::nullopt;
+        };
+        bool allLiteral = true;
+        for (const auto& c : s.cases)
+            for (const auto& v : c.values)
+                if (!litKey(*v)) { allLiteral = false; break; }
+        if (allLiteral) {
+            compileExpr(*s.subject);
+            std::size_t tblIdx = proto_.switches.size();
+            proto_.switches.emplace_back();            // reserve the slot; the index is stable across nesting
+            emit(Op::SwitchDispatch, static_cast<uint32_t>(tblIdx), s.span);  // pops subject, jumps to an arm
+            SwitchTable table;
+            std::vector<std::size_t> endJumps;
+            for (std::size_t ci = 0; ci < s.cases.size(); ++ci) {
+                uint32_t arm = here();
+                for (const auto& v : s.cases[ci].values) table.targets[*litKey(*v)] = arm;
+                compileBlock(s.cases[ci].body);
+                endJumps.push_back(emit(Op::Jump));
+            }
+            table.defaultTarget = here();              // a missed key runs the default arm (or falls to end)
+            if (s.hasDefault) compileBlock(s.defaultBody);
+            for (std::size_t j : endJumps) patch(j, here());
+            proto_.switches[tblIdx] = std::move(table);
+            emit(Op::ClearResult);
+            return;
         }
         compileExpr(*s.subject);                       // subject stays on the stack across the tests
         std::vector<std::vector<std::size_t>> caseJumps(s.cases.size());
