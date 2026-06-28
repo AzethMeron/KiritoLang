@@ -190,6 +190,14 @@ public:
             std::exit(1);
             return none(vm);  // unreachable
         });
+
+        // traceback() -> the Python-style call chain of the MOST RECENT error this VM unwound, as a
+        // String ("" if none yet). Useful inside a `catch` to see where the exception came from (which
+        // file / function / line, innermost last). The traceback is VM-local — it reflects only errors
+        // raised in this VM, and is replaced by each new caught error.
+        m.fn("traceback", {}, "String", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
+            return val(vm, formatTraceback(vm.lastTraceback()));
+        });
     }
 };
 

@@ -15,6 +15,7 @@ struct KiritoThrow {
     Handle value;
     SourceSpan span{};
     std::string file;  // defining chunk of the function that threw (set on escape; "" = entry chunk)
+    std::vector<TraceFrame> traceback;  // call chain, filled as the throw unwinds the VM frames
 };
 
 }  // namespace kirito

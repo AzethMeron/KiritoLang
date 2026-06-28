@@ -137,6 +137,8 @@ private:
             endSimpleStatement();
             auto node = std::make_unique<ast::AssignStmt>();
             node->span = span;
+            if (auto* nameTgt = dynamic_cast<ast::NameExpr*>(expr.get()))
+                labelFunction(nameTgt->name, value.get());
             node->target = std::move(expr);
             node->value = std::move(value);
             return node;
@@ -262,6 +264,14 @@ private:
         return node;
     }
 
+    // If `value` is a Function literal bound to a single name (`var NAME = Function(...)`,
+    // `NAME = Function(...)`, or a class method), record the name on it so a traceback can label the
+    // frame. Cosmetic only — name resolution never reads it.
+    static void labelFunction(const std::string& name, ast::Expr* value) {
+        if (auto* fn = dynamic_cast<ast::FunctionExpr*>(value))
+            if (fn->name.empty()) fn->name = name;
+    }
+
     ast::StmtPtr parseVarDecl() {
         SourceSpan span = advance().span;  // 'var'
         auto node = std::make_unique<ast::VarDeclStmt>();
@@ -269,6 +279,7 @@ private:
         parseTargetNameList(node->names, node->starIndex, "a name after 'var'");
         expect(TokenType::Assign, "'=' in var declaration");
         node->init = parseValueSeq();
+        if (node->names.size() == 1 && node->starIndex == -1) labelFunction(node->names[0], node->init.get());
         endSimpleStatement();
         return node;
     }

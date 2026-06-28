@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 // AddressSanitizer/ThreadSanitizer detection (GCC defines __SANITIZE_ADDRESS__; Clang exposes
 // __has_feature). Sanitizer builds use much larger native frames (redzones + shadow), so recursive
@@ -35,6 +36,31 @@ struct SourceSpan {
 enum class BinOp { Add, Sub, Mul, Div, FloorDiv, Mod, Pow, Eq, Ne, Lt, Le, Gt, Ge, In, NotIn };
 enum class UnOp { Neg, Not };
 
+// One frame of an error's call-stack traceback — the function, source file, and line that were
+// executing. Accumulated as an error unwinds (each escaped VM frame appends itself, innermost first),
+// so a Python-style "Traceback (most recent call last)" can be reconstructed. VM-local: lives only on
+// the in-flight exception and the VM's last-traceback snapshot.
+struct TraceFrame {
+    std::string function;  // the function's name, "<function>" (anonymous), or "<module>" (top level)
+    std::string file;      // source chunk the frame was running in
+    uint32_t line = 0;     // line being executed (the call site for outer frames, the error site innermost)
+};
+
+// Render a traceback as a Python-style "most recent call last" block: the accumulated frames are
+// innermost-first, so print them in reverse (outermost frame first, the error site last). Empty for
+// an empty traceback. Shared by `sys.traceback()` and the CLI's uncaught-error reporter.
+inline std::string formatTraceback(const std::vector<TraceFrame>& tb) {
+    if (tb.empty()) return "";
+    std::string out = "Traceback (most recent call last):\n";
+    for (std::size_t i = tb.size(); i-- > 0;) {
+        const TraceFrame& f = tb[i];
+        out += "  File \"" + (f.file.empty() ? std::string("<main>") : f.file) + "\", line " +
+               std::to_string(f.line) + ", in " +
+               (f.function.empty() ? std::string("<function>") : f.function) + "\n";
+    }
+    return out;
+}
+
 // Every Kirito error (lexing, parsing, runtime) carries the span it occurred at so
 // users get an actionable line:col. A zero span means "no specific location".
 class KiritoError : public std::runtime_error {
@@ -47,6 +73,7 @@ public:
     // line:col are meaningless without knowing *which* file), so a parse error inside an imported
     // module reports the module's path, not the entry script's.
     std::string file;
+    std::vector<TraceFrame> traceback;  // call chain, filled as the error unwinds the VM frames
 };
 
 // Parse a double from `s` without std::stod's underflow trap: std::stod throws std::out_of_range

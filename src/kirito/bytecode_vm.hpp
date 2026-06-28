@@ -44,7 +44,9 @@ public:
 // stack; a nested call spins up its own. Non-movable so the registered &stack_ never dangles.
 class BytecodeVM {
 public:
-    BytecodeVM(KiritoVM& vm, Handle scope, Handle ownerClass, bool hasOwner) : vm_(vm), hasOwner_(hasOwner) {
+    BytecodeVM(KiritoVM& vm, Handle scope, Handle ownerClass, bool hasOwner,
+               std::string frameLabel = "<module>")
+        : vm_(vm), hasOwner_(hasOwner), frameLabel_(std::move(frameLabel)) {
         stack_.reserve(16);
         stack_.push_back(scope);                              // kScope
         stack_.push_back(vm.none());                          // kResult
@@ -324,12 +326,16 @@ public:
             }
             }
             return vm_.none();  // a Proto always ends in Return; reaching here means ip ran off the end
-          } catch (const KiritoThrow& t) {
+          } catch (KiritoThrow& t) {  // non-const: append this frame to the traceback before re-throwing
+            appendFrame(t.traceback, ip, code);
             if (!unwind(t.value, t.span, ip)) throw;
-          } catch (const KiritoError& e) {
+            vm_.setLastTraceback(t.traceback);  // handled here -> expose the chain to sys.traceback()
+          } catch (KiritoError& e) {
             // Internal/runtime errors are surfaced to Kirito `catch` as a String exception value.
+            appendFrame(e.traceback, ip, code);
             Handle s = vm_.makeString(e.what());
             if (!unwind(s, e.span, ip)) throw;
+            vm_.setLastTraceback(e.traceback);
           } catch (const std::exception& e) {
             // Any other native exception is also catchable (as a String), guarding the whole boundary.
             Handle s = vm_.makeString(e.what());
@@ -373,6 +379,14 @@ private:
         return true;
     }
 
+    // Record THIS frame on an unwinding error's traceback: its label + file + the line it was executing
+    // (the faulting instruction for the innermost frame, the call site for the outer ones). Called once
+    // per frame the exception passes through, building the chain innermost-first.
+    void appendFrame(std::vector<TraceFrame>& tb, std::size_t ip, const std::vector<Instr>& code) {
+        uint32_t ln = (ip >= 1 && ip <= code.size()) ? code[ip - 1].span.line : 0;
+        tb.push_back(TraceFrame{frameLabel_, vm_.currentChunkFile(), ln});
+    }
+
     struct Block {
         uint32_t target;        // ip of the handler/finally landing pad
         std::size_t stackHeight;  // operand-stack size at SetupBlock (restored on unwind)
@@ -383,10 +397,11 @@ private:
     std::vector<Block> blocks_;
     SourceSpan excSpan_{};  // span of the exception currently being unwound (for Reraise)
     bool hasOwner_;
+    std::string frameLabel_;  // function name / "<function>" / "<module>" — for traceback frames
 };
 
 inline Handle runBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body, Handle ownerClass,
-                              bool hasOwner, bool isFunction) {
+                              bool hasOwner, bool isFunction, std::string frameLabel) {
     // Root the scope (and owning class) across BOTH compilation and execution: first-run compilation
     // materialises constants and so may trigger GC, and the top-level scope is not otherwise rooted
     // here (unlike a function call scope, which callFull already roots). The BytecodeVM re-roots them
@@ -395,7 +410,7 @@ inline Handle runBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body
     rs.add(scope);
     if (hasOwner) rs.add(ownerClass);
     const Proto* proto = protoForBody(vm, body, isFunction);
-    BytecodeVM bc(vm, scope, ownerClass, hasOwner);
+    BytecodeVM bc(vm, scope, ownerClass, hasOwner, std::move(frameLabel));
     return bc.run(*proto);
 }
 

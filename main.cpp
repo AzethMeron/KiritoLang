@@ -199,8 +199,10 @@ int main(int argc, char** argv) {
         vm.runSource(buffer.str(), file);
     } catch (const kirito::KiritoError& e) {
         // Prefer the file the error was tagged with (e.g. an imported module), falling back to the
-        // entry script when the error carries no location of its own.
+        // entry script when the error carries no location of its own. Print the Python-style call-chain
+        // traceback first (when the error unwound through function frames), then the error line.
         const std::string& where = e.file.empty() ? file : e.file;
+        std::cerr << kirito::formatTraceback(e.traceback);
         std::cerr << where << ":" << e.span.line << ":" << e.span.col << ": error: " << e.what() << "\n";
         return 1;
     } catch (const std::exception& e) {

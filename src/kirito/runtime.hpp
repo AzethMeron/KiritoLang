@@ -1857,7 +1857,7 @@ inline Handle KiFunction::callFull(KiritoVM& vm, std::span<const Handle> positio
     // Compile (once) and execute the body on the bytecode engine — the sole execution path.
     auto runBody = [&](Handle bodyScope) -> Handle {
         return runBytecodeBody(vm, bodyScope, def_->body, hasOwner ? ownerClass : Handle{}, hasOwner,
-                               /*isFunction=*/true);
+                               /*isFunction=*/true, def_->name.empty() ? "<function>" : def_->name);
     };
 
     if (named.empty() && positional.size() == params.size() && *def_->fastBindable) {
@@ -3222,6 +3222,7 @@ inline Handle KiritoVM::evalIn(std::string_view source, Handle scope, std::strin
         } catch (const KiritoThrow& t) {
             KiritoError err("uncaught exception: " + stringify(t.value), t.span);
             err.file = t.file;  // the defining chunk of the function that threw, if it escaped one
+            err.traceback = t.traceback;  // carry the call chain so the CLI can print a traceback
             throw err;
         }
     } catch (KiritoError& e) {

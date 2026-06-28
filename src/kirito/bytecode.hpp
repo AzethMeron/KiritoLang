@@ -120,7 +120,7 @@ class KiritoVM;
 // returns its last expression). Defined in bytecode_vm.hpp (after the runtime), so the call sites
 // (KiFunction::callFull / KiritoVM::evalIn / the module loaders) only need this declaration.
 Handle runBytecodeBody(KiritoVM& vm, Handle scope, const ast::Block& body, Handle ownerClass,
-                       bool hasOwner, bool isFunction);
+                       bool hasOwner, bool isFunction, std::string frameLabel = "<module>");
 // Compile and evaluate a single expression against `scope` (a parameter's default value).
 Handle runBytecodeExpr(KiritoVM& vm, Handle scope, const ast::Expr& e);
 

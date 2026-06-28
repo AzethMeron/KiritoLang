@@ -182,6 +182,12 @@ public:
         return chunkFiles_.empty() ? empty : chunkFiles_.back();
     }
 
+    // VM-local traceback of the most recent error (the call chain it unwound through, innermost-first).
+    // Filled by the bytecode VM as an exception escapes its frames; read by `sys.traceback()` inside a
+    // `catch`, and by the CLI to print a Python-style traceback for an uncaught error.
+    void setLastTraceback(std::vector<TraceFrame> tb) { lastTraceback_ = std::move(tb); }
+    const std::vector<TraceFrame>& lastTraceback() const { return lastTraceback_; }
+
     // Class + deserializer registries (used by serialize/dump to reconstruct objects by class name).
     void registerClass(const std::string& name, Handle cls) { classRegistry_[name] = cls; }
     // The class registered under `name`, or nullptr if none.
@@ -257,6 +263,7 @@ private:
     std::vector<std::string> importStack_;
     std::vector<std::string> libPaths_;
     std::vector<std::string> chunkFiles_;  // see ChunkFileScope
+    std::vector<TraceFrame> lastTraceback_;  // call chain of the most recent error (see setLastTraceback)
     Handle replScope_{};
     bool replScopeReady_ = false;
     Handle arglist_{};  // the command-line arguments as a List, bound as `arglist` in every module scope
