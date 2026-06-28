@@ -73,32 +73,33 @@ while running:
             path = fullpath[0:qi]
             query = fullpath[qi + 1:]
 
-        if path == "/hello":
-            respond(conn, 200, "text/plain", "hello world", "")
-        elif path == "/json":
-            respond(conn, 200, "application/json", json.stringify({"name": "kirito", "items": [1, 2, 3], "ok": True}), "")
-        elif path == "/echo":
-            respond(conn, 200, "application/json", body, "")
-        elif path == "/redirect":
-            respond(conn, 302, "text/plain", "", "Location: /target\r\n")
-        elif path == "/target":
-            respond(conn, 200, "text/plain", "redirected ok", "")
-        elif path == "/login":
-            respond(conn, 200, "text/plain", "logged in", "Set-Cookie: sid=SECRET123; Path=/\r\n")
-        elif path == "/me":
-            respond(conn, 200, "text/plain", "cookie:" + headers.get("cookie", ""), "")
-        elif path == "/protected":
-            if "authorization" in headers:
-                respond(conn, 200, "text/plain", "secret data", "")
-            else:
-                respond(conn, 401, "text/plain", "unauthorized", "")
-        elif path == "/params":
-            respond(conn, 200, "text/plain", "query=" + query, "")
-        elif path == "/shutdown":
-            respond(conn, 200, "text/plain", "bye", "")
-            running = False
-        else:
-            respond(conn, 404, "text/plain", "not found", "")
+        switch path:
+            case "/hello":
+                respond(conn, 200, "text/plain", "hello world", "")
+            case "/json":
+                respond(conn, 200, "application/json", json.stringify({"name": "kirito", "items": [1, 2, 3], "ok": True}), "")
+            case "/echo":
+                respond(conn, 200, "application/json", body, "")
+            case "/redirect":
+                respond(conn, 302, "text/plain", "", "Location: /target\r\n")
+            case "/target":
+                respond(conn, 200, "text/plain", "redirected ok", "")
+            case "/login":
+                respond(conn, 200, "text/plain", "logged in", "Set-Cookie: sid=SECRET123; Path=/\r\n")
+            case "/me":
+                respond(conn, 200, "text/plain", "cookie:" + headers.get("cookie", ""), "")
+            case "/protected":
+                if "authorization" in headers:
+                    respond(conn, 200, "text/plain", "secret data", "")
+                else:
+                    respond(conn, 401, "text/plain", "unauthorized", "")
+            case "/params":
+                respond(conn, 200, "text/plain", "query=" + query, "")
+            case "/shutdown":
+                respond(conn, 200, "text/plain", "bye", "")
+                running = False
+            default:
+                respond(conn, 404, "text/plain", "not found", "")
     catch as e:
         io.eprint("server error: " + String(e))
         conn.close()
