@@ -366,14 +366,15 @@ class Image:
             fmt = path[dot + 1:].lower()
         fmt = fmt.lower()
         var blob = None
-        if fmt == "png":
-            blob = _png_encode(self._data, self.mode)
-        elif fmt == "ppm" or fmt == "pgm" or fmt == "pnm":
-            blob = _pnm_encode(self._data, self.mode)
-        elif fmt == "bmp":
-            blob = _bmp_encode(self._data, self.mode)
-        else:
-            throw "unsupported save format: " + fmt
+        switch fmt:
+            case "png":
+                blob = _png_encode(self._data, self.mode)
+            case "ppm", "pgm", "pnm":
+                blob = _pnm_encode(self._data, self.mode)
+            case "bmp":
+                blob = _bmp_encode(self._data, self.mode)
+            default:
+                throw "unsupported save format: " + fmt
         var f = io.open(path, "wb")
         f.write(blob)
         f.close()
@@ -593,19 +594,20 @@ var _png_decode = Function(data):
         var length = u32be_at(data, pos)
         var typ = data[pos + 4:pos + 8].decode("ascii")
         var body = data[pos + 8:pos + 8 + length]
-        if typ == "IHDR":
-            width = u32be_at(body, 0)
-            height = u32be_at(body, 4)
-            bitdepth = body[8]
-            colortype = body[9]
-            if bitdepth != 8:
-                throw "PNG: only 8-bit depth supported, got " + String(bitdepth)
-            if colortype != 0 and colortype != 2 and colortype != 6:
-                throw "PNG: unsupported color type " + String(colortype)
-        elif typ == "IDAT":
-            idat = idat + body
-        elif typ == "IEND":
-            pos = n
+        switch typ:                              # other (ancillary) chunk types are ignored
+            case "IHDR":
+                width = u32be_at(body, 0)
+                height = u32be_at(body, 4)
+                bitdepth = body[8]
+                colortype = body[9]
+                if bitdepth != 8:
+                    throw "PNG: only 8-bit depth supported, got " + String(bitdepth)
+                if colortype != 0 and colortype != 2 and colortype != 6:
+                    throw "PNG: unsupported color type " + String(colortype)
+            case "IDAT":
+                idat = idat + body
+            case "IEND":
+                pos = n
         pos = pos + 12 + length                  # length + type + data + CRC
     var mode = "RGB"
     if colortype == 0:
@@ -641,15 +643,16 @@ var _png_decode = Function(data):
             var cc = 0
             if y > 0 and i >= C:
                 cc = recon[rowbase - stride + i - C]
-            var val = x
-            if ft == 1:
-                val = (x + a) % 256
-            elif ft == 2:
-                val = (x + b) % 256
-            elif ft == 3:
-                val = (x + (a + b) // 2) % 256
-            elif ft == 4:
-                val = (x + _paeth(a, b, cc)) % 256
+            var val = x                                   # filter type 0 (None) leaves the byte as-is
+            switch ft:
+                case 1:
+                    val = (x + a) % 256
+                case 2:
+                    val = (x + b) % 256
+                case 3:
+                    val = (x + (a + b) // 2) % 256
+                case 4:
+                    val = (x + _paeth(a, b, cc)) % 256
             recon[rowbase + i] = val
             i = i + 1
         y = y + 1
@@ -685,10 +688,11 @@ var _pnm_encode = Function(d, mode):
     var W = sh[1]
     var src = d
     var magic = "P6"
-    if mode == "L":
-        magic = "P5"
-    elif mode == "RGBA":
-        src = d.slice(0, 3, 1, 2)                 # drop alpha
+    switch mode:
+        case "L":
+            magic = "P5"
+        case "RGBA":
+            src = d.slice(0, 3, 1, 2)             # drop alpha
     var header = magic + "\n" + String(W) + " " + String(H) + "\n255\n"
     return header.encode("ascii") + Bytes(_flatbytes(src))
 
