@@ -84,7 +84,6 @@ Kirito is young and makes deliberate trade-offs. The notable current limits:
   tree-walker), but interpreter-bound tight loops remain a few × slower than CPython and Lua 5.1, and
   far slower than C++; work that delegates to the C++ standard library (sorting, hashing, string ops)
   closes most of the gap and can match or beat Lua 5.1. See [Benchmarks](#benchmarks).
-  Slot-addressed locals are the next planned speedup.
 - **Integers are fixed-width `int64`** with well-defined two's-complement wraparound on overflow;
   arbitrary-precision integers are a future enrichment.
 - **Equality (`==`) is always exact; tolerance is only ever via `.compare`.** Float/Integer `==` is
@@ -112,21 +111,22 @@ Kirito (bytecode VM) vs C++ (`-O2`) vs CPython 3.11 vs Lua 5.1 on identical algo
 | Workload | C++ (-O2) | Python 3.11 | Lua 5.1 | Kirito | Ki / C++ | Ki / Py | Ki / Lua |
 |---|---|---|---|---|---|---|---|
 | *pessimistic — interpreter-bound tight loops* | | | | | | | |
-| `sum_loop` (arithmetic loop) | 0.27 µs | 45 µs | 13.4 µs | 320 µs | ~1150× | 7.1× | 24× |
-| `fib` (recursive calls) | 2.97 µs | 217 µs | 175 µs | 1.76 ms | ~590× | 8.1× | 10× |
-| `sieve` (nested loops + indexed writes) | 1.72 µs | 110 µs | 113 µs | 1.65 ms | ~950× | 15× | 15× |
+| `sum_loop` (arithmetic loop) | 0.29 µs | 44 µs | 13.2 µs | 152 µs | ~525× | 3.5× | 11.5× |
+| `fib` (recursive calls) | 3.0 µs | 215 µs | 170 µs | 1.58 ms | ~525× | 7.3× | 9.3× |
+| `sieve` (nested loops + indexed writes) | 1.6 µs | 113 µs | 110 µs | 1.14 ms | ~700× | 10× | 10× |
 | *optimistic — work delegated to C++ builtins* | | | | | | | |
-| `sort` (builtin sort) | 13.1 µs | 90 µs | 318 µs | 287 µs | 22× | 3.1× | **0.9×** |
-| `dict_ops` (hash insert/lookup) | 48 µs | 120 µs | 124 µs | 575 µs | 12× | 4.7× | 4.5× |
-| `string_ops` (`split`/`join`) | 32 µs | 41 µs | 207 µs | 185 µs | 5× | 4.4× | **0.9×** |
+| `sort` (builtin sort) | 13.3 µs | 91 µs | 314 µs | 253 µs | 19× | 2.8× | **0.8×** |
+| `dict_ops` (hash insert/lookup) | 46 µs | 117 µs | 121 µs | 336 µs | 7× | 2.9× | 2.8× |
+| `string_ops` (`split`/`join`) | 32 µs | 41 µs | 200 µs | 107 µs | 3× | 2.6× | **0.5×** |
 
-Geometric-mean slowdown: **pessimistic ≈ 880× C++ / 9.5× Python / 15× Lua 5.1**, **optimistic ≈ 11×
-C++ / 4.0× Python / 1.5× Lua 5.1**. The shape is what a bytecode VM with a fast C++ standard library
+Geometric-mean slowdown: **pessimistic ≈ 580× C++ / 6.3× Python / 10× Lua 5.1**, **optimistic ≈ 8×
+C++ / 2.8× Python / 1.0× Lua 5.1**. The shape is what a bytecode VM with a fast C++ standard library
 should show: it still pays per-operation dispatch on tight loops — where Lua 5.1's register VM is
-~15× quicker — but amortizes that away once work lands in native builtins, where Kirito is on par with
-or **faster than** Lua 5.1 (`sort`, `string_ops` delegate to `std::sort` / `std::string`). The big
-structural speedup still on the table is **slot-addressed locals** (turning the resolved locals into
-indexed access instead of scope lookups). The C++ baseline runs in tens to hundreds of *nanoseconds*,
+~10× quicker — but amortizes that away once work lands in native builtins, where Kirito is on par with
+or **faster than** Lua 5.1 (`sort`, `string_ops` delegate to `std::sort` / `std::string`).
+**Slot-addressed locals** (resolving each function's non-captured locals to a frame-slot index at
+compile time) plus a numeric binary fast path landed in 1.9 and roughly halved the tight-loop gap —
+`sum_loop` went 7.1×→3.5× and `dict_ops` 4.7×→2.9× versus Python. The C++ baseline runs in tens to hundreds of *nanoseconds*,
 where timer jitter dominates, so the `Ki / C++` column is approximate and swings run-to-run; the
 `Ki / Py` and `Ki / Lua` ratios are the stable, meaningful ones. Lua 5.1 has no integer type, so its
 column uses doubles; the benchmark's 31-bit LCG is computed with an exact split-multiply so every
