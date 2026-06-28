@@ -12,7 +12,16 @@
 #   GitLab API  (gitlab+http://host/<o>/<r>): /api/v4/projects/<enc>/...   (+ .../repository/files/.../raw)
 #
 # Usage:  kpm_integration.py <path-to-ki>      (kpm.ki is found relative to this file)
-import http.server, json, os, shutil, socket, subprocess, sys, tempfile, threading, urllib.parse
+import http.server
+import json
+import os
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KPM_KI = os.path.normpath(os.path.join(HERE, "..", "..", "kpm", "kpm.ki"))
@@ -182,7 +191,8 @@ try:
         ver = t[1:]
         put_manifest(s, t, "semverpkg", ver, ["m.ki"]); put_file(s, t, "m.ki", "var v=\"%s\"\n" % ver)
     rc, out, err = kpm("install", "sam/semverpkg@^1.0.0")
-    rec = json.load(open(os.path.join(pkgdir("semverpkg"), ".kpm.json"))) if os.path.exists(os.path.join(pkgdir("semverpkg"), ".kpm.json")) else {}
+    recpath = os.path.join(pkgdir("semverpkg"), ".kpm.json")
+    rec = json.load(open(recpath)) if os.path.exists(recpath) else {}
     check("semver ^1.0.0 picks 1.2.0", rec.get("version") == "1.2.0", str(rec.get("version")))
     check("semver records constraint", rec.get("constraint") == "^1.0.0", str(rec.get("constraint")))
 

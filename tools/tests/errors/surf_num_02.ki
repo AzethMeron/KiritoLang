@@ -1,0 +1,2 @@
+# Float floor-division by a zero divisor must raise.
+discard 1.0 // 0.0

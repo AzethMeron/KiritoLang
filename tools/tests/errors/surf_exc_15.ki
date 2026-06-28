@@ -1,0 +1,2 @@
+# zfill to a huge width is guarded (raises, not OOM)
+discard "1".zfill(100000000000)

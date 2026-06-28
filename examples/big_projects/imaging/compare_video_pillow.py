@@ -12,7 +12,6 @@ Also stands up a local multipart/x-mixed-replace MJPEG HTTP server and checks th
 import io as _io
 import os
 import socket
-import struct
 import subprocess
 import sys
 import threading
@@ -100,7 +99,7 @@ def main():
         im.save(os.path.join(seqdir, f"f{i:04d}.png"))
     n = dump(os.path.join(seqdir, "f%04d.png"), os.path.join(OUT, "sq_"), 64)
     check("seq frame count", n == 4, f"got {n}")
-    worst = max((maxdiff(frames[i], Image.open(os.path.join(OUT, f"sq_{i}.ppm"))) for i in range(max(n, 0))), default=99)
+    worst = max((maxdiff(frames[i], Image.open(os.path.join(OUT, f"sq_{i}.ppm"))) for i in range(max(n, 0))), default=99)  # noqa: E501
     check("seq pixels (exact)", worst == 0, f"maxdiff {worst}")
 
     # ---- Y4M (C444, JFIF full-range) round-trip ----
@@ -146,7 +145,7 @@ def main():
     threading.Thread(target=serve, daemon=True).start()
     n = dump(f"http://127.0.0.1:{port}/stream", os.path.join(OUT, "ht_"), 4)
     check("http mjpeg frame count", n == 4, f"got {n}")
-    worst = max((maxdiff(frames[i], Image.open(os.path.join(OUT, f"ht_{i}.ppm"))) for i in range(max(n, 0))), default=99)
+    worst = max((maxdiff(frames[i], Image.open(os.path.join(OUT, f"ht_{i}.ppm"))) for i in range(max(n, 0))), default=99)  # noqa: E501
     check("http mjpeg pixels (tol 5)", worst <= 5, f"maxdiff {worst}")
 
     print()

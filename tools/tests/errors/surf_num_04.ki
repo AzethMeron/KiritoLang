@@ -1,0 +1,2 @@
+# Zero raised to a negative power is undefined and must raise.
+discard 0 ** -1

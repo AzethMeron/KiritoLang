@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """PreToolUse hook: block ALL git branch creation. Commit and push to main only."""
 from __future__ import annotations
-import json, re, sys
+import json
+import re
+import sys
 
 
 def _extract_branch_name(cmd: str) -> str | None:

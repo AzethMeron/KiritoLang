@@ -1,0 +1,18 @@
+# Ruff configuration for Kirito's Python surface — the build tooling (docs/build_docs.py), the
+# CTest/integration harnesses (tools/tests/*.py, examples/**/test_*.py), and the numeric comparison
+# scripts. These are internal tooling, NOT a shipped package, so the ruleset is pragmatic: catch real
+# bugs (pyflakes: unused/undefined names, etc.) and the high-value pycodestyle errors, while allowing
+# the compact one-statement-per-line style the harnesses deliberately use for dense table-driven tests.
+#
+# Run:  ruff check .      (clean = lint gate green)
+
+line-length = 120
+target-version = "py310"
+
+[lint]
+select = ["E", "F", "W"]   # pycodestyle errors + warnings, pyflakes
+ignore = [
+    "E701",  # multiple statements on one line (colon) — `if cond: stmt`, used intentionally
+    "E702",  # multiple statements on one line (semicolon) — dense `a(); b()` setup lines
+    "E741",  # ambiguous single-letter name (l/I/O) — occasional in the numpy comparison scripts
+]

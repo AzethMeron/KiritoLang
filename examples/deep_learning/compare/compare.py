@@ -66,7 +66,7 @@ def np_digits_conv():
                            nn.Conv2d(16, 32, 3, rng), nn.BatchNorm2d(32), nn.ReLU(),
                            nn.AvgPool2d(2), nn.Flatten(), nn.Linear(32 * 2 * 2, 10, rng)])
     opt = nn.Adam(model.params(), lr=0.005)
-    img = lambda A: A.reshape(-1, 1, 8, 8)
+    def img(A): return A.reshape(-1, 1, 8, 8)
     rng2 = np.random.default_rng(0)
     for _ in range(30):
         nn.train(True)
@@ -239,7 +239,7 @@ TASKS = [
     ("07 digits softmax",      "acc",  np_softmax,     "07_digits_softmax.ki",      r"test accuracy ([0-9.]+)"),
     ("08 PCA (10 comp)",       "var",  np_pca,         "08_pca_digits.ki",          r"capture ([0-9.]+)%"),
     ("09 K-means iris",        "purity", np_kmeans,    "09_kmeans_iris.ki",         r"purity vs.*: ([0-9.]+)"),
-    ("10 denoising AE",        "MSE",  np_denoise,     "10_digits_denoising_ae.ki", r"reconstruction-vs-clean MSE ([0-9.]+)"),
+    ("10 denoising AE",        "MSE",  np_denoise,     "10_digits_denoising_ae.ki", r"reconstruction-vs-clean MSE ([0-9.]+)"),  # noqa: E501
 ]
 
 

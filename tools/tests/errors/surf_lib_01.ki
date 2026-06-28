@@ -1,0 +1,2 @@
+# Importing a module that does not exist must raise.
+discard import("nonexistent_module_xyz")
