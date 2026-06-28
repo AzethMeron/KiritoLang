@@ -1,6 +1,7 @@
 #ifndef KIRITO_COMMON_HPP
 #define KIRITO_COMMON_HPP
 
+#include <algorithm>
 #include <cerrno>
 #include <cmath>
 #include <cstdint>
@@ -102,6 +103,17 @@ inline int hexDigitValue(char d) {
     if (d >= 'a' && d <= 'f') return d - 'a' + 10;
     if (d >= 'A' && d <= 'F') return d - 'A' + 10;
     return -1;
+}
+
+// Approximate float comparison: |a-b| <= max(relTol*max(|a|,|b|), absTol). NaN is never close; equal
+// infinities are close. The single source of truth for the numeric `.compare()` tolerance, shared by
+// the runtime's Integer/Float compare and the matrix/complex/tensor modules (defined here, in the
+// first-included header, so the stdlib modules — compiled before runtime.hpp — can all reach it).
+inline bool floatClose(double a, double b, double relTol, double absTol) {
+    if (a == b) return true;                              // exact (covers inf == inf)
+    if (std::isnan(a) || std::isnan(b) || std::isinf(a) || std::isinf(b)) return false;
+    double diff = std::fabs(a - b);
+    return diff <= std::max(relTol * std::max(std::fabs(a), std::fabs(b)), absTol);
 }
 
 }  // namespace kirito

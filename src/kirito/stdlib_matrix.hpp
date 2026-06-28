@@ -96,10 +96,7 @@ public:
 namespace mat {
 
 inline double numOf(KiritoVM& vm, Handle h) {
-    const Object& o = vm.arena().deref(h);
-    if (o.kind() == ValueKind::Integer) return static_cast<double>(static_cast<const IntVal&>(o).value());
-    if (o.kind() == ValueKind::Float) return static_cast<const FloatVal&>(o).value();
-    throw KiritoError("Matrix expects numbers");
+    return Value(vm, h).asFloat("Matrix");
 }
 
 // Cap total element count so a hostile/absurd dimension raises a catchable error instead of an
@@ -196,13 +193,8 @@ inline Handle MatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_view nam
                 if (!o) throw KiritoError("compare expects a Matrix");
                 if (o->t.shape != m.t.shape) return v.makeBool(false);
                 double rel = Value(v, a[1]).asFloat("rel_tol"), abst = Value(v, a[2]).asFloat("abs_tol");
-                for (std::size_t i = 0; i < m.t.data.size(); ++i) {
-                    double x = m.t.data[i], y = o->t.data[i];
-                    if (x == y) continue;
-                    if (std::isnan(x) || std::isnan(y) || std::isinf(x) || std::isinf(y)) return v.makeBool(false);
-                    if (std::fabs(x - y) > std::max(rel * std::max(std::fabs(x), std::fabs(y)), abst))
-                        return v.makeBool(false);
-                }
+                for (std::size_t i = 0; i < m.t.data.size(); ++i)
+                    if (!floatClose(m.t.data[i], o->t.data[i], rel, abst)) return v.makeBool(false);
                 return v.makeBool(true);
             },
             std::vector<Handle>{self}));

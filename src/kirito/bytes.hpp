@@ -146,30 +146,6 @@ public:
 
     Handle getAttr(KiritoVM& vm, Handle self, std::string_view name) override;
 
-private:
-    // Concrete indices for a Python slice over [0,len) (negative indices, clamping, negative step).
-    static std::vector<int64_t> sliceIndices(KiritoVM& vm, int64_t len, Handle sH, Handle eH, Handle stH) {
-        auto opt = [&](Handle h) -> std::optional<int64_t> {
-            const Object& o = vm.arena().deref(h);
-            if (o.kind() == ValueKind::None) return std::nullopt;
-            if (o.kind() != ValueKind::Integer) throw KiritoError("slice indices must be Integer or None");
-            return static_cast<const IntVal&>(o).value();
-        };
-        std::optional<int64_t> so = opt(sH), eo = opt(eH), sto = opt(stH);
-        int64_t step = sto.value_or(1);
-        if (step == 0) throw KiritoError("slice step cannot be zero");
-        int64_t lower = step < 0 ? -1 : 0, upper = step < 0 ? len - 1 : len, start, stop;
-        if (!so) start = step < 0 ? upper : lower;
-        else { start = *so; if (start < 0) { start += len; if (start < lower) start = lower; }
-               else if (start > upper) start = upper; }
-        if (!eo) stop = step < 0 ? lower : upper;
-        else { stop = *eo; if (stop < 0) { stop += len; if (stop < lower) stop = lower; }
-               else if (stop > upper) stop = upper; }
-        std::vector<int64_t> idx;
-        if (step > 0) for (int64_t i = start; i < stop; i += step) idx.push_back(i);
-        else for (int64_t i = start; i > stop; i += step) idx.push_back(i);
-        return idx;
-    }
 };
 
 namespace bytesutil {

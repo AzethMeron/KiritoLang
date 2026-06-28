@@ -404,6 +404,31 @@ struct Program {
     Block stmts;
 };
 
+// Walk an assignment target's structure: invoke `onName` for each bare-name leaf, and `onSubExpr` for
+// each sub-expression merely READ to locate the target (an index/member object, the index keys).
+// Tuple/star targets recurse. Shared by the resolver (name-resolution) and the analyzer (use-tracking),
+// which differ only in those two per-node actions.
+template <typename OnName, typename OnSubExpr>
+inline void walkAssignTarget(const Expr& target, OnName&& onName, OnSubExpr&& onSubExpr) {
+    switch (target.exprKind()) {
+        case ExprKind::Name: onName(static_cast<const NameExpr&>(target)); break;
+        case ExprKind::Tuple:
+            for (const auto& e : static_cast<const TupleExpr&>(target).elems)
+                walkAssignTarget(*e, onName, onSubExpr);
+            break;
+        case ExprKind::Star:
+            walkAssignTarget(*static_cast<const StarExpr&>(target).inner, onName, onSubExpr);
+            break;
+        case ExprKind::Index: {
+            const auto& ix = static_cast<const IndexExpr&>(target);
+            onSubExpr(*ix.object);
+            for (const auto& k : ix.indices) onSubExpr(*k);
+        } break;
+        case ExprKind::Member: onSubExpr(*static_cast<const MemberExpr&>(target).object); break;
+        default: break;
+    }
+}
+
 }  // namespace kirito::ast
 
 #endif

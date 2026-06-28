@@ -2,7 +2,10 @@
 #define KIRITO_NATIVE_HPP
 
 #include <memory>
+#include <optional>
+#include <span>
 #include <string>
+#include <vector>
 
 #include "builtins.hpp"
 #include "function.hpp"
@@ -33,6 +36,33 @@ inline int64_t argInt(KiritoVM& vm, Handle h, const char* who) {
 inline void requireArgs(std::span<const Handle> a, std::size_t n, const char* who) {
     if (a.size() < n)
         throw KiritoError(std::string(who) + "() expected at least " + std::to_string(n) + " argument(s)");
+}
+
+// Resolve a slice — start/stop/step given as Integer-or-None handles — to the concrete indices over
+// [0, len): negative indices count from the end, out-of-range bounds clamp, a negative step iterates
+// downward, and a zero step raises. Shared by String/Bytes/List/Array slicing so the index math lives
+// in exactly one place.
+inline std::vector<int64_t> sliceIndices(KiritoVM& vm, int64_t len, Handle sH, Handle eH, Handle stH) {
+    auto opt = [&](Handle h) -> std::optional<int64_t> {
+        const Object& o = vm.arena().deref(h);
+        if (o.kind() == ValueKind::None) return std::nullopt;
+        if (o.kind() != ValueKind::Integer) throw KiritoError("slice indices must be Integer or None");
+        return static_cast<const IntVal&>(o).value();
+    };
+    std::optional<int64_t> so = opt(sH), eo = opt(eH), sto = opt(stH);
+    int64_t step = sto.value_or(1);
+    if (step == 0) throw KiritoError("slice step cannot be zero");
+    int64_t lower = step < 0 ? -1 : 0, upper = step < 0 ? len - 1 : len, start, stop;
+    if (!so) start = step < 0 ? upper : lower;
+    else { start = *so; if (start < 0) { start += len; if (start < lower) start = lower; }
+           else if (start > upper) start = upper; }
+    if (!eo) stop = step < 0 ? lower : upper;
+    else { stop = *eo; if (stop < 0) { stop += len; if (stop < lower) stop = lower; }
+           else if (stop > upper) stop = upper; }
+    std::vector<int64_t> idx;
+    if (step > 0) for (int64_t i = start; i < stop; i += step) idx.push_back(i);
+    else for (int64_t i = start; i > stop; i += step) idx.push_back(i);
+    return idx;
 }
 
 // ============================================================================================

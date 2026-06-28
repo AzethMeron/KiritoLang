@@ -74,14 +74,8 @@ inline bool floatEqual(double l, double r) {
     // rel_tol=, abs_tol=) method on Integer/Float.
     return l == r;
 }
-// Approximate comparison (math.isclose semantics): |a-b| <= max(rel_tol*max(|a|,|b|), abs_tol).
-// NaN is never close; equal infinities are close. Powers the numeric .compare() method.
-inline bool floatClose(double a, double b, double relTol, double absTol) {
-    if (a == b) return true;                              // exact (covers inf == inf)
-    if (std::isnan(a) || std::isnan(b) || std::isinf(a) || std::isinf(b)) return false;
-    double diff = std::fabs(a - b);
-    return diff <= std::max(relTol * std::max(std::fabs(a), std::fabs(b)), absTol);
-}
+// (floatClose — the numeric .compare() tolerance — now lives in common.hpp so the stdlib modules,
+// compiled before this header, can share the one implementation.)
 // Two's-complement wraparound for the int64 operators. Signed overflow is UB in C++, so we do the
 // arithmetic in uint64_t (where wraparound is defined) and reinterpret — giving consistent,
 // well-defined behavior on overflow instead of undefined behavior. (Kirito ints are fixed int64;
@@ -917,34 +911,6 @@ inline Handle SetVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
 
 // --- slicing helper --------------------------------------------------------------------------
 
-// Concrete indices for a Python slice over [0,len). start/stop/step are Integer handles or None.
-// Mirrors CPython's PySlice_AdjustIndices (negative indices, clamping, negative step).
-inline std::vector<int64_t> pythonSliceIndices(KiritoVM& vm, int64_t len,
-                                               Handle sH, Handle eH, Handle stH) {
-    auto opt = [&](Handle h) -> std::optional<int64_t> {
-        const Object& o = vm.arena().deref(h);
-        if (o.kind() == ValueKind::None) return std::nullopt;
-        if (o.kind() != ValueKind::Integer) throw KiritoError("slice indices must be Integer or None");
-        return static_cast<const IntVal&>(o).value();
-    };
-    std::optional<int64_t> so = opt(sH), eo = opt(eH), sto = opt(stH);
-    int64_t step = sto.value_or(1);
-    if (step == 0) throw KiritoError("slice step cannot be zero");
-    int64_t lower = step < 0 ? -1 : 0;
-    int64_t upper = step < 0 ? len - 1 : len;
-    int64_t start, stop;
-    if (!so) start = step < 0 ? upper : lower;
-    else { start = *so; if (start < 0) { start += len; if (start < lower) start = lower; }
-           else if (start > upper) start = upper; }
-    if (!eo) stop = step < 0 ? lower : upper;
-    else { stop = *eo; if (stop < 0) { stop += len; if (stop < lower) stop = lower; }
-           else if (stop > upper) stop = upper; }
-    std::vector<int64_t> idx;
-    if (step > 0) for (int64_t i = start; i < stop; i += step) idx.push_back(i);
-    else for (int64_t i = start; i > stop; i += step) idx.push_back(i);
-    return idx;
-}
-
 // --- String indexing / slicing / iteration (UTF-8 aware) -------------------------------------
 
 inline Handle StrVal::getItem(KiritoVM& vm, std::span<const Handle> keys) {
@@ -963,13 +929,13 @@ inline Handle StrVal::slice(KiritoVM& vm, Handle s, Handle e, Handle st) {
     if (isAscii()) {  // byte slice == code-point slice
         int64_t len = static_cast<int64_t>(value_.size());
         std::string out;
-        for (int64_t i : pythonSliceIndices(vm, len, s, e, st)) out += value_[static_cast<std::size_t>(i)];
+        for (int64_t i : sliceIndices(vm, len, s, e, st)) out += value_[static_cast<std::size_t>(i)];
         return vm.makeString(std::move(out));
     }
     const auto& starts = codePointStarts();
     int64_t len = static_cast<int64_t>(starts.size());
     std::string out;
-    for (int64_t i : pythonSliceIndices(vm, len, s, e, st)) {
+    for (int64_t i : sliceIndices(vm, len, s, e, st)) {
         std::size_t b = starts[i];
         std::size_t en = (i + 1 < len) ? starts[i + 1] : value_.size();
         out.append(value_, b, en - b);
@@ -1498,7 +1464,7 @@ inline std::vector<std::string> StrVal::inspectMembers() const {
 
 inline Handle ListVal::slice(KiritoVM& vm, Handle s, Handle e, Handle st) {
     auto result = std::make_unique<ListVal>();
-    for (int64_t i : pythonSliceIndices(vm, static_cast<int64_t>(elems.size()), s, e, st))
+    for (int64_t i : sliceIndices(vm, static_cast<int64_t>(elems.size()), s, e, st))
         result->elems.push_back(elems[i]);  // existing handles, reachable from this list
     return vm.alloc(std::move(result));
 }

@@ -207,18 +207,9 @@ private:
     // An assignment target reads any names used to compute the location (index/member objects), and
     // for a bare name records nothing (it is a write, not a use).
     void analyzeAssignTarget(const ast::Expr& target) {
-        if (target.exprKind() == ast::ExprKind::Tuple) {
-            for (const auto& e : static_cast<const ast::TupleExpr&>(target).elems) analyzeAssignTarget(*e);
-        } else if (target.exprKind() == ast::ExprKind::Star) {
-            analyzeAssignTarget(*static_cast<const ast::StarExpr&>(target).inner);
-        } else if (target.exprKind() == ast::ExprKind::Index) {
-            const auto& ix = static_cast<const ast::IndexExpr&>(target);
-            analyzeExpr(*ix.object);
-            for (const auto& k : ix.indices) analyzeExpr(*k);
-        } else if (target.exprKind() == ast::ExprKind::Member) {
-            analyzeExpr(*static_cast<const ast::MemberExpr&>(target).object);
-        }
-        // a plain NameExpr target is a write; do not mark it used.
+        ast::walkAssignTarget(target,
+            [](const ast::NameExpr&) {},                   // a bare-name target is a write, not a use
+            [&](const ast::Expr& e) { analyzeExpr(e); });  // index/member objects + keys are read
     }
 
     // --- "unused result" rule -------------------------------------------------------------------
