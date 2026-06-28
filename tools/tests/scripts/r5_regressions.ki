@@ -43,4 +43,12 @@ var uq = T.unique(T.Tensor([3.0, nan, 1.0, 1.0, 2.0])).tolist()
 ok(uq[0] == 1.0 and uq[1] == 2.0 and uq[2] == 3.0, "unique dedups + sorts non-NaN")
 ok(len(uq) == 4 and uq[3] != uq[3], "unique keeps one NaN at the end")
 
+# --- matrix zeros/ones/identity negative-dimension guard ---
+var mx = import("matrix")
+ok(raises(Function(): return mx.zeros(-1, 3)), "matrix.zeros negative row raises")
+ok(raises(Function(): return mx.zeros(3, -1)), "matrix.zeros negative col raises")
+ok(raises(Function(): return mx.ones(-1, 3)), "matrix.ones negative row raises")
+ok(raises(Function(): return mx.identity(-1)), "matrix.identity negative n raises")
+ok(not raises(Function(): return mx.zeros(0, 0)), "matrix.zeros(0,0) ok")
+
 io.print("r5_regressions: " + String(n) + " checks passed")

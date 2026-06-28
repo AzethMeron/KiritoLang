@@ -1450,7 +1450,7 @@ inline std::vector<std::string> StrVal::inspectMembers() const {
         "format(...) -> String", "index(sub, start, end) -> Integer",
         "isalnum() -> Bool", "isalpha() -> Bool", "isdigit() -> Bool", "islower() -> Bool",
         "isspace() -> Bool", "isupper() -> Bool", "join(iterable) -> String",
-        "levenshtein(other) -> Integer", "ljust(width, fillchar) -> String", "lower() -> String",
+        "levenshtein(other) -> Integer|List", "ljust(width, fillchar) -> String", "lower() -> String",
         "lstrip(chars) -> String", "partition(sep) -> List", "removeprefix(prefix) -> String",
         "removesuffix(suffix) -> String", "replace(old, new, count) -> String",
         "rfind(sub, start, end) -> Integer", "rindex(sub, start, end) -> Integer",

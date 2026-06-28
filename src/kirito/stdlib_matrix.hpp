@@ -356,14 +356,20 @@ public:
         });
         m.fn("zeros", {{"rows", "Integer"}, {"cols", "Integer"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Args args(vm, a, "zeros");
-            return vm.alloc(mat::make(static_cast<std::size_t>(args[0].asInt("rows")), static_cast<std::size_t>(args[1].asInt("cols")), 0.0));
+            auto rows = args[0].asInt("rows"), cols = args[1].asInt("cols");
+            if (rows < 0 || cols < 0) throw KiritoError("matrix.zeros: dimensions must be non-negative");
+            return vm.alloc(mat::make(static_cast<std::size_t>(rows), static_cast<std::size_t>(cols), 0.0));
         });
         m.fn("ones", {{"rows", "Integer"}, {"cols", "Integer"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Args args(vm, a, "ones");
-            return vm.alloc(mat::make(static_cast<std::size_t>(args[0].asInt("rows")), static_cast<std::size_t>(args[1].asInt("cols")), 1.0));
+            auto rows = args[0].asInt("rows"), cols = args[1].asInt("cols");
+            if (rows < 0 || cols < 0) throw KiritoError("matrix.ones: dimensions must be non-negative");
+            return vm.alloc(mat::make(static_cast<std::size_t>(rows), static_cast<std::size_t>(cols), 1.0));
         });
         m.fn("identity", {{"n", "Integer"}}, "Matrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::size_t n = static_cast<std::size_t>(Args(vm, a, "identity")[0].asInt("n"));
+            auto n64 = Args(vm, a, "identity")[0].asInt("n");
+            if (n64 < 0) throw KiritoError("matrix.identity: dimension must be non-negative");
+            std::size_t n = static_cast<std::size_t>(n64);
             auto mtx = mat::make(n, n);
             for (std::size_t i = 0; i < mtx->rows(); ++i) mtx->at(i, i) = 1.0;
             return vm.alloc(std::move(mtx));

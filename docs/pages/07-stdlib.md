@@ -451,7 +451,7 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
 
 ### Complex helpers
 
-- `t.real()`, `t.imag()`, `t.angle()` → Float tensors; `t.conj()` → the conjugate (Complex).
+- `t.real()`, `t.imag()`, `t.angle()` → Float tensors; `t.conj()` / `t.conjugate()` → the conjugate (Complex; no-op on Float tensors).
 
 ### Differentiable element-wise math
 
