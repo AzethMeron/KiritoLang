@@ -2587,12 +2587,16 @@ inline void KiritoVM::installBuiltins() {
                     };
                     if (!isBaseDigit(s[i])) throw std::invalid_argument("no digit after sign/prefix");
                     std::size_t pos = 0;
-                    int64_t v = static_cast<int64_t>(std::stoll(s.substr(i), &pos, base));
+                    // Parse the magnitude as unsigned and bit-cast (two's-complement negate if signed),
+                    // mirroring the lexer's intLiteral, so the full 64-bit range round-trips:
+                    // Integer(String(INT64_MIN)), Integer(hex(-1)) == 0xFFFFFFFFFFFFFFFF == -1, etc.
+                    // (std::stoll would reject any magnitude >= 2^63.)
+                    uint64_t mag = std::stoull(s.substr(i), &pos, base);
                     // Reject trailing garbage (e.g. "42abc", "12.5") — surrounding whitespace allowed.
                     std::size_t end = i + pos;
                     while (end < s.size() && std::isspace(static_cast<unsigned char>(s[end]))) ++end;
                     if (end != s.size()) throw std::invalid_argument("trailing");
-                    return vm.makeInt(neg ? -v : v);
+                    return vm.makeInt(static_cast<int64_t>(neg ? (~mag + 1ULL) : mag));
                 } catch (...) {
                     throw KiritoError("cannot convert String to Integer: '" + s + "'");
                 }
@@ -3046,6 +3050,8 @@ inline void KiritoVM::installBuiltins() {
         if (o.kind() != ValueKind::Integer) throw KiritoError("chr expects an Integer");
         int64_t cp = static_cast<const IntVal&>(o).value();
         if (cp < 0 || cp > 0x10FFFF) throw KiritoError("chr argument out of Unicode range");
+        if (cp >= 0xD800 && cp <= 0xDFFF)
+            throw KiritoError("chr argument is a UTF-16 surrogate (not a valid scalar code point)");
         std::string s;
         utf8Encode(static_cast<unsigned>(cp), s);
         return vm.makeString(s);

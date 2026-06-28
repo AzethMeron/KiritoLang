@@ -1221,7 +1221,7 @@ inline Handle sortT(KiritoVM& vm, Handle ah, int64_t axis) {
     FT out = a;
     forEachLine(a.shape, ax, [&](std::size_t base, std::size_t step, std::size_t len) {
         std::vector<double> line(len); for (std::size_t k = 0; k < len; ++k) line[k] = out.data[base + k * step];
-        std::sort(line.begin(), line.end());
+        std::sort(line.begin(), line.end(), [](double x, double y) { return x < y || (y != y && x == x); });  // NaN sorts last
         for (std::size_t k = 0; k < len; ++k) out.data[base + k * step] = line[k];
     });
     return make(vm, std::move(out));
@@ -1233,7 +1233,7 @@ inline Handle argsortT(KiritoVM& vm, Handle ah, int64_t axis) {
     std::size_t ax = axis < 0 ? a.ndim() - 1 : static_cast<std::size_t>(axis);
     forEachLine(a.shape, ax, [&](std::size_t base, std::size_t step, std::size_t len) {
         std::vector<std::size_t> idx(len); for (std::size_t k = 0; k < len; ++k) idx[k] = k;
-        std::stable_sort(idx.begin(), idx.end(), [&](std::size_t i, std::size_t j) { return a.data[base + i * step] < a.data[base + j * step]; });
+        std::stable_sort(idx.begin(), idx.end(), [&](std::size_t i, std::size_t j) { double x = a.data[base + i * step], y = a.data[base + j * step]; return x < y || (y != y && x == x); });  // NaN sorts last
         for (std::size_t k = 0; k < len; ++k) out.data[base + k * step] = static_cast<double>(idx[k]);
     });
     return make(vm, std::move(out));
@@ -1241,7 +1241,7 @@ inline Handle argsortT(KiritoVM& vm, Handle ah, int64_t axis) {
 inline Handle uniqueT(KiritoVM& vm, Handle ah) {
     const FT& a = reqFloat(asT(vm, ah), "unique");
     std::vector<double> v = a.data;
-    std::sort(v.begin(), v.end());
+    std::sort(v.begin(), v.end(), [](double x, double y) { return x < y || (y != y && x == x); });  // NaN sorts last
     v.erase(std::unique(v.begin(), v.end()), v.end());
     std::size_t n = v.size();
     return make(vm, FT(tensor::Shape{n}, std::move(v)));
