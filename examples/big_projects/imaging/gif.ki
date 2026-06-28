@@ -137,78 +137,79 @@ var frames = Function(data):
     var n = len(data)
     while pos < n:
         var b = data[pos]
-        if b == 59:                         # trailer ';'
-            pos = n
-        elif b == 33:                       # extension '!'
-            var label = data[pos + 1]
-            if label == 249:                # graphic control extension
-                var flags = data[pos + 3]
-                disposal = shr(flags, 2) % 8
-                transparent = -1
-                if flags % 2 == 1:
-                    transparent = data[pos + 6]
-                delay = _u16(data, pos + 4) * 10
-                pos = pos + 8               # 0x21 0xF9 0x04 flags d d tidx 0x00
-            else:
-                pos = pos + 2               # skip label; then sub-blocks
-                while pos < n and data[pos] != 0:
-                    pos = pos + 1 + data[pos]
+        switch b:
+            case 59:                 # trailer ';'
+                pos = n
+            case 33:                 # extension '!'
+                var label = data[pos + 1]
+                if label == 249:                # graphic control extension
+                    var flags = data[pos + 3]
+                    disposal = shr(flags, 2) % 8
+                    transparent = -1
+                    if flags % 2 == 1:
+                        transparent = data[pos + 6]
+                    delay = _u16(data, pos + 4) * 10
+                    pos = pos + 8               # 0x21 0xF9 0x04 flags d d tidx 0x00
+                else:
+                    pos = pos + 2               # skip label; then sub-blocks
+                    while pos < n and data[pos] != 0:
+                        pos = pos + 1 + data[pos]
+                    pos = pos + 1
+            case 44:                 # image descriptor ','
+                var ix = _u16(data, pos + 1)
+                var iy = _u16(data, pos + 3)
+                var iw = _u16(data, pos + 5)
+                var ih = _u16(data, pos + 7)
+                var ipacked = data[pos + 9]
+                var p = pos + 10
+                var pal = gct
+                if shr(ipacked, 7) % 2 == 1:    # local colour table
+                    var ln = shl(1, ipacked % 8 + 1)
+                    pal = _read_palette(data, p, ln)
+                    p = p + ln * 3
+                var interlaced = shr(ipacked, 6) % 2 == 1
+                var mincodesize = data[p]
+                p = p + 1
+                # gather LZW sub-blocks
+                var lzw = []
+                while p < n and data[p] != 0:
+                    var blen = data[p]
+                    var q = 0
+                    while q < blen:
+                        lzw.append(data[p + 1 + q])
+                        q = q + 1
+                    p = p + 1 + blen
+                p = p + 1                        # block terminator
+                var idx = _lzw_decode(Bytes(lzw), mincodesize, iw * ih)
+                if interlaced:
+                    idx = _deinterlace(idx, iw, ih)
+                # save canvas for disposal-3
+                var saved = None
+                if disposal == 3:
+                    saved = _copy_canvas(canvas)
+                # paint frame region (skip transparent index)
+                var r = 0
+                while r < ih:
+                    var cy = iy + r
+                    if cy >= 0 and cy < sh:
+                        var col = 0
+                        while col < iw:
+                            var cx = ix + col
+                            if cx >= 0 and cx < sw:
+                                var pi = idx[r * iw + col]
+                                if pi != transparent and pi < len(pal):
+                                    canvas[cy][cx] = pal[pi]
+                            col = col + 1
+                    r = r + 1
+                result.append({"rgb": T.Tensor(_copy_canvas(canvas)), "delay": delay})
+                # apply disposal for the NEXT frame
+                if disposal == 2:
+                    _fill_region(canvas, ix, iy, iw, ih, sw, sh)
+                elif disposal == 3 and saved != None:
+                    canvas = saved
+                pos = p
+            default:
                 pos = pos + 1
-        elif b == 44:                       # image descriptor ','
-            var ix = _u16(data, pos + 1)
-            var iy = _u16(data, pos + 3)
-            var iw = _u16(data, pos + 5)
-            var ih = _u16(data, pos + 7)
-            var ipacked = data[pos + 9]
-            var p = pos + 10
-            var pal = gct
-            if shr(ipacked, 7) % 2 == 1:    # local colour table
-                var ln = shl(1, ipacked % 8 + 1)
-                pal = _read_palette(data, p, ln)
-                p = p + ln * 3
-            var interlaced = shr(ipacked, 6) % 2 == 1
-            var mincodesize = data[p]
-            p = p + 1
-            # gather LZW sub-blocks
-            var lzw = []
-            while p < n and data[p] != 0:
-                var blen = data[p]
-                var q = 0
-                while q < blen:
-                    lzw.append(data[p + 1 + q])
-                    q = q + 1
-                p = p + 1 + blen
-            p = p + 1                        # block terminator
-            var idx = _lzw_decode(Bytes(lzw), mincodesize, iw * ih)
-            if interlaced:
-                idx = _deinterlace(idx, iw, ih)
-            # save canvas for disposal-3
-            var saved = None
-            if disposal == 3:
-                saved = _copy_canvas(canvas)
-            # paint frame region (skip transparent index)
-            var r = 0
-            while r < ih:
-                var cy = iy + r
-                if cy >= 0 and cy < sh:
-                    var col = 0
-                    while col < iw:
-                        var cx = ix + col
-                        if cx >= 0 and cx < sw:
-                            var pi = idx[r * iw + col]
-                            if pi != transparent and pi < len(pal):
-                                canvas[cy][cx] = pal[pi]
-                        col = col + 1
-                r = r + 1
-            result.append({"rgb": T.Tensor(_copy_canvas(canvas)), "delay": delay})
-            # apply disposal for the NEXT frame
-            if disposal == 2:
-                _fill_region(canvas, ix, iy, iw, ih, sw, sh)
-            elif disposal == 3 and saved != None:
-                canvas = saved
-            pos = p
-        else:
-            pos = pos + 1
     return result
 
 # Deep-copy the RGB canvas (a [H][W][3] list).

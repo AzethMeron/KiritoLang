@@ -26,14 +26,15 @@ class RPN:
             elif t in ["+", "-", "*", "/"]:
                 var b = self._pop()
                 var a = self._pop()
-                if t == "+":
-                    self._push(a + b)
-                elif t == "-":
-                    self._push(a - b)
-                elif t == "*":
-                    self._push(a * b)
-                else:
-                    self._push(a / b)
+                switch t:
+                    case "+":
+                        self._push(a + b)
+                    case "-":
+                        self._push(a - b)
+                    case "*":
+                        self._push(a * b)
+                    default:
+                        self._push(a / b)
             else:
                 self._push(Float(t))
         if len(self._stack) != 1:
