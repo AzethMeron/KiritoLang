@@ -47,7 +47,8 @@ parameter name.
 - `len(x) → Integer` — number of elements of a collection, or code points of a String.
 - `range(stop) → List` / `range(start, stop[, step]) → List` — integers from `start` (default `0`)
   up to but excluding `stop`, stepping by `step` (default `1`, may be negative). Materializes a List;
-  a step of `0` raises, and an over-large result raises rather than exhausting memory.
+  a step of `0` raises, and an over-large result raises rather than exhausting memory. (`stop` may also
+  be given by the keyword `end`.)
 - `enumerate(iterable[, start]) → List` — a list of `[index, value]` pairs, indices starting at
   `0` (or at `start`, e.g. `enumerate(xs, start = 1)`).
 - `zip(*iterables) → List` — a list of `[a, b, …]` tuples drawn position-wise from the inputs,

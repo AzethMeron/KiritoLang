@@ -183,9 +183,25 @@ private:
         std::size_t start = pos_;
         bool isFloat = false;
         if (peek() == '-') ++pos_;
-        while (pos_ < s_.size() && (std::isdigit(static_cast<unsigned char>(s_[pos_])))) ++pos_;
-        if (peek() == '.') { isFloat = true; ++pos_; while (pos_ < s_.size() && std::isdigit(static_cast<unsigned char>(s_[pos_]))) ++pos_; }
-        if (peek() == 'e' || peek() == 'E') { isFloat = true; ++pos_; if (peek() == '+' || peek() == '-') ++pos_; while (pos_ < s_.size() && std::isdigit(static_cast<unsigned char>(s_[pos_]))) ++pos_; }
+        // Integer part per the JSON grammar: a single 0, or a 1-9 lead followed by more digits.
+        // (No leading zeros — "01" leaves the stray '1' for the caller's trailing-content check.)
+        char lead = peek();
+        if (lead == '0') ++pos_;
+        else if (lead >= '1' && lead <= '9') { while (pos_ < s_.size() && std::isdigit(static_cast<unsigned char>(s_[pos_]))) ++pos_; }
+        else fail("invalid number");
+        // Fraction: a '.' must be followed by at least one digit (rejects "1." / "1.e5").
+        if (peek() == '.') {
+            isFloat = true; ++pos_;
+            if (!(pos_ < s_.size() && std::isdigit(static_cast<unsigned char>(s_[pos_])))) fail("invalid number");
+            while (pos_ < s_.size() && std::isdigit(static_cast<unsigned char>(s_[pos_]))) ++pos_;
+        }
+        // Exponent: [eE][+-]? must be followed by at least one digit (rejects "1e" / "1e+").
+        if (peek() == 'e' || peek() == 'E') {
+            isFloat = true; ++pos_;
+            if (peek() == '+' || peek() == '-') ++pos_;
+            if (!(pos_ < s_.size() && std::isdigit(static_cast<unsigned char>(s_[pos_])))) fail("invalid number");
+            while (pos_ < s_.size() && std::isdigit(static_cast<unsigned char>(s_[pos_]))) ++pos_;
+        }
         std::string tok = s_.substr(start, pos_ - start);
         if (tok.empty() || tok == "-") fail("invalid number");
         try {

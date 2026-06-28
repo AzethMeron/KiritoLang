@@ -57,7 +57,9 @@ The arithmetic operators are `+`, `-`, `*`, the three division forms below, and 
   `4 / 2 == 2.0`); use `//` when you want an Integer result.
 - `//` (floor division), `%` (modulo), and `divmod(a, b)` floor toward negative infinity, so the
   remainder takes the sign of the divisor: `divmod(-7, 3) == [-3, 2]`.
-- `**` raises to a power (`2 ** 10 == 1024`).
+- `**` raises to a power (`2 ** 10 == 1024`). A negative base with a *fractional* exponent has no real
+  result, so the operator yields `NaN` (it follows IEEE-754); the `math` module's `pow`/`sqrt` instead
+  **raise** a domain error.
 - `bin(n)` / `oct(n)` / `hex(n)` render an Integer in base 2 / 8 / 16 as a `String`
   (`hex(255) == "0xff"`).
 - Kirito has no bitwise *operators*; the builtins `bitand` / `bitor` / `bitxor` / `bitnot` and

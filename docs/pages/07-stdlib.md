@@ -439,6 +439,9 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
   `kron(a, b)`, `cross(a, b)` (3-vectors), and `einsum(spec, *tensors)` — a general Einstein-summation
   (transpose / diagonal / trace / contraction / outer, any subscript string). Work on both dtypes
   where it makes sense (forward only; the differentiable linear algebra is `matmul`/`tensordot`).
+  `inner`/`tensordot`/`contract`/`einsum` return a **Tensor** (0-D for a full contraction — call
+  `.item()` for a Float scalar); only `dot` and the scalar reductions (no `axis`) return a plain Float.
+  A repeated *output* label in `einsum` (e.g. `"ii->ii"`) is rejected.
 
 ### Sorting & search
 
@@ -578,7 +581,7 @@ and **`Vector`** (`matrix`), **`Complex`** and **`ComplexMatrix`** (`complex`), 
 checkpoint), and gradient-free **`Tensor`** (`tensor`; a Tensor that requires grad must be
 `detach()`-ed first). They can be stored standalone or nested inside Lists/Dicts/Sets/instances, with
 shared references preserved. Resource-like natives that wrap live state — `Socket`/`Session` (`net`),
-open files/`BytesIO`/streams (`io`), compiled `Pattern`/`Match` (`regex`) — are **not** serializable
+open files/`BytesIO`/streams (`io`), a compiled `Regex`/`Match` (`regex`) — are **not** serializable
 and raise a clear, catchable error instead.
 
 Human-readable **text** serialization → a `String`.

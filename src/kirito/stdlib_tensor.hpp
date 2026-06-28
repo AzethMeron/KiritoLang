@@ -1362,6 +1362,16 @@ inline Handle einsumT(KiritoVM& vm, const std::string& spec, const std::vector<H
             if (!sz.count(ch))
                 throw KiritoError(std::string("einsum: output label '") + ch
                                   + "' does not appear in any input");
+    // A repeated output label (e.g. "ii->ii", "i->ii") has an undefined contraction and previously
+    // overran the output buffer (oshape counts every output char, but `coord` is keyed by the
+    // deduplicated label set). Reject it up front, as NumPy does.
+    if (explicitOut) {
+        fum::unordered_set<char> outSeen;
+        for (char ch : outl)
+            if (!outSeen.insert(ch).second)
+                throw KiritoError(std::string("einsum: output label '") + ch
+                                  + "' appears more than once");
+    }
     std::vector<char> labels; fum::unordered_set<char> seen;
     for (char ch : outl) if (seen.insert(ch).second) labels.push_back(ch);
     { std::set<char> all; for (auto& su : insub) for (char ch : su) all.insert(ch); fum::unordered_set<char> os(outl.begin(), outl.end()); for (char ch : all) if (!os.count(ch)) labels.push_back(ch); }
