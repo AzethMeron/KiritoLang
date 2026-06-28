@@ -94,6 +94,16 @@ inline double parseDouble(const std::string& s, std::size_t* consumed = nullptr)
     return v;   // underflow (subnormal/zero) is accepted, not thrown
 }
 
+// The numeric value of a hex digit (0–15), or -1 if `d` is not a hex digit. The single source of
+// truth for hex parsing — reused by the lexer's `\xHH` escape, the parser's f-string escapes, and the
+// JSON `\uXXXX` decoder, which each used to hand-roll the same three-range check.
+inline int hexDigitValue(char d) {
+    if (d >= '0' && d <= '9') return d - '0';
+    if (d >= 'a' && d <= 'f') return d - 'a' + 10;
+    if (d >= 'A' && d <= 'F') return d - 'A' + 10;
+    return -1;
+}
+
 }  // namespace kirito
 
 #endif

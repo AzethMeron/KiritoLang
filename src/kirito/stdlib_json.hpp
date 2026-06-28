@@ -171,9 +171,7 @@ private:
         unsigned cp = 0;
         for (int k = 0; k < 4; ++k) {
             char d = s_[pos_ + k];
-            int v = (d >= '0' && d <= '9') ? d - '0'
-                  : (d >= 'a' && d <= 'f') ? d - 'a' + 10
-                  : (d >= 'A' && d <= 'F') ? d - 'A' + 10 : -1;
+            int v = hexDigitValue(d);
             if (v < 0) fail("invalid \\u escape (expected hex digits)");
             cp = cp * 16 + static_cast<unsigned>(v);
         }

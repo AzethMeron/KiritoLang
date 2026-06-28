@@ -14,6 +14,12 @@
 
 namespace kirito {
 
+// A Dict key / Set element must be hashable; raise the standard error otherwise. One source of truth
+// for the guard repeated by DictVal::set/find and SetVal::add.
+inline void requireHashable(const Object& o) {
+    if (!o.hashable()) throw KiritoError("unhashable type '" + o.typeName() + "'");
+}
+
 // Containers store element handles, so aliasing (and, later, cycles) work naturally. Methods that
 // need the VM (getItem/setItem/getAttr) are declared here and defined in runtime.hpp once
 // KiritoVM is complete; everything else is inline.
@@ -111,7 +117,7 @@ public:
 
     void set(ObjectArena& arena, Handle key, Handle value) {
         const Object& k = arena.deref(key);
-        if (!k.hashable()) throw KiritoError("unhashable type '" + k.typeName() + "'");
+        requireHashable(k);
         auto& bucket = buckets[k.hash()];
         auto i = probeBucket(arena, bucket, k, dictKeyOf);
         if (i >= 0) { bucket[static_cast<std::size_t>(i)].second = value; return; }
@@ -120,7 +126,7 @@ public:
     }
     const Handle* find(const ObjectArena& arena, Handle key) const {
         const Object& k = arena.deref(key);
-        if (!k.hashable()) throw KiritoError("unhashable type '" + k.typeName() + "'");
+        requireHashable(k);
         auto it = buckets.find(k.hash());
         if (it == buckets.end()) return nullptr;
         auto i = probeBucket(arena, it->second, k, dictKeyOf);
@@ -213,7 +219,7 @@ public:
 
     bool add(ObjectArena& arena, Handle value) {
         const Object& v = arena.deref(value);
-        if (!v.hashable()) throw KiritoError("unhashable type '" + v.typeName() + "'");
+        requireHashable(v);
         auto& bucket = buckets[v.hash()];
         if (probeBucket(arena, bucket, v, setKeyOf) >= 0) return false;
         bucket.push_back(value);

@@ -694,36 +694,33 @@ private:
     fum::unordered_map<std::string, uint32_t> constDedup_;  // scalar const key -> consts index
 };
 
-// Compile a body once and cache the Proto on the VM (keyed by the body's address). The compiler
+// Compile a body/expression once and cache its Proto on the VM (keyed by the AST node's address). The
+// shared skeleton — cache check, root-while-compiling, materialise, pin constants, store — lives in
+// protoForImpl; the two public entries differ only in which compile step they run. The compiler
 // handles every node, so this never fails to produce a Proto — a genuine program error (a deep nest,
 // an invalid assignment target, ...) propagates out as a KiritoError, exactly as the parser's do.
-inline const Proto* protoForBody(KiritoVM& vm, const ast::Block& body, bool isFunction,
-                                 const ast::FunctionExpr* fnDef) {
-    const void* key = &body;
+template <typename CompileStep>
+inline const Proto* protoForImpl(KiritoVM& vm, const void* key, CompileStep&& step) {
     if (vm.protoTried(key)) return vm.protoGet(key);
     RootScope rs(vm);  // roots the constants the compiler materialises until they are pinned
     auto p = std::make_unique<Proto>();
     Compiler c(vm, *p);
-    c.compile(body, isFunction, fnDef);
+    step(c);
     for (Handle h : p->consts) vm.pinConst(h);  // survive past rs; live for the VM's lifetime
     const Proto* result = p.get();
     vm.protoPut(key, std::move(p));
     return result;
 }
 
+inline const Proto* protoForBody(KiritoVM& vm, const ast::Block& body, bool isFunction,
+                                 const ast::FunctionExpr* fnDef) {
+    return protoForImpl(vm, &body, [&](Compiler& c) { c.compile(body, isFunction, fnDef); });
+}
+
 // Compile a single expression (e.g. a parameter default) to its own Proto, cached by the expr's
 // address. The Proto evaluates the expression and returns its value.
 inline const Proto* protoForExpr(KiritoVM& vm, const ast::Expr& e) {
-    const void* key = &e;
-    if (vm.protoTried(key)) return vm.protoGet(key);
-    RootScope rs(vm);
-    auto p = std::make_unique<Proto>();
-    Compiler c(vm, *p);
-    c.compileSingleExpr(e);
-    for (Handle h : p->consts) vm.pinConst(h);
-    const Proto* result = p.get();
-    vm.protoPut(key, std::move(p));
-    return result;
+    return protoForImpl(vm, &e, [&](Compiler& c) { c.compileSingleExpr(e); });
 }
 
 }  // namespace kirito

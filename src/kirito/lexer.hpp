@@ -327,16 +327,10 @@ private:
         char e = peek();
         if (e == 'x') {
             advance();  // 'x'
-            auto hex = [&](char d) -> int {
-                if (d >= '0' && d <= '9') return d - '0';
-                if (d >= 'a' && d <= 'f') return d - 'a' + 10;
-                if (d >= 'A' && d <= 'F') return d - 'A' + 10;
-                return -1;
-            };
-            int hi = hex(peek());
+            int hi = hexDigitValue(peek());
             if (hi < 0) throw KiritoError("invalid \\x escape (expected hex digit)", SourceSpan{line_, col_, 1});
             advance();
-            int lo = hex(peek());
+            int lo = hexDigitValue(peek());
             if (lo < 0) throw KiritoError("invalid \\x escape (expected hex digit)", SourceSpan{line_, col_, 1});
             advance();
             return std::string(1, static_cast<char>(hi * 16 + lo));

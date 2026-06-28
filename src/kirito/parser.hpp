@@ -944,17 +944,11 @@ private:
             } else if (c == '\\' && !t.raw && i + 1 < raw.size()) {
                 char e = raw[i + 1];
                 if (e == 'x') {
-                    auto hex = [](char d) -> int {
-                        if (d >= '0' && d <= '9') return d - '0';
-                        if (d >= 'a' && d <= 'f') return d - 'a' + 10;
-                        if (d >= 'A' && d <= 'F') return d - 'A' + 10;
-                        return -1;
-                    };
                     // Require two hex digits — short of that (`f"ab\x4"`) must raise, not silently fall
                     // through to the default escape arm (which would drop the backslash -> "abx4").
                     if (i + 3 >= raw.size())
                         throw KiritoError("invalid \\x escape (expected two hex digits)", t.span);
-                    int hi = hex(raw[i + 2]), lo = hex(raw[i + 3]);
+                    int hi = hexDigitValue(raw[i + 2]), lo = hexDigitValue(raw[i + 3]);
                     if (hi < 0 || lo < 0)
                         throw KiritoError("invalid \\x escape (expected hex digit)", t.span);
                     lit += static_cast<char>(hi * 16 + lo);

@@ -93,22 +93,12 @@ class GzipModule : public NativeModule {
 public:
     std::string name() const override { return "gzip"; }
     void setup(ModuleBuilder& m) override {
-        auto raw = [](KiritoVM& vm, Handle h, const char* who) -> const std::string& {
-            Object& o = vm.arena().deref(h);
-            if (o.kind() == ValueKind::String) return static_cast<StrVal&>(o).value();
-            if (auto* b = dynamic_cast<BytesVal*>(&o)) return b->data;
-            throw KiritoError(std::string(who) + " expects a String or Bytes");
-        };
-        auto wrap = [](KiritoVM& vm, Handle in, std::string out) -> Handle {
-            if (dynamic_cast<BytesVal*>(&vm.arena().deref(in)))
-                return vm.alloc(std::make_unique<BytesVal>(std::move(out)));
-            return vm.makeString(std::move(out));
-        };
+        // String-or-Bytes raw view + matching-type result via the shared bytes.hpp helpers.
         auto codec = [&](const char* nm, std::string (*fn)(const std::string&)) {
-            m.fn(nm, {{"data"}}, "", [fn, raw, wrap, nm](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            m.fn(nm, {{"data"}}, "", [fn, nm](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 Args args(vm, a, nm);
                 try {
-                    return wrap(vm, args[0].handle(), fn(raw(vm, args[0].handle(), nm)));
+                    return makeStringOrBytes(vm, args[0].handle(), fn(argStringOrBytes(vm, args[0].handle(), nm)));
                 } catch (const deflate::DeflateError& e) {
                     std::string msg = e.what();  // the gzip decode messages already carry the prefix
                     throw KiritoError(msg.rfind("gzip:", 0) == 0 ? msg : "gzip: " + msg);

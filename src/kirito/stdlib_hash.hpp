@@ -34,17 +34,11 @@ class HashModule : public NativeModule {
 public:
     std::string name() const override { return "hash"; }
     void setup(ModuleBuilder& m) override {
-        // Raw byte view of a String-or-Bytes argument.
-        auto raw = [](KiritoVM& vm, Handle h, const char* who) -> const std::string& {
-            Object& o = vm.arena().deref(h);
-            if (o.kind() == ValueKind::String) return static_cast<StrVal&>(o).value();
-            if (auto* b = dynamic_cast<BytesVal*>(&o)) return b->data;
-            throw KiritoError(std::string(who) + " expects a String or Bytes");
-        };
+        // String-or-Bytes raw view via the shared bytes.hpp helper (argStringOrBytes).
         auto digest = [&](const char* name, std::string (*fn)(const std::string&)) {
-            m.fn(name, {{"data"}}, "String", [fn, raw, name](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            m.fn(name, {{"data"}}, "String", [fn, name](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 Args args(vm, a, name);
-                return val(vm, fn(raw(vm, args[0].handle(), name)));
+                return val(vm, fn(argStringOrBytes(vm, args[0].handle(), name)));
             });
         };
         digest("md5", hashing::md5);
@@ -52,17 +46,17 @@ public:
         digest("sha256", hashing::sha256);
         // 32-bit checksums (returned as a non-negative Integer).
         auto checksum32 = [&](const char* name, uint32_t (*fn)(const std::string&)) {
-            m.fn(name, {{"data"}}, "Integer", [fn, raw, name](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            m.fn(name, {{"data"}}, "Integer", [fn, name](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 Args args(vm, a, name);
-                return val(vm, static_cast<int64_t>(fn(raw(vm, args[0].handle(), name))));
+                return val(vm, static_cast<int64_t>(fn(argStringOrBytes(vm, args[0].handle(), name))));
             });
         };
         checksum32("adler32", deflate::adler32);
         checksum32("crc32", deflate::crc32);
         // crc64 — the 64-bit value reinterpreted as a signed Integer (top bit -> negative).
-        m.fn("crc64", {{"data"}}, "Integer", [raw](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        m.fn("crc64", {{"data"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Args args(vm, a, "crc64");
-            return val(vm, static_cast<int64_t>(crc64(raw(vm, args[0].handle(), "crc64"))));
+            return val(vm, static_cast<int64_t>(crc64(argStringOrBytes(vm, args[0].handle(), "crc64"))));
         });
     }
 };

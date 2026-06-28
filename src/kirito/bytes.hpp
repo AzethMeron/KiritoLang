@@ -359,6 +359,22 @@ inline Handle makeBytes(KiritoVM& vm, Handle x, const std::string& enc = "utf-8"
     return vm.alloc(std::make_unique<BytesVal>(std::move(out)));
 }
 
+// The String-or-Bytes "byte-transparent" duality, shared by the hash/zlib/gzip modules so each
+// needn't re-roll it: a raw byte view of an argument, and a result wrapped to match the input type.
+// argStringOrBytes returns a reference valid while the argument object lives (the caller keeps it
+// rooted). makeStringOrBytes maps Bytes->Bytes / String->String so codecs stay byte-exact on binary.
+inline const std::string& argStringOrBytes(KiritoVM& vm, Handle h, const char* who) {
+    Object& o = vm.arena().deref(h);
+    if (o.kind() == ValueKind::String) return static_cast<StrVal&>(o).value();
+    if (auto* b = dynamic_cast<BytesVal*>(&o)) return b->data;
+    throw KiritoError(std::string(who) + " expects a String or Bytes");
+}
+inline Handle makeStringOrBytes(KiritoVM& vm, Handle templateInput, std::string out) {
+    if (dynamic_cast<BytesVal*>(&vm.arena().deref(templateInput)))
+        return vm.alloc(std::make_unique<BytesVal>(std::move(out)));
+    return vm.makeString(std::move(out));
+}
+
 #if defined(__GNUC__)
 #  pragma GCC diagnostic pop
 #endif

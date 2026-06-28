@@ -22,24 +22,13 @@ class ZlibModule : public NativeModule {
 public:
     std::string name() const override { return "zlib"; }
     void setup(ModuleBuilder& m) override {
-        // Raw byte view of a String-or-Bytes argument, and a result wrapped to match the input type.
-        auto raw = [](KiritoVM& vm, Handle h, const char* who) -> const std::string& {
-            Object& o = vm.arena().deref(h);
-            if (o.kind() == ValueKind::String) return static_cast<StrVal&>(o).value();
-            if (auto* b = dynamic_cast<BytesVal*>(&o)) return b->data;
-            throw KiritoError(std::string(who) + " expects a String or Bytes");
-        };
-        auto wrap = [](KiritoVM& vm, Handle in, std::string out) -> Handle {
-            if (dynamic_cast<BytesVal*>(&vm.arena().deref(in)))
-                return vm.alloc(std::make_unique<BytesVal>(std::move(out)));
-            return vm.makeString(std::move(out));
-        };
+        // String-or-Bytes raw view + matching-type result via the shared bytes.hpp helpers.
         // A codec function `data -> data` (same type), translating DeflateError to a clean KiritoError.
         auto codec = [&](const char* name, std::string (*fn)(const std::string&)) {
-            m.fn(name, {{"data"}}, "", [fn, raw, wrap, name](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            m.fn(name, {{"data"}}, "", [fn, name](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 Args args(vm, a, name);
                 try {
-                    return wrap(vm, args[0].handle(), fn(raw(vm, args[0].handle(), name)));
+                    return makeStringOrBytes(vm, args[0].handle(), fn(argStringOrBytes(vm, args[0].handle(), name)));
                 } catch (const deflate::DeflateError& e) {
                     throw KiritoError(std::string("zlib: ") + e.what());
                 }

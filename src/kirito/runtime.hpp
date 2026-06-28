@@ -1596,6 +1596,26 @@ inline Handle ClassValue::callFull(KiritoVM& vm, std::span<const Handle> args,
     return instH;
 }
 
+// Build a bound method: a kwarg-aware callable that prepends `receiver` to the args, then invokes
+// `methodH` (a Kirito function via callFull with kwargs, or a native via positional call). Shared by
+// instance and `_super_` attribute lookup so the receiver-binding protocol lives in exactly one place.
+inline Handle makeBoundMethod(KiritoVM& vm, std::string name, Handle receiver, Handle methodH) {
+    return vm.alloc(std::make_unique<NativeFunction>(
+        std::move(name),
+        NativeFnKw{[receiver, methodH](KiritoVM& vm, std::span<const Handle> args,
+                                       std::span<const NamedArg> named) -> Handle {
+            std::vector<Handle> full;
+            full.reserve(args.size() + 1);
+            full.push_back(receiver);
+            for (Handle a : args) full.push_back(a);
+            Object& m = vm.arena().deref(methodH);
+            if (m.kind() == ValueKind::Function)
+                return static_cast<KiFunction&>(m).callFull(vm, full, named);
+            return m.call(vm, full);  // native method: positional only
+        }},
+        std::vector<Handle>{receiver, methodH}));
+}
+
 inline Handle InstanceValue::getAttr(KiritoVM& vm, Handle self, std::string_view name) {
     auto it = attrs.find(std::string(name));
     if (it != attrs.end()) return it->second;
@@ -1613,20 +1633,7 @@ inline Handle InstanceValue::getAttr(KiritoVM& vm, Handle self, std::string_view
     // Return a bound method: a callable that prepends the receiver before invoking the function. It
     // is kwarg-aware so `obj.method(x, k = 1)` forwards keyword arguments to the underlying Kirito
     // function — method calls accept keywords exactly like plain function calls.
-    return vm.alloc(std::make_unique<NativeFunction>(
-        std::string(name),
-        NativeFnKw{[self, methodH](KiritoVM& vm, std::span<const Handle> args,
-                                   std::span<const NamedArg> named) -> Handle {
-            std::vector<Handle> full;
-            full.reserve(args.size() + 1);
-            full.push_back(self);
-            for (Handle a : args) full.push_back(a);
-            Object& m = vm.arena().deref(methodH);
-            if (m.kind() == ValueKind::Function)
-                return static_cast<KiFunction&>(m).callFull(vm, full, named);
-            return m.call(vm, full);  // native method: positional only
-        }},
-        std::vector<Handle>{self, methodH}));
+    return makeBoundMethod(vm, std::string(name), self, methodH);
 }
 
 inline Handle SuperValue::getAttr(KiritoVM& vm, Handle, std::string_view name) {
@@ -1642,21 +1649,7 @@ inline Handle SuperValue::getAttr(KiritoVM& vm, Handle, std::string_view name) {
         ValueKind mk = vm.arena().deref(methodH).kind();
         if (mk != ValueKind::Function && mk != ValueKind::NativeFunction) return methodH;
     }
-    Handle inst = instance;
-    return vm.alloc(std::make_unique<NativeFunction>(
-        std::string(name),
-        NativeFnKw{[inst, methodH](KiritoVM& vm, std::span<const Handle> args,
-                                   std::span<const NamedArg> named) -> Handle {
-            std::vector<Handle> full;
-            full.reserve(args.size() + 1);
-            full.push_back(inst);
-            for (Handle a : args) full.push_back(a);
-            Object& m = vm.arena().deref(methodH);
-            if (m.kind() == ValueKind::Function)
-                return static_cast<KiFunction&>(m).callFull(vm, full, named);
-            return m.call(vm, full);
-        }},
-        std::vector<Handle>{inst, methodH}));
+    return makeBoundMethod(vm, std::string(name), instance, methodH);
 }
 
 // Invoke a class method named `method` with [self, args...]; throws `notFound` if the class chain
