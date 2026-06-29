@@ -647,6 +647,8 @@ var instantiate = Function(St, cls, args, kwargs):
     var init = classLookupC(cls, "_init_")
     if init != None:
         callFunction(St, init[0], _prepend(inst, args), kwargs, init[1])
+    elif len(args) > 0 or len(kwargs) > 0:
+        rtError(cls["name"] + "() takes no arguments")   # no _init_ -> accepts none (matches native)
     return inst
 
 # --- statement execution --------------------------------------------------------------------------
@@ -2106,6 +2108,8 @@ var builtinPow = Function(St, a, k):
         if kw[0] == "mod":
             modArg = kw[1]
     if modArg != None:
+        if modArg <= 0:
+            rtError("pow() 3rd argument (modulus) must be positive")
         var base = a[0] % modArg
         var ex = a[1]
         var mod = modArg
@@ -2155,41 +2159,11 @@ var builtinFormat = Function(St, a, k):
     if len(a) == 2:
         return format(a[0], a[1])
     return format(a[0])
-# Parse a decimal integer string in Kirito (digit folding); wraps like int64 on overflow.
-var _parseIntStr = Function(s):
-    var t = s
-    var i = 0
-    var n = len(t)
-    while i < n and (t[i] in " \t\n\r"):
-        i = i + 1
-    var neg = False
-    if i < n and (t[i] == "-" or t[i] == "+"):
-        neg = t[i] == "-"
-        i = i + 1
-    if i >= n:
-        throw "invalid literal for Integer(): '" + s + "'"
-    var v = 0
-    while i < n:
-        var c = t[i]
-        if c == " " or c == "\t" or c == "\n" or c == "\r":
-            i = i + 1
-        else:
-            var d = ord(c) - 48
-            if d < 0 or d > 9:
-                throw "invalid literal for Integer(): '" + s + "'"
-            v = v * 10 + d
-            i = i + 1
-    if neg:
-        return -v
-    return v
-
 var builtinInteger = Function(St, a0, k):
     var a = _conv1(a0, k, "Integer", "x")
     if len(a) == 0:
         return 0
-    if type(a[0]) == "String":
-        return _parseIntStr(a[0])
-    return Integer(a[0])
+    return Integer(a[0])   # delegate to the host Integer(): full hex/octal/binary + sign + whitespace rules
 var builtinFloat = Function(St, a0, k):
     var a = _conv1(a0, k, "Float", "x")
     if len(a) == 0:
