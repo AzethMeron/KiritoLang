@@ -158,7 +158,10 @@ ok(sys.shell(command = "exit 4")["code"] == 4, "shell command= keyword")
 ok("kirito-marker" in sys.shell("echo kirito-marker")["stdout"], "shell echo -> stdout captured")
 ok(sys.shell("exit 5")["code"] == 5, "shell exit code reported")
 ok("err-marker" in sys.shell("echo err-marker 1>&2")["stderr"], "shell stderr (1>&2) captured")
-ok("piped" in sys.shell("echo piped| sort")["stdout"], "shell pipe runs (| sort, present on both shells)")
+# pipe through a filter the platform's shell has (POSIX sort; Windows findstr — cmd's `sort` is absent
+# under wine, findstr works on real Windows too)
+var pipeCmd = "echo piped| findstr piped" if sys.platform == "windows" else "echo piped | sort"
+ok("piped" in sys.shell(pipeCmd)["stdout"], "shell pipe runs")
 
 # ============================================================ result Dict shape
 var r = sys.createprocess(P(["echo"]), input = "k")

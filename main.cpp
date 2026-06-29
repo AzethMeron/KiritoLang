@@ -22,6 +22,9 @@
 #    define WIN32_LEAN_AND_MEAN
 #  endif
 #  include <windows.h>
+#  include <io.h>
+#  include <fcntl.h>
+#  include <shellapi.h>
 #endif
 
 // To add a new module to the interpreter: #include its header and call vm.install<Module>().
@@ -114,6 +117,31 @@ int repl(kirito::KiritoVM& vm) {
 int main(int argc, char** argv) {
 #ifdef _WIN32
     ConsoleUtf8 utf8Console;  // UTF-8 console for the duration of the program
+    // Put the standard streams in BINARY mode: the C runtime otherwise translates '\n' <-> "\r\n" and
+    // treats Ctrl-Z (0x1A) as EOF on stdin, which corrupts byte-exact I/O — notably a binary payload
+    // piped through a child `ki` via sys.createprocess, and any io.read()/io.write() of raw bytes.
+    // Kirito std I/O is then LF-clean and byte-transparent, matching POSIX; readLine() strips a
+    // trailing '\r' so CRLF console/pipe input still yields clean lines (see stdlib_io.hpp).
+    _setmode(_fileno(stdin), _O_BINARY);
+    _setmode(_fileno(stdout), _O_BINARY);
+    _setmode(_fileno(stderr), _O_BINARY);
+    // Rebuild argv as UTF-8 from the wide command line. The CRT's narrow argv is decoded in the ANSI
+    // codepage, which mangles any non-ASCII argument or path (e.g. a Unicode arg forwarded by
+    // sys.createprocess, or a Unicode script path). Everything below treats argv as UTF-8.
+    std::vector<std::string> wideArgs;
+    std::vector<char*> wideArgv;
+    if (int wn = 0; LPWSTR* wv = ::CommandLineToArgvW(::GetCommandLineW(), &wn)) {
+        for (int i = 0; i < wn; ++i) {
+            int blen = ::WideCharToMultiByte(CP_UTF8, 0, wv[i], -1, nullptr, 0, nullptr, nullptr);
+            std::string s(blen > 0 ? static_cast<std::size_t>(blen - 1) : 0, '\0');
+            if (blen > 1) ::WideCharToMultiByte(CP_UTF8, 0, wv[i], -1, s.data(), blen, nullptr, nullptr);
+            wideArgs.push_back(std::move(s));
+        }
+        ::LocalFree(wv);
+        for (auto& s : wideArgs) wideArgv.push_back(s.data());
+        argc = static_cast<int>(wideArgv.size());
+        argv = wideArgv.data();
+    }
 #endif
     std::vector<std::string> libs;
     std::string file;

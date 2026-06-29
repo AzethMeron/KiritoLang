@@ -427,9 +427,12 @@ ok(sys.environ()["R7_IOSYS_VAR"] == "value-123", "environ value matches")
 sys.unsetenv("R7_IOSYS_VAR")
 ok(sys.getenv("R7_IOSYS_VAR") == None, "unsetenv removes the variable")
 ok(("R7_IOSYS_VAR" in sys.environ()) == False, "environ no longer lists an unset variable")
-# empty-string value round-trips on POSIX (Windows treats it as unset — documented)
+# empty-string value: round-trips as "" on POSIX; Windows treats setting "" as unsetting the variable
 sys.setenv("R7_IOSYS_EMPTY", "")
-ok(sys.getenv("R7_IOSYS_EMPTY") == "", "an empty-string env value round-trips on POSIX")
+if sys.platform == "windows":
+    ok(sys.getenv("R7_IOSYS_EMPTY") == None, "an empty-string env value is unset on Windows")
+else:
+    ok(sys.getenv("R7_IOSYS_EMPTY") == "", "an empty-string env value round-trips on POSIX")
 sys.unsetenv("R7_IOSYS_EMPTY")
 # kwargs on env functions
 sys.setenv(name = "R7_IOSYS_KW", value = "kwv")
@@ -528,7 +531,10 @@ ok(raises(Function(): return sys.createprocess([KI, 123])), "createprocess with 
 ok("shell-marker" in sys.shell("echo shell-marker")["stdout"], "shell echo -> stdout captured")
 ok(sys.shell("exit 4")["code"] == 4, "shell exit code reported")
 ok("se-marker" in sys.shell("echo se-marker 1>&2")["stderr"], "shell stderr (1>&2) captured")
-ok("piped" in sys.shell("echo piped| sort")["stdout"], "shell pipe runs (| sort)")
+# a pipe through a filter present in the platform's shell (POSIX sort; Windows findstr — cmd's `sort`
+# is absent under wine, and findstr works on real Windows too)
+var pipeCmd = "echo piped| findstr piped" if sys.platform == "windows" else "echo piped | sort"
+ok("piped" in sys.shell(pipeCmd)["stdout"], "shell pipe runs")
 ok(sys.shell(command = "exit 9")["code"] == 9, "shell(command=) keyword form")
 var sr = sys.shell("echo x")
 ok("code" in sr and "stdout" in sr and "stderr" in sr, "shell result has code/stdout/stderr")

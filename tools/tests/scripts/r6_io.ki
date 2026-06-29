@@ -119,15 +119,17 @@ var readClosed = Function():
     var cf = io.open(tpath, "r")
     cf.close()
     discard cf.read()
+# `with` so the handle closes even though the op raises — else the leaked handle locks tpath on
+# Windows (which can't delete an open file) and the teardown io.remove(tpath) below fails.
 var writeReadonly = Function():
-    var rf = io.open(tpath, "r")
-    discard rf.write("nope")
+    with io.open(tpath, "r") as rf:
+        discard rf.write("nope")
 var readWriteonly = Function():
-    var wf = io.open(tpath, "w")
-    discard wf.read()
+    with io.open(tpath, "w") as wf:
+        discard wf.read()
 var seekNeg = Function():
-    var sf2 = io.open(tpath, "r")
-    discard sf2.seek(-5)
+    with io.open(tpath, "r") as sf2:
+        discard sf2.seek(-5)
 raises(readClosed, "read on a closed file raises")
 raises(writeReadonly, "write to a read-only file raises")
 raises(readWriteonly, "read from a write-only file raises")

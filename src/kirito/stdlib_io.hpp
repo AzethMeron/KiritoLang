@@ -383,9 +383,19 @@ public:
         }
         return out;
     }
+    // On Windows the std streams are opened in binary mode (see main.cpp) for byte-exact read()/
+    // write(), so a CRLF console/pipe line arrives with a trailing '\r' that getline keeps; strip it
+    // here so line input stays clean (universal-newline). A no-op on POSIX, where there is no '\r'.
+    static void stripCR(std::string& line) {
+#ifdef _WIN32
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+#else
+        (void)line;
+#endif
+    }
     std::string streamReadLine() override {
         if (dir != Dir::In) throw KiritoError("a write stream is not readable");
-        std::string line; std::getline(std::cin, line); return line;
+        std::string line; std::getline(std::cin, line); stripCR(line); return line;
     }
 
     // `for line in io.stdin:` reads stdin line-by-line.
@@ -393,7 +403,7 @@ public:
         if (dir != Dir::In) return std::nullopt;
         RootScope rs(vm);
         std::vector<Handle> lines; std::string line;
-        while (std::getline(std::cin, line)) lines.push_back(rs.add(vm.makeString(line)));
+        while (std::getline(std::cin, line)) { stripCR(line); lines.push_back(rs.add(vm.makeString(line))); }
         return lines;
     }
 
