@@ -545,7 +545,7 @@ var _BUILTIN_PARAMS = {"isinstance": ["value", "type"], "abs": ["x"], "ord": ["c
 
 # Number of LEADING required parameters for a fixed-arity builtin (the rest are optional). Absent =>
 # every listed parameter is required.
-var _BUILTIN_REQUIRED = {"round": 1, "sum": 1, "enumerate": 1, "pow": 2}
+var _BUILTIN_REQUIRED = {"round": 1, "sum": 1, "enumerate": 1, "pow": 2, "format": 1}
 var _builtinRequired = Function(nm):
     if nm in _BUILTIN_REQUIRED:
         return _BUILTIN_REQUIRED[nm]
@@ -881,7 +881,9 @@ var execTry = Function(St, env, node):
             if clause["type"] == None:
                 ok = True                                  # bare catch: matches anything
             elif isTyped and instanceOf(thrownVal, clause["type"]):
-                ok = True                                  # typed catch matches the class chain
+                ok = True                                  # typed catch matches the user-class chain
+            elif typeName(thrownVal) == clause["type"]:
+                ok = True                                  # typed catch on a builtin type (catch String, ...)
             if ok:
                 if clause["name"] != None:
                     envDefine(env, clause["name"], thrownVal)
@@ -964,6 +966,7 @@ var _SET_PARAMS = {"add": ["value"], "discard": ["value"], "remove": ["value"], 
     "union": ["other"], "intersection": ["other"], "difference": ["other"],
     "symmetricdifference": ["other"], "issubset": ["other"], "issuperset": ["other"],
     "isdisjoint": ["other"], "apply": ["fn"]}
+var _NUM_PARAMS = {"compare": ["other", "rel_tol", "abs_tol"]}
 
 var _paramsFor = Function(tn, name):
     var tbl = {}
@@ -977,6 +980,8 @@ var _paramsFor = Function(tn, name):
         tbl = _SET_PARAMS
     elif tn == "Bytes":
         tbl = _BYTES_PARAMS
+    elif tn == "Integer" or tn == "Float":
+        tbl = _NUM_PARAMS
     if name in tbl:
         return tbl[name]
     return []
@@ -1038,12 +1043,41 @@ var _hostParamsFor = Function(name):
         return _HOST_PARAMS[name]
     return []
 
+# Integer/Float methods. `.compare(other, rel_tol = 1e-9, abs_tol = 0.0)` is the tolerant numeric
+# comparison every native number carries (== stays exact): close when |a-b| <= max(rel_tol*max(|a|,|b|), abs_tol).
+var numMethod = Function(St, recv, name, args):
+    if name == "compare":
+        if len(args) < 1:
+            rtError("compare() missing required argument 'other'")
+        var other = args[0]
+        if not (isinstance(other, "Integer") or isinstance(other, "Float")):
+            rtError("compare() argument must be a number")
+        var relTol = 1e-9
+        var absTol = 0.0
+        if len(args) >= 2 and args[1] != None:
+            relTol = args[1]
+        if len(args) >= 3 and args[2] != None:
+            absTol = args[2]
+        var diff = recv - other
+        if diff < 0:
+            diff = -diff
+        var aa = recv if recv >= 0 else -recv
+        var bb = other if other >= 0 else -other
+        var mx = aa if aa >= bb else bb
+        var tol = relTol * mx
+        if absTol > tol:
+            tol = absTol
+        return diff <= tol
+    rtError("'" + type(recv) + "' object has no method '" + name + "'")
+
 var callMethod = Function(St, recv, name, args, kwargs):
     var t = boxKind(recv)
     if t == "hostfile" or t == "hostobj":
         return hostObjMethod(St, recv, name, _mbind(args, kwargs, _hostParamsFor(name), name), [])
     var tn = type(recv)
     var bound = _mbind(args, kwargs, _paramsFor(tn, name), name)
+    if tn == "Integer" or tn == "Float":
+        return numMethod(St, recv, name, bound)
     if tn == "List":
         return listMethod(St, recv, name, bound, [])
     if tn == "String":
@@ -1277,6 +1311,30 @@ var _splitWs = Function(s):
         out.append(cur)
     return out
 
+# Whitespace split with a maxsplit bound (split(None, maxsplit)): skip leading whitespace, split on
+# whitespace runs at most `maxsplit` times, and keep the final field's trailing whitespace as-is.
+var _splitWsN = Function(s, maxsplit):
+    if maxsplit < 0:
+        return _splitWs(s)
+    var out = []
+    var n = len(s)
+    var i = 0
+    var done = 0
+    while i < n and done < maxsplit:
+        while i < n and (s[i] in _WS):
+            i = i + 1
+        if i < n:
+            var start = i
+            while i < n and not (s[i] in _WS):
+                i = i + 1
+            out.append(s[start:i])
+            done = done + 1
+    while i < n and (s[i] in _WS):
+        i = i + 1
+    if i < n:
+        out.append(s[i:])
+    return out
+
 var _replace = Function(s, old, new, count):
     if len(old) == 0:
         return s
@@ -1324,11 +1382,11 @@ var strMethod = Function(St, recv, name, args):
             return _strip(recv, args[0], False, True)
         return _strip(recv, _WS, False, True)
     if name == "split":
-        if len(args) == 0:
-            return _splitWs(recv)
         var maxs = -1
-        if len(args) == 2:
+        if len(args) == 2 and args[1] != None:
             maxs = args[1]
+        if len(args) == 0 or args[0] == None:        # split() / split(None[, n]) -> whitespace split
+            return _splitWsN(recv, maxs)
         return _split(recv, args[0], maxs)
     if name == "join":
         var out = ""

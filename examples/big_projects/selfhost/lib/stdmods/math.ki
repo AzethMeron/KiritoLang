@@ -71,6 +71,8 @@ var copysign = Function(x, y):
     return fabs(x)
 
 var fmod = Function(x, y):
+    if y == 0.0:
+        throw "fmod: math domain error (divisor is zero)"
     return x - _truncf(x / y) * y
 
 # --- exp / log ------------------------------------------------------------------------------------
@@ -103,8 +105,10 @@ var exp = Function(x):
     return sum
 
 var _ln = Function(x):
+    if x != x:
+        return x                            # NaN passes through unchanged
     if x <= 0.0:
-        return nan                          # IEEE: log of a non-positive is NaN, not an error
+        throw "log: math domain error (argument must be > 0)"
     var k = 0
     var y = x
     while y > 1.3333333333333333:
@@ -146,7 +150,7 @@ var log1p = Function(x):
 # --- roots / powers -------------------------------------------------------------------------------
 var sqrt = Function(x) -> Float:
     if x < 0.0:
-        return nan                          # IEEE: sqrt of a negative is NaN, not an error
+        throw "sqrt: math domain error (got " + String(x) + ")"
     if x == 0.0:
         return 0.0
     var g = x
@@ -177,6 +181,8 @@ var pow = Function(x, y):
             r = r * x
             i = i + 1
         return r
+    if x < 0.0 and y != _truncf(y):         # a negative base needs an integer exponent (real result)
+        throw "pow: math domain error (a negative base requires an integer exponent)"
     return exp(y * _ln(x))
 
 var hypot = Function(x, y):
@@ -296,6 +302,8 @@ var _gc = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
            -0.13857109526572012, 0.0000099843695780195716, 0.00000015056327351493116]
 
 var gamma = Function(x):
+    if x <= 0.0 and x == _truncf(x):        # poles at 0 and the negative integers; NaN passes through
+        throw "gamma: math domain error (got " + String(x) + ")"
     if x < 0.5:
         return pi / (sin(pi * x) * gamma(1.0 - x))
     var xx = x - 1.0
@@ -390,9 +398,13 @@ var asinh = Function(x):
     return log(x + sqrt(x * x + 1.0))
 
 var acosh = Function(x):
+    if x < 1.0:                             # domain is [1, +inf); NaN (x<1 false) passes through
+        throw "acosh: math domain error (got " + String(x) + ")"
     return log(x + sqrt(x * x - 1.0))
 
 var atanh = Function(x):
+    if x >= 1.0 or x <= -1.0:               # domain is (-1, 1); NaN passes through
+        throw "atanh: math domain error (got " + String(x) + ")"
     return 0.5 * log((1.0 + x) / (1.0 - x))
 
 var erfc = Function(x):

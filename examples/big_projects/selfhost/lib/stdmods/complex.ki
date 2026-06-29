@@ -72,6 +72,18 @@ class Complex:
         return math.atan2(self.im, self.re)
     var is_zero = Function(self):
         return self.re == 0.0 and self.im == 0.0
+    # Tolerant comparison (rel/abs tolerance), mirroring native: |a-b| <= max(rel_tol*max(|a|,|b|),
+    # abs_tol) with |.| the complex modulus. `==` stays exact; NaN/inf components are never close.
+    var compare = Function(self, other, rel_tol = 0.000000001, abs_tol = 0.0):
+        var c = _toC(other)
+        if self.re == c.re and self.im == c.im:
+            return True
+        if math.isnan(self.re) or math.isnan(self.im) or math.isnan(c.re) or math.isnan(c.im):
+            return False
+        if math.isinf(self.re) or math.isinf(self.im) or math.isinf(c.re) or math.isinf(c.im):
+            return False
+        var diff = (self - c).modulus()
+        return diff <= max(rel_tol * max(self.modulus(), c.modulus()), abs_tol)
 
     var _str_ = Function(self):
         var sign = "+"

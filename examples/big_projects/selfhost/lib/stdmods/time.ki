@@ -165,4 +165,13 @@ var strptime = Function(s, fmt):
             fi = fi + 1
     return DateTime(fields["Y"], fields["m"], fields["d"], fields["H"], fields["M"], fields["S"])
 
-var datetime = make
+# datetime(timestamp = None): None -> now; an epoch-seconds number -> the corresponding DateTime
+# (fractional seconds truncated). Guards NaN / out-of-range like the native (which would overflow the cast).
+var datetime = Function(timestamp = None):
+    if timestamp == None:
+        return now()
+    if timestamp != timestamp:
+        throw "datetime: timestamp is NaN"
+    if timestamp > 1e15 or timestamp < -1e15:
+        throw "datetime: timestamp out of range"
+    return _fromEpoch(Integer(timestamp))
