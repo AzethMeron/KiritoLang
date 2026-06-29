@@ -1181,7 +1181,8 @@ Indexing: `s[label]` (by index label, falling back to position), `s.iat(pos)`. E
   `rename(columns)`, `drop(columns)`, `setindex(col)`, `resetindex()`, `copy()`, `todict()`,
   `torows()`, `iterrows()`, `tocsv()`.
 - Aggregations over **numeric** columns → a Series indexed by column: `sum`, `mean`, `min`, `max`,
-  `std`, `count`; `describe()` → a DataFrame of count/mean/std/min/median/max.
+  `std`. `count` is the exception — it tallies non-null values for **every** column (any dtype).
+  `describe()` → a DataFrame of count/mean/std/min/median/max.
 - `sortvalues(by, ascending = True)`, `groupby(col)`, `merge(other, on, how)`, `dropna()`,
   `fillna(value)`.
 

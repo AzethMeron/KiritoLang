@@ -2011,6 +2011,9 @@ var _defaultcols = Function(n):
     return out
 
 var _merge = Function(left, right, on, how):
+    # validate `how` here so BOTH entry points (DataFrame.merge and module-level merge) reject a bad join
+    if how != "inner" and how != "left" and how != "right" and how != "outer":
+        throw "merge: how must be one of inner/left/right/outer, got '" + how + "'"
     # build an index of right rows by join key
     var rightidx = {}
     var rpos = 0
@@ -2090,9 +2093,7 @@ var _merge = Function(left, right, on, how):
     return DataFrame(newdata, outcols, None)
 
 var merge = Function(left, right, on, how = "inner"):
-    if how != "inner" and how != "left" and how != "right" and how != "outer":
-        throw "merge: how must be one of inner/left/right/outer, got '" + how + "'"
-    return _merge(left, right, on, how)
+    return _merge(left, right, on, how)   # `how` validation lives in _merge (shared with DataFrame.merge)
 
 var concat = Function(frames):
     # stack DataFrames vertically (union of columns, missing filled with None)
