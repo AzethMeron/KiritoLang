@@ -198,8 +198,16 @@ var _dump = Function(v, indent, depth):
         if v:
             return "true"
         return "false"
-    if t == "Integer" or t == "Float":
+    if t == "Integer":
         return String(v)
+    if t == "Float":
+        if v != v:
+            return "NaN"
+        if v > 1.7976931348623157e308:
+            return "Infinity"
+        if v < 0 - 1.7976931348623157e308:
+            return "-Infinity"
+        return format(v, ".17g")   # 17 sig digits round-trips IEEE-754 doubles exactly (String() is lossy %.15g)
     if t == "String":
         return _escapeStr(v)
     if t == "List":

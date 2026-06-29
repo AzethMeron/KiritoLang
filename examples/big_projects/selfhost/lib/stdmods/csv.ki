@@ -16,6 +16,36 @@ var format = Function(rows) -> String:
         lines.append(formatrow(row))
     return "\n".join(lines)
 
+# Parse a SINGLE CSV record (no embedded newlines) into its fields — the public parserow(), kept
+# distinct from parse() which is the quote-state-aware whole-text reader.
+var parserow = Function(line):
+    var fields = []
+    var current = ""
+    var inQuotes = False
+    var i = 0
+    var n = len(line)
+    while i < n:
+        var c = line[i]
+        if inQuotes:
+            if c == "\"":
+                if i + 1 < n and line[i + 1] == "\"":
+                    current = current + "\""
+                    i = i + 1
+                else:
+                    inQuotes = False
+            else:
+                current = current + c
+        elif c == "\"":
+            inQuotes = True
+        elif c == ",":
+            fields.append(current)
+            current = ""
+        else:
+            current = current + c
+        i = i + 1
+    fields.append(current)
+    return fields
+
 var parse = Function(text):
     # RFC-4180-aware parse: track quote state across the whole text so a quoted field may contain
     # newlines without being split into separate rows. A `\n` is a row terminator only outside quotes.
