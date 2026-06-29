@@ -51,11 +51,6 @@ var _encode = Function(v, reg, nodes):
     # Bytes is an immutable leaf (like a scalar); carry it through JSON as a hex string.
     if type(v) == "Bytes":
         return ["bytesval", v.hex()]
-    # Float must round-trip BIT-EXACTLY, but JSON formats/parses numbers with only ~15 significant
-    # digits (lossy for IEEE-754 doubles). Carry it as a 17-significant-digit string (the shortest
-    # width that is guaranteed round-trip-exact); inf/-inf/nan format and re-parse as themselves.
-    if type(v) == "Float":
-        return ["floatval", format(v, ".17g")]
     return ["val", v]
 
 var dumps = Function(value):
@@ -69,8 +64,6 @@ var _resolve = Function(enc, shells):
         return shells[enc[1]]
     if enc[0] == "bytesval":
         return fromhex(enc[1])
-    if enc[0] == "floatval":
-        return Float(enc[1])
     return enc[1]
 
 var loads = Function(data):

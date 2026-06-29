@@ -4,9 +4,14 @@ var count = Function(start = 0, step = 1, stop = None):
         throw "itertools.count needs a stop bound (no lazy generators)"
     var out = []
     var x = start
-    while x < stop:
-        out.append(x)
-        x = x + step
+    if step > 0:
+        while x < stop:
+            out.append(x)
+            x = x + step
+    elif step < 0:
+        while x > stop:                       # negative step counts down toward stop
+            out.append(x)
+            x = x + step
     return out
 
 var repeat = Function(value, times):

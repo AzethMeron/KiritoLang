@@ -6,6 +6,7 @@ var math = import("math")
 
 var pi = math.pi
 var e = math.e
+var tau = 2.0 * math.pi
 
 # Coerce a Complex-or-real into a Complex (reals land on the real axis).
 var _toC = Function(x):
@@ -17,6 +18,10 @@ class Complex:
     var _init_ = Function(self, re, im = 0.0):
         self.re = Float(re)
         self.im = Float(im)
+        # `.real`/`.imag` aliases for `.re`/`.im` (matching native getAttr). Complex never mutates
+        # re/im after construction, so these stored copies are an equivalent read-only alias.
+        self.real = self.re
+        self.imag = self.im
 
     var _add_ = Function(self, o):
         var c = _toC(o)
@@ -37,6 +42,9 @@ class Complex:
         return Complex(-self.re, -self.im)
     var _pow_ = Function(self, o):
         var c = _toC(o)
+        # Singularity: zero to a negative or non-real power is a domain error (0**0 stays 1, below).
+        if self.re == 0.0 and self.im == 0.0 and (c.re < 0.0 or c.im != 0.0):
+            throw "complex pow: zero to a negative or complex power"
         # exact integer powers via repeated multiplication; general case via exp(w*log(z))
         if c.im == 0.0 and c.re == math.floor(c.re) and c.re >= 0.0:
             var n = Integer(c.re)
@@ -71,7 +79,7 @@ class Complex:
     var argument = Function(self):
         return math.atan2(self.im, self.re)
     var is_zero = Function(self):
-        return self.re == 0.0 and self.im == 0.0
+        return self.modulus() < 0.0000000001        # tolerant (magnitude < 1e-10), matching native
     # Tolerant comparison (rel/abs tolerance), mirroring native: |a-b| <= max(rel_tol*max(|a|,|b|),
     # abs_tol) with |.| the complex modulus. `==` stays exact; NaN/inf components are never close.
     var compare = Function(self, other, rel_tol = 0.000000001, abs_tol = 0.0):
@@ -102,14 +110,25 @@ var zero = Complex(0.0, 0.0)
 var one = Complex(1.0, 0.0)
 var i = Complex(0.0, 1.0)
 
-# analytic functions over a Complex-or-number
+# Analytic functions over a Complex-or-number — the complex extensions of `math`'s transcendental
+# set. Like the native module they raise at exactly the genuine singularities (log/log10 of zero,
+# atanh of ±1, zero to a negative/non-real power) while staying defined on the rest of the plane
+# (sqrt(-1)=i, log(-1)=iπ, asin(2), acosh(0) are all valid and must NOT raise). Comparisons against
+# these in the test corpus use `.compare` (tolerant), so the principal-branch formulas suffice.
 var exp = Function(z):
     var c = _toC(z)
     var ex = math.exp(c.re)
     return Complex(ex * math.cos(c.im), ex * math.sin(c.im))
 var log = Function(z):
     var c = _toC(z)
+    if c.re == 0.0 and c.im == 0.0:
+        throw "complex log: math domain error (logarithm of zero)"
     return Complex(math.log(math.hypot(c.re, c.im)), math.atan2(c.im, c.re))
+var log10 = Function(z):
+    var c = _toC(z)
+    if c.re == 0.0 and c.im == 0.0:
+        throw "complex log10: math domain error (logarithm of zero)"
+    return log(c) / Complex(math.log(10.0), 0.0)
 var sqrt = Function(z):
     var c = _toC(z)
     var r = math.hypot(c.re, c.im)
@@ -118,12 +137,57 @@ var sqrt = Function(z):
     if c.im < 0.0:
         im2 = -im2
     return Complex(re2, im2)
+# pow(z, w): zero to a negative/non-real power is a domain error; 0 ** 0 == 1; otherwise z^w via
+# the Complex `**` operator (exact integer powers, else exp(w*log(z))).
+var pow = Function(z, w):
+    var b = _toC(z)
+    var ex = _toC(w)
+    if b.re == 0.0 and b.im == 0.0 and (ex.re < 0.0 or ex.im != 0.0):
+        throw "complex pow: zero to a negative or complex power"
+    if b.re == 0.0 and b.im == 0.0 and ex.re == 0.0 and ex.im == 0.0:
+        return Complex(1.0, 0.0)
+    return b ** ex
+var cbrt = Function(z):
+    return _toC(z) ** Complex(1.0 / 3.0, 0.0)
 var sin = Function(z):
     var c = _toC(z)
     return Complex(math.sin(c.re) * math.cosh(c.im), math.cos(c.re) * math.sinh(c.im))
 var cos = Function(z):
     var c = _toC(z)
     return Complex(math.cos(c.re) * math.cosh(c.im), -math.sin(c.re) * math.sinh(c.im))
+var tan = Function(z):
+    var c = _toC(z)
+    return sin(c) / cos(c)
+var sinh = Function(z):
+    var c = _toC(z)
+    return Complex(math.sinh(c.re) * math.cos(c.im), math.cosh(c.re) * math.sin(c.im))
+var cosh = Function(z):
+    var c = _toC(z)
+    return Complex(math.cosh(c.re) * math.cos(c.im), math.sinh(c.re) * math.sin(c.im))
+var tanh = Function(z):
+    var c = _toC(z)
+    return sinh(c) / cosh(c)
+# Inverse trig/hyperbolic via the principal-branch logarithmic forms.
+var asin = Function(z):
+    var c = _toC(z)
+    return -i * log(i * c + sqrt(one - c * c))
+var acos = Function(z):
+    var c = _toC(z)
+    return -i * log(c + i * sqrt(one - c * c))
+var atan = Function(z):
+    var c = _toC(z)
+    return (i / Complex(2.0, 0.0)) * (log(one - i * c) - log(one + i * c))
+var asinh = Function(z):
+    var c = _toC(z)
+    return log(c + sqrt(c * c + one))
+var acosh = Function(z):
+    var c = _toC(z)
+    return log(c + sqrt(c - one) * sqrt(c + one))
+var atanh = Function(z):
+    var c = _toC(z)
+    if (c.re == 1.0 and c.im == 0.0) or (c.re == 0.0 - 1.0 and c.im == 0.0):
+        throw "complex atanh: math domain error (atanh of ±1)"
+    return (log(one + c) - log(one - c)) / Complex(2.0, 0.0)
 var polar = Function(r, theta):
     return Complex(r * math.cos(theta), r * math.sin(theta))
 var abs = Function(z):

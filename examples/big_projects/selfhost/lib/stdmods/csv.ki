@@ -1,5 +1,5 @@
 var _needsQuote = Function(field) -> Bool:
-    return "," in field or "\"" in field or "\n" in field
+    return "," in field or "\"" in field or "\n" in field or "\r" in field
 
 var formatrow = Function(fields) -> String:
     var parts = []
@@ -10,17 +10,26 @@ var formatrow = Function(fields) -> String:
         parts.append(s)
     return ",".join(parts)
 
-var parserow = Function(line):
+var format = Function(rows) -> String:
+    var lines = []
+    for row in rows:
+        lines.append(formatrow(row))
+    return "\n".join(lines)
+
+var parse = Function(text):
+    # RFC-4180-aware parse: track quote state across the whole text so a quoted field may contain
+    # newlines without being split into separate rows. A `\n` is a row terminator only outside quotes.
+    var rows = []
     var fields = []
     var current = ""
     var inQuotes = False
     var i = 0
-    var n = len(line)
+    var n = len(text)
     while i < n:
-        var c = line[i]
+        var c = text[i]
         if inQuotes:
             if c == "\"":
-                if i + 1 < n and line[i + 1] == "\"":
+                if i + 1 < n and text[i + 1] == "\"":
                     current = current + "\""
                     i = i + 1
                 else:
@@ -32,21 +41,17 @@ var parserow = Function(line):
         elif c == ",":
             fields.append(current)
             current = ""
+        elif c == "\n":
+            fields.append(current)
+            rows.append(fields)
+            fields = []
+            current = ""
+        elif c == "\r":
+            pass        # \r is skipped (CRLF treated as LF)
         else:
             current = current + c
         i = i + 1
-    fields.append(current)
-    return fields
-
-var format = Function(rows) -> String:
-    var lines = []
-    for row in rows:
-        lines.append(formatrow(row))
-    return "\n".join(lines)
-
-var parse = Function(text):
-    var rows = []
-    for line in text.split("\n"):
-        if len(line) > 0:
-            rows.append(parserow(line))
+    if current != "" or len(fields) > 0:
+        fields.append(current)
+        rows.append(fields)
     return rows
