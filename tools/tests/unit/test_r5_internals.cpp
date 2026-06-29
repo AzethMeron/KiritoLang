@@ -133,10 +133,13 @@ int main() {
     // 2) Bytecode VM / compiler edges.
     // ============================================================================================
     {
-        // A very deep (but valid) expression compiles and evaluates — the operand stack handles depth.
+        // A deep (but valid) expression compiles and evaluates — the operand stack handles depth.
+        // Depth 100 stays safely under the parser's nesting bound in EVERY build, including the
+        // reduced sanitizer bound (kMaxParseDepth = 250 under asan/tsan); a larger value would raise
+        // "expression nested too deeply" there and abort this (intentionally non-catching) check.
         std::string deep = "0";
-        for (int i = 0; i < 400; ++i) deep = "(" + deep + " + 1)";
-        CHECK(run(deep) == "400");
+        for (int i = 0; i < 100; ++i) deep = "(" + deep + " + 1)";
+        CHECK(run(deep) == "100");
 
         // Deeply nested parentheses: still one value, correct precedence under the nesting.
         CHECK(run("((((1 + 2)) * ((3 + 4))))") == "21");
