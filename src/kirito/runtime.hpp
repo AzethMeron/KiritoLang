@@ -229,8 +229,12 @@ inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
                 return vm.makeFloat(x - std::floor(x / y) * y);
             } break;
             case BinOp::Pow: {
-                // 0**-n is 1/0: raise like division by zero does (otherwise it would yield inf).
-                if (x == 0.0 && y < 0.0) throw KiritoError("zero cannot be raised to a negative power");
+                // Match math.pow's domain policy (a NaN operand passes through): 0**-n (= 1/0) and a
+                // negative base to a fractional power both RAISE instead of silently yielding inf/NaN.
+                if (!std::isnan(x) && !std::isnan(y)) {
+                    if (x == 0.0 && y < 0.0) throw KiritoError("zero cannot be raised to a negative power");
+                    if (x < 0.0 && y != std::floor(y)) throw KiritoError("a negative base cannot be raised to a fractional power");
+                }
                 return vm.makeFloat(std::pow(x, y));
             } break;
             default: { } break;
@@ -1714,7 +1718,9 @@ inline std::optional<int64_t> InstanceValue::length(KiritoVM& vm) {
     Handle r = invokeOp(vm, *this, "_len_", {}, "'" + className + "' has no length");
     const Object& o = vm.arena().deref(r);
     if (o.kind() != ValueKind::Integer) throw KiritoError("_len_ must return an Integer");
-    return static_cast<const IntVal&>(o).value();
+    int64_t v = static_cast<const IntVal&>(o).value();
+    if (v < 0) throw KiritoError("_len_ must return a non-negative Integer");  // a native consumer may cast to size_t
+    return v;
 }
 inline bool InstanceValue::contains(KiritoVM& vm, Handle value) {
     std::array<Handle, 1> a{value};
@@ -1776,6 +1782,9 @@ inline std::string annotationTypeName(ValueKind k) {
 inline bool typeMatches(KiritoVM& vm, Handle value, const std::string& typeName) {
     if (typeName.empty() || typeName == "Any") return true;
     const Object& o = vm.arena().deref(value);
+    // "Number" is the pseudo-type the numeric builtins advertise (inspect shows `x: Number`); accept
+    // it for Integer or Float so a user annotation `Function(x : Number)` works as documented.
+    if (typeName == "Number") return o.kind() == ValueKind::Integer || o.kind() == ValueKind::Float;
     // built-in kind names
     if (annotationTypeName(o.kind()) == typeName) return true;
     // a user instance: walk its class chain by name (inheritance-aware)
@@ -2834,20 +2843,31 @@ inline void KiritoVM::installBuiltins() {
         // when the endpoints straddle the int64 range (e.g. stop>0, start=INT64_MIN), and `-step`
         // overflows for step==INT64_MIN. The unsigned differences are exact since the true span fits
         // in uint64.
+        // ceil(span / |step|) without the `span + |step| - 1` overflow (span can be up to 2^64-1 when
+        // the endpoints straddle the int64 range, e.g. start=INT64_MIN, stop=INT64_MAX).
         uint64_t count = 0;
         if (step > 0 && stop > start) {
             uint64_t us = static_cast<uint64_t>(step);
-            count = ((static_cast<uint64_t>(stop) - static_cast<uint64_t>(start)) + us - 1) / us;
+            uint64_t span = static_cast<uint64_t>(stop) - static_cast<uint64_t>(start);
+            count = span / us + (span % us != 0 ? 1 : 0);
         } else if (step < 0 && stop < start) {
             uint64_t negstep = 0u - static_cast<uint64_t>(step);  // |step|, valid even for INT64_MIN
-            count = ((static_cast<uint64_t>(start) - static_cast<uint64_t>(stop)) + negstep - 1) / negstep;
+            uint64_t span = static_cast<uint64_t>(start) - static_cast<uint64_t>(stop);
+            count = span / negstep + (span % negstep != 0 ? 1 : 0);
         }
         if (count > kMaxRepeat) throw KiritoError("range too large");
         RootScope rs(vm);
         auto list = std::make_unique<ListVal>();
         list->elems.reserve(static_cast<std::size_t>(count));
-        if (step > 0) for (int64_t i = start; i < stop; i += step) list->elems.push_back(rs.add(vm.makeInt(i)));
-        else for (int64_t i = start; i > stop; i += step) list->elems.push_back(rs.add(vm.makeInt(i)));
+        // Count-driven (not `i += step` until it passes `stop`): a near-INT64_MAX step would
+        // signed-overflow that increment (UB) and not terminate. Every produced value is a valid
+        // range element in [start, stop), so the per-element `v += step` can't overflow; we just skip
+        // the final increment (which would step one past the last element and could overflow).
+        int64_t v = start;
+        for (uint64_t k = 0; k < count; ++k) {
+            list->elems.push_back(rs.add(vm.makeInt(v)));
+            if (k + 1 < count) v += step;
+        }
         return vm.alloc(std::move(list));
     }))));
     defSig("sum", {{"iterable"}, {"start", "", makeInt(0)}}, "Number", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {

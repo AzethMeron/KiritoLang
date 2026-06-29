@@ -384,15 +384,32 @@ inline Shape unravel(std::size_t lin, const Shape& shape) {
 
 // ---- structural ops --------------------------------------------------------------------------
 
+// The index sequence for a resolved slice. Count-driven (not `i += step`): a near-INT64_MAX step
+// would signed-overflow that increment (UB) and fail to terminate. start/stop are clamped to the axis
+// length by resolveSlice, so the span and element count can't overflow.
+inline std::vector<std::ptrdiff_t> slicePicks(std::ptrdiff_t start, std::ptrdiff_t stop, std::ptrdiff_t step) {
+    std::vector<std::ptrdiff_t> picks;
+    if (step > 0 && stop > start) {
+        std::ptrdiff_t count = (stop - start - 1) / step + 1;
+        picks.reserve(static_cast<std::size_t>(count));
+        for (std::ptrdiff_t k = 0; k < count; ++k) picks.push_back(start + k * step);
+    } else if (step < 0 && start > stop) {
+        uint64_t span = static_cast<uint64_t>(start - stop);
+        uint64_t mag = static_cast<uint64_t>(-(step + 1)) + 1ULL;  // |step|, safe even at INT64_MIN
+        std::ptrdiff_t count = static_cast<std::ptrdiff_t>((span - 1) / mag + 1);
+        picks.reserve(static_cast<std::size_t>(count));
+        for (std::ptrdiff_t k = 0; k < count; ++k) picks.push_back(start + k * step);
+    }
+    return picks;
+}
+
 // A single-axis strided slice. start/stop are already resolved (0 <= start, stop within [0,len],
 // stop exclusive in the walk direction); step != 0 (may be negative).
 template <class T>
 Tensor<T> sliceAxis(const Tensor<T>& t, std::size_t axis, std::ptrdiff_t start, std::ptrdiff_t stop, std::ptrdiff_t step) {
     if (axis >= t.ndim()) throw TensorError("slice axis out of range");
     if (step == 0) throw TensorError("slice step cannot be zero");
-    std::vector<std::ptrdiff_t> picks;
-    if (step > 0) for (std::ptrdiff_t i = start; i < stop; i += step) picks.push_back(i);
-    else for (std::ptrdiff_t i = start; i > stop; i += step) picks.push_back(i);
+    std::vector<std::ptrdiff_t> picks = slicePicks(start, stop, step);
     Shape outshape = t.shape;
     outshape[axis] = picks.size();
     Tensor<T> out(outshape);

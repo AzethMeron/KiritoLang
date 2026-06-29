@@ -59,9 +59,21 @@ inline std::vector<int64_t> sliceIndices(KiritoVM& vm, int64_t len, Handle sH, H
     if (!eo) stop = step < 0 ? lower : upper;
     else { stop = *eo; if (stop < 0) { stop += len; if (stop < lower) stop = lower; }
            else if (stop > upper) stop = upper; }
+    // Count-driven, not `i += step`: a near-INT64_MAX step would signed-overflow that increment (UB)
+    // and fail to terminate, yielding out-of-range indices (OOB read / segfault). start/stop are
+    // clamped to [-1, len], so the span is small and the element count can't overflow.
     std::vector<int64_t> idx;
-    if (step > 0) for (int64_t i = start; i < stop; i += step) idx.push_back(i);
-    else for (int64_t i = start; i > stop; i += step) idx.push_back(i);
+    if (step > 0 && stop > start) {
+        int64_t count = (stop - start - 1) / step + 1;            // ceil((stop-start)/step), no overflow
+        idx.reserve(static_cast<std::size_t>(count));
+        for (int64_t k = 0; k < count; ++k) idx.push_back(start + k * step);
+    } else if (step < 0 && start > stop) {
+        uint64_t span = static_cast<uint64_t>(start - stop);
+        uint64_t mag = static_cast<uint64_t>(-(step + 1)) + 1ULL;  // |step|, safe even at INT64_MIN
+        int64_t count = static_cast<int64_t>((span - 1) / mag + 1);
+        idx.reserve(static_cast<std::size_t>(count));
+        for (int64_t k = 0; k < count; ++k) idx.push_back(start + k * step);
+    }
     return idx;
 }
 

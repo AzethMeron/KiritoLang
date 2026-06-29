@@ -796,9 +796,7 @@ inline Handle g_sliceAxis(KiritoVM& vm, Handle ah, std::size_t axis, SliceRange 
     tensor::Shape ash = a.shape;
     FT out = tensor::sliceAxis(a, axis, r.start, r.stop, r.step);
     if (!wantsGrad(vm, {&A})) return make(vm, std::move(out));
-    std::vector<std::ptrdiff_t> picks;
-    if (r.step > 0) for (auto i = r.start; i < r.stop; i += r.step) picks.push_back(i);
-    else for (auto i = r.start; i > r.stop; i += r.step) picks.push_back(i);
+    std::vector<std::ptrdiff_t> picks = tensor::slicePicks(r.start, r.stop, r.step);
     auto bw = [ash, axis, picks](const FT& g) -> std::vector<FT> {
         FT d(ash);
         tensor::Shape ost = tensor::rowMajorStrides(ash);

@@ -1,0 +1,58 @@
+# r7_regressions.ki — regressions for bugs found in the round-4 (R7) static-analysis sweep.
+#   P0 slice with a near-INT64_MAX step signed-overflowed `i += step` (UB) -> OOB read / SIGSEGV on
+#      String/Bytes (and garbage on List/Tensor). Now count-driven via sliceIndices/slicePicks.
+#   P0/P1 range() with a huge step had the same overflow in its fill loop, plus a count-overflow that
+#      could spin forever on an int64-straddling span. Now overflow-safe count + count-driven fill.
+#   P2 the `**` operator returned a silent NaN for a negative base ^ fractional exponent, violating
+#      the math-domain-error policy; now raises (a NaN operand still passes through).
+#   P2 the `Number` pseudo-type (advertised by inspect on abs/round/sum/math.*) was rejected by a
+#      user annotation `Function(x : Number)`; now accepts Integer or Float.
+#   P3 a user `_len_` returning a negative Integer was accepted; now raises.
+var io = import("io")
+var T = import("tensor")
+var math = import("math")
+var n = 0
+var ok = Function(c, m):
+    assert c, m
+    n = n + 1
+var raises = Function(f):
+    try:
+        discard f()
+        return False
+    catch:
+        return True
+var BIG = 9223372036854775807
+
+# --- slice with a huge step: no crash, exactly one element; normal slices unaffected ---
+ok("abcde"[1::BIG] == "b", "String slice huge step -> single element")
+ok([0, 1, 2][1::BIG] == [1], "List slice huge step")
+ok(Bytes([1, 2, 3, 4, 5])[1::BIG] == Bytes([2]), "Bytes slice huge step")
+ok(T.arange(0, 10)[1::BIG].tolist() == [1.0], "Tensor slice huge step")
+ok("abcde"[BIG:0:0 - BIG] == "e", "String slice huge negative step")
+ok("abcdef"[1:5:2] == "bd" and [0, 1, 2, 3, 4, 5][::2] == [0, 2, 4], "normal step slices unaffected")
+ok("abcde"[::0 - 1] == "edcba", "reverse slice unaffected")
+
+# --- range() with a huge / straddling step: correct, terminates ---
+ok(range(1, 100, BIG) == [1], "range huge step -> single element")
+ok(range(0, 10, 3) == [0, 3, 6, 9], "range normal step unaffected")
+ok(len(range(0 - 9223372036854775808, BIG, BIG)) == 3, "range straddling int64 terminates, exact count")
+
+# --- ** negative base ^ fractional exponent raises (was silent NaN) ---
+ok(raises(Function(): return (0 - 2.0) ** 0.5), "neg base ^ fractional raises")
+ok(raises(Function(): return (0 - 8.0) ** 0.5), "neg base ^ fractional raises (2)")
+ok((0 - 2.0) ** 3.0 == 0 - 8.0 and (0 - 2.0) ** 2.0 == 4.0, "neg base ^ integer exponent still works")
+ok((0 - 2.0) ** math.nan != (0 - 2.0) ** math.nan, "NaN exponent passes through (no raise)")
+
+# --- Number annotation accepts Integer or Float, rejects others ---
+var addone = Function(x : Number) -> Number:
+    return x + 1
+ok(addone(5) == 6 and addone(2.5) == 3.5, "Number annotation accepts Integer + Float")
+ok(raises(Function(): return addone("s")), "Number annotation rejects String")
+
+# --- negative _len_ raises ---
+class NegLen:
+    var _len_ = Function(self):
+        return 0 - 5
+ok(raises(Function(): return len(NegLen())), "negative _len_ raises")
+
+io.print("r7_regressions: " + String(n) + " checks passed")

@@ -20,12 +20,13 @@ parameter name.
 - `type(x) → String` — the type name of `x` (e.g. `"Integer"`, `"List"`, a user class's name).
 - `Integer(x) → Integer` — convert to a 64-bit integer. Accepts `Bool` (`True`→`1`), `Float`
   (truncates toward zero; rejects NaN/∞/out-of-range), or a `String` in decimal or `0x`/`0o`/`0b`
-  form (surrounding whitespace and a single leading sign allowed). Raises on anything else or an
-  unparseable String — including a doubled sign or a space after the sign/prefix (`"--5"`, `"+ 5"`,
-  `"0x-5"`).
+  form (the base prefix is case-insensitive — `0X`/`0O`/`0B` also work; surrounding whitespace and a
+  single leading sign allowed). Raises on anything else or an unparseable String — including a doubled
+  sign or a space after the sign/prefix (`"--5"`, `"+ 5"`, `"0x-5"`).
 - `Float(x) → Float` — convert to a double. Accepts `Integer`, `Bool`, or a numeric `String`
-  (decimal/scientific notation, plus `"inf"`/`"nan"`). Raises if a String doesn't parse; a C99
-  hex-float literal (`"0x1p4"`) is rejected too.
+  (decimal/scientific notation, plus the special values `"inf"`/`"infinity"`/`"nan"`, case-insensitive
+  and sign-prefixable). Raises if a String doesn't parse; a C99 hex-float literal (`"0x1p4"`) is
+  rejected too.
 - `String(x) → String` — the `str()` form of any value (the same text `io.print` would emit).
 - `Bool(x) → Bool` — the truthiness of `x` (empty collections/`0`/`""`/`None` are `False`).
 - `List([iterable]) → List` — an empty list, or a new list built from any iterable. `List(iterable = xs)`.

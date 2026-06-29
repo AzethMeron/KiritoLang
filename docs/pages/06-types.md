@@ -378,6 +378,25 @@ Invoked as `x OP y` → `x._op_(y)`; return a `Bool` (or any truthy/falsy value)
 | `_enter_(self)` | entering a `with x as v:` block | the value bound to `v` |
 | `_exit_(self)` | leaving a `with` block (normally or via an exception) | ignored |
 
+### Limitations of operator overloading
+
+A few deliberate boundaries (different from Python — worth knowing so you don't reach for something
+that isn't there):
+
+- **Left operand only — no reflected operators.** `x + y` consults `x`'s `_add_` (and `x < y` consults
+  `x`'s `_lt_`), never a right-hand `_radd_`/reflected form. `3 * v` raises even if `v` defines `_mul_`;
+  put the instance on the left. (`_eq_`/`_ne_` are the exception — equality is checked symmetrically.)
+- **Only `_ne_` derives from `_eq_`.** The ordering operators do **not** derive from each other — define
+  each of `_lt_`/`_le_`/`_gt_`/`_ge_` you need.
+- **`_exit_` takes only `self`** (no exception type/value/traceback parameters), and its return value is
+  **ignored** — it cannot suppress an exception propagating out of the `with` block.
+- **Slice syntax does not reach `_getitem_`.** `x[a:b:c]` uses a separate native slice protocol that
+  user classes can't intercept (there is no `_slice_`); only scalar/variadic keys (`x[i]`, `x[i, j]`)
+  reach `_getitem_`/`_setitem_`. Expose a normal method (e.g. `x.slice(a, b)`) for range access.
+- **No `_bool_` and no `_hash_`.** Instances are **always truthy** (`_len_` does not affect truthiness),
+  and are **not hashable** as `Set`/`Dict` keys even if `_eq_` is defined — there are no truthiness or
+  hashing special methods.
+
 ### Serialization protocol
 
 By default `serialize`/`dump` save an instance by its attributes. Define this pair to control it
