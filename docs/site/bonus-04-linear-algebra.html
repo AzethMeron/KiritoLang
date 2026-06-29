@@ -65,7 +65,7 @@ io.<span class="builtin">print</span>(A.trace())         <span class="com"># 5.0
 io.<span class="builtin">print</span>(A * A.inverse() == m.identity(<span class="num">2</span>))   <span class="com"># False — `==` is exact and inversion has roundoff</span>
 io.<span class="builtin">print</span>((A * A.inverse()).compare(m.identity(<span class="num">2</span>), abs_tol = 1e-<span class="num">9</span>))   <span class="com"># True — tolerant compare</span></code></pre>
 <h2 id="applying-a-function-to-every-element-apply">Applying a function to every element — <code>apply</code></h2>
-<p><a class="xref" href="stdlib.html#sym-m.apply"><code>m.apply(fn)</code></a> returns a <strong>new</strong> matrix with <code>fn</code> applied to each element. This is the idiomatic, efficient &quot;map over the whole matrix&quot; — the loop runs in C++, you just supply the per-element function:</p>
+<p><code>m.apply(fn)</code> returns a <strong>new</strong> matrix with <code>fn</code> applied to each element. This is the idiomatic, efficient &quot;map over the whole matrix&quot; — the loop runs in C++, you just supply the per-element function:</p>
 <pre><code><span class="kw">var</span> io = <span class="builtin">import</span>(<span class="str">&quot;io&quot;</span>)
 <span class="kw">var</span> m = <span class="builtin">import</span>(<span class="str">&quot;matrix&quot;</span>)
 <span class="kw">var</span> A = m.Matrix([[<span class="num">1</span>, <span class="num">2</span>], [<span class="num">3</span>, <span class="num">4</span>]])
