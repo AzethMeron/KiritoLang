@@ -29,7 +29,7 @@ class Reader:
         # Pull one more chunk into the buffer; returns False at end of stream.
         if self._eof:
             return False
-        var chunk = self._conn.recv(size = 8192).decode(encoding = "latin-1")   # Bytes -> text
+        var chunk = self._conn.recv(n = 8192).decode(encoding = "latin-1")   # Bytes -> text
         if len(x = chunk) == 0:
             self._eof = True
             return False

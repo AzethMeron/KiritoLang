@@ -22,7 +22,7 @@ class LineReader:
                 var line = self._buf[0:nl]
                 self._buf = self._buf[nl + 1:]
                 return line
-            var chunk = self._conn.recv(size = 8192).decode(encoding = "latin-1")
+            var chunk = self._conn.recv(n = 8192).decode(encoding = "latin-1")
             if len(x = chunk) == 0:
                 if len(x = self._buf) == 0:
                     return None
