@@ -657,15 +657,23 @@ inline Handle netRequest(KiritoVM& vm, const std::string& method0, const std::st
     Handle filesH = netOpt(vm, opts, "files");
     if (vm.arena().deref(filesH).kind() == ValueKind::Dict) {
         const std::string boundary = "----KiritoFormBoundary7MA4YWxkTrZu0gW";
+        // Bytes content must go in raw (its .data), NOT its b'...' repr — otherwise a binary upload
+        // (image/gzip/dump blob) is silently mangled. Mirrors the data= branch above; only the
+        // filename is stringified.
+        auto rawContent = [&vm](Handle h) -> std::string {
+            const Object& o = vm.arena().deref(h);
+            if (const auto* b = dynamic_cast<const BytesVal*>(&o)) return b->data;
+            return Value(vm, h).str();
+        };
         std::string mp;
         for (const auto& [k, v] : Value(vm, filesH).pairs()) {
             std::string field = k.str(), filename = k.str(), content;
             const Object& vo = vm.arena().deref(v.handle());
             if (vo.kind() == ValueKind::List) {
                 const ListVal& l = static_cast<const ListVal&>(vo);
-                if (l.elems.size() >= 2) { filename = vm.stringify(l.elems[0]); content = vm.stringify(l.elems[1]); }
+                if (l.elems.size() >= 2) { filename = vm.stringify(l.elems[0]); content = rawContent(l.elems[1]); }
             } else {
-                content = v.str();
+                content = rawContent(v.handle());
             }
             mp += "--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + field +
                   "\"; filename=\"" + filename + "\"\r\nContent-Type: application/octet-stream\r\n\r\n" +

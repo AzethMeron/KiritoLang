@@ -66,9 +66,9 @@ inline std::optional<Handle> serdeMethod(KiritoVM& vm, Handle h, const char* nam
 // Walk the graph rooted at `root`, giving every reachable object an id by identity (a value reachable
 // by two paths is recorded once; an id is reserved before recursing so cycles terminate) and flatten
 // it into a Node table. `verb` ("serialize" / "dump") names the operation in error messages. Returns
-// the table and the root's id. Supported kinds: None/Bool/Integer/Float/String/List/Dict/Set, plus
-// user `class` instances (by attributes, or via the _getstate_/_setstate_ protocol) and serializable
-// native value types (Matrix/Complex/Tensor/DateTime/Random, which opt in the same way).
+// the table and the root's id. Supported kinds: None/Bool/Integer/Float/String/Bytes/List/Dict/Set,
+// plus user `class` instances (by attributes, or via the _getstate_/_setstate_ protocol) and
+// serializable native value types (Matrix/Complex/Tensor/DateTime/Random, which opt in the same way).
 inline std::pair<std::vector<Node>, uint32_t> flatten(KiritoVM& vm, Handle root, const char* verb) {
     fum::unordered_map<const Object*, uint32_t> ids;
     std::vector<Node> nodes;

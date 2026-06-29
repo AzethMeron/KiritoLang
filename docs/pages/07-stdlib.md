@@ -56,8 +56,11 @@ The optional `stream=` keyword sends/takes that one call's output/input to/from 
 - `basename(path: String) → String` — the final component of `path`.
 - `splitext(path: String) → List` — `[root, ext]`, splitting off the last extension.
 - `join(*parts) → String` — join path components with `/` on every platform (a component that is
-  itself absolute resets the result), so paths are identical cross-platform. `dirname`/`basename`/
-  `splitext` likewise accept `/` (and `\` on Windows input) and never emit a backslash.
+  itself absolute — it starts with `/` or `\` — resets the result), so paths are identical
+  cross-platform; joining no parts yields `""`. `dirname`/`basename`/`splitext` split on either `/`
+  or `\` (so native Windows paths still split correctly) and return literal substrings of the input —
+  they do not rewrite separators, so only `basename` (the final component) is guaranteed free of a
+  backslash; a `\` already inside a retained prefix is preserved.
 
 ### File object
 
@@ -727,7 +730,8 @@ Process environment and platform.
   `/tmp`). Pairs with `io` to build scratch file paths:
   `io.open(sys.joinpath(sys.gettempdir(), "scratch.txt"), "w")`.
 - `joinpath(*parts) → String` — join path components with `/` (a component that is itself absolute
-  resets the result). Needs at least one part.
+  resets the result). Like `os.path.join` it needs at least one part (it raises otherwise); the
+  near-identical `io.join` is more lenient and joins zero parts to `""`.
 - `exit(code: Integer = 0)` — terminate the process with the given exit code.
 
 ### Running external programs
@@ -975,8 +979,11 @@ threads directly — instead a value is serialized out of one VM and rebuilt in 
 ### Task
 
 - `t.join() → value` — block until the worker finishes and return its result (rebuilt in the caller's
-  VM). If the worker raised, `join` re-raises it here.
-- `t.done() → Bool` — whether the worker has finished (non-blocking).
+  VM). If the worker raised, `join` re-raises it here. `join` is **idempotent**: a second call returns
+  the same value (or re-raises the same error) from the cached result. Enforced type annotations on
+  the spawned function are checked inside the worker, so an annotation violation surfaces here at `join`.
+- `t.done() → Bool` — whether the worker has finished (non-blocking). True once the worker has
+  finished **whether it returned or raised** — pair it with `join` to retrieve the value or error.
 
 ### Queue
 

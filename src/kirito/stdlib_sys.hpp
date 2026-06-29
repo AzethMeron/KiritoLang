@@ -187,7 +187,8 @@ public:
         m.fn("joinpath", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             // joinpath(parts...) -> the parts joined with '/'. Kirito uses '/' on every platform so
             // results are identical cross-platform (not std::filesystem's '\' on Windows). A later
-            // component that is absolute (starts with '/') resets the result. Variadic.
+            // component that is absolute (starts with '/') resets the result. Variadic; like
+            // os.path.join it needs at least one component (io.join, by contrast, joins zero to "").
             Args args(vm, a, "joinpath");
             if (args.empty()) throw KiritoError("joinpath expected at least one path component");
             std::string out = args[0].asString("joinpath");

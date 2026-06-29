@@ -381,6 +381,23 @@ int main() {
         CHECK(req.find("file-content-here") != std::string::npos);
     }
 
+    // --- multipart upload of raw Bytes: the body must carry the raw bytes, NOT the b'...' repr ---
+    {
+        int port = 0, srv = makeListener(port);
+        CHECK(srv >= 0);
+        std::string req;
+        std::thread server(serveN, srv, 1, [](const std::string&) {
+            return std::string("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+        }, &req);
+        vm.runSource("import(\"net\").post(\"" + url(port) + "\", "
+                     "{\"files\": {\"f\": [\"b.bin\", Bytes([0, 1, 255, 254, 66])]}})\n");
+        server.join();
+        const std::string raw("\x00\x01\xff\xfe""B", 5);   // the five raw bytes 0x00 0x01 0xff 0xfe 'B'
+        CHECK(req.find("filename=\"b.bin\"") != std::string::npos);
+        CHECK(req.find(raw) != std::string::npos);          // raw bytes present in the multipart body
+        CHECK(req.find("b'\\x00") == std::string::npos);    // and NOT the b'\x00...' Bytes repr
+    }
+
     // --- EDGE CASES ---------------------------------------------------------------------------
     // 204 No Content, empty body, header value with extra whitespace
     {
