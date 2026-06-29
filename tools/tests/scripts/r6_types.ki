@@ -125,9 +125,9 @@ ok(1 == 1.0, "1 == 1.0 across types")
 ok(abs(-5.5) == 5.5, "abs Float")
 ok(round(3.14159, 2) == 3.14, "round ndigits")
 ok(type(math.nan) == "Float", "NaN is a Float")
-# Negative base, fractional exponent -> NaN (IEEE-754, not a raise) for the ** operator.
-var nanpow = (-2.0) ** 0.5
-ok(nanpow != nanpow, "neg base ** fractional yields NaN")
+# Negative base, fractional exponent -> RAISES (matches math.pow's domain policy); a NaN exp passes through.
+ok(raises(Function(): return (-2.0) ** 0.5), "neg base ** fractional raises")
+ok((-2.0) ** math.nan != (-2.0) ** math.nan, "neg base ** NaN passes through")
 
 # ---------------------------------------------------------------------------------------------
 # String — indexing / slicing / iteration (by code point)

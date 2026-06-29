@@ -109,14 +109,15 @@ assert raises(Function(): return divmod(1, 0)), "divmod by 0 raises"
 assert raises(Function(): return divmod(1.0, 0.0)), "float divmod by 0.0 raises"
 
 # ============================================================================
-# Power domain: 0 ** negative raises (1/0); negative ** fractional is NaN (no auto-complex)
+# Power domain: 0 ** negative raises (1/0); a negative base ^ a fractional exponent RAISES (no real
+# root, no complex auto-promotion), matching math.pow's domain policy — a NaN operand passes through.
 # ============================================================================
 assert raises(Function(): return 0 ** -1), "0 ** negative raises"
 assert raises(Function(): return 0.0 ** -1), "0.0 ** negative raises"
-# (-8.0)**0.5 has no real root; Kirito has no complex auto-promotion, so it is a NaN, NOT an error.
-var negfrac = (-8.0) ** 0.5
-assert negfrac != negfrac, "negative base ** fractional exponent is NaN (NaN != itself)"
-assert type(negfrac) == "Float", "negative-base fractional power result is a Float (NaN)"
+assert raises(Function(): return (-8.0) ** 0.5), "negative base ** fractional exponent raises"
+assert ((-8.0) ** 3.0) == -512.0, "negative base ** integer exponent still works"
+var nanpow = (-2.0) ** math.nan
+assert nanpow != nanpow, "a NaN exponent passes through (no raise)"
 
 # ============================================================================
 # Comparisons: numeric ordering, chains via and, exact large-int ordering
