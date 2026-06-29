@@ -25,7 +25,7 @@ var tensor = import("tensor")
 var net = import("net")
 var regex = import("regex")
 
-var SCRATCH = "/tmp/claude-0/-home-user-KiritoLang/e77add98-ebfe-56ae-9988-7daedfff53da/scratchpad"
+var SCRATCH = import("sys").gettempdir()   # portable temp dir (TMPDIR/TMP/TEMP, falls back to /tmp)
 
 var nassert = 0
 var ok = Function(cond, msg):

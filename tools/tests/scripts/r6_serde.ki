@@ -194,7 +194,7 @@ ok(id(gx_s["cycle"].peer.peer) == id(gx_s["cycle"]), "cross-format: serialize cy
 ok(id(gx_d["cycle"].peer.peer) == id(gx_d["cycle"]), "cross-format: dump cycle intact")
 
 # ============================================================ RESOURCES MUST NOT SERIALIZE
-var SCRATCH = "/tmp/claude-0/-home-user-KiritoLang/e77add98-ebfe-56ae-9988-7daedfff53da/scratchpad"
+var SCRATCH = import("sys").gettempdir()   # portable temp dir (TMPDIR/TMP/TEMP, falls back to /tmp)
 var fpath = io.join(SCRATCH, "r6_serde_resource.txt")
 var f = io.open(fpath, "w")
 ok(raises(Function(): return dump.dumps(f)), "dump: an open file raises (resource)")

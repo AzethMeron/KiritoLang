@@ -554,7 +554,7 @@ ok(dn.fillna(0).torows() == [{"a": 1, "b": 4}, {"a": 0, "b": 5}, {"a": 3, "b": 0
 
 # ============================================================ tabular: CSV file round-trip
 var iox = import("io")
-var tmp = "/tmp/claude-0/-home-user-KiritoLang/e77add98-ebfe-56ae-9988-7daedfff53da/scratchpad/r6_tab.csv"
+var tmp = iox.join(import("sys").gettempdir(), "r6_tab.csv")   # portable temp path
 with iox.open(tmp, "w") as fh:
     discard fh.write("city,pop\nA,100\nB,200\n")
 var dfromfile = tb.readcsv(tmp)

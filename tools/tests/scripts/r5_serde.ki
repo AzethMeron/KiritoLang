@@ -220,7 +220,7 @@ ok(id(sres["cycle"].peer.peer) == id(sres["cycle"]), "serialize: stateful cycle 
 ok(id(dres["cycle"].peer.peer) == id(dres["cycle"]), "dump: stateful cycle in a graph intact")
 ok(sres["blob"] == dres["blob"] and sres["set"] == dres["set"], "cross-format Bytes + Set agree")
 
-var SCRATCH = "/tmp/claude-0/-home-user-KiritoLang/e77add98-ebfe-56ae-9988-7daedfff53da/scratchpad"
+var SCRATCH = import("sys").gettempdir()   # portable temp dir (TMPDIR/TMP/TEMP, falls back to /tmp)
 # dump.save / load a stateful cycle to a real file, then remove it.
 var dpath = io.join(SCRATCH, "r5_serde_cycle.bin")
 dump.save(ca, dpath)
