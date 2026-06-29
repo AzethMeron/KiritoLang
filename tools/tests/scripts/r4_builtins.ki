@@ -260,7 +260,7 @@ check(isinstance(dv, "Base"), "isinstance base by name")
 check(not isinstance(Base(), Derived), "isinstance not down the chain")
 # Boundary behaviors confirmed (diverge from Python; see FINDINGS):
 check(not isinstance(True, Integer), "Bool is NOT an Integer subtype")
-check(not isinstance(1, "Number"), "'Number' is not an isinstance type-name")
+check(isinstance(1, "Number") and isinstance(1.5, "Number") and not isinstance("x", "Number"), "'Number' matches Integer/Float in isinstance (consistent with the annotation)")
 check(raises(Function(): return isinstance(1, 5)), "isinstance non-type 2nd arg raises")
 check(raises(Function(): return isinstance(1, [1, 2])), "isinstance List 2nd arg raises")
 check(raises(Function(): return isinstance(1, None)), "isinstance None 2nd arg raises")
