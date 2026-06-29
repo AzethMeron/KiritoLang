@@ -230,6 +230,8 @@ public:
              {{"args", "List"}, {"cwd", "", vm.none()}, {"input", "", vm.makeString("")}, {"timeout", "", vm.none()}},
              "Dict", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Args args(vm, a, "createprocess");
+            if (!args[0].isList())
+                throw KiritoError("createprocess: args must be a List of Strings (the program and its arguments)");
             std::vector<std::string> argv;
             for (Value e : args[0].items()) argv.push_back(e.asString("createprocess: each argument must be a String"));
             if (argv.empty()) throw KiritoError("createprocess: args must be a non-empty List (the program and its arguments)");

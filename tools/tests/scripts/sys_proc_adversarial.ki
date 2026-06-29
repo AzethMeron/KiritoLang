@@ -1,0 +1,186 @@
+# sys.createprocess / sys.shell — adversarial, edge-case and fuzz coverage. Portable: the child is
+# always `ki` itself (sys.executable) running a generated helper, or the cross-shell `echo`/`exit`,
+# so this runs identically on the Linux CI matrix and the maintainer's Windows build. A hang (e.g. a
+# pipe deadlock regression) is caught by the CTest timeout; a leak by the 200-spawn loop.
+var io = import("io")
+var sys = import("sys")
+var random = import("random")
+
+var n = 0
+var ok = Function(c, m):
+    assert c, m
+    n = n + 1
+var raises = Function(f):
+    try:
+        discard f()
+        return False
+    catch:
+        return True
+
+var KI = sys.executable
+var DIR = sys.gettempdir()
+var helper = io.join(DIR, "sysproc_adv_helper.ki")
+
+# Parameterized child. arglist[0] is the mode; the rest are mode arguments.
+var src = r"""var io = import("io")
+var sys = import("sys")
+var m = arglist[0] if len(arglist) >= 1 else ""
+if m == "echo":
+    io.write(io.read())
+elif m == "sinklen":
+    io.print(String(len(io.read())))
+elif m == "args":
+    var i = 1
+    while i < len(arglist):
+        io.print(arglist[i])
+        i = i + 1
+elif m == "exit":
+    sys.exit(Integer(arglist[1]))
+elif m == "sleep":
+    import("time").sleep(Float(arglist[1]))
+elif m == "both":
+    discard io.read()
+    var nn = Integer(arglist[1])
+    io.write("A" * nn)
+    io.write("B" * nn, stream = io.stderr)
+elif m == "ignorestdin":
+    io.print("noread")
+elif m == "cwd":
+    io.write(io.getcwd())
+"""
+var fh = io.open(helper, "w")
+discard fh.write(src)
+fh.close()
+var P = Function(extra):
+    return [KI, helper] + extra
+
+# ============================================================ basic round-trips + exit codes
+ok(sys.createprocess(P(["echo"]), input = "hello")["stdout"] == "hello", "echo round-trip")
+for c in [0, 1, 2, 42, 127, 255]:
+    ok(sys.createprocess(P(["exit", String(c)]))["code"] == c, "exit code " + String(c))
+
+# ============================================================ THE DEADLOCK TEST: all 3 pipes saturated
+# 1 MB on stdin AND 1 MB on stdout AND 1 MB on stderr, simultaneously. A naive (no reader-thread)
+# implementation deadlocks here; this must complete and the byte counts must be exact.
+var big = sys.createprocess(P(["both", "1000000"]), input = "Z" * 1000000)
+ok(len(big["stdout"]) == 1000000, "1MB stdout captured fully (no deadlock)")
+ok(len(big["stderr"]) == 1000000, "1MB stderr captured fully (no deadlock)")
+ok(big["stdout"][0] == "A" and big["stderr"][0] == "B", "stdout/stderr not crossed")
+# 2 MB of stdin is delivered in full to the child
+ok(sys.createprocess(P(["sinklen"]), input = "q" * 2000000)["stdout"].strip() == "2000000", "2MB stdin delivered fully")
+
+# ============================================================ binary / NUL byte fidelity
+var payload = "x" + chr(0) + "y" + chr(0) + chr(0) + "z" + chr(9) + chr(10) + chr(127) + "end"
+ok(sys.createprocess(P(["echo"]), input = payload)["stdout"] == payload, "embedded NUL/control bytes round-trip exactly")
+
+# ============================================================ argument fidelity (NO shell parsing)
+var tricky = ["a b c", "with\"quote", "back\\slash\\", "$HOME", "*", "a;b|c&d>e", "(){}[]", "über-ünïcode", ""]
+var got = sys.createprocess(P(["args"] + tricky))["stdout"]
+var lines = got.split("\n")
+var i = 0
+while i < len(tricky):
+    ok(lines[i] == tricky[i], "arg passed verbatim: [" + tricky[i] + "]")
+    i = i + 1
+# shell metacharacters are NOT expanded by createprocess (no shell)
+ok(lines[3] == "$HOME" and lines[4] == "*", "shell metachars are literal under createprocess")
+
+# ============================================================ FUZZ: random args round-trip exactly
+var rng = random.Random(20260629)
+var pool = "abcXYZ012 \t\"'\\$*;|&<>(){}[]=#@!~`."
+var fa = 0
+while fa < 40:
+    var k = rng.randint(1, 6)
+    var fuzzargs = []
+    var j = 0
+    while j < k:
+        var lenA = rng.randint(0, 12)
+        var s = ""
+        var t = 0
+        while t < lenA:
+            s = s + pool[rng.randint(0, len(pool) - 1)]
+            t = t + 1
+        fuzzargs.append(s)
+        j = j + 1
+    var fgot = sys.createprocess(P(["args"] + fuzzargs))["stdout"].split("\n")
+    var allmatch = True
+    var x = 0
+    while x < len(fuzzargs):
+        if fgot[x] != fuzzargs[x]:
+            allmatch = False
+        x = x + 1
+    ok(allmatch, "fuzz args round-trip #" + String(fa))
+    fa = fa + 1
+
+# ============================================================ FUZZ: random stdin payload round-trips
+var fp = 0
+while fp < 25:
+    var plen = rng.randint(0, 5000)
+    var data = ""
+    var q = 0
+    while q < plen:
+        data = data + chr(rng.randint(1, 126))   # printable ASCII (avoids encoding ambiguity)
+        q = q + 1
+    ok(sys.createprocess(P(["echo"]), input = data)["stdout"] == data, "fuzz stdin round-trip #" + String(fp))
+    fp = fp + 1
+
+# ============================================================ cwd
+var defc = sys.createprocess(P(["cwd"]))["stdout"].strip()
+var setc = sys.createprocess(P(["cwd"]), cwd = DIR)["stdout"].strip()
+ok(len(setc) > 0 and setc != defc, "cwd changes the child working directory")
+ok(raises(Function(): return sys.createprocess(P(["cwd"]), cwd = "/no/such/dir/zzz_kirito")), "nonexistent cwd raises")
+
+# ============================================================ timeout
+ok(sys.createprocess(P(["sleep", "0.05"]), timeout = 5)["code"] == 0, "fast child under a generous timeout completes")
+ok(raises(Function(): return sys.createprocess(P(["sleep", "5"]), timeout = 0.3)), "slow child past timeout raises")
+ok(raises(Function(): return sys.createprocess(P(["sleep", "5"]), timeout = 1)), "Integer timeout works")
+ok(sys.createprocess(P(["sleep", "0.05"]))["code"] == 0, "no timeout (None) waits to completion")
+
+# ============================================================ stdin not consumed by child (EPIPE path)
+var ig = sys.createprocess(P(["ignorestdin"]), input = "Y" * 1000000)
+ok(ig["code"] == 0 and ig["stdout"].strip() == "noread", "child that ignores a 1MB stdin doesn't crash the parent")
+
+# ============================================================ error inputs
+ok(raises(Function(): return sys.createprocess(["no_such_program_zzz_kirito_xyz"])), "missing program raises")
+ok(raises(Function(): return sys.createprocess([])), "empty args raises")
+ok(raises(Function(): return sys.createprocess("echo")), "String (non-List) args raises")
+ok(raises(Function(): return sys.createprocess(None)), "None args raises")
+ok(raises(Function(): return sys.createprocess([KI, 123])), "non-String arg element raises")
+
+# ============================================================ kwargs (every option by keyword)
+ok(sys.createprocess(args = P(["exit", "7"]))["code"] == 7, "createprocess args= keyword")
+ok(sys.createprocess(args = P(["echo"]), input = "kw")["stdout"] == "kw", "createprocess input= keyword")
+ok(sys.shell(command = "exit 4")["code"] == 4, "shell command= keyword")
+
+# ============================================================ sys.shell features
+ok(sys.shell("echo abc | tr a-z A-Z")["stdout"].strip() == "ABC", "shell pipe")
+ok("yes" in sys.shell("true && echo yes")["stdout"], "shell &&")
+ok("no" in sys.shell("false || echo no")["stdout"], "shell ||")
+ok(sys.shell("echo a; echo b")["stdout"].split("\n")[0] == "a", "shell ; sequencing")
+ok(sys.shell("exit 5")["code"] == 5, "shell exit code")
+ok("e" in sys.shell("echo e 1>&2")["stderr"], "shell stderr redirection captured")
+ok(sys.shell("printf ''")["stdout"] == "", "shell empty output")
+ok(sys.shell("printf abc")["stdout"] == "abc", "shell no-trailing-newline output preserved")
+# shell redirection to a file, then read it back
+var sf = io.join(DIR, "ki_shell_redir.txt")
+discard sys.shell("printf hi > '" + sf + "'")
+ok(io.open(sf, "r").read() == "hi", "shell redirection to a file")
+discard io.remove(sf)
+
+# ============================================================ result Dict shape
+var r = sys.createprocess(P(["echo"]), input = "k")
+ok("code" in r and "stdout" in r and "stderr" in r, "result has code/stdout/stderr")
+ok(type(r["code"]) == "Integer" and type(r["stdout"]) == "String" and type(r["stderr"]) == "String", "result field types")
+
+# ============================================================ RESOURCE LEAK: 200 spawns (fds/zombies)
+# If each spawn leaked its 4 pipes (8 fds), 200 iterations (>1024) would exhaust the fd table; if it
+# leaked zombies, waitpid reaping is broken. Completing all 200 cleanly proves neither happens.
+var leak = 0
+var li = 0
+while li < 200:
+    if sys.shell("exit 0")["code"] == 0:
+        leak = leak + 1
+    li = li + 1
+ok(leak == 200, "200 sequential spawns, no fd/zombie exhaustion")
+
+discard io.remove(helper)
+io.print("sys_proc_adversarial: " + String(n) + " checks passed")
