@@ -718,16 +718,26 @@ inline void runBackward(KiritoVM& vm, Handle root, std::optional<FT> seed) {
         if (R.size() != 1) throw KiritoError("backward: a seed gradient is required for a non-scalar tensor");
         s = FT(R.shape(), 1.0);
     }
-    // reverse-topological order via DFS over the graph (parents first, node last)
+    // reverse-topological order via an ITERATIVE post-order DFS (parents first, node last). An
+    // explicit work-stack — instead of native recursion — so a very deep graph (e.g. a long unrolled
+    // sequence) can't overflow the C++ stack and segfault uncatchably; matches the parser/VM depth policy.
     std::vector<Handle> order;
     fum::unordered_set<Handle> seen;
-    std::function<void(Handle)> dfs = [&](Handle h) {
-        if (!seen.insert(h).second) return;
+    std::vector<std::pair<Handle, std::size_t>> stk;  // (node, index of the next parent to descend into)
+    if (seen.insert(root).second) stk.push_back({root, 0});
+    while (!stk.empty()) {
+        Handle h = stk.back().first;
+        std::size_t pi = stk.back().second;
         TensorVal& tv = asT(vm, h);
-        if (tv.node) for (Handle p : tv.node->parents) dfs(p);
-        order.push_back(h);
-    };
-    dfs(root);
+        if (tv.node && pi < tv.node->parents.size()) {
+            stk.back().second = pi + 1;               // advance THIS frame before descending
+            Handle p = tv.node->parents[pi];
+            if (seen.insert(p).second) stk.push_back({p, 0});
+            continue;
+        }
+        order.push_back(h);                           // all parents emitted -> emit node, pop
+        stk.pop_back();
+    }
     accumulateGrad(R, s);
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
         TensorVal& tv = asT(vm, *it);
@@ -916,7 +926,11 @@ inline Handle g_powT(KiritoVM& vm, Handle ah, Handle bh) {
         FT ae = broadcastTo(acopy, g.shape), be = broadcastTo(bcopy, g.shape);
         std::vector<FT> r;
         if (ag) { FT da(g.shape); for (std::size_t i = 0; i < g.data.size(); ++i) da.data[i] = g.data[i] * be.data[i] * std::pow(ae.data[i], be.data[i] - 1.0); r.push_back(sumTo(da, ash)); }
-        if (bg) { FT db(g.shape); for (std::size_t i = 0; i < g.data.size(); ++i) db.data[i] = g.data[i] * std::pow(ae.data[i], be.data[i]) * std::log(ae.data[i]); r.push_back(sumTo(db, bsh)); }
+        if (bg) { FT db(g.shape); for (std::size_t i = 0; i < g.data.size(); ++i) {
+            // d/db (a**b) = a**b * ln(a); ln(a) is undefined for a <= 0, so the exponent gradient is
+            // 0 there (avoids 0 * -inf = NaN at a zero base), matching the NumPy/PyTorch convention.
+            db.data[i] = ae.data[i] > 0.0 ? g.data[i] * std::pow(ae.data[i], be.data[i]) * std::log(ae.data[i]) : 0.0;
+        } r.push_back(sumTo(db, bsh)); }
         return r;
     };
     return makeAutogradFloat(vm, std::move(out), std::move(parents), std::move(bw));
@@ -1050,13 +1064,16 @@ template <class T>
 tensor::Tensor<T> repeatAlong(const tensor::Tensor<T>& t, std::size_t count, int64_t axis) {
     if (axis < 0) {
         tensor::Tensor<T> f = tensor::flatten(t);
+        checkSize(tensor::Shape{f.size(), count});  // bound f.size()*count BEFORE it can wrap size_t
         tensor::Tensor<T> out(tensor::Shape{f.size() * count});
         for (std::size_t i = 0; i < f.size(); ++i) for (std::size_t k = 0; k < count; ++k) out.data[i * count + k] = f.data[i];
         return out;
     }
     std::size_t ax = static_cast<std::size_t>(axis);
     if (ax >= t.ndim()) throw tensor::TensorError("repeat axis out of range");
-    tensor::Shape os = t.shape; os[ax] *= count;
+    tensor::Shape os = t.shape;
+    checkSize(tensor::Shape{os[ax], count});        // bound os[ax]*count BEFORE the multiply wraps
+    os[ax] *= count;
     tensor::Tensor<T> out(os);
     tensor::Shape ist = t.strides();
     for (std::size_t lin = 0; lin < out.size(); ++lin) {
@@ -1073,7 +1090,9 @@ tensor::Tensor<T> tileAlong(const tensor::Tensor<T>& t, tensor::Shape reps) {
     std::size_t nd = std::max(t.ndim(), reps.size());
     tensor::Shape sh = t.shape; while (sh.size() < nd) sh.insert(sh.begin(), 1);
     while (reps.size() < nd) reps.insert(reps.begin(), 1);
-    tensor::Shape os(nd); for (std::size_t i = 0; i < nd; ++i) os[i] = sh[i] * reps[i];
+    tensor::Shape os(nd);
+    for (std::size_t i = 0; i < nd; ++i) { checkSize(tensor::Shape{sh[i], reps[i]}); os[i] = sh[i] * reps[i]; }  // each product, then the total
+    checkSize(os);
     tensor::Tensor<T> base = (t.shape == sh) ? t : tensor::reshape(t, sh);
     tensor::Tensor<T> out(os);
     tensor::Shape ist = base.strides();
@@ -1243,6 +1262,10 @@ inline Handle uniqueT(KiritoVM& vm, Handle ah) {
     std::vector<double> v = a.data;
     std::sort(v.begin(), v.end(), [](double x, double y) { return x < y || (y != y && x == x); });  // NaN sorts last
     v.erase(std::unique(v.begin(), v.end()), v.end());
+    // std::unique can't fold NaNs (NaN != NaN); they all sort to the end, so collapse that run to one.
+    std::size_t k = 0;
+    while (k < v.size() && v[v.size() - 1 - k] != v[v.size() - 1 - k]) ++k;
+    if (k > 1) v.resize(v.size() - (k - 1));
     std::size_t n = v.size();
     return make(vm, FT(tensor::Shape{n}, std::move(v)));
 }

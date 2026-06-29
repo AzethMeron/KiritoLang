@@ -2,13 +2,26 @@
 #   P1 Integer<->Float ==/!=/<,<=,>,>= was LOSSY past 2^53 (routed the int64 through (double)int),
 #      so 2^53+1 == the float 2^53, INT64_MAX == 2^63.0, and worst of all `==` disagreed with hashing
 #      (a == b was True but `b in {a}` was False). Now compared EXACTLY; == agrees with order + hash.
+#   P1 tensor autograd backward() used recursive DFS -> native-stack overflow (segfault) on a deep graph.
+#   P2 complex.zeros/ones/identity cast negative dims to a huge size_t (no guard, unlike real matrix).
+#   P2 tensor.repeat/tile could size_t-overflow -> std::bad_alloc instead of a clean "Tensor too large".
+#   P3 tensor a**b backward gave NaN for the exponent grad at a zero base (0 * -inf); now 0.
+#   P3 tensor.unique kept duplicate NaNs (std::unique can't fold NaN); now collapsed to one.
 var io = import("io")
 var math = import("math")
+var T = import("tensor")
+var C = import("complex")
 
 var n = 0
 var ok = Function(c, m):
     assert c, m
     n = n + 1
+var raises = Function(f):
+    try:
+        discard f()
+        return False
+    catch:
+        return True
 
 # --- small integers still equal their float form, both directions, and share one hash slot ---
 ok(1 == 1.0 and 1.0 == 1, "1 == 1.0 both directions")
@@ -54,5 +67,44 @@ var s = sorted([9007199254740993, 9007199254740992.0, 9007199254740994])
 ok(s[0] == 9007199254740992.0 and s[1] == 9007199254740993 and s[2] == 9007199254740994, "sorted mixed large exact")
 ok(min(9007199254740993, 9007199254740992.0) == 9007199254740992.0, "min mixed large exact")
 ok(max(9007199254740993, 9007199254740992.0) == 9007199254740993, "max mixed large exact")
+
+# --- tensor autograd: a deep graph backprops without overflowing the native stack (iterative DFS) ---
+var deepGrad = Function():
+    var x = T.Tensor([1.0], requiresgrad = True)
+    var y = x
+    var i = 0
+    while i < 20000:
+        y = y + x
+        i = i + 1
+    discard y.sum().backward()
+    return x.grad.tolist()[0]
+ok(deepGrad() == 20001.0, "deep autograd graph backprops (no stack overflow)")
+
+# --- complex matrix factories reject negative dimensions (mirrors the real matrix guard) ---
+ok(raises(Function(): return C.zeros(0, -1)), "complex.zeros(0,-1) raises")
+ok(raises(Function(): return C.zeros(-1, 3)), "complex.zeros(-1,3) raises")
+ok(raises(Function(): return C.ones(-1, 2)), "complex.ones negative raises")
+ok(raises(Function(): return C.identity(-2)), "complex.identity negative raises")
+ok(not raises(Function(): return C.zeros(0, 0)), "complex.zeros(0,0) ok")
+
+# --- tensor repeat/tile raise a clean catchable error on a size_t-overflowing count (not bad_alloc) ---
+ok(raises(Function(): return T.Tensor([1.0, 2.0, 3.0]).repeat(1000000000000)), "tensor.repeat huge count raises")
+ok(raises(Function(): return T.Tensor([1.0, 2.0]).tile([4000000000, 4000000000])), "tensor.tile huge reps raises")
+ok(T.Tensor([1.0, 2.0]).repeat(2).tolist()[0] == 1.0, "tensor.repeat small still works")
+ok(len(T.Tensor([1.0, 2.0]).tile([3]).tolist()) == 6, "tensor.tile small still works")
+
+# --- a**b backward: exponent grad at a zero base is finite (was 0 * -inf = NaN) ---
+var powGrad = Function():
+    var x = T.Tensor([0.0, 2.0], requiresgrad = True)
+    var y = T.Tensor([2.0, 3.0], requiresgrad = True)
+    discard (x ** y).sum().backward()
+    return y.grad.tolist()
+var pg = powGrad()
+ok(pg[0] == pg[0] and pg[0] == 0.0, "pow backward: zero-base exponent grad is 0 (not NaN)")
+ok(pg[1] == pg[1], "pow backward: positive-base exponent grad is finite")
+
+# --- tensor.unique collapses duplicate NaNs to a single trailing NaN ---
+var uq = T.unique(T.Tensor([math.nan, 1.0, math.nan, 1.0])).tolist()
+ok(len(uq) == 2 and uq[0] == 1.0 and uq[1] != uq[1], "unique folds duplicate NaNs to one")
 
 io.print("r6_regressions: " + String(n) + " checks passed")

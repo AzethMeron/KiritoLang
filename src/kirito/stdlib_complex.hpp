@@ -491,8 +491,10 @@ inline Handle ComplexMatrixVal::getAttr(KiritoVM& vm, Handle self, std::string_v
         auto& m = self_m(vm, self);
         auto items = Value(vm, a[0]).items();
         if (items.size() < 3) throw KiritoError("ComplexMatrix _setstate_: malformed state");
-        std::size_t r = static_cast<std::size_t>(items[0].asInt("rows"));
-        std::size_t c = static_cast<std::size_t>(items[1].asInt("cols"));
+        auto r64 = items[0].asInt("rows"), c64 = items[1].asInt("cols");
+        if (r64 < 0 || c64 < 0) throw KiritoError("ComplexMatrix _setstate_: dimensions must be non-negative");
+        std::size_t r = static_cast<std::size_t>(r64);
+        std::size_t c = static_cast<std::size_t>(c64);
         if (c != 0 && r > cpx::kMaxElems / c) throw KiritoError("ComplexMatrix too large");
         std::vector<cdouble> data;
         for (Value e : items[2].items()) {
@@ -626,14 +628,20 @@ public:
         });
         m.fn("zeros", {{"rows", "Integer"}, {"cols", "Integer"}}, "ComplexMatrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Args args(vm, a, "zeros");
-            return vm.alloc(cpx::makeMatrix(static_cast<std::size_t>(args[0].asInt("rows")), static_cast<std::size_t>(args[1].asInt("cols"))));
+            auto rows = args[0].asInt("rows"), cols = args[1].asInt("cols");
+            if (rows < 0 || cols < 0) throw KiritoError("complex.zeros: dimensions must be non-negative");
+            return vm.alloc(cpx::makeMatrix(static_cast<std::size_t>(rows), static_cast<std::size_t>(cols)));
         });
         m.fn("ones", {{"rows", "Integer"}, {"cols", "Integer"}}, "ComplexMatrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Args args(vm, a, "ones");
-            return vm.alloc(cpx::makeMatrix(static_cast<std::size_t>(args[0].asInt("rows")), static_cast<std::size_t>(args[1].asInt("cols")), cdouble(1.0, 0.0)));
+            auto rows = args[0].asInt("rows"), cols = args[1].asInt("cols");
+            if (rows < 0 || cols < 0) throw KiritoError("complex.ones: dimensions must be non-negative");
+            return vm.alloc(cpx::makeMatrix(static_cast<std::size_t>(rows), static_cast<std::size_t>(cols), cdouble(1.0, 0.0)));
         });
         m.fn("identity", {{"n", "Integer"}}, "ComplexMatrix", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::size_t n = static_cast<std::size_t>(Args(vm, a, "identity")[0].asInt("n"));
+            auto n64 = Args(vm, a, "identity")[0].asInt("n");
+            if (n64 < 0) throw KiritoError("complex.identity: dimension must be non-negative");
+            std::size_t n = static_cast<std::size_t>(n64);
             auto mtx = cpx::makeMatrix(n, n);
             for (std::size_t i = 0; i < n; ++i) mtx->at(i, i) = cdouble(1.0, 0.0);
             return vm.alloc(std::move(mtx));
