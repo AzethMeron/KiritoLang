@@ -10,6 +10,7 @@
 #include "builtins.hpp"
 #include "collections.hpp"
 #include "native.hpp"
+#include "proc_compat.hpp"
 #include "version.hpp"
 
 #if defined(_WIN32)
@@ -52,6 +53,27 @@ inline std::string currentExecutablePath() {
     auto p = std::filesystem::read_symlink("/proc/self/exe", ec);
     return ec ? std::string() : p.string();
 #endif
+}
+
+// Run an external program (argv) with optional cwd / stdin / timeout, returning a Dict
+// {code, stdout, stderr}. Shared by sys.createprocess (argv directly) and sys.shell (argv wrapping a
+// shell). A spawn failure or timeout becomes a clean catchable KiritoError.
+inline Handle runExternalProcess(KiritoVM& vm, const std::vector<std::string>& argv,
+                                 Value cwdV, Value inputV, Value timeoutV) {
+    std::string cwd = cwdV.isNone() ? std::string() : cwdV.asString("cwd");
+    std::string input = inputV.isNone() ? std::string() : inputV.asString("input");
+    double timeout = timeoutV.isNone() ? 0.0 : timeoutV.asFloat("timeout");
+    proccompat::ProcResult r;
+    try {
+        r = proccompat::run(argv, cwd, input, timeout);
+    } catch (const proccompat::ProcError& e) {
+        throw KiritoError(std::string(e.what()));
+    }
+    Dict d(vm);
+    d.set("code", vm.makeInt(r.code));
+    d.set("stdout", val(vm, r.out));
+    d.set("stderr", val(vm, r.err));
+    return d.build();
 }
 
 // The native-binding idiom below re-uses `vm`/`self` as bound-method lambda parameters that
@@ -197,6 +219,38 @@ public:
         // raised in this VM, and is replaced by each new caught error.
         m.fn("traceback", {}, "String", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             return val(vm, formatTraceback(vm.lastTraceback()));
+        });
+
+        // --- running external programs (NOT the `parallel` worker-VM model) -----------------------
+        // createprocess(args, cwd=None, input="", timeout=None) -> {code, stdout, stderr}. Runs a
+        // program DIRECTLY by its argument vector (args[0] is the program, found on PATH) — no shell,
+        // so arguments are passed verbatim with no quoting/expansion/injection. stdout & stderr are
+        // captured; `input` is fed on stdin; a positive `timeout` (seconds) kills it and raises.
+        m.fn("createprocess",
+             {{"args", "List"}, {"cwd", "", vm.none()}, {"input", "", vm.makeString("")}, {"timeout", "", vm.none()}},
+             "Dict", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Args args(vm, a, "createprocess");
+            std::vector<std::string> argv;
+            for (Value e : args[0].items()) argv.push_back(e.asString("createprocess: each argument must be a String"));
+            if (argv.empty()) throw KiritoError("createprocess: args must be a non-empty List (the program and its arguments)");
+            return runExternalProcess(vm, argv, args.opt(1, none(vm)), args.opt(2, val(vm, "")), args.opt(3, none(vm)));
+        });
+
+        // shell(command, cwd=None, input="", timeout=None) -> {code, stdout, stderr}. Runs `command`
+        // through the system shell (/bin/sh -c on POSIX, cmd.exe /c on Windows), so shell features
+        // (pipes, redirection, globbing, scripts) work. Capture the output with sys.shell(cmd)["stdout"].
+        m.fn("shell",
+             {{"command", "String"}, {"cwd", "", vm.none()}, {"input", "", vm.makeString("")}, {"timeout", "", vm.none()}},
+             "Dict", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+            Args args(vm, a, "shell");
+            std::string cmd = args[0].asString("shell");
+            std::vector<std::string> argv;
+#if defined(_WIN32)
+            argv = {"cmd.exe", "/c", cmd};
+#else
+            argv = {"/bin/sh", "-c", cmd};
+#endif
+            return runExternalProcess(vm, argv, args.opt(1, none(vm)), args.opt(2, val(vm, "")), args.opt(3, none(vm)));
         });
     }
 };

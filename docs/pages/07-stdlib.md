@@ -719,6 +719,44 @@ Process environment and platform.
   resets the result). Needs at least one part.
 - `exit(code: Integer = 0)` — terminate the process with the given exit code.
 
+### Running external programs
+
+Run another program (e.g. `ffmpeg`, `git`) and collect its result. Both functions block until the
+child finishes, capture its output, and return a `Dict` `{"code", "stdout", "stderr"}` — the exit
+code as an `Integer`, stdout and stderr as Strings. stdout and stderr are drained concurrently, so a
+child that produces a lot on either stream can't deadlock. **This is for external programs, not the
+`parallel` worker-VM model** (which runs Kirito functions, not other executables). The Kirito API is
+identical on Linux, macOS and Windows.
+
+- `createprocess(args: List, cwd = None, input = "", timeout = None) → Dict` — run a program
+  **directly** by its argument vector. `args[0]` is the program (looked up on `PATH`); the remaining
+  items are passed to it **verbatim** — there is no shell, so no quoting, globbing or injection.
+  - `cwd` — working directory for the child (`None` = inherit the parent's).
+  - `input` — a String written to the child's stdin (then closed); `""` sends nothing.
+  - `timeout` — seconds (a number); if the child is still running when it elapses, it is killed and a
+    catchable error is raised. `None` waits indefinitely.
+  - A program that can't be started (not found, etc.) raises a clear catchable error.
+
+  ```kirito
+  var r = sys.createprocess(["ffmpeg", "-i", "in.mov", "out.mp4"], timeout = 60)
+  if r["code"] != 0:
+      io.eprint(r["stderr"])
+  ```
+
+- `shell(command: String, cwd = None, input = "", timeout = None) → Dict` — run `command` through the
+  **system shell** (`/bin/sh -c` on POSIX, `cmd.exe /c` on Windows), so pipes, redirection, globbing
+  and shell scripts work. Same `cwd`/`input`/`timeout` options. Capture the output with:
+
+  ```kirito
+  var head = sys.shell("git rev-parse HEAD")["stdout"].strip()
+  ```
+
+  > Prefer `createprocess` (an argv list) when the arguments come from untrusted input — `shell`
+  > passes the whole string to the shell, so it is subject to the usual shell-injection caveats.
+
+  The exit code follows the platform convention; on POSIX a child terminated by a signal reports
+  `128 + signal`. Output is captured as a byte-transparent `String` (decode/parse it as needed).
+
 ---
 
 ## time

@@ -336,7 +336,14 @@ a stability fuzzer, and a benchmark). Working today:
     verify failure reports the actual reason). URL helpers: quote/unquote/urlencode/parseqs/urlsplit.
   - `sys` — environment (getenv/setenv/unsetenv/environ), `platform`, `arch` (x64/arm64/x86), `version`
     (the interpreter's semver string, == `ki --version`), `executable` (absolute path of the running
-    `ki` binary, for self-replacement), `exit`.
+    `ki` binary, for self-replacement), `traceback`, `exit`, and **external-process execution**:
+    `createprocess(args, cwd, input, timeout)` runs a program by argv (no shell) and `shell(command,
+    cwd, input, timeout)` runs it through `/bin/sh -c` (POSIX) / `cmd.exe /c` (Windows) — both block,
+    capture, and return `{code, stdout, stderr}` (stdout/stderr drained on their own threads so a
+    chatty child can't deadlock; positive `timeout` kills+raises). This is for EXTERNAL programs
+    (ffmpeg, git, …), distinct from `parallel`'s worker-VM model. The platform split (fork+execvp+pipe
+    on POSIX, CreateProcessW+CreatePipe on Windows, incl. the Windows argv-quoting) lives in
+    `proc_compat.hpp`, mirroring `net_compat.hpp`; the Kirito API is identical on every platform.
   - `time` — high-precision clocks (time/timens/monotonic/perfcounterns), sleep, and calendar
     time (`now`/`datetime`/`make`/`strptime`; `DateTime` with fields, iso/format,
     add/sub/diff arithmetic). `DateTime` has **value equality + hashing** by instant (epoch), so two
