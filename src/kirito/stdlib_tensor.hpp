@@ -123,7 +123,7 @@ public:
                 "tile(reps) -> Tensor", "slice(start, stop, step, axis = 0) -> Tensor", "take(indices, axis = 0) -> Tensor",
                 "sort(axis = None) -> Tensor", "argsort(axis = None) -> Tensor",
                 // complex helpers
-                "real() -> Tensor", "imag() -> Tensor", "conj() -> Tensor", "angle() -> Tensor",
+                "real() -> Tensor", "imag() -> Tensor", "conj() -> Tensor", "conjugate() -> Tensor", "angle() -> Tensor",
                 // autograd
                 "requiresgrad(flag = None) -> Bool", "grad: Tensor", "backward(seed = None) -> None",
                 "zerograd() -> None", "detach() -> Tensor",
@@ -197,13 +197,9 @@ inline TensorVal& reqT(KiritoVM& vm, Handle h, const char* who) {
     return *t;
 }
 
-inline constexpr std::size_t kMaxElems = 64ull * 1024 * 1024;
+inline constexpr std::size_t kMaxElems = tensor::kMaxElems;   // single-sourced from the engine cap
 inline void checkSize(const tensor::Shape& s) {
-    std::size_t n = 1;
-    for (std::size_t d : s) {
-        if (d != 0 && n > kMaxElems / d) throw KiritoError("Tensor too large");
-        n *= d;
-    }
+    try { (void)tensor::checkedNumel(s); } catch (const tensor::TensorError& e) { throw KiritoError(e.what()); }
 }
 
 // Promote a Float tensor to Complex (reals on the real axis).
@@ -1194,7 +1190,7 @@ inline Handle ptpT(KiritoVM& vm, Handle ah, int64_t axis) {
 inline Handle medianT(KiritoVM& vm, Handle ah, int64_t axis) {
     warnDetach(vm, "median()", asT(vm, ah));
     const FT& a = reqFloat(asT(vm, ah), "median");
-    auto med = [](std::vector<double> v) { if (v.empty()) throw KiritoError("median of an empty axis"); std::sort(v.begin(), v.end()); std::size_t n = v.size(); return n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]); };
+    auto med = [](std::vector<double> v) { if (v.empty()) throw KiritoError("median of an empty axis"); std::sort(v.begin(), v.end(), [](double x, double y) { return x < y || (y != y && x == x); }); std::size_t n = v.size(); return n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]); };  // NaN sorts last, like sort/argsort/unique
     if (axis < 0) { if (a.data.empty()) throw KiritoError("median of an empty tensor"); return vm.makeFloat(med(a.data)); }
     std::size_t ax = static_cast<std::size_t>(axis);
     tensor::Shape os; for (std::size_t i = 0; i < a.ndim(); ++i) if (i != ax) os.push_back(a.shape[i]);

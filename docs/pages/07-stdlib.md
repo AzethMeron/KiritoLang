@@ -354,7 +354,10 @@ Each constructor/factory takes an optional **`requiresgrad`** keyword (default `
 result as a differentiable leaf (Float only — see [Autograd](#autograd)).
 
 - `Tensor(data: List, dtype = "Float", requiresgrad = False) → Tensor` — build from a (rectangular)
-  nested list; the nesting depth sets the rank. `tensor` is an alias of `Tensor`.
+  nested list; the nesting depth sets the rank. `tensor` is an alias of `Tensor`. Passing a bare
+  `Number` instead of a list builds a **rank-0** (scalar) tensor — `shape() == []`, `ndim() == 0`,
+  `size() == 1` — the same 0-D tensor a full contraction or whole-tensor reduction yields; use
+  `item()` to extract the scalar back.
 - `zeros(shape: List, dtype = "Float", requiresgrad = False) → Tensor` — a tensor of zeros.
 - `ones(shape: List, dtype = "Float", requiresgrad = False) → Tensor` — a tensor of ones.
 - `full(shape: List, value: Number, dtype = "Float", requiresgrad = False) → Tensor` — filled with `value`.
@@ -399,9 +402,11 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
   Negative indices count from the end of each axis (`t[-1]` is the last row), like NumPy/slicing.
 - `t[start:stop:step]` — slice the **first** axis (negative bounds count from the end; returns a detached copy).
 - `t[mask]` — boolean selection where `mask` is a same-shape 0/1 tensor (→ 1-D).
-- `t[[i, j, k]]` — fancy index: gather those rows along axis 0.
+- `t[[i, j, k]]` — fancy index: gather those rows along axis 0. Indices may be negative (counted from
+  the end, like scalar indexing).
 - `t.slice(start, stop, step, axis = 0) → Tensor` and `t.take(indices, axis = 0) → Tensor` — the
-  **autograd-aware** forms of slicing / row-gather (the gradient scatters back).
+  **autograd-aware** forms of slicing / row-gather (the gradient scatters back); `take` indices may be
+  negative.
 
 ### Comparisons, logic, selection
 
@@ -454,7 +459,7 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
 
 ### Complex helpers
 
-- `t.real()`, `t.imag()`, `t.angle()` → Float tensors; `t.conj()` / `t.conjugate()` → the conjugate (Complex; no-op on Float tensors).
+- `t.real()`, `t.imag()`, `t.angle()` → Float tensors; `t.conj()` / `t.conjugate()` → the conjugate (Complex; no-op on Float tensors). On a **Float** tensor `angle()` returns the phase of each element treated as a real number: `pi` for negative elements, `0` otherwise.
 
 ### Differentiable element-wise math
 
@@ -512,10 +517,14 @@ methods are Float-only as well. Complex tensors remain a full numeric container 
   inference or for in-place parameter updates).
 
 **Differentiable ops:** `+ - * /` (with broadcasting), `matmul`, `tensordot`/`contract`, `sum`/`mean`
-(whole-tensor or per-axis), `transpose`/`permute`/`reshape`/`flatten`, unary `-`, and the
-differentiable math set above. Non-differentiable ops — `apply` (an arbitrary function), `min`/`max`,
-`prod`, indexing — detach (stop the gradient). On a grad-tracking tensor, a whole-tensor `sum`/`mean`
-returns a 0-D tensor (so the graph continues) rather than a plain `Float`.
+(whole-tensor or per-axis), `transpose`/`permute`/`reshape`/`flatten`, `squeeze`/`expanddims`/
+`swapaxes`/`flip`/`broadcastto`, `concatenate`/`stack`/`split`, `where`/`clip`/`maximum`/`minimum`,
+`cumsum`, the grad-aware `slice`/`take`, unary `-`, and the differentiable math set above.
+Non-differentiable ops — `apply` (an arbitrary function), `min`/`max`, `prod`, `ptp`, `cumprod`,
+`dot`, `unique`/`nonzero`/`searchsorted`, `sort`/`argsort`, `einsum`, and plain indexing — detach
+(stop the gradient; using one on a grad-tracking tensor emits a one-time detach warning). On a
+grad-tracking tensor, a whole-tensor `sum`/`mean` returns a 0-D tensor (so the graph continues)
+rather than a plain `Float`.
 
 ```kirito
 var io = import("io")

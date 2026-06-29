@@ -123,6 +123,7 @@ public:
             return bind("choice", {"seq"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 if (a.empty()) throw KiritoError("choice expects a sequence");
                 auto items = vm.arena().deref(a[0]).iterate(vm);
+                if (!items) throw KiritoError("choice expects an iterable");
                 if (items.value().empty()) throw KiritoError("choice from empty sequence");
                 std::size_t i = std::uniform_int_distribution<std::size_t>(0, items.value().size() - 1)(rng(vm, self).engine);
                 return items.value()[i];
@@ -141,6 +142,7 @@ public:
             return bind("sample", {"population", "k"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 if (a.size() < 2) throw KiritoError("sample expects (population, k)");
                 auto items = vm.arena().deref(a[0]).iterate(vm);
+                if (!items) throw KiritoError("sample expects an iterable population");
                 std::vector<Handle> pool = items.value();
                 int64_t k = asInt(vm, a[1]);
                 if (k < 0 || static_cast<std::size_t>(k) > pool.size())

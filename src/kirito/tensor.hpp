@@ -39,6 +39,22 @@ inline std::size_t numel(const Shape& s) {
     return n;
 }
 
+// Element-count cap enforced at the single point every tensor allocates from a shape (the fill
+// constructor below). It is the backstop for ops whose *result* dwarfs their inputs — outer / kron /
+// matmul / tensordot / broadcastto / concatenate / stack — which build their output with this
+// constructor and so previously could let `numel` overflow size_t or hit std::bad_alloc. Computing
+// the product with the running division check raises a clean, catchable TensorError("Tensor too
+// large") instead. The Kirito layer's tns::checkSize delegates here so the cap is single-sourced.
+inline constexpr std::size_t kMaxElems = 64ull * 1024 * 1024;
+inline std::size_t checkedNumel(const Shape& s) {
+    std::size_t n = 1;
+    for (std::size_t d : s) {
+        if (d != 0 && n > kMaxElems / d) throw TensorError("Tensor too large");
+        n *= d;
+    }
+    return n;
+}
+
 // Row-major (C-order) strides for a shape: the step, in elements, to move one index along each axis.
 inline Shape rowMajorStrides(const Shape& shape) {
     Shape st(shape.size());
@@ -74,7 +90,7 @@ public:
     std::vector<T> data;  // contiguous, row-major (a future device backend would own this buffer)
 
     Tensor() = default;
-    explicit Tensor(Shape s, T fill = T{}) : shape(std::move(s)), data(numel(shape), fill) {}
+    explicit Tensor(Shape s, T fill = T{}) : shape(std::move(s)), data(checkedNumel(shape), fill) {}
     Tensor(Shape s, std::vector<T> d) : shape(std::move(s)), data(std::move(d)) {
         if (data.size() != numel(shape)) throw TensorError("tensor data size does not match its shape");
     }
@@ -313,12 +329,24 @@ T trace(const Tensor<T>& t) {
     return s;
 }
 
+// Largest element magnitude, used to scale the singularity threshold so that a well-conditioned but
+// small-magnitude matrix (e.g. diag(1e-200), condition number 1) is not falsely declared singular by
+// a fixed absolute tolerance. |·| is real for both real and complex T.
+template <class T>
+double maxAbsElem(const Tensor<T>& t) {
+    double m = 0.0;
+    for (const T& v : t.data) { double a = std::abs(v); if (a > m) m = a; }
+    return m;
+}
+
 // Determinant via Gaussian elimination with partial pivoting.
 template <class T>
 T determinant(const Tensor<T>& t) {
     if (t.ndim() != 2 || t.shape[0] != t.shape[1]) throw TensorError("determinant requires a square 2-D tensor");
     std::size_t n = t.shape[0];
     std::vector<T> a = t.data;
+    double scale = maxAbsElem(t);
+    double tol = (scale > 0.0 ? scale : 1.0) * 1e-15;  // scale-relative singularity threshold
     T det = T{1};
     for (std::size_t k = 0; k < n; ++k) {
         std::size_t piv = k;
@@ -326,7 +354,7 @@ T determinant(const Tensor<T>& t) {
             if (std::abs(a[i * n + k]) > std::abs(a[piv * n + k])) piv = i;
         double pmag = std::abs(a[piv * n + k]);   // |pivot| is real for both real and complex T
         if (!std::isfinite(pmag)) throw TensorError("matrix contains a non-finite value (inf or NaN)");
-        if (pmag < 1e-15) return T{};
+        if (pmag < tol) return T{};
         if (piv != k) {
             for (std::size_t j = 0; j < n; ++j) std::swap(a[k * n + j], a[piv * n + j]);
             det = -det;
@@ -346,6 +374,8 @@ Tensor<T> inverse(const Tensor<T>& t) {
     if (t.ndim() != 2 || t.shape[0] != t.shape[1]) throw TensorError("inverse requires a square 2-D tensor");
     std::size_t n = t.shape[0];
     std::vector<T> a = t.data;
+    double scale = maxAbsElem(t);
+    double tol = (scale > 0.0 ? scale : 1.0) * 1e-15;  // scale-relative singularity threshold
     Tensor<T> inv(Shape{n, n});
     for (std::size_t i = 0; i < n; ++i) inv.data[i * n + i] = T{1};
     for (std::size_t k = 0; k < n; ++k) {
@@ -354,7 +384,7 @@ Tensor<T> inverse(const Tensor<T>& t) {
             if (std::abs(a[i * n + k]) > std::abs(a[piv * n + k])) piv = i;
         double pmag = std::abs(a[piv * n + k]);   // |pivot| is real for both real and complex T
         if (!std::isfinite(pmag)) throw TensorError("matrix contains a non-finite value (inf or NaN)");
-        if (pmag < 1e-15) throw TensorError("matrix is singular (no inverse)");
+        if (pmag < tol) throw TensorError("matrix is singular (no inverse)");
         if (piv != k)
             for (std::size_t j = 0; j < n; ++j) {
                 std::swap(a[k * n + j], a[piv * n + j]);
@@ -470,8 +500,10 @@ Tensor<T> takeAxis0(const Tensor<T>& t, const std::vector<std::ptrdiff_t>& idx) 
     outshape[0] = idx.size();
     Tensor<T> out(outshape);
     std::size_t block = t.size() / (t.shape[0] == 0 ? 1 : t.shape[0]);
+    std::ptrdiff_t dim = static_cast<std::ptrdiff_t>(t.shape[0]);
     for (std::size_t i = 0; i < idx.size(); ++i) {
         std::ptrdiff_t r = idx[i];
+        if (r < 0) r += dim;   // NumPy-style: negatives count from the end, like scalar/slice indexing
         if (r < 0 || static_cast<std::size_t>(r) >= t.shape[0]) throw TensorError("index out of range");
         std::copy(t.data.begin() + static_cast<std::ptrdiff_t>(r) * static_cast<std::ptrdiff_t>(block),
                   t.data.begin() + (static_cast<std::ptrdiff_t>(r) + 1) * static_cast<std::ptrdiff_t>(block),

@@ -437,9 +437,10 @@ Differentiable operations include `+ - * / **`, `matmul`, `tensordot`, `sum`/`me
 > `softplus`, `erf`, and `pow(p)`. (`sign`, `floor`, `ceil`, `round`, `trunc` keep the graph but have
 > zero gradient.)
 
-Operations that **cannot** carry a gradient — `min`/`max`, `argmin`/`argmax`, `sort`, `prod`,
-`std`/`var`, `median`, the linear-algebra functions, `apply`, `astype`, `repeat`/`tile`, `%`/`//`,
-and `[]`-style indexing/slicing — **detach** their result. If you call one of these on a tensor that
+Operations that **cannot** carry a gradient — `min`/`max`, `argmin`/`argmax`, `sort`/`argsort`,
+`prod`, `cumprod`, `ptp`, `std`/`var`, `median`, `dot`, `unique`/`nonzero`/`searchsorted`, `einsum`,
+the linear-algebra functions, `apply`, `astype`, `repeat`/`tile`, `%`/`//`, and `[]`-style
+indexing/slicing — **detach** their result. If you call one of these on a tensor that
 requires grad while tracking is on, the module prints a one-time warning so the break is never
 silent:
 
