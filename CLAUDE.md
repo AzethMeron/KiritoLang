@@ -189,7 +189,7 @@ a stability fuzzer, and a benchmark). Working today:
   Warnings print `file:line:col: warning: ...` to stderr; the `ki` flag `-w`/`--no-warn` disables
   them. Module-level names (exports) and class members are never flagged.
 - **Builtins**: `range`, `sum`, `min`, `max`, `abs`, `round`, `sorted`, `enumerate`, `zip`, `map`,
-  `filter`, `len`, `type`, `import`, `inspect`, `all`, `any`, `reversed`, `divmod`, `isinstance`
+  `filter`, `len`, `type`, `id`, `import`, `inspect`, `all`, `any`, `reversed`, `divmod`, `isinstance`
   (the type argument may be a user class, a **built-in type constructor** — `isinstance(1, Integer)` —
   or a type-name String; typed `catch` likewise matches built-in types, e.g. `catch String as e`),
   `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), `bitand`/`bitor`/`bitxor`/`bitnot`

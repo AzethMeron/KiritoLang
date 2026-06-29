@@ -1,0 +1,58 @@
+# r6_regressions.ki — regressions for bugs found in the round-3 (R6) audit sweep.
+#   P1 Integer<->Float ==/!=/<,<=,>,>= was LOSSY past 2^53 (routed the int64 through (double)int),
+#      so 2^53+1 == the float 2^53, INT64_MAX == 2^63.0, and worst of all `==` disagreed with hashing
+#      (a == b was True but `b in {a}` was False). Now compared EXACTLY; == agrees with order + hash.
+var io = import("io")
+var math = import("math")
+
+var n = 0
+var ok = Function(c, m):
+    assert c, m
+    n = n + 1
+
+# --- small integers still equal their float form, both directions, and share one hash slot ---
+ok(1 == 1.0 and 1.0 == 1, "1 == 1.0 both directions")
+ok(0 == 0.0 and 0.0 == 0 and 0 == -0.0 and -0.0 == 0, "every zero compares equal")
+ok(-5 == -5.0 and -5.0 == -5, "negative int == its float")
+ok(1.0 in Set([1]) and 1 in Set([1.0]), "Set membership agrees with == both ways")
+var d = {}
+d[1] = "a"
+ok(d[1.0] == "a", "Dict: an Integer key is found by the equal Float")
+var d2 = {}
+d2[2.0] = "b"
+ok(d2[2] == "b", "Dict: a Float key is found by the equal Integer")
+var d3 = {}
+d3[3] = "x"
+d3[3.0] = "y"
+ok(len(d3) == 1 and d3[3] == "y", "1 and 1.0 collapse to ONE Dict key")
+
+# --- non-integral floats never equal an integer; ordering still holds ---
+ok(not (1 == 1.5) and not (1.5 == 1), "1 != 1.5 (fractional)")
+ok(1 < 1.5 and 1.5 > 1 and 2 > 1.5 and 1.5 < 2, "ordering across the fraction")
+
+# --- EXACTNESS past 2^53: the whole point of the fix ---
+ok(not (9007199254740993 == 9007199254740992.0), "2^53+1 (int) != the float 2^53")
+ok(9007199254740992 == 9007199254740992.0, "2^53 == the float 2^53 exactly")
+ok(not (9223372036854775807 == 9223372036854775808.0), "INT64_MAX != the float 2^63")
+ok(-9223372036854775808 == -9223372036854775808.0, "INT64_MIN == its exact float")
+# the hash/eq contract: membership MUST agree with == (this was the smoking-gun bug)
+var big = 9223372036854775807
+var bigf = 9223372036854775808.0
+ok((big == bigf) == (bigf in Set([big])), "== agrees with Set membership at the 2^63 boundary")
+# ordering past 2^53 is exact, not collapsed through double
+ok(9223372036854775806 < 9223372036854775807.0, "int 2^63-2 < float that rounds up to 2^63")
+
+# --- NaN is unordered; inf orders against every int ---
+var nan = math.nan
+ok(not (1 == nan) and not (nan == 1), "int != NaN (never equal)")
+ok(not (1 < nan) and not (1 > nan) and not (1 <= nan) and not (1 >= nan), "int vs NaN: all four false")
+var inf = math.inf
+ok(1 < inf and inf > 9223372036854775807 and -1 > -inf, "int orders against +/-inf")
+
+# --- sort / min / max use the exact order on a mixed large list ---
+var s = sorted([9007199254740993, 9007199254740992.0, 9007199254740994])
+ok(s[0] == 9007199254740992.0 and s[1] == 9007199254740993 and s[2] == 9007199254740994, "sorted mixed large exact")
+ok(min(9007199254740993, 9007199254740992.0) == 9007199254740992.0, "min mixed large exact")
+ok(max(9007199254740993, 9007199254740992.0) == 9007199254740993, "max mixed large exact")
+
+io.print("r6_regressions: " + String(n) + " checks passed")

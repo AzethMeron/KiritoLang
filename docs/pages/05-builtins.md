@@ -40,7 +40,11 @@ parameter name.
   **built-in type constructor** (`isinstance(1, Integer)`, `isinstance("x", String)`), a user class
   value, or the equivalent type-name `String` (`isinstance(x, "Integer")`) — all three forms work.
   Inheritance-aware: a subclass instance satisfies a base type. (A typed `catch` accepts the same
-  forms: `catch String as e`, `catch SomeClass as e`.)
+  forms: `catch String as e`, `catch SomeClass as e`.) Note `Bool` is its **own** type, not a subtype
+  of `Integer`: `isinstance(True, Integer)` is `False` (and `isinstance(1, Bool)` is `False`).
+- `id(x) → Integer` — a stable identity number for `x`, unique among live objects and equal for two
+  references to the same object (`id(a) == id(b)` iff `a` and `b` are the same object). Used to tell
+  shared references apart from equal-but-distinct values.
 
 ## Sequences and iteration
 

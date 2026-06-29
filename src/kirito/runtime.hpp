@@ -76,6 +76,22 @@ inline bool floatEqual(double l, double r) {
 }
 // (floatClose — the numeric .compare() tolerance — now lives in common.hpp so the stdlib modules,
 // compiled before this header, can share the one implementation.)
+// Exact three-way comparison of an int64 and a double, WITHOUT the lossy (double)int round-trip that
+// collapses |int| > 2^53 (e.g. 2^53+1 and the float 2^53 are distinct, and INT64_MAX != 2.0^63).
+// Returns -1 (i < f), 0 (i == f), +1 (i > f), or 2 (UNORDERED — f is NaN). This is what keeps
+// Integer↔Float ==/!=/<,<=,>,>= EXACT, so equality agrees with ordering and with hashing.
+inline int compareIntFloat(int64_t i, double f) {
+    if (f != f) return 2;                                 // NaN is unordered with everything
+    constexpr double kTwo63 = 9223372036854775808.0;      // 2^63, exact in double (-kTwo63 == INT64_MIN)
+    if (f >= kTwo63) return -1;                            // f >= 2^63 > every int64  -> i < f
+    if (f < -kTwo63) return +1;                            // f < -2^63 < every int64  -> i > f
+    double ff = std::floor(f);                             // f now in [-2^63, 2^63): floor(f) fits int64
+    int64_t fi = static_cast<int64_t>(ff);                // exact (ff integral and in range)
+    if (i < fi) return -1;
+    if (i > fi) return +1;
+    return f > ff ? -1 : 0;                                // i == floor(f); a fractional part means i < f
+}
+inline bool intFloatEqual(int64_t i, double f) { return compareIntFloat(i, f) == 0; }
 // Two's-complement wraparound for the int64 operators. Signed overflow is UB in C++, so we do the
 // arithmetic in uint64_t (where wraparound is defined) and reinterpret — giving consistent,
 // well-defined behavior on overflow instead of undefined behavior. (Kirito ints are fixed int64;
@@ -109,6 +125,25 @@ inline int64_t ipow(int64_t base, int64_t exp) {
         if (exp) base = wmul(base, base);
     }
     return result;
+}
+
+// Exact ordering of two numeric Objects (Integer/Float in any mix): -1/0/+1, or 2 for UNORDERED (a
+// NaN operand). Integer↔Integer and Integer↔Float compare without precision loss (see compareIntFloat);
+// only Float↔Float uses the native double order. Shared by numericBinary's `<,<=,>,>=` and kiLessThan.
+inline int numericCompare(const Object& a, const Object& b) {
+    bool ai = a.kind() == ValueKind::Integer, bi = b.kind() == ValueKind::Integer;
+    if (ai && bi) {
+        int64_t x = static_cast<const IntVal&>(a).value(), y = static_cast<const IntVal&>(b).value();
+        return x < y ? -1 : (x > y ? 1 : 0);
+    }
+    if (ai) return compareIntFloat(static_cast<const IntVal&>(a).value(), static_cast<const FloatVal&>(b).value());
+    if (bi) {
+        int c = compareIntFloat(static_cast<const IntVal&>(b).value(), static_cast<const FloatVal&>(a).value());
+        return c == 2 ? 2 : -c;                            // flip the sense; UNORDERED stays UNORDERED
+    }
+    double x = static_cast<const FloatVal&>(a).value(), y = static_cast<const FloatVal&>(b).value();
+    if (x != x || y != y) return 2;                        // either NaN -> unordered
+    return x < y ? -1 : (x > y ? 1 : 0);
 }
 
 // Shared arithmetic dispatch for Integer/Float. Integer⊕Integer stays Integer (except `/`),
@@ -166,12 +201,16 @@ inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
         }
     }
 
-    switch (op) {
-        case BinOp::Lt: { return vm.makeBool(asDouble(a) < asDouble(b)); } break;
-        case BinOp::Le: { return vm.makeBool(asDouble(a) <= asDouble(b)); } break;
-        case BinOp::Gt: { return vm.makeBool(asDouble(a) > asDouble(b)); } break;
-        case BinOp::Ge: { return vm.makeBool(asDouble(a) >= asDouble(b)); } break;
-        default: { } break;
+    // Mixed Integer/Float ordering: compare EXACTLY (a NaN operand -> all four false, IEEE-correct).
+    if (op == BinOp::Lt || op == BinOp::Le || op == BinOp::Gt || op == BinOp::Ge) {
+        int c = numericCompare(a, b);
+        switch (op) {
+            case BinOp::Lt: return vm.makeBool(c == -1);
+            case BinOp::Le: return vm.makeBool(c == -1 || c == 0);
+            case BinOp::Gt: return vm.makeBool(c == 1);
+            case BinOp::Ge: return vm.makeBool(c == 1 || c == 0);
+            default: break;
+        }
     }
 
     {
@@ -204,8 +243,8 @@ inline Handle numericBinary(KiritoVM& vm, BinOp op, Handle aH, Handle bH) {
 
 inline bool IntVal::equals(const ObjectArena&, const Object& other) const {
     if (other.kind() == ValueKind::Integer) return value_ == static_cast<const IntVal&>(other).value();
-    if (other.kind() == ValueKind::Float)
-        return floatEqual(static_cast<double>(value_), static_cast<const FloatVal&>(other).value());
+    if (other.kind() == ValueKind::Float)  // EXACT (no lossy (double)int): 2^53+1 != the float 2^53
+        return intFloatEqual(value_, static_cast<const FloatVal&>(other).value());
     return false;
 }
 inline Handle IntVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
@@ -227,14 +266,17 @@ inline Handle IntVal::unary(KiritoVM& vm, UnOp op, Handle) {
 
 inline bool FloatVal::equals(const ObjectArena&, const Object& other) const {
     if (other.kind() == ValueKind::Float) return floatEqual(value_, static_cast<const FloatVal&>(other).value());
-    if (other.kind() == ValueKind::Integer)
-        return floatEqual(value_, static_cast<double>(static_cast<const IntVal&>(other).value()));
+    if (other.kind() == ValueKind::Integer)  // EXACT (no lossy (double)int), symmetric with IntVal::equals
+        return intFloatEqual(static_cast<const IntVal&>(other).value(), value_);
     return false;
 }
 inline std::size_t FloatVal::hash() const {
-    double rounded = std::round(value_);
-    if (rounded == value_ && std::fabs(value_) < 9.2e18)
-        return std::hash<int64_t>{}(static_cast<int64_t>(rounded));
+    // An integral Float that denotes an exact int64 must hash identically to that Integer, so `==`
+    // agrees with hashing (Set/Dict membership). The range must match intFloatEqual EXACTLY: [-2^63, 2^63)
+    // (NaN/±inf fall through to the double hash — inf == floor(inf) but is out of range).
+    if (value_ == std::floor(value_) &&
+        value_ >= -9223372036854775808.0 && value_ < 9223372036854775808.0)
+        return std::hash<int64_t>{}(static_cast<int64_t>(value_));
     return std::hash<double>{}(value_);
 }
 inline Handle FloatVal::binary(KiritoVM& vm, BinOp op, Handle self, Handle rhs) {
@@ -345,11 +387,9 @@ inline bool kiLessThan(KiritoVM& vm, Handle a, Handle b) {
                         // would otherwise overflow the native stack), exactly as kiEquals does for ==
     const Object& x = vm.arena().deref(a);
     const Object& y = vm.arena().deref(b);
-    // Two Integers compare exactly (the scalar `<` operator does); routing them through `double` would
-    // collapse int64 values beyond 2^53 and mis-order sort/sorted/min/max and List comparisons.
-    if (x.kind() == ValueKind::Integer && y.kind() == ValueKind::Integer)
-        return static_cast<const IntVal&>(x).value() < static_cast<const IntVal&>(y).value();
-    if (isNumeric(x) && isNumeric(y)) return asDouble(x) < asDouble(y);
+    // Numbers compare EXACTLY (Integer↔Integer and Integer↔Float both avoid the lossy double round-trip
+    // that would collapse int64 magnitudes beyond 2^53 and mis-order sort/sorted/min/max + List compares).
+    if (isNumeric(x) && isNumeric(y)) return numericCompare(x, y) == -1;
     if (x.kind() == ValueKind::String && y.kind() == ValueKind::String)
         return static_cast<const StrVal&>(x).value() < static_cast<const StrVal&>(y).value();
     if ((x.kind() == ValueKind::List || x.kind() == ValueKind::Array) &&

@@ -215,13 +215,15 @@ switch command:
         unknown()
 ```
 
-Case labels must be constant scalars (`Integer`, `Float`, `String`, `Bool`, or `None`) and are
-matched **exactly by type and value** — `case 1` and `case 1.0` are distinct, and a non-scalar
-subject (e.g. a list) only ever reaches `default`. The labels are compiled into an exact-match
-comparison chain (tested in turn). Duplicate case values, a
-second `default`, and an empty body are rejected at parse/first-run time. `break`/`continue`/`return`
-inside an arm propagate to the enclosing loop/function as usual; a `switch` with no matching case and
-no `default` is a no-op.
+Case labels are **expressions**, matched against the subject **exactly by type and value** — `case 1`
+and `case 1.0` are distinct, so a constant `case 3 + 4` or even `case some_var` is allowed. In practice
+you'll use constant scalars (`Integer`/`Float`/`String`/`Bool`/`None`); a label whose **runtime value**
+is non-scalar raises when that arm is reached, and a non-scalar *subject* (e.g. a list) only ever
+reaches `default`. The labels are tested in turn as an exact-match comparison chain. A second `default`,
+an empty arm body, and a non-scalar **literal** label are rejected at **parse time**; a **duplicate case
+value** is reported when the `switch` is actually reached at **run time** (so a never-executed `switch`
+with duplicate labels still loads). `break`/`continue`/`return` inside an arm propagate to the enclosing
+loop/function as usual; a `switch` with no matching case and no `default` is a no-op.
 
 ### `assert`
 
