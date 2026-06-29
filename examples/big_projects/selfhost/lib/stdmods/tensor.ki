@@ -30,6 +30,92 @@ var _absval = Function(x):
     if x < 0.0:
         return -x
     return x
+var _nonFinite = Function(x):
+    if type(x) == "Complex":
+        return math.isnan(x.re) or math.isnan(x.im) or math.isinf(x.re) or math.isinf(x.im)
+    return math.isnan(x) or math.isinf(x)
+# tolerant element closeness, mirroring the native cClose: exact match -> True; any NaN/inf -> False;
+# else |a - b| <= max(relTol * max(|a|, |b|), absTol).
+var _close = Function(a, b, relTol, absTol):
+    if a == b:
+        return True
+    if _nonFinite(a) or _nonFinite(b):
+        return False
+    var diff = _absval(a - b)
+    var m = _absval(a)
+    var mb = _absval(b)
+    if mb > m:
+        m = mb
+    var bound = relTol * m
+    if absTol > bound:
+        bound = absTol
+    return diff <= bound
+
+# --- element-wise math domain guards (mirror the native tensor + scalar `math` policy) ------------
+# Each returns its argument unchanged when in-domain (so it wraps the value inline), throws a clear
+# "math domain error" otherwise. A NaN element passes through (NaN != NaN by exact IEEE-754).
+var _isnan = Function(x):
+    return x != x
+var _domLog = Function(name, x):
+    if _isnan(x):
+        return x
+    if x <= 0.0:
+        throw "tensor " + name + ": math domain error (got " + String(Float(x)) + ")"
+    return x
+var _domSqrt = Function(x):
+    if _isnan(x):
+        return x
+    if x < 0.0:
+        throw "tensor sqrt: math domain error (got " + String(Float(x)) + ")"
+    return x
+var _domRecip = Function(x):
+    if _isnan(x):
+        return x
+    if x == 0.0:
+        throw "tensor division by zero (reciprocal of 0)"
+    return x
+var _domTrigInv = Function(name, x):
+    if _isnan(x):
+        return x
+    if x < -1.0 or x > 1.0:
+        throw "tensor " + name + ": math domain error (got " + String(Float(x)) + ")"
+    return x
+var _domAcosh = Function(x):
+    if _isnan(x):
+        return x
+    if x < 1.0:
+        throw "tensor acosh: math domain error (got " + String(Float(x)) + ")"
+    return x
+var _domAtanh = Function(x):
+    if _isnan(x):
+        return x
+    if x <= -1.0 or x >= 1.0:
+        throw "tensor atanh: math domain error (got " + String(Float(x)) + ")"
+    return x
+# pow: a negative base with a non-integer exponent (a complex result) or zero to a negative power.
+var _domPow = Function(base, p):
+    if _isnan(base) or _isnan(p):
+        return base
+    if base < 0.0 and p != Float(math.floor(p)):
+        throw "tensor pow: math domain error (negative base " + String(Float(base)) + " with a non-integer exponent " + String(Float(p)) + ")"
+    if base == 0.0 and p < 0.0:
+        throw "tensor pow: math domain error (zero to a negative power)"
+    return base
+var _signOf = Function(x):
+    if x > 0.0:
+        return 1.0
+    if x < 0.0:
+        return -1.0
+    return 0.0
+# round-half-to-even (native uses nearbyint with the default rounding mode): round to the nearest
+# integer, ties to the even neighbor.
+var _roundHalfEven = Function(x):
+    if _isnan(x):
+        return x
+    var r = Float(math.floor(x + 0.5))
+    if x + 0.5 == r and r != 2.0 * Float(math.floor(r / 2.0)):
+        return r - 1.0
+    return r
 
 # --- shape / nesting helpers ---------------------------------------------------------------------
 var _shapeOf = Function(data):
@@ -944,6 +1030,18 @@ class Tensor:
             i = i + 1
         return _make(flat, [len(flat)], self._dtype)
     var broadcastto = Function(self, shape):
+        # Native broadcasting only expands size-1 axes / prepends leading axes; it never shrinks.
+        var nd = len(shape)
+        if nd < len(self._shape):
+            throw "broadcastto: cannot broadcast to the requested shape"
+        var pad = nd - len(self._shape)
+        var ax = 0
+        while ax < len(self._shape):
+            var src = self._shape[ax]
+            var tgt = shape[pad + ax]
+            if src != tgt and src != 1:
+                throw "broadcastto: cannot broadcast to the requested shape"
+            ax = ax + 1
         return _make(_expand(self._data, self._shape, shape), List(shape), self._dtype)
 
     # --- elementwise maps / math ---
@@ -987,6 +1085,8 @@ class Tensor:
             flat.append(Float(math.floor(x)))
         return _make(flat, List(self._shape), self._dtype)
     var clip = Function(self, lo, hi):
+        if lo > hi:
+            throw "tensor clip: lower bound " + String(Float(lo)) + " is greater than upper bound " + String(Float(hi))
         var flat = []
         for x in self._data:
             var v = x
@@ -1000,6 +1100,43 @@ class Tensor:
         return self._binop(o, Function(x, y): return x if x > y else y, "max")
     var minimum = Function(self, o):
         return self._binop(o, Function(x, y): return x if x < y else y, "min")
+
+    # single-axis strided slice (NumPy `t[start:stop:step]` along `axis`, axis 0 by default).
+    var slice = Function(self, start, stop, step = None, axis = 0):
+        var nd = len(self._shape)
+        var ax = axis
+        if ax < 0:
+            ax = ax + nd
+        if ax < 0 or ax >= nd:
+            throw "slice axis out of range"
+        var rows = _sliceIdx(start, stop, step, self._shape[ax])
+        if ax == 0:
+            return self._gatherRows(rows)
+        return self.swapaxes(0, ax)._gatherRows(rows).swapaxes(0, ax)
+    # gather indices along an axis (axis 0 by default).
+    var take = Function(self, indices, axis = 0):
+        var nd = len(self._shape)
+        var ax = axis
+        if ax < 0:
+            ax = ax + nd
+        if ax < 0 or ax >= nd:
+            throw "take axis out of range"
+        if ax == 0:
+            return self._gatherRows(indices)
+        return self.swapaxes(0, ax)._gatherRows(indices).swapaxes(0, ax)
+    # tolerant whole-tensor comparison -> Bool (same shape AND every element within tolerance).
+    # Distinct from the exact `==` operator and the element-wise `.eq()` mask.
+    var compare = Function(self, other, rel_tol = 1e-9, abs_tol = 0.0):
+        if type(other) != "Tensor":
+            throw "compare expects a Tensor"
+        if List(self._shape) != List(other._shape):
+            return False
+        var i = 0
+        while i < len(self._data):
+            if not _close(self._data[i], other._data[i], rel_tol, abs_tol):
+                return False
+            i = i + 1
+        return True
 
     # differentiable unary map: fn computes the value, dfn the local derivative
     var _umap = Function(self, fn, dfn):
@@ -1023,6 +1160,70 @@ class Tensor:
         return self._umap(Function(x): return x * x, Function(x): return 2.0 * x)
     var relu = Function(self):
         return self._umap(Function(x): return x if x > 0.0 else 0.0, Function(x): return 1.0 if x > 0.0 else 0.0)
+
+    # element-wise differentiable math (Float-only, like native). Each delegates to _umap; the value
+    # fn rejects an out-of-domain element (a NaN passes through, mirroring the scalar math module).
+    var _mathmap = Function(self, fn, dfn):
+        if self._dtype == "Complex":
+            throw "this math op is Float-only on tensors (use the complex module for complex math)"
+        return self._umap(fn, dfn)
+    var exp = Function(self):
+        return self._mathmap(Function(x): return math.exp(x), Function(x): return math.exp(x))
+    var log = Function(self):
+        return self._mathmap(Function(x): return math.log(_domLog("log", x)), Function(x): return 1.0 / x)
+    var log10 = Function(self):
+        return self._mathmap(Function(x): return math.log10(_domLog("log", x)), Function(x): return 1.0 / (x * 2.302585092994046))
+    var log2 = Function(self):
+        return self._mathmap(Function(x): return math.log2(_domLog("log", x)), Function(x): return 1.0 / (x * 0.6931471805599453))
+    var sqrt = Function(self):
+        return self._mathmap(Function(x): return math.sqrt(_domSqrt(x)), Function(x): return 0.5 / math.sqrt(x))
+    var cbrt = Function(self):
+        return self._mathmap(Function(x): return math.cbrt(x), Function(x): return 1.0 / (3.0 * math.cbrt(x) * math.cbrt(x)))
+    var reciprocal = Function(self):
+        return self._mathmap(Function(x): return 1.0 / _domRecip(x), Function(x): return -1.0 / (x * x))
+    var abs = Function(self):
+        return self._mathmap(Function(x): return math.fabs(x), Function(x): return _signOf(x))
+    var sign = Function(self):
+        return self._mathmap(Function(x): return _signOf(x), Function(x): return 0.0)
+    var sin = Function(self):
+        return self._mathmap(Function(x): return math.sin(x), Function(x): return math.cos(x))
+    var cos = Function(self):
+        return self._mathmap(Function(x): return math.cos(x), Function(x): return -math.sin(x))
+    var tan = Function(self):
+        return self._mathmap(Function(x): return math.tan(x), Function(x): return 1.0 + math.tan(x) * math.tan(x))
+    var asin = Function(self):
+        return self._mathmap(Function(x): return math.asin(_domTrigInv("asin", x)), Function(x): return 1.0 / math.sqrt(1.0 - x * x))
+    var acos = Function(self):
+        return self._mathmap(Function(x): return math.acos(_domTrigInv("acos", x)), Function(x): return -1.0 / math.sqrt(1.0 - x * x))
+    var atan = Function(self):
+        return self._mathmap(Function(x): return math.atan(x), Function(x): return 1.0 / (1.0 + x * x))
+    var sinh = Function(self):
+        return self._mathmap(Function(x): return math.sinh(x), Function(x): return math.cosh(x))
+    var cosh = Function(self):
+        return self._mathmap(Function(x): return math.cosh(x), Function(x): return math.sinh(x))
+    var tanh = Function(self):
+        return self._mathmap(Function(x): return math.tanh(x), Function(x): return 1.0 - math.tanh(x) * math.tanh(x))
+    var asinh = Function(self):
+        return self._mathmap(Function(x): return math.asinh(x), Function(x): return 1.0 / math.sqrt(x * x + 1.0))
+    var acosh = Function(self):
+        return self._mathmap(Function(x): return math.acosh(_domAcosh(x)), Function(x): return 1.0 / math.sqrt(x * x - 1.0))
+    var atanh = Function(self):
+        return self._mathmap(Function(x): return math.atanh(_domAtanh(x)), Function(x): return 1.0 / (1.0 - x * x))
+    var sigmoid = Function(self):
+        return self._mathmap(Function(x): return 1.0 / (1.0 + math.exp(-x)), Function(x): return (1.0 / (1.0 + math.exp(-x))) * (1.0 - 1.0 / (1.0 + math.exp(-x))))
+    var softplus = Function(self):
+        return self._mathmap(Function(x): return math.log1p(math.exp(x)), Function(x): return 1.0 / (1.0 + math.exp(-x)))
+    var erf = Function(self):
+        return self._mathmap(Function(x): return math.erf(x), Function(x): return 1.1283791670955126 * math.exp(-x * x))
+    var ceil = Function(self):
+        return self._mathmap(Function(x): return Float(math.ceil(x)), Function(x): return 0.0)
+    var trunc = Function(self):
+        return self._mathmap(Function(x): return Float(math.trunc(x)), Function(x): return 0.0)
+    var round = Function(self):
+        return self._mathmap(Function(x): return _roundHalfEven(x), Function(x): return 0.0)
+    var pow = Function(self, p):
+        var pp = Float(p)
+        return self._mathmap(Function(x): return _domPow(x, pp) ** pp, Function(x): return pp * (x ** (pp - 1.0)))
 
     var selwhere = Function(self, x, y):
         var flat = []
@@ -1190,14 +1391,37 @@ class Tensor:
         return _make(inv, [n, n], dt)
     var solve = Function(self, b):
         return self.inv().matmul(b)
-    var norm = Function(self):
+    var norm = Function(self, ord = 2):
+        if self._dtype == "Complex":
+            throw "norm is Float-only on tensors (use the complex module for complex norms)"
+        var o = Float(ord)
+        if o == 0.0:
+            var c = 0.0
+            for x in self._data:
+                if x != 0.0:
+                    c = c + 1.0
+            return c
+        if o == 2.0:
+            var s = 0.0
+            for x in self._data:
+                s = s + x * x
+            return math.sqrt(s)
+        if math.isinf(o):
+            var m = 0.0
+            for x in self._data:
+                var a = math.fabs(x)
+                if a > m:
+                    m = a
+            return m
+        if o == 1.0:
+            var s = 0.0
+            for x in self._data:
+                s = s + math.fabs(x)
+            return s
         var s = 0.0
         for x in self._data:
-            if type(x) == "Complex":
-                s = s + x.norm2()
-            else:
-                s = s + x * x
-        return math.sqrt(s)
+            s = s + math.pow(math.fabs(x), o)
+        return math.pow(s, 1.0 / o)
     var outer = Function(self, o):
         var flat = []
         for x in self._data:
@@ -1553,8 +1777,8 @@ var inv = Function(m):
     return m.inv()
 var solve = Function(a, b):
     return a.solve(b)
-var norm = Function(t):
-    return t.norm()
+var norm = Function(t, ord = 2):
+    return t.norm(ord)
 var outer = Function(a, b):
     return a.outer(b)
 var inner = Function(a, b):
