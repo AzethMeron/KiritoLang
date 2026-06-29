@@ -162,7 +162,7 @@ Object-based RNG — no global state; create a generator and call methods on it.
 
 - `r.seed(a: Integer) → None` — reseed.
 - `r.random() → Float` — uniform in `[0.0, 1.0)`.
-- `r.uniform(a, b) → Float` — uniform in `[a, b]`.
+- `r.uniform(a, b) → Float` — uniform in `[a, b)` (the upper bound `b` is excluded).
 - `r.randint(a, b) → Integer` — uniform integer in `[a, b]` (inclusive).
 - `r.randrange(stop)` / `r.randrange(start, stop[, step]) → Integer` — like `range`, a random member.
 - `r.choice(seq)` — a random element of a non-empty sequence.
@@ -320,6 +320,7 @@ square matrix and raise otherwise.
 - `m.inverse() → ComplexMatrix` — inverse via **fast O(n³) Gauss-Jordan** elimination (raises if
   singular).
 - `m.trace() → Complex` — sum of the diagonal.
+- `m.apply(fn) → ComplexMatrix` — a new matrix with `fn` applied to each element.
 
 **Vector operations** (a ComplexMatrix with one dimension equal to 1 is a vector):
 
