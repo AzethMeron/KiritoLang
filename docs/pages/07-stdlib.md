@@ -697,7 +697,7 @@ Process environment and platform.
 - `platform` — `"linux"` / `"darwin"` / `"windows"` (a `String`).
 - `arch` — the CPU architecture, normalized to the names used in release-asset filenames:
   `"x64"` / `"arm64"` / `"x86"` / `"unknown"` (a `String`).
-- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.8.0"`); the same
+- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.9.0"`); the same
   value `ki --version` prints. `kpm` compares it against the latest GitHub release to self-upgrade.
 - `executable` — the absolute path of the running `ki` binary (a `String`, or `""` if it can't be
   determined). `kpm update-ki` uses it to locate the binary to replace.
@@ -705,6 +705,8 @@ Process environment and platform.
 - `setenv(name: String, value: String) → None` — set a variable.
 - `unsetenv(name: String) → None` — remove a variable.
 - `environ() → Dict` — all environment variables.
+- `traceback() → String` — the call chain of the most recent error this VM unwound (empty until one
+  is raised); useful for logging inside a `catch`.
 
 > **Encoding & empty values.** Names and values are byte-for-byte round-tripped on POSIX. On
 > Windows they go through the narrow (ANSI code-page) environment API, so a non-ASCII value isn't
