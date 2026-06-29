@@ -113,6 +113,20 @@ var urlsplit = Function(url):
     if pi >= 0:
         authority = rest[0:pi]
         out["path"] = rest[pi:]
+    # Strip any "user:pass@" userinfo so it doesn't mangle host/port (urlsplit excludes
+    # userinfo from hostname/port). The authority host is everything after the LAST '@'.
+    var at = authority.rfind("@")
+    if at >= 0:
+        authority = authority[at + 1:]
+    # IPv6 literals are bracketed: `[::1]:8080`. Keep the brackets in `host`; the port (if any)
+    # is the `:NNNN` after `]`. Without this the plain find(":") would split the address itself.
+    if len(authority) > 0 and authority[0] == "[":
+        var rb = authority.find("]")
+        if rb >= 0:
+            out["host"] = authority[0:rb + 1]
+            if rb + 1 < len(authority) and authority[rb + 1] == ":":
+                out["port"] = authority[rb + 2:]
+            return out
     var ci = authority.find(":")
     if ci >= 0:
         out["host"] = authority[0:ci]

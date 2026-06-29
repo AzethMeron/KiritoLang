@@ -131,7 +131,11 @@ var _fromEpoch = Function(secs):
     return DateTime(ymd[0], ymd[1], ymd[2], rem // 3600, (rem % 3600) // 60, rem % 60)
 
 var make = Function(year, month, day, hour = 0, minute = 0, second = 0):
-    return DateTime(year, month, day, hour, minute, second)
+    # Like C mktime: out-of-range components normalize (month 13 -> Jan next year), so build from the
+    # civil-date epoch and re-derive the broken-down fields rather than storing the raw inputs.
+    var d = _daysFromCivil(year, month, day)
+    var secs = d * 86400 + hour * 3600 + minute * 60 + second
+    return _fromEpoch(secs)
 
 var now = Function():
     var secs = Integer(_os.time())
@@ -140,29 +144,68 @@ var now = Function():
     var ymd = _civilFromDays(days)
     return DateTime(ymd[0], ymd[1], ymd[2], rem // 3600, (rem % 3600) // 60, rem % 60)
 
-# Parse a small set of strptime codes (%Y %m %d %H %M %S), matching literal text between them.
+# days in a (1-based) month of a proleptic-Gregorian year, for strptime field-range validation
+var _daysInMonth = Function(year, month):
+    if month < 1 or month > 12:
+        return 0
+    if month == 2:
+        var leap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+        return 29 if leap else 28
+    var dim = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    return dim[month - 1]
+
+# Parse a small set of strptime codes (%Y %m %d %H %M %S), matching literal text between them. Like
+# the native strptime, malformed text fails to parse instead of silently normalizing to a garbage
+# date: an out-of-range field (month 99, day 32, hour 25), unconverted trailing input
+# ("2024-01-01XYZ"), or a literal/digit that does not match raises "text does not match format".
 var strptime = Function(s, fmt):
     var fields = {"Y": 1970, "m": 1, "d": 1, "H": 0, "M": 0, "S": 0}
     var si = 0
     var fi = 0
     var nf = len(fmt)
+    var ns = len(s)
     while fi < nf:
-        if fmt[fi] == "%" and fi + 1 < nf:
+        if fmt[fi] == "%":
+            if fi + 1 >= nf:
+                throw "strptime: text does not match format"          # lone trailing %
             var code = fmt[fi + 1]
-            var width = 2
-            if code == "Y":
-                width = 4
-            var num = 0
-            var taken = 0
-            while taken < width and si < len(s) and s[si] >= "0" and s[si] <= "9":
-                num = num * 10 + (ord(s[si]) - 48)
+            if code == "%":
+                if si >= ns or s[si] != "%":
+                    throw "strptime: text does not match format"
                 si = si + 1
-                taken = taken + 1
-            fields[code] = num
+            elif code == "Y" or code == "m" or code == "d" or code == "H" or code == "M" or code == "S":
+                var width = 4 if code == "Y" else 2
+                var num = 0
+                var taken = 0
+                while taken < width and si < ns and s[si] >= "0" and s[si] <= "9":
+                    num = num * 10 + (ord(s[si]) - 48)
+                    si = si + 1
+                    taken = taken + 1
+                if taken == 0:
+                    throw "strptime: text does not match format"      # no digits where a number is required
+                fields[code] = num
+            else:
+                throw "strptime: text does not match format"          # unsupported directive
             fi = fi + 2
         else:
+            if si >= ns or s[si] != fmt[fi]:
+                throw "strptime: text does not match format"          # literal must match
             si = si + 1
             fi = fi + 1
+    if si != ns:
+        throw "strptime: text does not match format"                  # unconverted trailing input
+    var year = fields["Y"]
+    var month = fields["m"]
+    if month < 1 or month > 12:
+        throw "strptime: text does not match format"
+    if fields["d"] < 1 or fields["d"] > _daysInMonth(year, month):
+        throw "strptime: text does not match format"
+    if fields["H"] < 0 or fields["H"] > 23:
+        throw "strptime: text does not match format"
+    if fields["M"] < 0 or fields["M"] > 59:
+        throw "strptime: text does not match format"
+    if fields["S"] < 0 or fields["S"] > 59:
+        throw "strptime: text does not match format"
     return DateTime(fields["Y"], fields["m"], fields["d"], fields["H"], fields["M"], fields["S"])
 
 # datetime(timestamp = None): None -> now; an epoch-seconds number -> the corresponding DateTime

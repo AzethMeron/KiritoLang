@@ -852,8 +852,8 @@ class Regex:
         for slots in self._allMatches(string, 0):
             if maxsplit > 0 and done >= maxsplit:
                 break
-            if slots[1] == slots[0]:
-                continue                  # skip empty matches in split
+            # Split on empty matches too, so an empty-capable pattern yields the leading/inter-character
+            # ''s — consistent with findall over the same matches (native parity).
             out.append(string[last:slots[0]])
             # captured groups are kept in the result, between the split pieces.
             var mt = Match(self._prog, string, slots)

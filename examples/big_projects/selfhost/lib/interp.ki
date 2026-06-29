@@ -2674,8 +2674,10 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
                 recv["pos"] = recv["pos"] + off
             elif whence == 2:
                 recv["pos"] = len(recv["data"]) + off
-            else:
+            elif whence == 0:
                 recv["pos"] = off
+            else:
+                rtError("seek: whence must be 0 (set), 1 (cur), or 2 (end)")
             return recv["pos"]
         if name == "tell":
             return recv["pos"]
@@ -2684,6 +2686,8 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
             var p = recv["pos"]
             var r = d[p:]
             if len(args) >= 1:
+                if type(args[0]) != "Integer":
+                    rtError("read expects an Integer")
                 r = d[p:p + args[0]]
             recv["pos"] = p + len(r)
             return r

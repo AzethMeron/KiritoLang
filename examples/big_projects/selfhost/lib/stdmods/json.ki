@@ -244,8 +244,15 @@ var _dumpSeq = Function(v, indent, depth, openc, closec, isObj):
             out = out + sep
         out = out + _pad(indent, depth + 1)
         if isObj:
-            var keyStr = item                        # non-string keys become strings, JSON-style
-            if type(item) != "String":
+            # Object keys must be strings. Bool/None keys use JSON's canonical true/false/null (not
+            # Kirito's "True"/"None", which would not round-trip); other non-string scalars use String().
+            var keyStr = item
+            var kt = type(item)
+            if kt == "Bool":
+                keyStr = "true" if item else "false"
+            elif item == None:
+                keyStr = "null"
+            elif kt != "String":
                 keyStr = String(item)
             out = out + _escapeStr(keyStr) + ": " + _dump(v[item], indent, depth + 1)
         else:
