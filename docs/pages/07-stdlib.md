@@ -1210,7 +1210,8 @@ Public names follow Kirito's lowercase-no-underscore convention (`readcsv`, `sor
   With `infer`, each cell becomes Integer/Float/Bool/None/String; a short row's missing trailing cells
   are `None`, but a row with **more** fields than the header raises (no silent data loss, like pandas).
 - `merge(left, right, on, how = "inner")` — join two DataFrames on a key column; `how` is
-  `"inner"`/`"left"`/`"right"`/`"outer"`.
+  `"inner"`/`"left"`/`"right"`/`"outer"`. A non-key column present in **both** frames is disambiguated
+  pandas-style: the left copy becomes `<name>_x` and the right `<name>_y`.
 - `concat(frames)` — stack DataFrames vertically (column union, missing filled with `None`).
 
 ### Series
@@ -1221,7 +1222,8 @@ Indexing: `s[label]` (by index label, falling back to position), `s.iat(pos)`. E
 
 - Aggregations (skip missing; Bool counts as 0/1): `sum`, `mean`, `min`, `max`, `median`, `variance`,
   `std`, `prod`, `count`.
-- `unique()`, `nunique()`, `valuecounts()` (a Series of counts, descending).
+- `unique()`, `nunique()`, `valuecounts()` (a Series of counts, descending). `unique`/`nunique`
+  treat a missing value (`None`) as one distinct value; `valuecounts` skips missing values.
 - `apply(fn)`/`map(fn)`, `astype("Integer"|"Float"|"Bool"|"String")`.
 - `fillna(value)`, `dropna()`, `head(n=5)`, `tail(n=5)`, `sortvalues(ascending=True)`, `resetindex()`,
   `tolist()`, `copy()`.
@@ -1272,7 +1274,8 @@ is tolerated rather than raising.
 ### Module functions
 
 - `parse(text: String) → Element` — parse a document and return its root `Element` (or `None` if the
-  text contains no element). `fromstring` is an alias.
+  text contains no element). `fromstring` is an alias. Given malformed input with several top-level
+  siblings, the **last** one becomes the root.
 - `tostring(element) → String` — serialize an element (and its subtree) back to XML.
 - `Element(tag, attrib = None) → Element` — construct an element directly (for building a tree).
 
