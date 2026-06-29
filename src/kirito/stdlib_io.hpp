@@ -286,6 +286,7 @@ public:
         };
         if (name == "write")
             return bind("write", {"data"}, [self, io](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                requireArgs(a, 1, "BytesIO.write");                                // guard the positional fast path (a[0] OOB otherwise)
                 const std::string& data = ioRawBytes(vm, a[0], "BytesIO.write");   // String or Bytes
                 io(vm, self).streamWrite(data);
                 return vm.makeInt(static_cast<int64_t>(data.size()));

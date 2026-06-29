@@ -332,16 +332,17 @@ private:
         }
     }
     int32_t readHex(int n) {
-        int32_t v = 0;
+        uint32_t v = 0;  // unsigned: \U takes 8 hex digits, which overflows a signed int32 (UB)
         for (int i = 0; i < n; ++i) {
-            int32_t h = peek(); int d;
-            if (h >= '0' && h <= '9') d = h - '0';
-            else if (h >= 'a' && h <= 'f') d = h - 'a' + 10;
-            else if (h >= 'A' && h <= 'F') d = h - 'A' + 10;
+            int32_t h = peek(); uint32_t d;
+            if (h >= '0' && h <= '9') d = static_cast<uint32_t>(h - '0');
+            else if (h >= 'a' && h <= 'f') d = static_cast<uint32_t>(h - 'a' + 10);
+            else if (h >= 'A' && h <= 'F') d = static_cast<uint32_t>(h - 'A' + 10);
             else throw RegexError("incomplete \\x/\\u escape");
-            v = v * 16 + d; ++pos_;
+            v = v * 16u + d; ++pos_;
         }
-        return v;
+        if (v > 0x10FFFF) throw RegexError("escape value out of range (above U+10FFFF)");
+        return static_cast<int32_t>(v);
     }
 
     Node anchorNode(int kind) { Node n; n.kind = Node::Anchor; n.anchor = kind; return n; }

@@ -195,8 +195,10 @@ inline std::string expandTemplate(KiritoVM& vm, const std::string& tmpl, const M
             bool numeric = !key.empty();
             for (char k : key) if (k < '0' || k > '9') numeric = false;
             int g;
-            if (numeric) g = std::stoi(key);
-            else {
+            if (numeric) {
+                try { g = std::stoi(key); }                   // a huge \g<NNN> would leak an opaque "stoi"
+                catch (const std::exception&) { throw KiritoError("bad replacement: invalid group reference '" + key + "'"); }
+            } else {
                 auto it = m.nameToGroup.find(key);
                 if (it == m.nameToGroup.end()) throw KiritoError("bad replacement: no group named '" + key + "'");
                 g = it->second;

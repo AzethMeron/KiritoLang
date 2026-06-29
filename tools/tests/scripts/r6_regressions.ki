@@ -7,10 +7,16 @@
 #   P2 tensor.repeat/tile could size_t-overflow -> std::bad_alloc instead of a clean "Tensor too large".
 #   P3 tensor a**b backward gave NaN for the exponent grad at a zero base (0 * -inf); now 0.
 #   P3 tensor.unique kept duplicate NaNs (std::unique can't fold NaN); now collapsed to one.
+#   P1 makeMethod positional fast path forwards args verbatim, so zero-arg calls to BytesIO.write /
+#      DateTime.format / DateTime._setstate_ read a[0] OUT OF BOUNDS (garbage/dangling); now guarded.
+#   P2 regex \U hex escape accumulated into int32 (signed-overflow UB) and accepted out-of-range
+#      code points; now unsigned + rejects > U+10FFFF. regex \g<huge> leaked an opaque "stoi".
 var io = import("io")
 var math = import("math")
 var T = import("tensor")
 var C = import("complex")
+var time = import("time")
+var re = import("regex")
 
 var n = 0
 var ok = Function(c, m):
@@ -106,5 +112,25 @@ ok(pg[1] == pg[1], "pow backward: positive-base exponent grad is finite")
 # --- tensor.unique collapses duplicate NaNs to a single trailing NaN ---
 var uq = T.unique(T.Tensor([math.nan, 1.0, math.nan, 1.0])).tolist()
 ok(len(uq) == 2 and uq[0] == 1.0 and uq[1] != uq[1], "unique folds duplicate NaNs to one")
+
+# --- makeMethod positional fast path: zero-arg calls guard arity instead of reading a[0] OOB ---
+ok(raises(Function(): return io.BytesIO().write()), "BytesIO.write() no-arg raises (was OOB read)")
+var dt = time.make(2024, 6, 15)
+ok(raises(Function(): return dt.format()), "DateTime.format() no-arg raises (was OOB read)")
+ok(raises(Function(): return dt._setstate_()), "DateTime._setstate_() no-arg raises (was OOB read)")
+ok(io.BytesIO().write("hi") == 2 and dt.format("%Y") == "2024", "those methods still work with an arg")
+
+# --- regex hex escapes: out-of-range / overflowing code points raise cleanly (no signed-overflow UB) ---
+ok(raises(Function(): return re.findall("\\UFFFFFFFF", "x")), "regex \\UFFFFFFFF raises (no int32 overflow)")
+ok(raises(Function(): return re.compile("\\U00110000")), "regex \\U above U+10FFFF raises")
+ok(len(re.findall("\\u0041", "ABC")) == 1, "regex \\u0041 (valid) still matches")
+var gerr = Function():
+    try:
+        discard re.sub("(a)", "\\g<999999999999>", "a")
+        return ""
+    catch as e:
+        return String(e)
+ok("invalid group reference" in gerr(), "regex \\g<huge> gives a clear error (not 'stoi')")
+ok(re.sub("(a)(b)", "\\g<2>\\g<1>", "ab") == "ba", "regex \\g<N> (valid) still works")
 
 io.print("r6_regressions: " + String(n) + " checks passed")
