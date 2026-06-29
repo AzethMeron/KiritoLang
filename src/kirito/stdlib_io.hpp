@@ -647,23 +647,42 @@ public:
             std::error_code ec;
             return val(vm, std::filesystem::is_directory(pathArg(vm, a[0]), ec));
         });
+        // os.path-style path helpers, computed as plain '/'-based string ops (NOT std::filesystem,
+        // whose separator and semantics are platform-dependent — '\' on Windows). Kirito uses '/'
+        // everywhere (like sys.joinpath), so results are identical cross-platform; a '\' in the input
+        // is also accepted as a separator so native Windows paths (getcwd/listdir) still split right.
         m.fn("dirname", {{"path", "String"}}, "String", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return val(vm, std::filesystem::path(pathArg(vm, a[0])).parent_path().string());
+            std::string p = pathArg(vm, a[0]);
+            std::size_t s = p.find_last_of("/\\");
+            return val(vm, s == std::string::npos ? std::string() : p.substr(0, s));
         });
         m.fn("basename", {{"path", "String"}}, "String", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            return val(vm, std::filesystem::path(pathArg(vm, a[0])).filename().string());
+            std::string p = pathArg(vm, a[0]);
+            std::size_t s = p.find_last_of("/\\");
+            return val(vm, s == std::string::npos ? p : p.substr(s + 1));
         });
         m.fn("splitext", {{"path", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::string path = pathArg(vm, a[0]);
-            std::string ext = std::filesystem::path(path).extension().string();
-            return List(vm).add(val(vm, path.substr(0, path.size() - ext.size()))).add(val(vm, ext)).build();
+            std::size_t sep = path.find_last_of("/\\");
+            std::size_t baseStart = (sep == std::string::npos) ? 0 : sep + 1;
+            std::size_t dot = path.find_last_of('.');
+            // an extension is a '.' inside the final component that is not its first character (so a
+            // leading-dot name like ".bashrc" has no extension), matching os.path.splitext.
+            if (dot == std::string::npos || dot <= baseStart)
+                return List(vm).add(val(vm, path)).add(val(vm, std::string())).build();
+            return List(vm).add(val(vm, path.substr(0, dot))).add(val(vm, path.substr(dot))).build();
         });
-        // join(parts...) -> path with the platform separator (uses filesystem's operator/).
+        // join(parts...) -> the parts joined with '/' (a component that is itself absolute resets the
+        // result); identical on every platform. Variadic.
         m.fn("join", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            if (a.empty()) return val(vm, "");
-            std::filesystem::path p(pathArg(vm, a[0]));
-            for (std::size_t i = 1; i < a.size(); ++i) p /= pathArg(vm, a[i]);
-            return val(vm, p.string());
+            std::string out;
+            for (std::size_t i = 0; i < a.size(); ++i) {
+                std::string part = pathArg(vm, a[i]);
+                if (!part.empty() && (part[0] == '/' || part[0] == '\\')) out = part;     // absolute resets
+                else if (out.empty() || out.back() == '/' || out.back() == '\\') out += part;
+                else out += "/" + part;
+            }
+            return val(vm, out);
         });
         m.fn("getsize", {{"path", "String"}}, "Integer", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;

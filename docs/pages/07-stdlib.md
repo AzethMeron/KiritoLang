@@ -55,7 +55,9 @@ The optional `stream=` keyword sends/takes that one call's output/input to/from 
 - `dirname(path: String) → String` — the directory part of `path`.
 - `basename(path: String) → String` — the final component of `path`.
 - `splitext(path: String) → List` — `[root, ext]`, splitting off the last extension.
-- `join(*parts) → String` — join path components with the platform separator.
+- `join(*parts) → String` — join path components with `/` on every platform (a component that is
+  itself absolute resets the result), so paths are identical cross-platform. `dirname`/`basename`/
+  `splitext` likewise accept `/` (and `\` on Windows input) and never emit a backslash.
 
 ### File object
 
