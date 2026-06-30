@@ -87,4 +87,26 @@ ok(raises(Function(): return T.det(T.Tensor([[1.0, inf], [3.0, 4.0]]))), "tensor
 ok(raises(Function(): return T.inv(T.Tensor([[inf, 0.0], [0.0, 1.0]]))), "tensor.inv with inf raises (non-finite, not 'singular')")
 ok(T.det(T.Tensor([[1.0, 2.0], [3.0, 4.0]])).compare(0 - 2.0), "a finite determinant is unaffected by the guard")
 
+# ---- P0: time.make component arithmetic no longer overflows `int` (signed-overflow UB) ----
+var time = import("time")
+ok(raises(Function(): return time.make(0 - 2147483648, 1, 1)), "make(INT32_MIN year) raises (no int-overflow UB)")
+ok(raises(Function(): return time.make(2000, 1, 1, 2147483647)), "make(huge hour) raises (no overflow; out of epoch range)")
+ok(time.make(2024, 3, 15, 12, 30, 45) == time.make(2024, 3, 15, 12, 30, 45), "a normal make() builds a DateTime that compares equal by instant")
+
+# ---- P0: seek base+off no longer overflows int64 (the negative guard ran AFTER the overflowing add) ----
+var bio = io.BytesIO("abcde")
+ok(raises(Function(): return bio.seek(9223372036854775807, 2)), "BytesIO.seek(huge, end) overflow raises (no UB)")
+discard bio.seek(2)
+ok(bio.read() == "cde", "a normal BytesIO seek still works")
+var sp = io.join(sys.gettempdir(), "r8_seek_probe.txt")
+var sfh = io.open(sp, "w")
+discard sfh.write("hello")
+sfh.close()
+var srf = io.open(sp, "r")
+ok(raises(Function(): return srf.seek(9223372036854775807, 2)), "File.seek(huge, end) overflow raises (no UB)")
+discard srf.seek(1)
+ok(srf.read(2) == "el", "a normal File seek still works")
+srf.close()
+discard io.remove(sp)
+
 io.print("r8_regressions: " + String(n) + " checks passed")

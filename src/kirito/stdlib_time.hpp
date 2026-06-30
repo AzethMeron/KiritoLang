@@ -37,7 +37,9 @@ inline int64_t timegmCompat(const std::tm& tm) {
     int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
     int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     int64_t days = era * 146097 + doe - 719468;  // days since 1970-01-01
-    return days * 86400 + tm.tm_hour * 3600 + tm.tm_min * 60 + tm.tm_sec;
+    // hour/min/sec widened to int64 before scaling — an int `tm_hour * 3600` would overflow `int`.
+    return days * 86400 + static_cast<int64_t>(tm.tm_hour) * 3600
+                        + static_cast<int64_t>(tm.tm_min) * 60 + tm.tm_sec;
 }
 
 // Inverse of timegmCompat: epoch seconds -> broken-down UTC fields, via the same pure civil arithmetic
@@ -341,8 +343,14 @@ public:
         // make(year, month, day[, hour, minute, second]) -> DateTime built from UTC components.
         m.fn("make", {{"year", "Integer"}, {"month", "Integer"}, {"day", "Integer"}, {"hour", "Integer", vm.makeInt(0)}, {"minute", "Integer", vm.makeInt(0)}, {"second", "Integer", vm.makeInt(0)}}, "DateTime", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             Args args(vm, a, "make");
-            auto iv = [&](std::size_t i, int dflt) {
-                return i >= args.size() ? dflt : static_cast<int>(args[i].asInt("make component"));
+            // Bound each component well within `int` (margin for the `-1900`/`-1` below and the int
+            // tm fields) — else the component arithmetic is signed-overflow UB. A huge in-band value
+            // still produces an out-of-epoch-range DateTime, which the constructor rejects cleanly.
+            auto iv = [&](std::size_t i, int dflt) -> int {
+                if (i >= args.size()) return dflt;
+                int64_t v = args[i].asInt("make component");
+                if (v < -2000000000 || v > 2000000000) throw KiritoError("make: date component out of range");
+                return static_cast<int>(v);
             };
             std::tm tm{};
             tm.tm_year = iv(0, 1970) - 1900;

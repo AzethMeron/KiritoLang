@@ -209,9 +209,14 @@ public:
                 // Resolve to an ABSOLUTE target first, then position both pointers there. An fstream's
                 // get/put pointers share one position, so two *relative* seeks (seekg+seekp with cur)
                 // would move it twice — compute the absolute offset once to avoid that double-count.
-                std::streamoff target = off;
-                if (whence == 1) target = static_cast<std::streamoff>(s.tellg()) + off;
-                else if (whence == 2) { s.seekg(0, std::ios::end); target = static_cast<std::streamoff>(s.tellg()) + off; }
+                int64_t target = off;
+                if (whence == 1 || whence == 2) {
+                    if (whence == 2) s.seekg(0, std::ios::end);
+                    // base + off computed overflow-safe (a near-INT64_MAX off would otherwise wrap past
+                    // the negative-target guard below).
+                    if (__builtin_add_overflow(static_cast<int64_t>(s.tellg()), off, &target))
+                        throw KiritoError("seek: resulting position is out of range");
+                }
                 // A negative absolute target would put the stream in a fail state and make tell() return
                 // -1 silently; reject it (BytesIO::seek guards the same way).
                 if (target < 0) throw KiritoError("seek: resulting position is negative");
@@ -323,7 +328,8 @@ public:
                 if (whence < 0 || whence > 2) throw KiritoError("seek: whence must be 0 (set), 1 (cur), or 2 (end)");
                 int64_t base = whence == 1 ? static_cast<int64_t>(b.pos)
                              : whence == 2 ? static_cast<int64_t>(b.buf.size()) : 0;
-                int64_t np = base + off;
+                int64_t np;
+                if (__builtin_add_overflow(base, off, &np)) throw KiritoError("seek: resulting position is out of range");
                 if (np < 0) np = 0;
                 b.pos = static_cast<std::size_t>(np);
                 return vm.makeInt(np);
