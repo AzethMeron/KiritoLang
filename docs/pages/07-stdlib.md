@@ -452,7 +452,11 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
   where it makes sense (forward only; the differentiable linear algebra is `matmul`/`tensordot`).
   `inner`/`tensordot`/`contract`/`einsum` return a **Tensor** (0-D for a full contraction — call
   `.item()` for a Float scalar); only `dot` and the scalar reductions (no `axis`) return a plain Float.
-  A repeated *output* label in `einsum` (e.g. `"ii->ii"`) is rejected.
+  A repeated *output* label in `einsum` (e.g. `"ii->ii"`) is rejected. `outer` flattens operands of any
+  rank, but `kron` requires both operands to be **2-D** (raises otherwise). `det` can underflow to `0.0`
+  for an extreme-but-well-conditioned matrix (e.g. `diag(1e-200)`, true det `1e-400`) even though `inv`
+  and `solve` still succeed — the singularity test is scale-relative, so `det == 0.0` does not by itself
+  mean singular at extreme scales.
 
 ### Sorting & search
 
@@ -489,9 +493,9 @@ General tensor contraction over chosen axes (built from `permute`/`reshape`/`mat
 differentiable):
 
 - `tensordot(a: Tensor, b: Tensor, axes = 2) → Tensor` — `axes` is an **Integer** `N` (contract the
-  last `N` axes of `a` with the first `N` of `b` — `N = 1` is matrix multiply, `N = 2` is the
-  Frobenius double-contraction to a scalar) or a **`[a-axes, b-axes]`** pair (each an Integer or a
-  List of Integers) naming the axes to pair up.
+  last `N` axes of `a` with the first `N` of `b` — `N = 0` is the outer product, `N = 1` is matrix
+  multiply, `N = 2` is the Frobenius double-contraction to a scalar) or a **`[a-axes, b-axes]`** pair
+  (each an Integer or a List of Integers) naming the axes to pair up.
 - `contract(a: Tensor, b: Tensor, aaxes, baxes) → Tensor` — `tensordot` with the two axis lists given
   explicitly.
 

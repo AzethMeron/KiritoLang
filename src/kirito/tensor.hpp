@@ -346,6 +346,10 @@ T determinant(const Tensor<T>& t) {
     std::size_t n = t.shape[0];
     std::vector<T> a = t.data;
     double scale = maxAbsElem(t);
+    // An infinite element makes the scale-relative tol infinite, so the first finite pivot would
+    // satisfy `pmag < tol` and wrongly return 0.0 before the non-finite pivot is ever reached. Reject
+    // it up front (a NaN element is still caught later when it propagates into a pivot).
+    if (!std::isfinite(scale)) throw TensorError("matrix contains a non-finite value (inf or NaN)");
     double tol = (scale > 0.0 ? scale : 1.0) * 1e-15;  // scale-relative singularity threshold
     T det = T{1};
     for (std::size_t k = 0; k < n; ++k) {
@@ -375,6 +379,7 @@ Tensor<T> inverse(const Tensor<T>& t) {
     std::size_t n = t.shape[0];
     std::vector<T> a = t.data;
     double scale = maxAbsElem(t);
+    if (!std::isfinite(scale)) throw TensorError("matrix contains a non-finite value (inf or NaN)");  // else an inf element raises the misleading "singular"
     double tol = (scale > 0.0 ? scale : 1.0) * 1e-15;  // scale-relative singularity threshold
     Tensor<T> inv(Shape{n, n});
     for (std::size_t i = 0; i < n; ++i) inv.data[i * n + i] = T{1};

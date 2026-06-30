@@ -819,9 +819,13 @@ inline Handle g_takeAxis0(KiritoVM& vm, Handle ah, const std::vector<std::ptrdif
     auto bw = [ash, idx](const FT& g) -> std::vector<FT> {
         FT d(ash);
         std::size_t block = d.data.size() / (ash[0] ? ash[0] : 1);
-        for (std::size_t i = 0; i < idx.size(); ++i)
+        std::ptrdiff_t dim = static_cast<std::ptrdiff_t>(ash[0]);
+        for (std::size_t i = 0; i < idx.size(); ++i) {
+            std::ptrdiff_t r = idx[i];
+            if (r < 0) r += dim;   // mirror takeAxis0's negative-index normalization — else a far-OOB scatter
             for (std::size_t j = 0; j < block; ++j)
-                d.data[static_cast<std::size_t>(idx[i]) * block + j] += g.data[i * block + j];
+                d.data[static_cast<std::size_t>(r) * block + j] += g.data[i * block + j];
+        }
         return {d};
     };
     return makeAutogradFloat(vm, std::move(out), {ah}, std::move(bw));
@@ -2302,14 +2306,17 @@ public:
         m.fn("diag", {{"t", "Tensor"}, {"k", "Integer", m.vm().makeInt(0)}}, "Tensor", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             const TensorVal::FT& t = tns::reqFloat(tns::reqT(vm, a[0], "diag"), "diag");
             int64_t k = Args(vm, a, "diag")[1].asInt("k");
+            // |k| as an unsigned magnitude — negating INT64_MIN would be UB. A huge |k| makes the
+            // result shape exceed the size cap and raise "Tensor too large" cleanly.
+            std::size_t koff = static_cast<std::size_t>(k < 0 ? (0ull - static_cast<uint64_t>(k)) : static_cast<uint64_t>(k));
             return tns::wrap([&]() -> Handle {
                 if (t.ndim() == 1) {
-                    std::size_t n = t.size() + static_cast<std::size_t>(k < 0 ? -k : k);
+                    std::size_t n = t.size() + koff;
                     tns::checkSize(tensor::Shape{n, n});  // bound n*n -> clean "Tensor too large", not bad_alloc
                     TensorVal::FT out(tensor::Shape{n, n});
                     for (std::size_t i = 0; i < t.size(); ++i) {
-                        std::size_t r = k >= 0 ? i : i + static_cast<std::size_t>(-k);
-                        std::size_t c = k >= 0 ? i + static_cast<std::size_t>(k) : i;
+                        std::size_t r = k >= 0 ? i : i + koff;
+                        std::size_t c = k >= 0 ? i + koff : i;
                         out.data[r * n + c] = t.data[i];
                     }
                     return tns::make(vm, std::move(out));
@@ -2318,8 +2325,8 @@ public:
                     std::size_t rows = t.shape[0], cols = t.shape[1];
                     std::vector<double> d;
                     for (std::size_t i = 0;; ++i) {
-                        std::size_t r = k >= 0 ? i : i + static_cast<std::size_t>(-k);
-                        std::size_t c = k >= 0 ? i + static_cast<std::size_t>(k) : i;
+                        std::size_t r = k >= 0 ? i : i + koff;
+                        std::size_t c = k >= 0 ? i + koff : i;
                         if (r >= rows || c >= cols) break;
                         d.push_back(t.data[r * cols + c]);
                     }
@@ -2338,8 +2345,8 @@ public:
                 TensorVal::FT out = t;
                 for (std::size_t i = 0; i < rows; ++i)
                     for (std::size_t j = 0; j < cols; ++j) {
-                        bool keep = lower ? (static_cast<int64_t>(j) <= static_cast<int64_t>(i) + k)
-                                          : (static_cast<int64_t>(j) >= static_cast<int64_t>(i) + k);
+                        int64_t diff = static_cast<int64_t>(j) - static_cast<int64_t>(i);  // bounded by the matrix dims; avoids `i + k` overflow for extreme k
+                        bool keep = lower ? (diff <= k) : (diff >= k);
                         if (!keep) out.data[i * cols + j] = 0.0;
                     }
                 return tns::make(vm, std::move(out));
