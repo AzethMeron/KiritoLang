@@ -140,8 +140,8 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 
 | Method | Description |
 |--------|-------------|
-| `s.upper()` | Upper-case (Unicode-aware for ASCII/Latin-1/Latin-Extended-A). |
-| `s.lower()` | Lower-case (Unicode-aware for ASCII/Latin-1/Latin-Extended-A). |
+| `s.upper()` | Upper-case (Unicode-aware for ASCII/Latin-1/Latin-Extended-A). A strict 1:1 code-point map — no 1:many folding (`"ß".upper()` stays `"ß"`); out-of-range scripts pass through unchanged. |
+| `s.lower()` | Lower-case (Unicode-aware for ASCII/Latin-1/Latin-Extended-A). 1:1, like `upper`. |
 | `s.strip([chars])` | Trim whitespace (or any of `chars`) from both ends. |
 | `s.lstrip([chars])` | Trim whitespace (or any of `chars`) from the left. |
 | `s.rstrip([chars])` | Trim whitespace (or any of `chars`) from the right. |
@@ -156,10 +156,10 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 | `s.rindex(sub[, start[, end]])` | Last index of `sub`; raises if absent. |
 | `s.count(sub[, start[, end]])` | Number of non-overlapping occurrences. |
 | `s.format(...)` | Substitute `{}` (sequential) and `{0}`/`{1}` (indexed) fields with the positional arguments. (Named `{x}` fields and `:format-spec` like `{:05d}` are **not** supported here — use an f-string or the `format()` builtin for those.) |
-| `s.isdigit()` | Whether every character is a digit. |
-| `s.isalpha()` | Whether every character is a letter. |
-| `s.isalnum()` | Whether every character is a letter or digit. |
-| `s.isspace()` | Whether every character is whitespace. |
+| `s.isdigit()` | Whether every character is a digit. **ASCII `0`–`9` only** (`²`, `½`, fullwidth/Arabic-Indic digits are not digits here). |
+| `s.isalpha()` | Whether every character is a letter. ASCII letters, plus **any code point ≥ U+0080** counts as a letter. |
+| `s.isalnum()` | Whether every character is a letter or digit (same ASCII-digit / ≥U+0080-letter rules as above). |
+| `s.isspace()` | Whether every character is whitespace — the **six ASCII whitespace** characters only (space, `\t`, `\n`, `\r`, `\v`, `\f`); NBSP and other Unicode spaces do not count. |
 | `s.islower()` | Whether the cased characters are all lower-case. |
 | `s.isupper()` | Whether the cased characters are all upper-case. |
 | `s.removeprefix(p)` | Drop prefix `p` if present. |
@@ -172,7 +172,7 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 | `s.rpartition(sep)` | Split once at the last `sep` into `[head, sep, tail]`. |
 | `s.levenshtein(other)` | Unicode (code-point) edit distance. `other` is a String (→ `Integer`) or a List of Strings (→ a List of distances, computed in one native call). Insert/delete/substitute each cost 1. The `string` module's `similarity`/`closest`/`fuzzymatch` build on this. |
 | `s.encode([encoding])` | Encode to a [`Bytes`](#bytes). `encoding` is `utf-8` (default), `latin-1`, or `ascii`. |
-| `s.apply(fn)` | A new String with `fn` applied to each character (`fn` takes/returns a String). |
+| `s.apply(fn)` | A new String built by concatenating `fn(ch)` over each character. `fn` takes a String and returns a String of **any** length, so this is a flat-map: a 1-char return transforms, a longer return expands (`"ab".apply(Function(c): return c + c) == "aabb"`), and `""` drops the character. |
 
 ## Bytes
 
@@ -271,6 +271,11 @@ io.print(a.union(b), a.intersection(b))   # a 4-element set and {3} (a Set is un
 | `s.apply(fn)` | A new Set with `fn` applied to each element (collisions collapse). |
 | `s.copy()` | A shallow copy of the set. |
 | `s.clear()` | Remove all elements. |
+
+The set-algebra **methods** (`union`/`intersection`/`difference`/`symmetricdifference`/`issubset`/
+`issuperset`/`isdisjoint`) accept **any iterable** for `other` — another Set, a List, a Dict (its
+keys), or a String (its characters) — e.g. `{1, 2}.union([2, 3])`. The set-algebra **operators**
+(`-`, `<`, `<=`, `>`, `>=`), by contrast, require a Set on the right-hand side and raise otherwise.
 
 ## Dict
 

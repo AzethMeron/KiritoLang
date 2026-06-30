@@ -59,7 +59,10 @@ toward negative infinity); `%` modulo; `**` right-associative exponentiation.
 ```
 
 Integer overflow wraps (well-defined), it does not trap; arbitrary precision is a future enrichment.
-Integer literals may be written in decimal, hex (`0xFF`), octal (`0o17`), or binary (`0b1010`).
+Integer literals may be written in decimal, hex (`0xFF`), octal (`0o17`), or binary (`0b1010`). A
+leading zero does **not** mean octal — `007 == 7` (octal needs the `0o` prefix). A float literal needs
+digits on **both** sides of the dot: `3.0` and `0.5` are floats, but `3.` and `.5` are not (and do
+not parse as numbers).
 
 There are no bitwise *operators*; use the builtins `bitand`, `bitor`, `bitxor`, `bitnot` and the
 shifts `shl`, `shr` for bit manipulation on Integers:
@@ -256,6 +259,10 @@ var typed = Function(d : Dict) -> Float:
     return Float(len(d))
 # typed([1, 2])  -> error: argument 'd' must be Dict, got List
 ```
+
+A non-`None` return annotation also checks the **implicit** `None` a function returns by falling off
+the end (or hitting a `return`-less branch): such a function annotated `-> Integer` raises `function
+must return Integer, got None`. (`-> None` accepts an explicit `return`, `return None`, or fall-off.)
 
 Annotations are checked at runtime (inheritance-aware for classes). `Any` or no annotation accepts
 anything. Inline form: `Function(x): return x * x`.

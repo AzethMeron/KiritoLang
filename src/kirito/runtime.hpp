@@ -1289,6 +1289,7 @@ inline Handle StrVal::getAttr(KiritoVM& vm, Handle self, std::string_view name) 
         return bindReq("join", 1, {"iterable"}, [self, recv](KiritoVM& vm, std::span<const Handle> a) {
             const std::string& sep = recv(vm, self);
             auto items = vm.arena().deref(a[0]).iterate(vm);
+            if (!items) throw KiritoError("join expects an iterable");   // a non-iterable user instance returns nullopt, not a throw
             std::string out;
             bool first = true;
             for (Handle h : items.value()) {

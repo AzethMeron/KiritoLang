@@ -43,6 +43,9 @@ parameter name.
   Inheritance-aware: a subclass instance satisfies a base type. (A typed `catch` accepts the same
   forms: `catch String as e`, `catch SomeClass as e`.) Note `Bool` is its **own** type, not a subtype
   of `Integer`: `isinstance(True, Integer)` is `False` (and `isinstance(1, Bool)` is `False`).
+  The type-name `String` form also accepts the **pseudo-types** `"Number"` (Integer or Float),
+  `"Any"` (always `True`), `"Function"`, `"Module"`, `"None"`, and a **native object's type name**
+  (e.g. `isinstance(m, "Matrix")`).
 - `id(x) → Integer` — a stable identity number for `x`, unique among live objects and equal for two
   references to the same object (`id(a) == id(b)` iff `a` and `b` are the same object). Used to tell
   shared references apart from equal-but-distinct values.
@@ -81,7 +84,8 @@ parameter name.
 - `round(x[, ndigits]) → Number` — with `ndigits` omitted (or `None`), round to the nearest
   `Integer`; with `ndigits` given, round to that many decimal places, yielding a `Float`.
   `round(pi, ndigits = 2)`. Ties round **half away from zero** (`round(0.5) == 1`, `round(-1.5) == -2`),
-  not round-half-to-even.
+  not round-half-to-even. A `NaN`/infinite `x` raises in the `→ Integer` form (no `ndigits`) but passes
+  through unchanged when `ndigits` is given (`round(nan, 2)` is `nan`).
 - `divmod(a, b) → List` — `[a // b, a % b]` in one step, using floor semantics.
 - `pow(base, exp[, mod]) → Number` — exponentiation; the 3-argument form is modular,
   `(base ** exp) % mod`, computed efficiently over non-negative Integers (`mod` must be positive and

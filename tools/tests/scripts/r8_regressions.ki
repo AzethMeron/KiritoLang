@@ -1,0 +1,60 @@
+# r8_regressions.ki — regressions for bugs found in the round-8 (R8) audit.
+#   P0  an empty subscript `obj[]` built an IndexExpr with a NULL index, which the resolver/analyzer/
+#       compiler then dereferenced -> a hard SEGFAULT of the interpreter on a one-line program. Now a
+#       clean parse error. (The parse-error message itself is checked by tools/tests/errors/
+#       empty_subscript.{ki,experr}; here we prove, via a child process, that it does NOT crash.)
+#   P2  String.join(non_iterable) called iterate() then unconditionally .value(); a non-iterable user
+#       instance returns nullopt, so it raised the mislabeled, span-less "bad optional access" instead
+#       of a clean error. Now raises "join expects an iterable".
+var io = import("io")
+var sys = import("sys")
+var n = 0
+var ok = Function(c, m):
+    assert c, m
+    n = n + 1
+var raises = Function(f):
+    try:
+        discard f()
+        return False
+    catch:
+        return True
+
+# ---- P2: join of a non-iterable raises a CLEAN, catchable error (not bad_optional_access) ----
+class NoIter:
+    var v = 1
+var jmsg = ""
+try:
+    discard ",".join(NoIter())
+catch as e:
+    jmsg = String(e)
+ok(jmsg != "", "join of a non-iterable raises")
+ok("iterable" in jmsg, "join non-iterable -> clean 'expects an iterable' message")
+ok(not ("bad optional" in jmsg), "join non-iterable -> NOT 'bad optional access'")
+# join still works over real iterables (regression guard the fix didn't break the normal path)
+ok(",".join(["a", "b", "c"]) == "a,b,c", "join over a List still works")
+ok("-".join({1: "x", 2: "y"}.keys().apply(Function(k): return String(k))) != "", "join over Dict keys works")
+
+# ---- P0: an empty subscript fails cleanly in a child `ki`, with NO segfault ----
+# Run a generated one-liner through a child process; a SEGFAULT would show up as a signal-derived
+# exit code with no diagnostic, whereas the fix yields a normal parse-error exit + message.
+var probe = Function(src):
+    var path = io.join(sys.gettempdir(), "r8_emptysub_probe.ki")
+    var fh = io.open(path, "w")
+    discard fh.write(src)
+    fh.close()
+    var r = sys.createprocess([sys.executable, path])
+    discard io.remove(path)
+    return r
+var r1 = probe("var xs = [1, 2, 3]\ndiscard xs[]\n")
+ok(r1["code"] != 0, "empty subscript `xs[]` fails (does not run)")
+ok("index expression inside" in r1["stderr"], "empty subscript reports a clean parse error (no crash)")
+var r2 = probe("var xs = [1, 2, 3]\nxs[] = 9\n")
+ok("index expression inside" in r2["stderr"], "empty subscript on an assignment target reports a clean parse error")
+var r3 = probe("var d = {1: 2}\ndiscard d[1][]\n")
+ok("index expression inside" in r3["stderr"], "chained empty subscript reports a clean parse error")
+# a real index and a slice still parse + run fine (the fix only rejects the EMPTY non-slice form)
+ok([10, 20, 30][1] == 20, "a normal index still works")
+ok([10, 20, 30][:][0] == 10, "an empty SLICE [:] still works (not rejected)")
+ok("abcde"[1:4] == "bcd", "a normal slice still works")
+
+io.print("r8_regressions: " + String(n) + " checks passed")

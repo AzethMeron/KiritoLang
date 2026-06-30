@@ -879,10 +879,8 @@ catch as e:
 assert threw, "pop missing without default raises"
 assert d3.pop(key="b") == 2, "pop kwarg"
 
-# remove: returns None, deletes key. Per doc "raises if absent; like `pop` but returns nothing"
-# IMPL BUG: actually a silent no-op on missing — does NOT raise (runtime.hpp:612-616 ignores
-# the find() result). Probe records the actual silent behavior so the audit stays green; the
-# divergence is flagged in the report.
+# remove: returns None and deletes the key; raises "key not found" if absent (matches the doc:
+# "raises if absent; like `pop` but returns nothing"). The missing-key raise is asserted below.
 var d4 = {"a": 1}
 var rmRes = d4.remove("a")
 assert rmRes == None and not ("a" in d4), "remove returns None, deletes key"

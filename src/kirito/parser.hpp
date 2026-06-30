@@ -609,6 +609,10 @@ private:
                     node->step = std::move(step);
                     expr = std::move(node);
                 } else {
+                    // An empty subscript `obj[]` is not a slice and has no index — reject it here
+                    // rather than building an IndexExpr with a null index (which the resolver /
+                    // analyzer / compiler would dereference and crash on).
+                    if (!start) throw KiritoError("expected an index expression inside '[ ]'", span);
                     auto node = std::make_unique<ast::IndexExpr>();
                     node->span = span;
                     node->object = std::move(expr);
