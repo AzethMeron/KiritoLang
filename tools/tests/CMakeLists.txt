@@ -169,13 +169,14 @@ foreach(script ${ki_scripts})
     endif()
     # Optional `<name>.args` sidecar (one argv token per line) supplies the script's command-line
     # arguments, so a test of arglist/argmain runs with identical argv in every runner (CTest,
-    # test_release.sh, the self-host). Newlines -> the ';' separator run_ki_script.cmake expects.
+    # test_release.sh, the self-host). Pass the FILE PATH (a single value) — not a pre-joined list —
+    # and let run_ki_script.cmake re-read it with file(STRINGS). A joined ';'-list would expand
+    # INLINE in add_test, scattering the tokens as separate `cmake` arguments so only the first
+    # reached `-DARGS` (and a literal `--` token would even abort cmake's own option parsing before
+    # `-P`, silently skipping the run) — so multi-token args never actually reached the script.
     set(argfile ${CMAKE_CURRENT_SOURCE_DIR}/scripts/${nm}.args)
     if(EXISTS ${argfile})
-        file(STRINGS ${argfile} arglines)
-        string(REPLACE ";" "\\;" arglines "${arglines}")   # protect any literal ';' in a token
-        string(JOIN ";" argjoined ${arglines})
-        list(APPEND extra -DARGS=${argjoined})
+        list(APPEND extra -DARGSFILE=${argfile})
     endif()
     add_test(NAME script_${nm}
              COMMAND ${CMAKE_COMMAND} -DKI=$<TARGET_FILE:ki> -DSCRIPT=${script}

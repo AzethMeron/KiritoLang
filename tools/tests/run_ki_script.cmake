@@ -1,8 +1,12 @@
 # Run a .ki script through `ki` and compare stdout to a golden .expected file.
 # Args (via -D): KI (interpreter), SCRIPT, EXPECTED, optional INPUT (stdin file),
-# optional ARGS (semicolon-separated extra script argv tokens after the script path).
-if(DEFINED ARGS AND NOT ARGS STREQUAL "")
-    set(_script_args ${ARGS})
+# optional ARGSFILE (a `<name>.args` sidecar, one argv token per line). The sidecar is passed by
+# PATH and read here with file(STRINGS) so the token list never touches this invocation's own
+# command line — each line becomes exactly one element of _script_args, so a token may contain
+# spaces or be option-shaped (e.g. `--`) and still reach the script intact. (file(STRINGS) skips
+# blank lines, so an empty-string argv token cannot be expressed via the sidecar.)
+if(DEFINED ARGSFILE AND NOT ARGSFILE STREQUAL "")
+    file(STRINGS ${ARGSFILE} _script_args)
 else()
     set(_script_args)
 endif()
