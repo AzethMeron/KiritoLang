@@ -2160,7 +2160,7 @@ inline void KiritoVM::registerSourceModule(std::string name, std::string_view so
     std::string modName = name;
     registerModule(std::move(name), [src, modName](KiritoVM& vm) -> Handle {
         try {
-            Handle scope = vm.newModuleScope();
+            Handle scope = vm.newModuleScope(/*isMain=*/false);  // a frozen module is imported -> argmain False, arglist empty (matches .ki-file imports)
             RootScope guard(vm);
             guard.add(scope);
             KiritoVM::ChunkFileScope chunkScope(vm, "<" + modName + ">");  // frozen-chunk attribution
