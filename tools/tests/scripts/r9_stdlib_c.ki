@@ -266,25 +266,32 @@ ok(sys.platform in ["linux", "darwin", "windows"], "sys.platform is known value"
 ok(sys.arch in ["x64", "arm64", "x86"], "sys.arch is known value")
 
 # getenv / setenv / unsetenv
-ok(type(sys.getenv("HOME")) == "String", "sys.getenv HOME returns String")
+# (no assumption of a pre-existing var like HOME: it's POSIX-only and absent
+# on a bare Windows environment, so every check here sets its own var first)
 ok(sys.getenv("__NO_SUCH_VAR__12345__") == None, "sys.getenv missing returns None")
 sys.setenv("KIRITO_TEST_R9", "test_val")
+ok(type(sys.getenv("KIRITO_TEST_R9")) == "String", "sys.getenv returns String for an existing var")
 ok(sys.getenv("KIRITO_TEST_R9") == "test_val", "setenv then getenv")
-sys.unsetenv("KIRITO_TEST_R9")
-ok(sys.getenv("KIRITO_TEST_R9") == None, "unsetenv removes var")
 
 # environ
 var env = sys.environ()
 ok(type(env) == "Dict", "sys.environ() returns Dict")
-ok("HOME" in env, "environ contains HOME")
+ok(len(env) > 0, "environ is non-empty")
+ok("KIRITO_TEST_R9" in env, "environ contains the var we just set")
+
+sys.unsetenv("KIRITO_TEST_R9")
+ok(sys.getenv("KIRITO_TEST_R9") == None, "unsetenv removes var")
+ok("KIRITO_TEST_R9" not in sys.environ(), "environ no longer contains var after unsetenv")
 
 # traceback
 ok(type(sys.traceback()) == "String", "sys.traceback() returns String")
 
-# createprocess (external command)
-var result = sys.createprocess(["echo", "hello"])
-ok(result["code"] == 0, "createprocess echo returns code 0")
-ok("hello" in result["stdout"], "createprocess echo output contains 'hello'")
+# createprocess (external command) — target the running ki binary itself:
+# "echo" has no standalone executable on Windows (cmd.exe builtin only), and
+# createprocess runs by argv with no shell, so it needs a real cross-platform binary.
+var result = sys.createprocess([sys.executable, "--version"])
+ok(result["code"] == 0, "createprocess ki --version returns code 0")
+ok("Kirito" in result["stdout"], "createprocess ki --version output contains 'Kirito'")
 ok(type(result["stderr"]) == "String", "createprocess has stderr field")
 
 # shell
