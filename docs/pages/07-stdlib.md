@@ -84,11 +84,13 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 ### BytesIO object
 
 - `b.write(s: String) → Integer` — write bytes at the cursor (overwriting/extending); returns the count written.
-- `b.read([n]) → String` — read `n` bytes from the cursor, or the rest if omitted.
+- `b.read([n]) → String` — read `n` bytes from the cursor, or the rest if omitted (an explicit
+  `read(None)` also reads the rest, unlike `File.read` which requires an Integer).
 - `b.readline() → String` — read up to and including the next newline (returned without it).
 - `b.getvalue() → String` — the entire buffer contents.
 - `b.tell() → Integer` — the current cursor position.
-- `b.seek(off[, whence]) → Integer` — move the cursor (whence 0=start, 1=cur, 2=end).
+- `b.seek(off[, whence]) → Integer` — move the cursor (whence 0=start, 1=cur, 2=end). A resulting
+  position before the start clamps to 0 (whereas `File.seek` to a negative position raises).
 - `b.size() → Integer` — total buffer length in bytes (`len(b)` also works).
 - `b.truncate() → Integer` — drop everything after the cursor.
 - `b.flush() → None` — a no-op (the buffer is always in sync); present for the common stream protocol.
@@ -736,7 +738,10 @@ Process environment and platform.
 - `joinpath(*parts) → String` — join path components with `/` (a component that is itself absolute
   resets the result). Like `os.path.join` it needs at least one part (it raises otherwise); the
   near-identical `io.join` is more lenient and joins zero parts to `""`.
-- `exit(code: Integer = 0)` — terminate the process with the given exit code.
+- `exit(code: Integer = 0)` — terminate the process with the given exit code. The code is taken mod
+  256 (POSIX 8-bit wrap: `exit(256)` → `0`, `exit(-1)` → `255`). A non-Integer, non-`None` argument is
+  printed to stderr and the process exits `1` (so `sys.exit("error message")` reports a failure rather
+  than masking it as a success).
 
 ### Running external programs
 
@@ -1031,7 +1036,13 @@ woken by interpreter shutdown.
   `s.acquire(block = True, timeout = None) → Bool`, `s.release()`; also a context manager (`with s:`).
 - `Barrier(parties: Integer) → Barrier` — an N-party rendezvous. `b.wait(timeout = None) → Integer`
   (returns the arrival index 0..parties-1; the last arrival releases all), `b.parties() → Integer`,
-  `b.nwaiting() → Integer`, `b.reset()`, `b.abort()`.
+  `b.nwaiting() → Integer`, `b.reset()`, `b.abort()`. Unlike the others, `b.wait` on **timeout raises**
+  (it breaks the barrier) rather than returning a sentinel. `reset()` breaks only the currently-waiting
+  parties and keeps the barrier reusable; `abort()` is **permanent** — every later `wait` raises.
+
+These primitives cross VM boundaries **by identity** (passing one into `spawn`, or returning one from a
+worker, shares the same underlying object), but they define no `==`/hash: two handles to the same object
+compare `==` as `False`, and a primitive cannot be used as a Dict/Set key (it is unhashable).
 
 ### Avoiding deadlock
 

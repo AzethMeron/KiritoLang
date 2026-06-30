@@ -209,6 +209,10 @@ You can also set a flag inside the pattern with `(?i)` / `(?m)` / `(?s)`:
 io.print(re.search("(?i)hello", "HELLO there").group())     # => HELLO
 ```
 
+An inline flag applies to the **whole** pattern no matter where it appears (it is not positional, and
+there are no scoped `(?i:...)` groups) — `re.search("a(?i)b", "AB")` matches. This differs from Python,
+where `(?i)` must lead the pattern.
+
 ## Compile once, reuse many times
 
 If you'll use a pattern repeatedly, `compile` it once into a `Regex` object and call methods on that
