@@ -27,6 +27,7 @@
 # — only invariants; scratch files removed). Self-checking: each ok(cond,msg) increments a counter.
 
 var io = import("io")
+var path = import("path")
 var json = import("json")
 var serialize = import("serialize")
 var dump = import("dump")
@@ -350,8 +351,8 @@ ok(dump.loads(dump.dumps(fuzzSample))["in"].x == 4, "dump healthy after fuzz")
 ok(serialize.loads(serialize.dumps([1, 2, 3])) == [1, 2, 3], "serialize healthy after fuzz")
 
 # File save/load round-trip on a fresh graph (scratch dir; cleaned up).
-var sPath = sys.joinpath(sys.gettempdir(), "r8_serde_text.kser")
-var dPath = sys.joinpath(sys.gettempdir(), "r8_serde_bin.kdmp")
+var sPath = path.join(sys.gettempdir(), "r8_serde_text.kser")
+var dPath = path.join(sys.gettempdir(), "r8_serde_bin.kdmp")
 discard serialize.save({"x": [None, True], "dt": dt2}, sPath)
 ok(serialize.load(sPath)["dt"] == dt2, "serialize.save/load DateTime on disk")
 discard dump.save({"y": Set([1, 2, 3]), "m": m3}, dPath)
@@ -359,7 +360,7 @@ ok(dump.load(dPath)["m"] == m3, "dump.save/load Matrix on disk")
 ok(2 in dump.load(dPath)["y"], "dump.save/load Set member")
 discard io.remove(sPath)
 discard io.remove(dPath)
-ok(raises(Function(): return dump.load(sys.joinpath(sys.gettempdir(), "r8_no_such.kdmp"))), "dump.load missing file raises")
+ok(raises(Function(): return dump.load(path.join(sys.gettempdir(), "r8_no_such.kdmp"))), "dump.load missing file raises")
 # Cross-format agreement on the fresh graph.
 var ca = dump.loads(dump.dumps(natGraph))
 var cs = serialize.loads(serialize.dumps(natGraph))

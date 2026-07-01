@@ -1,6 +1,7 @@
 # Adversarial audit of the `sys` module: every documented function/constant, plus edge cases for
-# environment round-trips and joinpath's absolute-resets-and-no-double-separator semantics.
+# environment round-trips and path.join's absolute-resets-and-no-double-separator semantics.
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 
 # --- constants: platform / arch / version / executable ---
@@ -55,32 +56,32 @@ sys.unsetenv("KIRITO_AUDIT_ENV_X")
 # environ snapshot from before is a separate Dict, doesn't change retroactively
 assert env["KIRITO_AUDIT_ENV_X"] == "marker-99", "environ is a snapshot (Dict copy)"
 
-# --- gettempdir is a non-empty String, and `joinpath` builds usable paths under it ---
+# --- gettempdir is a non-empty String, and `path.join` builds usable paths under it ---
 assert type(sys.gettempdir()) == "String", "gettempdir is a String"
 assert sys.gettempdir() != "", "gettempdir non-empty"
 
-# --- joinpath: variadic, '/' separator, absolute resets, no double sep ---
-assert sys.joinpath("a", "b", "c") == "a/b/c", "join three parts"
-assert sys.joinpath("a") == "a", "single part is identity"
-assert sys.joinpath("a/", "b") == "a/b", "trailing slash does NOT double-up"
-assert sys.joinpath("/abs", "rel") == "/abs/rel", "absolute first stays absolute"
-assert sys.joinpath("a", "/b", "c") == "/b/c", "later absolute resets the result"
-assert sys.joinpath("a", "b", "/c", "d") == "/c/d", "absolute resets even after multiple parts"
-assert sys.joinpath("", "x") == "x", "empty first does not produce a leading slash"
-assert sys.joinpath("a", "") == "a/", "empty trailing keeps separator"
+# --- path.join: variadic, '/' separator, absolute resets, no double sep ---
+assert path.join("a", "b", "c") == "a/b/c", "join three parts"
+assert path.join("a") == "a", "single part is identity"
+assert path.join("a/", "b") == "a/b", "trailing slash does NOT double-up"
+assert path.join("/abs", "rel") == "/abs/rel", "absolute first stays absolute"
+assert path.join("a", "/b", "c") == "/b/c", "later absolute resets the result"
+assert path.join("a", "b", "/c", "d") == "/c/d", "absolute resets even after multiple parts"
+assert path.join("", "x") == "x", "empty first does not produce a leading slash"
+assert path.join("a", "") == "a/", "empty trailing keeps separator"
 # requires at least one component
 var raised = False
 try:
-    discard sys.joinpath()
+    discard path.join()
 catch as e:
     raised = True
-assert raised, "joinpath() with no args raises"
+assert raised, "path.join() with no args raises"
 
 # Compose a usable temp path
-var tp = sys.joinpath(sys.gettempdir(), "kirito_audit_scratch.txt")
+var tp = path.join(sys.gettempdir(), "kirito_audit_scratch.txt")
 assert tp != "", "composed temp path"
 
-# --- type errors raise (joinpath demands String parts; getenv demands String name) ---
+# --- type errors raise (path.join demands String parts; getenv demands String name) ---
 raised = False
 try:
     discard sys.getenv(42)
@@ -97,9 +98,9 @@ assert raised, "setenv rejects non-String value"
 
 raised = False
 try:
-    discard sys.joinpath("a", 5)
+    discard path.join("a", 5)
 catch as e:
     raised = True
-assert raised, "joinpath rejects non-String parts"
+assert raised, "path.join rejects non-String parts"
 
 io.print("OK audit-sys")

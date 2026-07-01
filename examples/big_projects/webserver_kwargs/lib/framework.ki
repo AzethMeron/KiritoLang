@@ -5,6 +5,7 @@
 # `zip` keep positional form — they have no named parameters to bind to.)
 
 var http = import(name = "http")
+var path = import("path")
 var io = import(name = "io")
 
 # Split a path into non-empty segments: "/users/42/" -> ["users", "42"].
@@ -92,7 +93,7 @@ class App:
             if len(x = rest) == 0:
                 rest = ["index.html"]
             var fpath = directory + "/" + "/".join(iterable = rest)
-            if not io.exists(path = fpath) or io.isdir(path = fpath):
+            if not path.exists(path = fpath) or path.isdir(path = fpath):
                 return None
             var f = io.open(path = fpath, mode = "r")
             var data = f.read()

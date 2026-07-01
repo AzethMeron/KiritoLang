@@ -11,6 +11,8 @@
 
 var io = import("io")
 var tab = import("tabular")
+var sys = import("sys")
+var path = import("path")
 
 var n = 0
 var ok = Function(c, m):
@@ -309,5 +311,18 @@ ok(len(df_drop) == 1, "DataFrame.dropna() removes rows with any None")
 var df_fill = df_na.fillna(0)
 ok(len(df_fill) == 3, "DataFrame.fillna() keeps all rows")
 ok(df_fill["a"].values == [1, 0, 3], "DataFrame.fillna() fills None in column a")
+
+# =========================================================== readcsv from a FILE (regression guard)
+# readcsv(source) treats a newline-free source that names an existing file as a path and reads it
+# (via path.exists + io.open). This branch is otherwise untested — string CSV inputs skip it — and it
+# regressed silently when the path helpers moved out of io. Write a temp CSV, read it back by NAME.
+var csvfile = path.join(sys.gettempdir(), "r9_tabular_probe.csv")
+with io.open(csvfile, "w") as cf:
+    cf.write("city,pop\nNYC,8000000\nLA,4000000\n")
+var df_file = tab.readcsv(csvfile)
+ok(len(df_file) == 2, "readcsv(filename) reads rows from a real file")
+ok(df_file.columns == ["city", "pop"], "readcsv(filename) parses the header")
+ok("NYC" in df_file["city"].values, "readcsv(filename) parses cell values")
+discard io.remove(csvfile)
 
 io.print("r9_tabular: " + String(n) + " checks passed")

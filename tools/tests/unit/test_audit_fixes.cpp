@@ -159,12 +159,12 @@ int main() {
     {
         KiritoVM vm;
         CHECK(ev(vm,
-            "var io = import(\"io\")\nvar sys = import(\"sys\")\n"
-            "var p = io.join(sys.gettempdir(), \"audit_closed.txt\")\n"
+            "var io = import(\"io\")\nvar sys = import(\"sys\")\nvar path = import(\"path\")\n"
+            "var p = path.join(sys.gettempdir(), \"audit_closed.txt\")\n"
             "var f = io.open(p, \"w\")\nf.write(\"keep\")\nf.close()\n"
             "var threw = False\ntry:\n    f.write(\"lost\")\ncatch as e:\n    threw = True\n"
             "var r = io.open(p, \"r\")\nvar threw2 = False\ntry:\n    r.write(\"inject\")\ncatch as e:\n    threw2 = True\n"
-            "var p2 = io.join(sys.gettempdir(), \"audit_closed2.txt\")\n"
+            "var p2 = path.join(sys.gettempdir(), \"audit_closed2.txt\")\n"
             "var threw3 = False\ntry:\n    discard io.open(p2, \"w\").read()\ncatch as e:\n    threw3 = True\n"
             "r.close()\nvar threw4 = False\ntry:\n    discard r.read()\ncatch as e:\n    threw4 = True\n"
             "[threw, threw2, threw3, threw4, io.open(p).read()]") == "[True, True, True, True, 'keep']");

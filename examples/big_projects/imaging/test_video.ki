@@ -5,6 +5,7 @@
 # it writes itself. The committed-asset pixel values are this decoder's own deterministic output.
 
 var cv = import("video")
+var path = import("path")
 var Image = import("imaging")
 var jpeg = import("jpeg")
 var gif = import("gif")
@@ -14,7 +15,7 @@ var sys = import("sys")
 # Locate testdata/ whether the working directory is the package dir (CTest) or the repo root (manual).
 var _tdata = Function():
     for base in ["testdata", "examples/big_projects/imaging/testdata"]:
-        if io.exists(io.join(base, "clip.mjpeg")):
+        if path.exists(path.join(base, "clip.mjpeg")):
             return base
     throw "cannot find testdata/ (run from the repo root or the package directory)"
 var tdata = _tdata()
@@ -32,7 +33,7 @@ var check = Function(cond, msg):
     checks = checks + 1
 
 # ----------------------------------------------------------------- MJPEG file (baseline JPEG decode)
-var cap = cv.VideoCapture(io.join(tdata, "clip.mjpeg"))
+var cap = cv.VideoCapture(path.join(tdata, "clip.mjpeg"))
 check(cap.isopened(), "mjpeg opened")
 check(cap.kind == "mjpeg", "mjpeg kind")
 check(cap.count == 3, "mjpeg frame count")
@@ -52,7 +53,7 @@ cap.release()
 check(not cap.isopened(), "mjpeg released")
 
 # Image.open / frombytes also handle a standalone JPEG (find the first EOI by hand).
-var raw = io.open(io.join(tdata, "clip.mjpeg"), "rb").read()
+var raw = io.open(path.join(tdata, "clip.mjpeg"), "rb").read()
 var eoi = 0
 var ei = 0
 while ei + 1 < len(raw):
@@ -65,7 +66,7 @@ var onejpg = Image.frombytes(raw[0:eoi + 2])
 check(onejpg.mode == "RGB" and onejpg.size == [16, 16], "Image.frombytes(jpeg)")
 
 # ----------------------------------------------------------------- animated GIF (LZW + compositing)
-var g = cv.VideoCapture(io.join(tdata, "anim.gif"))
+var g = cv.VideoCapture(path.join(tdata, "anim.gif"))
 check(g.kind == "gif" and g.count == 4, "gif frame count")
 check(g.width == 12 and g.height == 10, "gif size")
 check(g.get(cv.CAP_PROP_FPS) > 0.0, "gif fps")
@@ -78,25 +79,25 @@ while pr[0]:
 check(frames == 4, "gif read all 4")
 g.release()
 # for-loop iteration yields Images
-var g2 = cv.VideoCapture(io.join(tdata, "anim.gif"))
+var g2 = cv.VideoCapture(path.join(tdata, "anim.gif"))
 var it = 0
 for frame in g2:
     check(frame.mode == "RGB", "gif iter frame is RGB image")
     it = it + 1
 check(it == 4, "gif for-loop count")
-check(Image.open(io.join(tdata, "anim.gif")).size == [12, 10], "Image.open(gif) first frame")
+check(Image.open(path.join(tdata, "anim.gif")).size == [12, 10], "Image.open(gif) first frame")
 
 # ----------------------------------------------------------------- image sequence (lossless round-trip)
-var seqdir = io.join(tmp, "ki_vid_seq")
+var seqdir = path.join(tmp, "ki_vid_seq")
 discard io.mkdir(seqdir)
 var colors = [[200, 10, 20], [10, 200, 30], [40, 50, 200]]
 var k = 0
 while k < 3:
     var im = Image.new("RGB", [8, 6], colors[k])
     im.putpixel([1, 1], [k, k, k])
-    im.save(io.join(seqdir, "f_" + _pad(k) + ".png"))
+    im.save(path.join(seqdir, "f_" + _pad(k) + ".png"))
     k = k + 1
-var sq = cv.VideoCapture(io.join(seqdir, "f_%03d.png"))
+var sq = cv.VideoCapture(path.join(seqdir, "f_%03d.png"))
 check(sq.kind == "seq" and sq.count == 3, "seq count")
 check(sq.width == 8 and sq.height == 6, "seq size")
 var si = 0
@@ -126,7 +127,7 @@ while gi < len(greys):
         z = z + 1
     body = body + "FRAME\n".encode("ascii") + Bytes(plane) + Bytes(chroma) + Bytes(chroma)
     gi = gi + 1
-var y4mpath = io.join(tmp, "ki_vid.y4m")
+var y4mpath = path.join(tmp, "ki_vid.y4m")
 var yf = io.open(y4mpath, "wb")
 yf.write(body)
 yf.close()
@@ -140,7 +141,7 @@ yc.release()
 # ----------------------------------------------------------------- direct codec entry points
 var jp = jpeg.decode(raw[0:eoi + 2])
 check(jp[1] == "RGB" and jp[0].shape() == [16, 16, 3], "jpeg.decode direct")
-var gframes = gif.frames(io.open(io.join(tdata, "anim.gif"), "rb").read())
+var gframes = gif.frames(io.open(path.join(tdata, "anim.gif"), "rb").read())
 check(len(gframes) == 4 and "delay" in gframes[0], "gif.frames direct")
 
 io.print("video: " + String(checks) + " checks passed")

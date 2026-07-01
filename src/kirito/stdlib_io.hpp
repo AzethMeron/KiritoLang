@@ -610,11 +610,10 @@ public:
             return vm.alloc(std::move(f));
         });
 
+        // pathArg: a path argument as a std::string, shared by the filesystem helpers below.
+        // (Path *interpretation* and *queries* — join/dirname/basename/splitext/exists/isfile/isdir/
+        // getsize — live in the `path` module; `io` keeps I/O and filesystem mutation + listing.)
         auto pathArg = [](KiritoVM& vm, Handle h) -> std::string { return Value(vm, h).asString("path"); };
-        m.fn("exists", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::error_code ec;
-            return val(vm, std::filesystem::exists(pathArg(vm, a[0]), ec));
-        });
         m.fn("remove", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
             std::error_code ec;
             bool removed = std::filesystem::remove(pathArg(vm, a[0]), ec);  // false if nothing was there
@@ -647,8 +646,8 @@ public:
             return val(vm, std::filesystem::current_path(ec).string());
         });
         m.fn("listdir", {{"path", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            // Tolerant query (like exists/isfile/isdir/remove): a missing/inaccessible dir lists as no
-            // entries ([]) rather than raising — a deliberate, tested choice (see r4_io/deep_system).
+            // Tolerant query (like path.exists/isfile/isdir and io.remove): a missing/inaccessible
+            // dir lists as no entries ([]) rather than raising — a deliberate, tested choice.
             List out(vm);
             std::error_code ec;
             for (const auto& entry : std::filesystem::directory_iterator(pathArg(vm, a[0]), ec))
@@ -656,66 +655,8 @@ public:
             return out.build();
         });
 
-        // --- path helpers (os.path style) ---
-        m.fn("isfile", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::error_code ec;
-            return val(vm, std::filesystem::is_regular_file(pathArg(vm, a[0]), ec));
-        });
-        m.fn("isdir", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::error_code ec;
-            return val(vm, std::filesystem::is_directory(pathArg(vm, a[0]), ec));
-        });
-        // os.path-style path helpers, computed as plain '/'-based string ops (NOT std::filesystem,
-        // whose separator and semantics are platform-dependent — '\' on Windows). Kirito uses '/'
-        // everywhere (like sys.joinpath), so results are identical cross-platform; a '\' in the input
-        // is also accepted as a separator so native Windows paths (getcwd/listdir) still split right.
-        m.fn("dirname", {{"path", "String"}}, "String", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::string p = pathArg(vm, a[0]);
-            std::size_t s = p.find_last_of("/\\");
-            if (s == std::string::npos) return val(vm, std::string());
-            std::size_t end = s;   // strip the separator run back to the parent (os.path.dirname)
-            while (end > 0 && (p[end - 1] == '/' || p[end - 1] == '\\')) --end;
-            // an all-separator prefix is the root: keep one separator (dirname("/a") -> "/") rather
-            // than dropping it to "".
-            return val(vm, end == 0 ? p.substr(0, s + 1) : p.substr(0, end));
-        });
-        m.fn("basename", {{"path", "String"}}, "String", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::string p = pathArg(vm, a[0]);
-            std::size_t s = p.find_last_of("/\\");
-            return val(vm, s == std::string::npos ? p : p.substr(s + 1));
-        });
-        m.fn("splitext", {{"path", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::string path = pathArg(vm, a[0]);
-            std::size_t sep = path.find_last_of("/\\");
-            std::size_t baseStart = (sep == std::string::npos) ? 0 : sep + 1;
-            // an extension dot must come AFTER at least one non-dot char in the final component, so a
-            // whole leading run of dots is skipped — ".bashrc"/".."/"...x" have no extension, matching
-            // os.path.splitext (its rule protects the leading dot *run*, not just the first char).
-            std::size_t scan = baseStart;
-            while (scan < path.size() && path[scan] == '.') ++scan;
-            std::size_t dot = path.find_last_of('.');
-            if (dot == std::string::npos || dot < scan)
-                return List(vm).add(val(vm, path)).add(val(vm, std::string())).build();
-            return List(vm).add(val(vm, path.substr(0, dot))).add(val(vm, path.substr(dot))).build();
-        });
-        // join(parts...) -> the parts joined with '/' (a component that is itself absolute resets the
-        // result); identical on every platform. Variadic.
-        m.fn("join", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::string out;
-            for (std::size_t i = 0; i < a.size(); ++i) {
-                std::string part = pathArg(vm, a[i]);
-                if (!part.empty() && (part[0] == '/' || part[0] == '\\')) out = part;     // absolute resets
-                else if (out.empty() || out.back() == '/' || out.back() == '\\') out += part;
-                else out += "/" + part;
-            }
-            return val(vm, out);
-        });
-        m.fn("getsize", {{"path", "String"}}, "Integer", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::error_code ec;
-            auto sz = std::filesystem::file_size(pathArg(vm, a[0]), ec);
-            if (ec) throw KiritoError("getsize: " + ec.message());
-            return val(vm, static_cast<int64_t>(sz));
-        });
+        // NB: path interpretation/queries (join/dirname/basename/splitext/exists/isfile/isdir/getsize)
+        // live in the `path` module, not here.
         // walk(dir) -> List of file paths under dir, recursively (flattened; simpler than
         // (dirpath, dirnames, filenames) triples but covers the common "visit every file" case).
         m.fn("walk", {{"dir", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {

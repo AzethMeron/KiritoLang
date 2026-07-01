@@ -8,6 +8,7 @@
 # unless every discovered program passes.
 
 var io = import("io")
+var path = import("path")
 var kirito = import("kirito")
 
 var SCRIPTS = "tools/tests/scripts"
@@ -75,7 +76,7 @@ var cases = []
 for entry in io.listdir(SCRIPTS):
     if entry.endswith(".ki"):
         var base = entry[0:len(entry) - 3]
-        if io.exists(SCRIPTS + "/" + base + ".expected") and not isNativeAudit(base):
+        if path.exists(SCRIPTS + "/" + base + ".expected") and not isNativeAudit(base):
             if runAll or not (base in EXCLUDE or base in SLOW):
                 cases.append(base)
 cases.sort()
@@ -88,12 +89,12 @@ for name in cases:
     var src = readFile(SCRIPTS + "/" + name + ".ki")
     var expected = readFile(SCRIPTS + "/" + name + ".expected")
     var inputText = ""
-    if io.exists(SCRIPTS + "/" + name + ".in"):
+    if path.exists(SCRIPTS + "/" + name + ".in"):
         inputText = readFile(SCRIPTS + "/" + name + ".in")
     # Optional `<name>.args` sidecar (one argv token per line) — the program's command-line
     # arguments, so an arglist/argmain test runs with the same argv as under the native `ki`.
     var scriptArgs = []
-    if io.exists(SCRIPTS + "/" + name + ".args"):
+    if path.exists(SCRIPTS + "/" + name + ".args"):
         for tok in readFile(SCRIPTS + "/" + name + ".args").split("\n"):
             if len(tok) > 0:
                 scriptArgs.append(tok)

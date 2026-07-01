@@ -41,10 +41,9 @@ ok(cmp(complex.i, C(0, 1)), "i = 0+1i")
 ok(cmp(complex.zero, C(0, 0)), "zero = 0")
 ok(cmp(complex.one, C(1, 0)), "one = 1")
 ok(cmp(complex.i * complex.i, C(-1, 0)), "i*i = -1")
-ok(complex.pi.compare(math.pi, 1e-12), "complex.pi")
-ok(complex.e.compare(math.e, 1e-12), "complex.e")
-ok(complex.tau.compare(2.0 * math.pi, 1e-12), "complex.tau")
-ok(type(complex.pi) == "Float", "complex.pi is Float")
+# pi/e/tau are NOT duplicated here (single source of truth: math.pi/math.e/math.tau);
+# lift to the real axis with complex.real(math.pi) if a Complex value is needed.
+ok(not raises(Function(): return complex.real(math.pi)), "complex.real(math.pi) works instead of a duplicate constant")
 ok(type(complex.i) == "Complex", "complex.i is Complex")
 
 # ---------------------------------------------------------------- .re/.im aliases

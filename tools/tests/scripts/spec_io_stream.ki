@@ -2,6 +2,8 @@
 # std stream / any object with write or readline), overriding the current stdout/stdin for that one
 # call. Without it, they use the current standard streams. Typical + edge + adversarial.
 var io = import("io")
+var path = import("path")
+var sys = import("sys")
 
 # --- print / write to a BytesIO via stream= (stdout untouched) ---
 var cap = io.BytesIO()
@@ -40,7 +42,7 @@ io.stdout = io.__stdout__
 assert dcap.getvalue() == "default\n", "no stream= uses the current stdout"
 
 # --- stream= a real file round-trips ---
-var path = io.join(io.getcwd(), "kirito_stream_kw.tmp")
+var path = path.join(io.getcwd(), "kirito_stream_kw.tmp")
 var f = io.open(path, "w")
 io.print("file line", stream=f)
 io.write("more", stream=f)

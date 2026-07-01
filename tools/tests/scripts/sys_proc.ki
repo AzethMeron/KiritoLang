@@ -2,6 +2,7 @@
 # the Linux CI matrix AND the maintainer's Windows build), the child we spawn is the `ki` interpreter
 # itself (sys.executable) running a tiny generated helper — never platform-specific external commands.
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 
 var n = 0
@@ -17,7 +18,7 @@ var raises = Function(f):
 
 var KI = sys.executable
 var DIR = sys.gettempdir()
-var helper = io.join(DIR, "sysproc_helper_k.ki")
+var helper = path.join(DIR, "sysproc_helper_k.ki")
 
 # A parameterized child program: arglist[0] selects the behavior.
 var src = r"""var io = import("io")
@@ -75,5 +76,5 @@ var r = sys.shell("echo k")
 ok("code" in r and "stdout" in r and "stderr" in r, "result has code/stdout/stderr")
 
 discard io.remove(helper)
-ok(io.exists(helper) == False, "helper cleaned up")
+ok(path.exists(helper) == False, "helper cleaned up")
 io.print("sys_proc: " + String(n) + " checks passed")

@@ -12,6 +12,7 @@
 # asserted by exact value — only invariants; scratch files are removed).
 
 var io = import("io")
+var path = import("path")
 var json = import("json")
 var serialize = import("serialize")
 var dump = import("dump")
@@ -300,7 +301,7 @@ ok(raises(Function(): return dump.dumps(regex.compile("a+"))), "dump regex Patte
 ok(raises(Function(): return serialize.dumps(regex.compile("a+"))), "serialize regex Pattern raises")
 ok(raises(Function(): return dump.dumps(net.Session())), "dump Session raises")
 # An open file raises (and clean up).
-var tmpFile = sys.joinpath(sys.gettempdir(), "r7_serde_openfile.txt")
+var tmpFile = path.join(sys.gettempdir(), "r7_serde_openfile.txt")
 var ofh = io.open(tmpFile, "w")
 ok(raises(Function(): return dump.dumps(ofh)), "dump open file raises")
 ofh.close()
@@ -323,8 +324,8 @@ var goodBlob = dump.dumps([1, 2, 3, 4, 5])
 ok(raises(Function(): return dump.loads(goodBlob[0:8])), "dump truncated-good-blob raises")
 
 # File save/load round-trip (scratch dir; cleaned up).
-var serPath = sys.joinpath(sys.gettempdir(), "r7_serde_text.kser")
-var dmpPath = sys.joinpath(sys.gettempdir(), "r7_serde_bin.kdmp")
+var serPath = path.join(sys.gettempdir(), "r7_serde_text.kser")
+var dmpPath = path.join(sys.gettempdir(), "r7_serde_bin.kdmp")
 discard serialize.save([1, "two", 3.0, {"k": True}], serPath)
 ok(serialize.load(serPath)[1] == "two", "serialize.save/load file rt")
 ok(serialize.load(serPath)[3]["k"] == True, "serialize.save/load nested")
@@ -334,8 +335,8 @@ ok(2 in dump.load(dmpPath)["b"], "dump.save/load Set member")
 discard io.remove(serPath)
 discard io.remove(dmpPath)
 # Loading a missing file raises.
-ok(raises(Function(): return serialize.load(sys.joinpath(sys.gettempdir(), "r7_does_not_exist.kser"))), "serialize.load missing raises")
-ok(raises(Function(): return dump.load(sys.joinpath(sys.gettempdir(), "r7_does_not_exist.kdmp"))), "dump.load missing raises")
+ok(raises(Function(): return serialize.load(path.join(sys.gettempdir(), "r7_does_not_exist.kser"))), "serialize.load missing raises")
+ok(raises(Function(): return dump.load(path.join(sys.gettempdir(), "r7_does_not_exist.kdmp"))), "dump.load missing raises")
 
 # kwargs across the serde signatured functions.
 ok(serialize.loads(text = serialize.dumps(value = [5, 6]))[0] == 5, "serialize kwargs")

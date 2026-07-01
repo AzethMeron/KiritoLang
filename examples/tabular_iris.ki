@@ -9,13 +9,14 @@
 var io = import("io")
 var tb = import("tabular")
 var sys = import("sys")
+var path = import("path")
 
-var path = arglist[0] if len(arglist) >= 1 else "examples/data/iris.csv"
-if not io.exists(path):
-    io.eprint("iris.csv not found at '" + path + "' — run from the repo root or pass a path")
+var csvpath = arglist[0] if len(arglist) >= 1 else "examples/data/iris.csv"
+if not path.exists(csvpath):
+    io.eprint("iris.csv not found at '" + csvpath + "' — run from the repo root or pass a path")
     sys.exit(1)
 
-var df = tb.readcsv(path)
+var df = tb.readcsv(csvpath)
 
 io.print("=== iris dataset ===")
 io.print("shape: " + String(df.shape()) + "   columns: " + String(df.columns))

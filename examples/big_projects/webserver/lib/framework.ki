@@ -2,6 +2,7 @@
 # parameters), middleware, and static-file serving. Handlers take a Request and return a Response.
 
 var http = import("http")
+var path = import("path")
 var io = import("io")
 
 # Split a path into non-empty segments: "/users/42/" -> ["users", "42"].
@@ -89,7 +90,7 @@ class App:
             if len(rest) == 0:
                 rest = ["index.html"]
             var fpath = directory + "/" + "/".join(rest)
-            if not io.exists(fpath) or io.isdir(fpath):
+            if not path.exists(fpath) or path.isdir(fpath):
                 return None
             var f = io.open(fpath, "r")
             var data = f.read()

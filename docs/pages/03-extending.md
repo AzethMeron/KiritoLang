@@ -339,7 +339,7 @@ raises a clear error instead of silently breaking.
 ## Design rules
 
 - **Naming**: Kirito's public functions and methods are **all lowercase, no underscores**
-  (`gettempdir`, `joinpath`, `startswith`, `symmetricdifference`) — match that when you add your own.
+  (`gettempdir`, `splitext`, `startswith`, `symmetricdifference`) — match that when you add your own.
 - **No global mutable state** — everything is VM-scoped, so multiple VMs stay isolated.
 - **Never expose raw pointers** across the boundary; hold `Handle`s, deref at point of use.
 - **Header-only ODR**: everything `inline`/templated, `#ifndef` include guards (never `#pragma once`).

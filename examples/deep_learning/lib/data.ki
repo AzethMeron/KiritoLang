@@ -2,6 +2,8 @@
 # Datasets are fetched once over HTTPS (needs a TLS-enabled `ki`), decompressed if gzipped, and cached
 # as plain text under .cache/ so later runs are offline and fast. Everything is pure Kirito.
 var io = import("io")
+var path = import("path")
+var sys = import("sys")
 var net = import("net")
 var gzip = import("gzip")
 var math = import("math")
@@ -11,11 +13,11 @@ var CACHE = ".cache"
 
 # Fetch `url`, caching the (decompressed) text under .cache/<name>; gunzip first when `gz` is True.
 var fetch_text = Function(url : String, name : String, gz : Bool = False) -> String:
-    if not io.exists(CACHE):
+    if not path.exists(CACHE):
         io.mkdir(CACHE)
-    var path = io.join(CACHE, name)
-    if io.exists(path):
-        var fr = io.open(path, "r")
+    var fpath = path.join(CACHE, name)
+    if path.exists(fpath):
+        var fr = io.open(fpath, "r")
         var cached = fr.read()
         fr.close()
         return cached
@@ -23,7 +25,7 @@ var fetch_text = Function(url : String, name : String, gz : Bool = False) -> Str
     if resp.status != 200:
         throw f"download failed ({resp.status}): {url}"
     var text = gzip.decompress(resp.content).decode("utf-8") if gz else resp.text
-    var fw = io.open(path, "w")
+    var fw = io.open(fpath, "w")
     fw.write(text)
     fw.close()
     return text

@@ -1,5 +1,6 @@
 # End-to-end: generate system input files (io write), then read them back (io read) and solve.
 var io = import("io")
+var path = import("path")
 var C = import("complex")
 var solver = import("linsolve")
 
@@ -46,10 +47,10 @@ var readSystem = Function(path):
         b.append(values[n])
     return {"A": C.Matrix(rows), "b": b}
 
-var solveFile = Function(path):
-    var sys = readSystem(path)
+var solveFile = Function(fpath):
+    var sys = readSystem(fpath)
     var result = solver.solve(sys["A"], sys["b"])
-    io.print(io.basename(path) + ": " + result["kind"] + " (rank " + String(result["rank"]) + ")")
+    io.print(path.basename(fpath) + ": " + result["kind"] + " (rank " + String(result["rank"]) + ")")
     if result["kind"] != "none":
         io.print("  verified: " + String(solver.verify(sys["A"], result["x"], sys["b"])))
 

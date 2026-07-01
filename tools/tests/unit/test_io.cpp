@@ -14,7 +14,7 @@ int main() {
     KiritoVM vm;
     auto dir = std::filesystem::temp_directory_path() / "kirito_io_test";
     std::filesystem::remove_all(dir);
-    std::string base = "var io = import(\"io\")\nvar dir = \"" + dir.string() + "\"\n";
+    std::string base = "var io = import(\"io\")\nvar path = import(\"path\")\nvar dir = \"" + dir.string() + "\"\n";
 
     // mkdir + writelines + line iteration
     CHECK(evalStr(vm, base + R"(
@@ -56,17 +56,17 @@ with io.open(dir + "/a.txt", "r") as f:
 c
 )") == "4");
 
-    // filesystem helpers: exists / listdir / rename / remove
-    CHECK(evalStr(vm, base + "io.exists(dir + \"/a.txt\")") == "True");
-    CHECK(evalStr(vm, base + "io.exists(dir + \"/missing.txt\")") == "False");
+    // filesystem helpers: path.exists (query) + io.listdir / io.rename / io.remove (io keeps mutation)
+    CHECK(evalStr(vm, base + "path.exists(dir + \"/a.txt\")") == "True");
+    CHECK(evalStr(vm, base + "path.exists(dir + \"/missing.txt\")") == "False");
     CHECK(evalStr(vm, base + "\"a.txt\" in io.listdir(dir)") == "True");
     CHECK(evalStr(vm, base + R"(
 io.rename(dir + "/a.txt", dir + "/b.txt")
-io.exists(dir + "/b.txt") and not io.exists(dir + "/a.txt")
+path.exists(dir + "/b.txt") and not path.exists(dir + "/a.txt")
 )") == "True");
     CHECK(evalStr(vm, base + R"(
 io.remove(dir + "/b.txt")
-io.exists(dir + "/b.txt")
+path.exists(dir + "/b.txt")
 )") == "False");
 
     // --- chmod: set POSIX permission bits from an octal Integer; verify the exact bits land ---

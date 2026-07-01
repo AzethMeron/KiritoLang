@@ -1,5 +1,6 @@
 var io = import("io")
 var C = import("complex")
+var M = import("math")
 
 var close = Function(a, b) -> Bool:
     return (a - b).modulus() < 0.000000001
@@ -17,10 +18,10 @@ io.print(C.Complex(7).re == 7.0 and C.Complex(7).im == 0.0)
 io.print(C.zero == C.of(0, 0))
 io.print(C.one == C.of(1, 0))
 io.print(C.i == C.of(0, 1))
-io.print(C.pi > 3.14 and C.pi < 3.15)
+io.print(M.pi > 3.14 and M.pi < 3.15)
 io.print(close(C.polar(2.0, 0.0), C.of(2, 0)))
-io.print(closef(C.polar(2.0, C.pi / 2.0).im, 2.0))
-io.print(closef(C.polar(2.0, C.pi / 2.0).re, 0.0))
+io.print(closef(C.polar(2.0, M.pi / 2.0).im, 2.0))
+io.print(closef(C.polar(2.0, M.pi / 2.0).re, 0.0))
 
 # ---- Complex(2, 0) == 2 (the documented coercion) ----------------------------------------------
 io.print(C.of(2, 0) == 2)
@@ -79,16 +80,16 @@ io.print(closef(C.of(3, 4).modulus(), 5.0))
 io.print(closef(C.of(3, 4).magnitude(), 5.0))      # alias
 io.print(closef(C.of(3, 4).abs(), 5.0))             # alias
 io.print(closef(C.of(3, 4).norm2(), 25.0))
-io.print(closef(C.of(0, 1).argument(), C.pi / 2.0))
-io.print(closef(C.of(0, 1).phase(), C.pi / 2.0))    # alias
+io.print(closef(C.of(0, 1).argument(), M.pi / 2.0))
+io.print(closef(C.of(0, 1).phase(), M.pi / 2.0))    # alias
 io.print(C.zero.is_zero())
 io.print(not C.one.is_zero())
 
 # ---- analytic functions (Euler, etc.) ----------------------------------------------------------
-io.print(close(C.exp(C.of(0, C.pi)), C.of(-1, 0)))     # exp(i*pi) = -1
+io.print(close(C.exp(C.of(0, M.pi)), C.of(-1, 0)))     # exp(i*pi) = -1
 io.print(close(C.sqrt(C.of(-1, 0)), C.i))               # sqrt(-1) = i
 io.print(close(C.sqrt(C.of(-4, 0)), C.of(0, 2)))        # sqrt(-4) = 2i
-io.print(close(C.log(C.of(C.e, 0)), C.one))              # log(e) = 1
+io.print(close(C.log(C.of(M.e, 0)), C.one))              # log(e) = 1
 io.print(close(C.sin(C.of(0, 0)), C.zero))               # sin(0) = 0
 io.print(close(C.cos(C.of(0, 0)), C.one))                # cos(0) = 1
 io.print(close(C.pow(C.i, C.of(2, 0)), C.of(-1, 0)))     # i^2 = -1
@@ -106,8 +107,8 @@ io.print(close(C.cbrt(C.of(8, 0)), C.of(2, 0)))
 # ---- module function aliases (modulus/abs/phase/argument/norm2/conjugate take any number) -----
 io.print(closef(C.modulus(C.of(3, 4)), 5.0))
 io.print(closef(C.abs(C.of(3, 4)), 5.0))
-io.print(closef(C.phase(C.i), C.pi / 2.0))
-io.print(closef(C.argument(C.i), C.pi / 2.0))
+io.print(closef(C.phase(C.i), M.pi / 2.0))
+io.print(closef(C.argument(C.i), M.pi / 2.0))
 io.print(closef(C.norm2(C.of(3, 4)), 25.0))
 io.print(C.conjugate(C.of(3, 4)) == C.of(3, -4))
 

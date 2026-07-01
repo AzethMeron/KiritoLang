@@ -8,6 +8,7 @@
 # out_of_range), so every tiny float here is produced at RUNTIME by arithmetic, never written as a
 # literal.
 var io = import("io")
+var path = import("path")
 var json = import("json")
 var serialize = import("serialize")
 var dump = import("dump")
@@ -271,7 +272,7 @@ while ri < len(resources):
     assert throws(Function(): return json.dumps(resources[ri]())), "json rejects resource #" + String(ri)
     ri = ri + 1
 # an open file rejects too
-var fp = sys.joinpath(sys.gettempdir(), "kirito_deepser_probe.txt")
+var fp = path.join(sys.gettempdir(), "kirito_deepser_probe.txt")
 var fh = io.open(fp, "w")
 assert throws(Function(): return serialize.dumps(fh)), "serialize rejects an open File"
 assert throws(Function(): return dump.dumps(fh)), "dump rejects an open File"

@@ -337,10 +337,14 @@ def render_markdown(md):
                 i += 1
             i += 1
             code = "\n".join(buf)
-            if lang in ("kirito", "ki"):
-                out.append(f"<pre><code>{highlight_kirito(code)}</code></pre>")
-            else:
-                out.append(f"<pre><code>{html.escape(code)}</code></pre>")
+            inner = highlight_kirito(code) if lang in ("kirito", "ki") else html.escape(code)
+            # Wrap every code block so the client can drop in a "Copy code" button (see the CSS/JS
+            # in the page shell). The <pre>…</pre> stays intact so the xref rewriter still skips it.
+            out.append(
+                '<div class="codeblock">'
+                '<button class="copy-btn" type="button" aria-label="Copy code">Copy</button>'
+                f"<pre><code>{inner}</code></pre></div>"
+            )
             continue
         if line.lstrip().startswith("<!--"):
             while i < n and "-->" not in lines[i]:
@@ -553,8 +557,16 @@ a:hover{text-decoration:underline}
 #content code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.85em;
   font-family:"SF Mono",SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
 #content pre{background:var(--code-bg);padding:15px 17px;border-radius:11px;overflow-x:auto;
-  border:1px solid var(--border);margin:1em 0}
+  border:1px solid var(--border);margin:0}
 #content pre code{background:none;padding:0;font-size:13px;line-height:1.55}
+/* code block + copy button */
+#content .codeblock{position:relative;margin:1em 0}
+#content .codeblock .copy-btn{position:absolute;top:8px;right:8px;z-index:2;padding:4px 10px;
+  font:600 12px/1 inherit;color:var(--fg);background:var(--panel2);border:1px solid var(--border);
+  border-radius:7px;cursor:pointer;opacity:0;transition:opacity .12s,background .12s}
+#content .codeblock:hover .copy-btn,#content .copy-btn:focus{opacity:1}
+#content .copy-btn:hover{background:var(--border)}
+#content .copy-btn.copied{color:#fff;background:#2ea043;border-color:#2ea043;opacity:1}
 #content table{border-collapse:collapse;width:100%;margin:1.1em 0;font-size:14px;display:block;overflow-x:auto}
 #content th,#content td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
 #content th{background:var(--panel2);font-weight:650}
@@ -669,6 +681,18 @@ APP_JS = r"""
 
   // intercept in-page anchor clicks so cross-page xrefs route without a reload
   content.addEventListener("click", function(e){
+    // "Copy code" button: copy the sibling <pre>'s text, flash a confirmation.
+    var btn = e.target.closest && e.target.closest(".copy-btn");
+    if(btn){
+      var pre = btn.parentElement.querySelector("pre");
+      var text = pre ? pre.innerText : "";
+      var done = function(){ btn.classList.add("copied"); var t=btn.textContent; btn.textContent="Copied!";
+        setTimeout(function(){ btn.classList.remove("copied"); btn.textContent="Copy"; }, 1400); };
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done, done); }
+      else { try{ var ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta);
+        ta.select(); document.execCommand("copy"); document.body.removeChild(ta); done(); }catch(_){} }
+      return;
+    }
     var a = e.target.closest && e.target.closest("a"); if(!a) return;
     var href = a.getAttribute("href")||"";
     if(href.charAt(0)==="#"){ e.preventDefault(); if(("#"+location.hash.replace(/^#/,""))===href){ go(href);} else { location.hash=href; } }

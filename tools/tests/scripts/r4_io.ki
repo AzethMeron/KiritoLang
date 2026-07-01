@@ -7,6 +7,7 @@
 # happens inside a uniquely-named scratch dir under the system temp directory, created up front and
 # removed at the end, so the test leaves NO trace and never depends on a cwd-relative writable path.
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 var time = import("time")
 
@@ -14,10 +15,10 @@ var time = import("time")
 # The name carries two high-resolution clock reads so two concurrent runs never collide on a shared
 # path; output stays deterministic (the summary line is identical regardless of the chosen name).
 var uniq = String(time.perfcounterns()) + "_" + String(time.timens())
-var root = sys.joinpath(sys.gettempdir(), "kirito_r4_io_" + uniq)
+var root = path.join(sys.gettempdir(), "kirito_r4_io_" + uniq)
 discard io.remove(root)          # tolerant: a no-op if (impossibly) a stale one exists
 assert io.mkdir(root), "scratch dir created"
-var P = Function(name): return sys.joinpath(root, name)
+var P = Function(name): return path.join(root, name)
 
 # Did calling a zero-arg thunk raise? (anonymous functions are single-line only, so multi-statement
 # thunks are named functions defined just above their use).
@@ -113,7 +114,7 @@ discard io.remove(rplusMissing)
 n = n + 1
 assert raises(Function(): return io.open(rplusMissing, "r+")), "r+ on a missing file raises"
 n = n + 1
-assert not io.exists(rplusMissing), "r+ on a missing file does not create it"
+assert not path.exists(rplusMissing), "r+ on a missing file does not create it"
 
 # open type errors: path / mode must be Strings.
 n = n + 1
@@ -619,24 +620,24 @@ assert io.mkdir(ddir), "mkdir creates a directory"
 n = n + 1
 assert io.mkdir(ddir), "mkdir is idempotent on an existing directory"
 n = n + 1
-assert io.isdir(ddir) and not io.isfile(ddir), "isdir/isfile on a directory"
+assert path.isdir(ddir) and not path.isfile(ddir), "isdir/isfile on a directory"
 
-var inside = sys.joinpath(ddir, "x.txt")
+var inside = path.join(ddir, "x.txt")
 with io.open(inside, "w") as nf:
     discard nf.write("hello")
 n = n + 1
-assert io.exists(inside) and io.isfile(inside) and not io.isdir(inside), "exists/isfile/isdir on a file"
+assert path.exists(inside) and path.isfile(inside) and not path.isdir(inside), "exists/isfile/isdir on a file"
 n = n + 1
-assert io.getsize(inside) == 5, "getsize counts bytes"
+assert path.getsize(inside) == 5, "getsize counts bytes"
 n = n + 1
 assert "x.txt" in io.listdir(ddir), "listdir lists the entry"
 n = n + 1
 assert len(io.walk(ddir)) == 1, "walk finds the one file"
 
 # nested directories: walk is recursive (flattened), listdir is shallow.
-var subdir = sys.joinpath(ddir, "sub")
+var subdir = path.join(ddir, "sub")
 discard io.mkdir(subdir)
-with io.open(sys.joinpath(subdir, "y.txt"), "w") as nf2:
+with io.open(path.join(subdir, "y.txt"), "w") as nf2:
     discard nf2.write("yy")
 n = n + 1
 assert len(io.walk(ddir)) == 2, "walk recurses into subdirectories"
@@ -647,27 +648,27 @@ n = n + 1
 assert len(io.listdir(ddir)) == 2, "listdir does not recurse"
 
 # rename moves a file (overwriting any destination); remove deletes and reports success.
-var moved = sys.joinpath(ddir, "moved.txt")
+var moved = path.join(ddir, "moved.txt")
 io.rename(inside, moved)
 n = n + 1
-assert io.exists(moved) and not io.exists(inside), "rename moves the file"
+assert path.exists(moved) and not path.exists(inside), "rename moves the file"
 n = n + 1
-assert io.remove(moved) and not io.exists(moved), "remove deletes a file and returns True"
+assert io.remove(moved) and not path.exists(moved), "remove deletes a file and returns True"
 
 # missing-path semantics: getsize/rename RAISE; remove of a missing path is a tolerant no-op (False);
 # exists/isfile/isdir are False; listdir/walk of a missing dir are empty.
 var missing = P("missing_path")
 discard io.remove(missing)
 n = n + 1
-assert raises(Function(): return io.getsize(missing)), "getsize of a missing path raises"
+assert raises(Function(): return path.getsize(missing)), "getsize of a missing path raises"
 n = n + 1
 assert raises(Function(): return io.rename(missing, P("missing_dst"))), "rename of a missing path raises"
 n = n + 1
 assert io.remove(missing) == False, "remove of a missing path returns False (no raise)"
 n = n + 1
-assert not io.exists(missing), "exists is False for a missing path"
+assert not path.exists(missing), "exists is False for a missing path"
 n = n + 1
-assert not io.isfile(missing) and not io.isdir(missing), "isfile/isdir are False for a missing path"
+assert not path.isfile(missing) and not path.isdir(missing), "isfile/isdir are False for a missing path"
 n = n + 1
 assert io.listdir(P("missing_dir")) == [], "listdir of a missing dir is empty"
 n = n + 1
@@ -675,7 +676,7 @@ assert io.walk(P("missing_dir")) == [], "walk of a missing dir is empty"
 
 # getsize on a directory raises (it isn't a regular file).
 n = n + 1
-assert raises(Function(): return io.getsize(ddir)), "getsize of a directory raises"
+assert raises(Function(): return path.getsize(ddir)), "getsize of a directory raises"
 
 # getcwd is a non-empty String.
 n = n + 1
@@ -683,9 +684,9 @@ assert type(io.getcwd()) == "String" and io.getcwd() != "", "getcwd returns a no
 
 # filesystem type errors raise.
 n = n + 1
-assert raises(Function(): return io.exists(123)), "exists rejects a non-String"
+assert raises(Function(): return path.exists(123)), "exists rejects a non-String"
 n = n + 1
-assert raises(Function(): return io.getsize(123)), "getsize rejects a non-String"
+assert raises(Function(): return path.getsize(123)), "getsize rejects a non-String"
 n = n + 1
 assert raises(Function(): return io.rename(1, "x")), "rename rejects a non-String"
 n = n + 1
@@ -693,7 +694,7 @@ assert raises(Function(): return io.mkdir(1)), "mkdir rejects a non-String"
 
 # ============================ chmod ============================
 
-var perm = sys.joinpath(ddir, "perm.txt")
+var perm = path.join(ddir, "perm.txt")
 with io.open(perm, "w") as pf:
     discard pf.write("x")
 n = n + 1
@@ -707,7 +708,7 @@ assert raises(Function(): return io.chmod(perm, "755")), "chmod rejects a non-In
 discard io.remove(perm)
 
 # clean out the nested fs tree.
-discard io.remove(sys.joinpath(subdir, "y.txt"))
+discard io.remove(path.join(subdir, "y.txt"))
 discard io.remove(subdir)
 discard io.remove(ddir)
 
@@ -717,33 +718,25 @@ discard io.remove(ddir)
 var nslash = Function(s): return s.replace("\\", "/")
 
 n = n + 1
-assert io.basename("/a/b/c.txt") == "c.txt", "basename"
+assert path.basename("/a/b/c.txt") == "c.txt", "basename"
 n = n + 1
-assert io.basename("just") == "just", "basename of a bare name"
+assert path.basename("just") == "just", "basename of a bare name"
 n = n + 1
-assert io.basename("a/b/") == "", "basename of a trailing slash is empty"
+assert path.basename("a/b/") == "", "basename of a trailing slash is empty"
 n = n + 1
-assert nslash(io.dirname("/a/b/c.txt")) == "/a/b", "dirname"
+assert nslash(path.dirname("/a/b/c.txt")) == "/a/b", "dirname"
 n = n + 1
-assert io.dirname("bare") == "", "dirname of a bare name is empty"
+assert path.dirname("bare") == "", "dirname of a bare name is empty"
 n = n + 1
-assert io.splitext("a.tar.gz") == ["a.tar", ".gz"], "splitext takes the last extension"
+assert path.splitext("a.tar.gz") == ["a.tar", ".gz"], "splitext takes the last extension"
 n = n + 1
-assert io.splitext("noext") == ["noext", ""], "splitext with no extension"
+assert path.splitext("noext") == ["noext", ""], "splitext with no extension"
 n = n + 1
-assert io.splitext(".hidden") == [".hidden", ""], "splitext of a dotfile has no extension"
+assert path.splitext(".hidden") == [".hidden", ""], "splitext of a dotfile has no extension"
 n = n + 1
-assert io.splitext("a.") == ["a", "."], "splitext of a bare trailing dot"
+assert path.splitext("a.") == ["a", "."], "splitext of a bare trailing dot"
 n = n + 1
-assert nslash(io.join("a", "b", "c")) == "a/b/c", "join with the platform separator"
-n = n + 1
-assert io.join() == "", "join() with no parts is empty"
-n = n + 1
-assert io.join("solo") == "solo", "join of a single part"
-n = n + 1
-assert nslash(io.join("a", "/b")) == "/b", "join: a later absolute component resets"
-n = n + 1
-assert raises(Function(): return io.basename(123)), "basename rejects a non-String"
+assert raises(Function(): return path.basename(123)), "basename rejects a non-String"
 
 # ============================ tear down + deterministic summary ============================
 
@@ -752,7 +745,7 @@ discard io.remove(fp)
 discard io.remove(rplusMissing)
 assert io.remove(root), "scratch dir removed"
 n = n + 1
-assert not io.exists(root), "scratch dir leaves no trace"
+assert not path.exists(root), "scratch dir leaves no trace"
 n = n + 1
 
 io.print("r4_io: all", n, "assertions passed")

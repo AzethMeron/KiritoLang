@@ -9,6 +9,7 @@
 # Args are returned NUL-joined (a NUL can never appear inside an OS argv element) so an argument may
 # contain ANY other byte — spaces, newlines, quotes, Unicode — without ambiguity.
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 var random = import("random")
 
@@ -19,7 +20,7 @@ var ok = Function(c, m):
 
 var KI = sys.executable
 var DIR = sys.gettempdir()
-var helper = io.join(DIR, "sysproc_enc_helper.ki")
+var helper = path.join(DIR, "sysproc_enc_helper.ki")
 var src = r"""var io = import("io")
 var m = arglist[0] if len(arglist) >= 1 else ""
 if m == "echo":

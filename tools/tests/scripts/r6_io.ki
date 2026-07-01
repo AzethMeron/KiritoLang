@@ -4,6 +4,7 @@
 # the scratchpad dir and removed (and asserted gone) before exit.
 
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 var time = import("time")
 
@@ -21,39 +22,37 @@ var raises = Function(f, m):
     n = n + 1
 
 # A unique scratch directory we own and tear down at the end.
-var root = sys.joinpath(sys.gettempdir(), "kirito_r6_io_" + String(time.perfcounterns()))
+var root = path.join(sys.gettempdir(), "kirito_r6_io_" + String(time.perfcounterns()))
 
 # --- path helpers (pure string ops; os.path style) ---
-ok(io.dirname("/a/b/c.txt") == "/a/b", "dirname")
-ok(io.basename("/a/b/c.txt") == "c.txt", "basename")
-ok(io.basename("/a/b/") == "", "basename trailing slash -> empty")
-ok(io.dirname("file.txt") == "", "dirname with no directory")
-ok(io.splitext("/a/b/c.txt") == ["/a/b/c", ".txt"], "splitext normal")
-ok(io.splitext("/a/b/c") == ["/a/b/c", ""], "splitext no extension")
-ok(io.splitext(".bashrc") == [".bashrc", ""], "splitext dotfile has no ext")
-ok(io.splitext("archive.tar.gz") == ["archive.tar", ".gz"], "splitext last ext only")
-ok(io.join("a", "b", "c") == "a/b/c", "join")
-ok(io.join() == "", "join no args -> empty")
-ok(io.join("a") == "a", "join single")
+ok(path.dirname("/a/b/c.txt") == "/a/b", "dirname")
+ok(path.basename("/a/b/c.txt") == "c.txt", "basename")
+ok(path.basename("/a/b/") == "", "basename trailing slash -> empty")
+ok(path.dirname("file.txt") == "", "dirname with no directory")
+ok(path.splitext("/a/b/c.txt") == ["/a/b/c", ".txt"], "splitext normal")
+ok(path.splitext("/a/b/c") == ["/a/b/c", ""], "splitext no extension")
+ok(path.splitext(".bashrc") == [".bashrc", ""], "splitext dotfile has no ext")
+ok(path.splitext("archive.tar.gz") == ["archive.tar", ".gz"], "splitext last ext only")
+# path JOINING is path.join's job (single source of truth), not io's — covered in the sys suites.
 
 # --- create our scratch tree ---
 ok(io.mkdir(root) == True, "mkdir returns True")
-ok(io.isdir(root) == True, "isdir true on a directory")
-ok(io.isfile(root) == False, "isfile false on a directory")
-ok(io.exists(root) == True, "exists true after mkdir")
-var sub = io.join(root, "sub")
+ok(path.isdir(root) == True, "isdir true on a directory")
+ok(path.isfile(root) == False, "isfile false on a directory")
+ok(path.exists(root) == True, "exists true after mkdir")
+var sub = path.join(root, "sub")
 ok(io.mkdir(sub) == True, "mkdir nested")
 
 # --- text file: write / read / readline / readlines / iterate ---
-var tpath = io.join(root, "text.txt")
+var tpath = path.join(root, "text.txt")
 var fw = io.open(tpath, "w")
 discard fw.write("alpha\nbeta\ngamma\n")
 ok(fw.tell() == 17, "tell after write reflects bytes written")
 fw.close()
 
-ok(io.exists(tpath) == True, "file exists after write")
-ok(io.isfile(tpath) == True, "isfile true on a regular file")
-ok(io.getsize(tpath) == 17, "getsize matches byte count")
+ok(path.exists(tpath) == True, "file exists after write")
+ok(path.isfile(tpath) == True, "isfile true on a regular file")
+ok(path.getsize(tpath) == 17, "getsize matches byte count")
 
 var fr = io.open(tpath, "r")
 ok(fr.read(5) == "alpha", "read(n) returns n chars")
@@ -134,16 +133,16 @@ raises(readClosed, "read on a closed file raises")
 raises(writeReadonly, "write to a read-only file raises")
 raises(readWriteonly, "read from a write-only file raises")
 raises(seekNeg, "seek to a negative absolute position raises")
-raises(Function(): io.open(io.join(root, "missing.txt"), "r"), "open missing file for read raises")
-raises(Function(): io.open(io.join(root, "x.txt"), "q"), "open with a bad mode raises")
-raises(Function(): io.getsize(io.join(root, "missing.txt")), "getsize on a missing file raises")
+raises(Function(): io.open(path.join(root, "missing.txt"), "r"), "open missing file for read raises")
+raises(Function(): io.open(path.join(root, "x.txt"), "q"), "open with a bad mode raises")
+raises(Function(): path.getsize(path.join(root, "missing.txt")), "getsize on a missing file raises")
 
 # --- binary mode: write/read/readline/iterate yield + accept Bytes ---
-var bpath = io.join(root, "data.bin")
+var bpath = path.join(root, "data.bin")
 var bw = io.open(bpath, "wb")
 discard bw.write(Bytes([104, 105, 10, 98, 121, 101]))   # "hi\nbye"
 bw.close()
-ok(io.getsize(bpath) == 6, "binary write byte count")
+ok(path.getsize(bpath) == 6, "binary write byte count")
 
 var bb = io.open(bpath, "rb")
 var firstline = bb.readline()
@@ -166,7 +165,7 @@ ok(bchunks == ["Bytes", "Bytes"], "iterating a binary file yields Bytes")
 var ba = io.open(bpath, "ab")
 discard ba.write(Bytes([33]))
 ba.close()
-ok(io.getsize(bpath) == 7, "binary append grows the file")
+ok(path.getsize(bpath) == 7, "binary append grows the file")
 var brp = io.open(bpath, "r+b")
 ok(type(brp.read(1)) == "Bytes", "r+b read yields Bytes")
 brp.close()
@@ -199,10 +198,10 @@ ok(brl.readline() == "b", "BytesIO.readline second line")
 ok(brl.readline() == "c", "BytesIO.readline last (no newline)")
 
 # --- `with` context manager on File and BytesIO (auto-close) ---
-var wpath = io.join(root, "with.txt")
+var wpath = path.join(root, "with.txt")
 with io.open(wpath, "w") as wf2:
     discard wf2.write("ctx\n")
-ok(io.exists(wpath) == True, "with-open File wrote the file")
+ok(path.exists(wpath) == True, "with-open File wrote the file")
 with io.open(wpath, "r") as rf2:
     ok(rf2.read() == "ctx\n", "with-open File read back")
 with io.BytesIO() as wb2:
@@ -232,8 +231,8 @@ var printBadKw = Function():
 raises(printBadKw, "an unexpected keyword to print raises")
 
 # --- listdir / walk ---
-var f1 = io.join(root, "f1.txt")
-var f2 = io.join(sub, "f2.txt")
+var f1 = path.join(root, "f1.txt")
+var f2 = path.join(sub, "f2.txt")
 with io.open(f1, "w") as g1:
     discard g1.write("a")
 with io.open(f2, "w") as g2:
@@ -245,12 +244,12 @@ ok(("f2.txt" in names) == False, "listdir is not recursive")
 ok(len(io.walk(root)) >= 2, "walk finds files recursively")
 
 # --- rename ---
-var f3 = io.join(root, "renamed.txt")
+var f3 = path.join(root, "renamed.txt")
 io.rename(f1, f3)
-ok(io.exists(f1) == False, "rename removed the old path")
-ok(io.exists(f3) == True, "rename created the new path")
+ok(path.exists(f1) == False, "rename removed the old path")
+ok(path.exists(f3) == True, "rename created the new path")
 var renameMissing = Function():
-    io.rename(io.join(root, "missing.txt"), f1)
+    io.rename(path.join(root, "missing.txt"), f1)
 raises(renameMissing, "rename of a missing source raises")
 
 # --- getcwd is a non-empty string ---
@@ -263,9 +262,9 @@ ok(io.remove(f2) == True, "remove a nested file")
 ok(io.remove(tpath) == True, "remove the text file")
 ok(io.remove(bpath) == True, "remove the binary file")
 ok(io.remove(wpath) == True, "remove the with file")
-ok(io.remove(io.join(root, "missing.txt")) == False, "remove returns False for a missing path")
+ok(io.remove(path.join(root, "missing.txt")) == False, "remove returns False for a missing path")
 ok(io.remove(sub) == True, "remove the empty subdirectory")
 ok(io.remove(root) == True, "remove the root directory")
-ok(io.exists(root) == False, "scratch tree fully removed")
+ok(path.exists(root) == False, "scratch tree fully removed")
 
 io.print("r6_io: " + String(n) + " checks passed")

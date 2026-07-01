@@ -35,32 +35,21 @@ The optional `stream=` keyword sends/takes that one call's output/input to/from 
 - `open(path: String, mode: String = "r") → File` — open a file. Modes: `"r"` read, `"w"` truncate-write, `"a"` append, `"r+"` read/write. Append a `"b"` (`"rb"`/`"wb"`/`"ab"`/`"r+b"`) for **binary** mode: `read`/`readline`/iteration then yield [`Bytes`](types.html#bytes) and `write`/`writelines` accept Bytes (the right mode for non-text files — images, gzip, `dump` blobs). Raises if it can't be opened. Usable as a `with` context manager.
 - `BytesIO([initial: String]) → BytesIO` — an in-memory read/write byte buffer, usable anywhere a file or stream is expected.
 
-### Filesystem
+### Filesystem (mutation & listing)
 
-- `exists(path: String) → Bool` — whether `path` exists.
-- `isfile(path: String) → Bool` — whether `path` is a regular file.
-- `isdir(path: String) → Bool` — whether `path` is a directory.
-- `getsize(path: String) → Integer` — size of the file in bytes (raises if missing).
+`io` owns the operations that *change* the filesystem or *list* it. Interpreting or *querying* a path
+(exists/isfile/isdir/getsize) and manipulating path strings (join/dirname/basename/splitext) live in
+the dedicated [`path`](#path) module — the single home for path operations.
+
 - `remove(path: String) → Bool` — delete a file; returns whether it succeeded.
 - `rename(src: String, dst: String) → None` — rename/move a path (raises on failure).
 - `mkdir(path: String) → Bool` — create a directory (and parents); returns success.
 - `chmod(path: String, mode: Integer) → Bool` — set file permission bits from a POSIX-style octal
   (e.g. `0o755`); returns success. On Windows only the owner read/write bits are meaningful.
 - `getcwd() → String` — the current working directory.
-- `listdir(path: String) → List` — the entry names directly under `path`.
+- `listdir(path: String) → List` — the entry names directly under `path` (tolerant: a missing dir
+  lists as `[]`).
 - `walk(dir: String) → List` — every file path under `dir`, recursively (flattened).
-
-### Path helpers
-
-- `dirname(path: String) → String` — the directory part of `path`.
-- `basename(path: String) → String` — the final component of `path`.
-- `splitext(path: String) → List` — `[root, ext]`, splitting off the last extension.
-- `join(*parts) → String` — join path components with `/` on every platform (a component that is
-  itself absolute — it starts with `/` or `\` — resets the result), so paths are identical
-  cross-platform; joining no parts yields `""`. `dirname`/`basename`/`splitext` split on either `/`
-  or `\` (so native Windows paths still split correctly) and return literal substrings of the input —
-  they do not rewrite separators, so only `basename` (the final component) is guaranteed free of a
-  backslash; a `\` already inside a retained prefix is preserved.
 
 ### File object
 
@@ -95,6 +84,52 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 - `b.truncate() → Integer` — drop everything after the cursor.
 - `b.flush() → None` — a no-op (the buffer is always in sync); present for the common stream protocol.
 - `b.close() → None` — close the buffer (also via a `with` block); part of the stream protocol.
+
+---
+
+## path
+
+Kirito's `os.path`: the **single home for path operations**, so you never have to remember whether a
+helper lives in `io` or `sys`. It covers pure path-string manipulation and read-only filesystem
+queries about a path. (Filesystem *mutation* and *listing* stay in [`io`](#io); `sys.gettempdir` — a
+system location, not a path operation — stays in [`sys`](#sys).)
+
+Path strings use `/` on **every platform** (results are identical cross-platform, unlike the native
+`\` on Windows). The splitting helpers still accept a `\` as a separator, so native Windows paths
+(from `io.getcwd`/`io.listdir`) split correctly.
+
+```kirito
+var path = import("path")
+var io = import("io")
+var full = path.join(io.getcwd(), "data", "report.csv")   # os.path.join semantics
+if path.exists(full) and path.isfile(full):
+    io.print(path.basename(full))                          # => report.csv
+    io.print(path.splitext(full)[1])                       # => .csv
+```
+
+### Path strings
+
+- `join(*parts) → String` — join path components with `/`. A later component that is **absolute**
+  (starts with `/`) resets the result; a trailing slash is not doubled; empty parts contribute
+  nothing. Like `os.path.join` it needs at least one component — `join()` with no parts **raises**. A
+  leading `\` is **not** treated as absolute (only `/` resets).
+- `dirname(path: String) → String` — the directory part of `path` (the root is kept: `dirname("/a")`
+  is `"/"`).
+- `basename(path: String) → String` — the final component of `path` (empty for a trailing-slash path).
+- `splitext(path: String) → List` — `[root, ext]`, splitting off the **last** extension. A leading run
+  of dots is protected, so `.bashrc`/`..`/`...x` have no extension (matching `os.path.splitext`).
+- `dirname`/`basename`/`splitext` split on either `/` or `\` and return literal substrings of the
+  input — they do not rewrite separators, so only `basename` (the final component) is guaranteed free
+  of a backslash; a `\` inside a retained prefix is preserved. A non-String argument **raises**.
+
+### Filesystem queries
+
+- `exists(path: String) → Bool` — whether `path` exists (tolerant: a missing/inaccessible path is
+  simply `False`, never a raise).
+- `isfile(path: String) → Bool` — whether `path` is a regular file (tolerant).
+- `isdir(path: String) → Bool` — whether `path` is a directory (tolerant).
+- `getsize(path: String) → Integer` — the file size in bytes. Unlike the tolerant predicates,
+  `getsize` **raises** on a missing or non-regular path (there is no sensible size to return).
 
 ---
 
@@ -246,7 +281,9 @@ the real axis, so any function or operator below also accepts plain `Integer`/`F
 - `real(re: Number) → Complex` — a real number on the complex plane (`re + 0i`).
 - `polar(r: Number, theta: Number) → Complex` — from polar form, `r·(cos θ + i·sin θ)`.
 - `i`, `zero`, `one` — the imaginary unit, `0`, and `1` as `Complex` values.
-- `pi`, `e`, `tau` — the usual real constants (Floats), for convenience.
+- No `pi`/`e`/`tau` here: those are real-axis constants with a single source of truth in
+  `math.pi`/`math.e`/`math.tau`. Lift one to the complex plane with `real(math.pi)` if you need it as
+  a `Complex` value.
 
 ### Complex object
 
@@ -717,7 +754,7 @@ Process environment and platform.
 - `platform` — `"linux"` / `"darwin"` / `"windows"` (a `String`).
 - `arch` — the CPU architecture, normalized to the names used in release-asset filenames:
   `"x64"` / `"arm64"` / `"x86"` / `"unknown"` (a `String`).
-- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.9.3"`); the same
+- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.9.4"`); the same
   value `ki --version` prints. `kpm` compares it against the latest GitHub release to self-upgrade.
 - `executable` — the absolute path of the running `ki` binary (a `String`, or `""` if it can't be
   determined). `kpm update-ki` uses it to locate the binary to replace.
@@ -733,11 +770,9 @@ Process environment and platform.
 > guaranteed to survive a `setenv`→`getenv` round-trip (keep env values ASCII for portability), and
 > setting a variable to the **empty string** is treated as *unset* — `getenv` then returns `None`.
 - `gettempdir() → String` — the system temp directory (honors `TMPDIR`/`TMP`/`TEMP`, falls back to
-  `/tmp`). Pairs with `io` to build scratch file paths:
-  `io.open(sys.joinpath(sys.gettempdir(), "scratch.txt"), "w")`.
-- `joinpath(*parts) → String` — join path components with `/` (a component that is itself absolute
-  resets the result). Like `os.path.join` it needs at least one part (it raises otherwise); the
-  near-identical `io.join` is more lenient and joins zero parts to `""`.
+  `/tmp`). Pairs with [`path.join`](#path) + `io` to build scratch file paths:
+  `io.open(path.join(sys.gettempdir(), "scratch.txt"), "w")`. (Path *joining* itself lives in the
+  [`path`](#path) module, not `sys`.)
 - `exit(code: Integer = 0)` — terminate the process with the given exit code. The code is taken mod
   256 (POSIX 8-bit wrap: `exit(256)` → `0`, `exit(-1)` → `255`). A non-Integer, non-`None` argument is
   printed to stderr and the process exits `1` (so `sys.exit("error message")` reports a failure rather

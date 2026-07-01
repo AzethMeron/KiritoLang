@@ -7,6 +7,7 @@
 # (07-stdlib.md is covered by other agents.)
 
 var io = import("io")
+var path = import("path")
 var n = 0
 var ok = Function(c, m):
     assert c, m
@@ -285,15 +286,15 @@ var json = import("json")
 var jdata = json.parse("{\"name\": \"Kirito\", \"version\": 1}")
 ok(jdata["name"] == "Kirito" and jdata["version"] == 1, "recipe json.parse")
 
-# ---- Lesson 13: io path helpers ----
-ok(io.join("dir", "sub", "file.txt").endswith("file.txt"), "io.join")
-ok(io.basename("/a/b/c.txt") == "c.txt", "io.basename")
-ok(io.dirname("/a/b/c.txt") == "/a/b", "io.dirname")
-ok(String(io.splitext("report.csv")) == "['report', '.csv']", "io.splitext")
+# ---- Lesson 13: io path helpers + path.join ----
+var sys = import("sys")
+ok(path.join("dir", "sub", "file.txt").endswith("file.txt"), "path.join")
+ok(path.basename("/a/b/c.txt") == "c.txt", "io.basename")
+ok(path.dirname("/a/b/c.txt") == "/a/b", "io.dirname")
+ok(String(path.splitext("report.csv")) == "['report', '.csv']", "io.splitext")
 
 # ---- Lesson 13: file round-trip + line iteration + append ----
-var sys = import("sys")
-var fpath = io.join(sys.gettempdir(), "r8_docs_io.txt")
+var fpath = path.join(sys.gettempdir(), "r8_docs_io.txt")
 with io.open(fpath, "w") as fw:
     fw.writelines(["first\n", "second\n", "third\n"])
 with io.open(fpath, "a") as fa:
@@ -390,7 +391,7 @@ ok(ordered_lines[0] == "[ ] high   Ship the release", "capstone ordering: high a
 ok(ordered_lines[1] == "[ ] high   Write the report", "capstone ordering: second high")
 ok(ordered_lines[2] == "[ ] medium Reply to Ada", "capstone ordering: medium")
 ok(ordered_lines[3] == "[x] low    Water the plants", "capstone ordering: done sinks to bottom")
-var cappath = io.join(sys.gettempdir(), "r8_docs_tasks.json")
+var cappath = path.join(sys.gettempdir(), "r8_docs_tasks.json")
 inbox.save(cappath)
 var reloaded = TaskList()
 reloaded.load(cappath)
@@ -507,7 +508,7 @@ ok(String(A4.apply(Function(x): return x + 10)) == "[[11.0, 12.0], [13.0, 14.0]]
 ok(String(m.vector([1, 2, 3]).apply(Function(x): return x * 10)) == "[[10.0, 20.0, 30.0]]", "vector apply")
 var C = import("complex")
 ok(String(C.of(re = 1, im = 2)) == "1.0+2.0i", "complex keyword constructor")
-var euler = C.exp(C.of(0, C.pi))
+var euler = C.exp(C.of(0, import("math").pi))    # complex has no pi; use math.pi (single source of truth)
 ok(euler.re.compare(-1.0, abs_tol = 1e-9) and euler.im.compare(0.0, abs_tol = 1e-9), "Euler identity ~ -1")
 var Mc4 = C.Matrix([[C.of(1, 1), C.of(2, 0)], [C.of(0, 1), C.of(1, -1)]])
 ok(String(Mc4.hermitian()) == "[[1.0-1.0i, 0.0-1.0i], [2.0+0.0i, 1.0+1.0i]]", "complex hermitian")

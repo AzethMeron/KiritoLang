@@ -175,30 +175,14 @@ public:
             return d.build();
         });
 
-        // --- filesystem location / path helpers (system facilities; pair naturally with `io`) ---
+        // gettempdir is a system facility (a location, not a path operation), so it stays in `sys`;
+        // pair it with path.join + io to build scratch file paths. (Path operations live in `path`.)
         m.fn("gettempdir", {}, "String", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
             // The system temp directory (honors TMPDIR/TMP/TEMP, falls back to /tmp) — a stable
-            // scratch location to build temp file paths for `io`.
+            // scratch location to build temp file paths.
             std::error_code ec;
             auto p = std::filesystem::temp_directory_path(ec);
             return val(vm, ec ? std::string("/tmp") : p.string());
-        });
-
-        m.fn("joinpath", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            // joinpath(parts...) -> the parts joined with '/'. Kirito uses '/' on every platform so
-            // results are identical cross-platform (not std::filesystem's '\' on Windows). A later
-            // component that is absolute (starts with '/') resets the result. Variadic; like
-            // os.path.join it needs at least one component (io.join, by contrast, joins zero to "").
-            Args args(vm, a, "joinpath");
-            if (args.empty()) throw KiritoError("joinpath expected at least one path component");
-            std::string out = args[0].asString("joinpath");
-            for (std::size_t i = 1; i < a.size(); ++i) {
-                std::string part = args[i].asString("joinpath");
-                if (!part.empty() && part[0] == '/') out = part;            // absolute resets
-                else if (out.empty() || out.back() == '/') out += part;     // no double separator
-                else out += "/" + part;
-            }
-            return val(vm, out);
         });
 
         m.fn("exit", {{"code", "Integer", vm.makeInt(0)}}, "", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {

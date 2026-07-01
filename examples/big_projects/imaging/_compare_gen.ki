@@ -3,13 +3,14 @@
 # PNGs into a temp subdirectory and prints that directory as its last line.
 
 var Image = import("imaging")
+var path = import("path")
 var io = import("io")
 var sys = import("sys")
 
-var outdir = io.join(sys.gettempdir(), "ki_imaging_xval")
+var outdir = path.join(sys.gettempdir(), "ki_imaging_xval")
 discard io.mkdir(outdir)
 var out = Function(name):
-    return io.join(outdir, name)
+    return path.join(outdir, name)
 
 # A deterministic 12x9 RGB pattern that exercises all three channels independently.
 var W = 12

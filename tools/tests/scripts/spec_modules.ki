@@ -1,5 +1,6 @@
 # Checks for standard-library modules (deterministic, platform-independent parts only).
 var io = import("io")
+var path = import("path")
 
 # --- math ---
 var m = import("math")
@@ -20,10 +21,10 @@ assert abs(m.hypot(3.0, 4.0) - 5.0) < 1e-9, "hypot"
 # --- sys ---
 var sys = import("sys")
 assert len(sys.platform) > 0, "platform name"
-assert sys.joinpath("a", "b", "c") == "a/b/c", "joinpath"
-assert sys.joinpath("/usr", "local") == "/usr/local", "joinpath absolute"
-assert sys.joinpath("a", "/abs") == "/abs", "joinpath absolute resets"
-assert io.isdir(sys.gettempdir()), "gettempdir is a real directory"
+assert path.join("a", "b", "c") == "a/b/c", "path.join"
+assert path.join("/usr", "local") == "/usr/local", "path.join absolute"
+assert path.join("a", "/abs") == "/abs", "path.join absolute resets"
+assert path.isdir(sys.gettempdir()), "gettempdir is a real directory"
 assert sys.getenv("KIRITO_DEFINITELY_UNSET_XYZ", "fallback") == "fallback", "getenv default"
 
 # --- json (round-trip; compare via re-parse since dict order is unspecified) ---

@@ -23,18 +23,19 @@ like images or `.gz` data). Always use a `with` block so the file closes itself:
 
 ```kirito
 var io = import("io")
-var path = io.join(io.getcwd(), "notes.txt")
+var path = import("path")
+var notes = path.join(io.getcwd(), "notes.txt")
 
 # Write three lines.
-with io.open(path, "w") as f:
+with io.open(notes, "w") as f:
     f.writelines(["first\n", "second\n", "third\n"])
 
 # Read it all back at once.
-with io.open(path, "r") as f:
+with io.open(notes, "r") as f:
     io.print(f.read())            # => first / second / third
 
 # Append a line.
-with io.open(path, "a") as f:
+with io.open(notes, "a") as f:
     f.write("fourth\n")
 ```
 
@@ -45,36 +46,41 @@ process large files:
 
 ```kirito
 var io = import("io")
-var path = io.join(io.getcwd(), "notes.txt")
+var path = import("path")
+var notes = path.join(io.getcwd(), "notes.txt")
 
 var line_number = 0
-with io.open(path, "r") as f:
+with io.open(notes, "r") as f:
     for line in f:
         line_number = line_number + 1
         io.print(f"{line_number}: {line.strip()}")
 # => 1: first / 2: second / 3: third / 4: fourth
-discard io.remove(path)            # clean up
+discard io.remove(notes)           # clean up
 ```
 
 `f.readline()` reads one line, and `f.readlines()` reads them all into a List, if you prefer explicit
 control over the loop.
 
-## Filesystem helpers
+## Filesystem helpers: `path` and `io`
 
-`io` includes the everyday filesystem and path operations:
+Path operations — interpreting a path string and querying the filesystem about it — live in the
+dedicated **`path`** module (Kirito's `os.path`):
 
 ```kirito
 var io = import("io")
+var path = import("path")
 var here = io.getcwd()
-io.print(io.exists(here))          # => True
-io.print(io.isdir(here))           # => True
-io.print(io.basename("/a/b/c.txt"))    # => c.txt
-io.print(io.dirname("/a/b/c.txt"))     # => /a/b
-io.print(io.splitext("report.csv"))    # => ['report', '.csv']
-io.print(io.join("dir", "sub", "file.txt"))   # => dir/sub/file.txt  (platform separator)
+io.print(path.exists(here))            # => True
+io.print(path.isdir(here))             # => True
+io.print(path.basename("/a/b/c.txt"))  # => c.txt
+io.print(path.dirname("/a/b/c.txt"))   # => /a/b
+io.print(path.splitext("report.csv"))  # => ['report', '.csv']
+io.print(path.join("dir", "sub", "file.txt"))   # => dir/sub/file.txt  (always '/')
 ```
 
-Others include `listdir`, `mkdir`, `rename`, `remove`, `getsize`, `isfile`, and `walk` (recursive).
+`path` also has `isfile` and `getsize`, and `path.join` for building paths (os.path.join semantics,
+always `/`). The operations that *change* or *list* the filesystem stay in `io`: `mkdir`, `rename`,
+`remove`, `getcwd`, `listdir`, and `walk` (recursive).
 
 ## In-memory buffers: `BytesIO`
 

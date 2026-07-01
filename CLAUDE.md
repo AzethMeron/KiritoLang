@@ -230,10 +230,20 @@ a stability fuzzer, and a benchmark). Working today:
     **binary mode** (`"rb"`/`"wb"`/`"ab"`/`"r+b"`) makes read/readline/iteration yield `Bytes` and
     write accept `Bytes` (the stream is always byte-exact internally),
     `BytesIO` (an in-memory byte buffer with a read/write cursor; note its reads return **String** —
-    Kirito Strings are byte-transparent), plus filesystem helpers (exists/remove/
-    rename/mkdir/chmod/getcwd/listdir/isfile/isdir/getsize/walk) and os.path-style path helpers
-    (dirname/basename/splitext/join). `chmod(path, mode)` sets POSIX permission bits from an octal
-    Integer (e.g. `0o755`). Module members are rebindable (`ModuleValue::setAttr`).
+    Kirito Strings are byte-transparent), plus filesystem **mutation + listing** helpers
+    (remove/rename/mkdir/chmod/getcwd/listdir/walk). `chmod(path, mode)` sets POSIX permission
+    bits from an octal Integer (e.g. `0o755`). Module members are rebindable (`ModuleValue::setAttr`).
+    Path *interpretation* and *queries* are NOT here — they live in the `path` module (below), the
+    single home for path operations, so callers never have to remember whether a helper is in `io`
+    or `sys`.
+  - `path` — Kirito's **os.path**: the sole home for path operations. Pure path-string manipulation
+    (`join`/`dirname`/`basename`/`splitext`) + read-only filesystem queries about a path
+    (`exists`/`isfile`/`isdir`/`getsize`). Path strings use `/` on every platform (identical
+    cross-platform; the split helpers still accept `\`). `join(*parts)` is variadic with os.path.join
+    semantics (absolute `/`-component resets; needs ≥1 part — **raises on zero args**; a leading `\`
+    is not absolute). `exists`/`isfile`/`isdir` are tolerant (missing → `False`); `getsize` **raises**
+    on a missing/non-regular path. (`io` keeps filesystem mutation/listing; `sys.gettempdir` — a
+    system *location*, not a path op — stays in `sys`.)
   - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf/erfc, floor/ceil/
     trunc, gcd/lcm, factorial, isnan/isinf, prod/comb/perm, ...). **Domain errors RAISE** a clear `math
     domain error` rather than returning silent `NaN`/`inf` rubbish (`sqrt(-1)`, `log(0)`, `asin(2)`,
@@ -287,7 +297,10 @@ a stability fuzzer, and a benchmark). Working today:
     (a Matrix with one dimension = 1): `vector(list)` factory, `dot` (scalar product; `*` stays
     matrix multiply), `cross` (3-vectors), `norm` (Euclidean 2-norm).
   - `complex` — complex numbers and complex matrices (a 2-D `Tensor<cdouble>`), all in C++ (`std::complex<double>`). `Complex(re
-    [, im])`/`of(re, im)`/`real(re)`/`polar(r, θ)`; constants `i`/`zero`/`one`/`pi`/`e`/`tau`;
+    [, im])`/`of(re, im)`/`real(re)`/`polar(r, θ)`; constants `i`/`zero`/`one` (genuinely
+    Complex-typed, so they live here — real-axis constants like π/e/τ do not: use `math.pi`/`math.e`/
+    `math.tau`, the single source of truth, and lift to the real axis via `complex.real(math.pi)` if a
+    Complex value is needed);
     operators `+ - * / **` and unary `-` (Complex-on-the-left; reals coerce to the real axis; complex
     numbers are unordered so `<`/`>` raise); `.re`/`.im`, `conjugate`/`modulus`/`argument`/`norm2`/
     `is_zero`; the analytic math set (`exp`/`log`/`log10`/`sqrt`/`cbrt`/`pow` + trig/inverse-trig/
@@ -629,7 +642,7 @@ Toolchain present: `g++ 13`, `clang++ 18`, `cmake 3.28`, `ninja`, `ctest`.
 - Match the style of surrounding code: naming, structure, idiom.
 - **Kirito's public surface uses lowercase, no-underscore names** — every Kirito-visible function and
   method (builtins, stdlib module functions, type methods) is all lowercase with no underscores or
-  camelCase (`gettempdir`, `joinpath`, `startswith`, `symmetricdifference`, `httpget`, `timens`).
+  camelCase (`gettempdir`, `splitext`, `startswith`, `symmetricdifference`, `httpget`, `timens`).
   This is the language convention; keep new names consistent with it. (C++ identifiers still follow
   ordinary C++ style; this rule is about names exposed to Kirito code.)
 - Clear diagnostics: lexer/parser/runtime errors should carry line and column and a

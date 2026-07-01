@@ -4,6 +4,7 @@
 # the CTest golden test matches against. Temp files go to the system temp dir.
 
 var Image = import("imaging")
+var path = import("path")
 var ImageOps = import("imageops")
 var ImageFilter = import("imagefilter")
 var ImageDraw = import("imagedraw")
@@ -14,7 +15,7 @@ var dump = import("dump")
 
 var tmp = sys.gettempdir()
 var tmpfile = Function(name):
-    return io.join(tmp, name)
+    return path.join(tmp, name)
 
 var checks = 0
 var check = Function(cond, msg):

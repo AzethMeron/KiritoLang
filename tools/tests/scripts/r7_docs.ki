@@ -5,6 +5,7 @@
 # Pages: 04-language-guide, 05-builtins, 06-types, 08-recipes, 11..30 course/bonus lessons.
 
 var io = import("io")
+var path = import("path")
 var n = 0
 var ok = Function(c, m):
     assert c, m
@@ -529,9 +530,9 @@ ok(buffer.getvalue() == "captured text", "BytesIO getvalue")
 var capture = io.BytesIO()
 io.print("only to the log", stream = capture)
 ok(capture.getvalue() == "only to the log\n", "stream= keyword redirect")
-ok(io.basename("/a/b/c.txt") == "c.txt", "basename")
-ok(io.dirname("/a/b/c.txt") == "/a/b", "dirname")
-ok(String(io.splitext("report.csv")) == "['report', '.csv']", "splitext")
+ok(path.basename("/a/b/c.txt") == "c.txt", "basename")
+ok(path.dirname("/a/b/c.txt") == "/a/b", "dirname")
+ok(String(path.splitext("report.csv")) == "['report', '.csv']", "splitext")
 
 # ---- Lesson 14: stdlib tour ----
 var json = import("json")

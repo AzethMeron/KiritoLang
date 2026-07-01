@@ -20,12 +20,14 @@
 # scratch file is removed. Only CONFIRMED-correct behavior is asserted.
 
 var json = import("json")
+var path = import("path")
 var serialize = import("serialize")
 var dump = import("dump")
 var z = import("zlib")
 var g = import("gzip")
 var h = import("hash")
 var io = import("io")
+var sys = import("sys")
 var random = import("random")
 
 var n = 0
@@ -222,11 +224,11 @@ ok(sres["blob"] == dres["blob"] and sres["set"] == dres["set"], "cross-format By
 
 var SCRATCH = import("sys").gettempdir()   # portable temp dir (TMPDIR/TMP/TEMP, falls back to /tmp)
 # dump.save / load a stateful cycle to a real file, then remove it.
-var dpath = io.join(SCRATCH, "r5_serde_cycle.bin")
+var dpath = path.join(SCRATCH, "r5_serde_cycle.bin")
 dump.save(ca, dpath)
 var loaded = dump.load(dpath)
 ok(loaded.label == "ca" and id(loaded.peer.peer) == id(loaded), "dump.save/load preserves a stateful cycle")
 discard io.remove(dpath)
-ok(io.exists(dpath) == False, "scratch file cleaned up")
+ok(path.exists(dpath) == False, "scratch file cleaned up")
 
 io.print("r5_serde: all " + String(n) + " assertions passed")

@@ -13,9 +13,11 @@
 # so every identity/equality check below is pairwise.
 
 var json = import("json")
+var path = import("path")
 var serialize = import("serialize")
 var dump = import("dump")
 var io = import("io")
+var sys = import("sys")
 var math = import("math")
 var matrix = import("matrix")
 var complex = import("complex")
@@ -465,7 +467,7 @@ while ri < len(resources):
     ok(raises(Function(): return dump.dumps(resources[ri]())), "dump rejects resource #" + String(ri))
     ri = ri + 1
 # an open File rejects too
-var fp = io.join(SCRATCH, "r4_probe.txt")
+var fp = path.join(SCRATCH, "r4_probe.txt")
 var fh = io.open(fp, "w")
 ok(raises(Function(): return serialize.dumps(fh)), "serialize rejects an open File")
 ok(raises(Function(): return dump.dumps(fh)), "dump rejects an open File")
@@ -544,19 +546,19 @@ while dti < len(dblob):
     dti = dti + 1
 
 # ============================================================ FILE save / load round-trip (scratchpad)
-var sp = io.join(SCRATCH, "r4_serialize.txt")
+var sp = path.join(SCRATCH, "r4_serialize.txt")
 serialize.save({"name": "Kirito", "scores": [10, 20, 30]}, sp)
 var sloaded = serialize.load(sp)
 ok(sloaded["name"] == "Kirito" and sloaded["scores"][2] == 30, "serialize save/load file")
 discard io.remove(sp)
-var dp = io.join(SCRATCH, "r4_dump.bin")
+var dp = path.join(SCRATCH, "r4_dump.bin")
 dump.save({"name": "Kirito", "nested": {"x": [1, 2]}}, dp)
 var dloaded = dump.load(dp)
 ok(dloaded["name"] == "Kirito" and dloaded["nested"]["x"][0] == 1, "dump save/load file")
 discard io.remove(dp)
 # load of a nonexistent path raises
-ok(raises(Function(): return serialize.load(io.join(SCRATCH, "nonexistent_r4.dat"))), "serialize.load missing file raises")
-ok(raises(Function(): return dump.load(io.join(SCRATCH, "nonexistent_r4.bin"))), "dump.load missing file raises")
+ok(raises(Function(): return serialize.load(path.join(SCRATCH, "nonexistent_r4.dat"))), "serialize.load missing file raises")
+ok(raises(Function(): return dump.load(path.join(SCRATCH, "nonexistent_r4.bin"))), "dump.load missing file raises")
 
 # ============================================================ KEYWORD ARGUMENTS on every function
 ok(json.parse(text = "[1, 2]") == [1, 2], "json.parse keyword arg")

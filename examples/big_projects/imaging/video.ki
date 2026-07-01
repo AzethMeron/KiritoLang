@@ -28,6 +28,7 @@
 # directly.
 
 var Image = import("imaging")
+var path = import("path")
 var jpeg = import("jpeg")
 var gif = import("gif")
 var io = import("io")
@@ -261,10 +262,10 @@ class VideoCapture:
         self.fps = 25.0
         # count by probing consecutive files (start at 0, then 1 if 0 missing)
         self._seqstart = 0
-        if not io.exists(_seq_path(pattern, 0)):
+        if not path.exists(_seq_path(pattern, 0)):
             self._seqstart = 1
         var i = self._seqstart
-        while io.exists(_seq_path(pattern, i)):
+        while path.exists(_seq_path(pattern, i)):
             i = i + 1
         self.count = i - self._seqstart
         if self.count > 0:
@@ -355,7 +356,7 @@ class VideoCapture:
             return [True, im]
         if self.kind == "seq":
             var p = _seq_path(self.source, self._seqstart + self.pos)
-            if not io.exists(p):
+            if not path.exists(p):
                 return [False, None]
             self.pos = self.pos + 1
             return [True, Image.open(p)]

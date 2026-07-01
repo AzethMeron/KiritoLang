@@ -54,8 +54,9 @@ var net = import("net")
 var json = import("json")
 var sys = import("sys")
 var semver = import("semver")
+var path = import("path")
 
-var KPM_VERSION = "1.3.1"
+var KPM_VERSION = "1.3.2"
 
 # Self-maintenance (update-kpm / update-ki) always targets the Kirito project on github.com; these are
 # fixed and never redirected. The PACKAGE install path uses the host-aware adapters further down (so a
@@ -86,7 +87,7 @@ var homeDir = Function() -> String:
     return h
 
 var packagesDir = Function() -> String:
-    return io.join(io.join(homeDir(), ".kirito"), "packages")
+    return path.join(path.join(homeDir(), ".kirito"), "packages")
 
 # ---------------------------------------------------------------- helpers
 var fail = Function(msg):
@@ -341,8 +342,8 @@ var resolveRef = Function(src, ref) -> String:
 
 # Write `text` to <dir>/<relpath>, creating any parent directories first.
 var writeFile = Function(dir, relpath, text):
-    var full = io.join(dir, relpath)
-    var parent = io.dirname(full)
+    var full = path.join(dir, relpath)
+    var parent = path.dirname(full)
     if len(parent) > 0:
         discard io.mkdir(parent)
     var f = io.open(full, "w")
@@ -351,10 +352,10 @@ var writeFile = Function(dir, relpath, text):
 
 # Recursively delete a directory tree.
 var removeTree = Function(dir):
-    if io.exists(dir):
+    if path.exists(dir):
         for entry in io.listdir(dir):
-            var full = io.join(dir, entry)
-            if io.isdir(full):
+            var full = path.join(dir, entry)
+            if path.isdir(full):
                 removeTree(full)
             else:
                 discard io.remove(full)
@@ -407,7 +408,7 @@ var installOne = Function(spec, seen) -> String:
     for d in deps:
         discard installOne(d, seen)
 
-    var dest = io.join(packagesDir(), name)
+    var dest = path.join(packagesDir(), name)
     var installed = []
     for mod in modules:
         var text = None
@@ -426,8 +427,8 @@ var installOne = Function(spec, seen) -> String:
 
 # Read the install record of one package, or None if it isn't installed.
 var readRecord = Function(name):
-    var rec = io.join(io.join(packagesDir(), name), ".kpm.json")
-    if not io.exists(rec):
+    var rec = path.join(path.join(packagesDir(), name), ".kpm.json")
+    if not path.exists(rec):
         return None
     var f = io.open(rec, "r")
     var data = json.loads(f.read())
@@ -438,7 +439,7 @@ var readRecord = Function(name):
 var listInstalled = Function():
     var root = packagesDir()
     var out = []
-    if not io.exists(root):
+    if not path.exists(root):
         return out
     for entry in io.listdir(root):
         var data = readRecord(entry)
@@ -479,7 +480,7 @@ var extractKpmVersion = Function(text):
 var replaceFile = Function(tmp, target):
     discard io.remove(target + ".old")
     if sys.platform == "windows":
-        if io.exists(target):
+        if path.exists(target):
             io.rename(target, target + ".old")
         io.rename(tmp, target)
     else:
@@ -501,8 +502,8 @@ var cmdRemove = Function(names):
     if len(names) == 0:
         fail("remove needs a package name")
     for name in names:
-        var dir = io.join(packagesDir(), name)
-        if not io.exists(dir):
+        var dir = path.join(packagesDir(), name)
+        if not path.exists(dir):
             io.eprint("kpm: not installed: " + name)
         else:
             removeTree(dir)
@@ -592,7 +593,7 @@ var cmdSelfUpdate = Function(args):
     var force = hasFlag(args, "--force") or hasFlag(args, "-f")
     var target = sys.getenv("KPM_SELF")
     if target == None or target == "":
-        target = io.join(io.join(homeDir(), ".kirito"), "kpm.ki")
+        target = path.join(path.join(homeDir(), ".kirito"), "kpm.ki")
     var url = RAW + "/" + KIRITO_REPO + "/main/kpm/kpm.ki"
     var text = None
     try:
@@ -604,7 +605,7 @@ var cmdSelfUpdate = Function(args):
     if not force and remote != None and semver.valid(remote) != None and not semver.gt(remote, KPM_VERSION):
         io.print("kpm is up to date (" + KPM_VERSION + ")")
         return None
-    var parent = io.dirname(target)
+    var parent = path.dirname(target)
     if len(parent) > 0:
         discard io.mkdir(parent)
     var f = io.open(target, "w")

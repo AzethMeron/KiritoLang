@@ -102,10 +102,11 @@ def main():
     snippet = (
         'var Image = import("imaging")\n'
         'var io = import("io")\n'
+        'var path = import("path")\n'
         'for m in ["RGB", "RGBA", "L"]:\n'
-        f'    var p = io.join("{rt}", "pil_" + m + ".png")\n'
+        f'    var p = path.join("{rt}", "pil_" + m + ".png")\n'
         '    var im = Image.open(p)\n'
-        f'    im.save(io.join("{rt}", "ki_" + m + ".ppm"))\n'
+        f'    im.save(path.join("{rt}", "ki_" + m + ".ppm"))\n'
         'io.print("done")\n'
     )
     snip_path = os.path.join(rt, "_decode.ki")

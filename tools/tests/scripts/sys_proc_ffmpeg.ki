@@ -4,6 +4,7 @@
 # fixed either way so the golden is environment-independent. ffmpeg is the canonical "chatty on
 # stderr + large binary on stdout" program, so it stresses the concurrent pipe draining hard.
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 
 var DIR = sys.gettempdir()
@@ -17,7 +18,7 @@ var hasFFmpeg = Function():
         return False
 
 if hasFFmpeg():
-    var mp4 = io.join(DIR, "ki_ff_probe.mp4")
+    var mp4 = path.join(DIR, "ki_ff_probe.mp4")
     discard io.remove(mp4)
 
     # encode a short synthetic clip — ffmpeg pours progress onto stderr while we capture it
@@ -25,7 +26,7 @@ if hasFFmpeg():
         "-i", "testsrc=duration=1:size=160x120:rate=15", mp4])
     assert enc["code"] == 0, "ffmpeg encode exits 0"
     assert len(enc["stderr"]) > 0, "ffmpeg logs to stderr (captured, no deadlock)"
-    assert io.exists(mp4) and io.getsize(mp4) > 0, "ffmpeg produced a non-empty file"
+    assert path.exists(mp4) and path.getsize(mp4) > 0, "ffmpeg produced a non-empty file"
 
     # decode it back (read path)
     var dec = sys.createprocess(["ffmpeg", "-v", "error", "-i", mp4, "-f", "null", "-"])
@@ -41,12 +42,12 @@ if hasFFmpeg():
 
     # a missing input file: ffmpeg exits non-zero with a diagnostic on stderr (not a crash)
     var bad = sys.createprocess(["ffmpeg", "-v", "error", "-i",
-        io.join(DIR, "ki_ff_nope_zzz.mp4"), "-f", "null", "-"])
+        path.join(DIR, "ki_ff_nope_zzz.mp4"), "-f", "null", "-"])
     assert bad["code"] != 0, "ffmpeg on a missing input exits non-zero"
     assert len(bad["stderr"]) > 0, "ffmpeg error goes to stderr"
 
     # timeout kills a long encode
-    var slow = io.join(DIR, "ki_ff_slow.mp4")
+    var slow = path.join(DIR, "ki_ff_slow.mp4")
     discard io.remove(slow)
     var timedOut = False
     try:

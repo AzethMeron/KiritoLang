@@ -9,6 +9,7 @@
 # month normalisation diverging from C `timegm` for month >= 15 / <= -10; time.make narrowing a
 # year/component beyond int32; random gauss/expovariate arity vs inspect).
 var io = import("io")
+var path = import("path")
 var math = import("math")
 var random = import("random")
 var time = import("time")
@@ -158,9 +159,9 @@ sys.unsetenv("R5_MS_EMPTY")
 sys.unsetenv("R5_MS_EQ")
 assert sys.getenv("R5_MS_EQ") == None, "unsetenv removes the variable"
 
-# joinpath: an empty middle component and consecutive absolutes.
-assert sys.joinpath("a", "", "b") == "a/b", "joinpath skips an empty middle component"
-assert sys.joinpath("/x", "/y") == "/y", "a later absolute component resets the whole path"
+# path.join: an empty middle component and consecutive absolutes.
+assert path.join("a", "", "b") == "a/b", "path.join skips an empty middle component"
+assert path.join("/x", "/y") == "/y", "a later absolute component resets the whole path"
 
 # =====================================================================================
 # Deterministic known-math summary (exact integers only — no wall-clock, no RNG draws).

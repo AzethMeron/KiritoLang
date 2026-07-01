@@ -4,6 +4,7 @@
 # and writes a horizontal "film-strip" contact sheet (original on top, edge-detected below) as a PNG.
 
 var cv = import("video")
+var path = import("path")
 var Image = import("imaging")
 var ImageFilter = import("imagefilter")
 var ImageOps = import("imageops")
@@ -12,10 +13,10 @@ var sys = import("sys")
 
 # Find the committed sample whether run from the repo root or the package dir.
 var sample = "examples/big_projects/imaging/testdata/anim.gif"
-if not io.exists(sample):
+if not path.exists(sample):
     sample = "testdata/anim.gif"
 
-var outdir = io.join(sys.gettempdir(), "ki_video_demo")
+var outdir = path.join(sys.gettempdir(), "ki_video_demo")
 discard io.mkdir(outdir)
 
 var cap = cv.VideoCapture(sample)
@@ -48,7 +49,7 @@ else:
         sheet.paste(originals[i], [x, pad])
         sheet.paste(edges[i], [x, pad + fh + pad])
         i = i + 1
-    var path = io.join(outdir, "filmstrip.png")
-    sheet.save(path)
-    io.print("wrote " + path + "  (" + String(sheet.width) + "x" + String(sheet.height) + ", " +
+    var outpath = path.join(outdir, "filmstrip.png")
+    sheet.save(outpath)
+    io.print("wrote " + outpath + "  (" + String(sheet.width) + "x" + String(sheet.height) + ", " +
              String(nf) + " frames x 2 rows)")

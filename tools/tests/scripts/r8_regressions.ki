@@ -7,6 +7,7 @@
 #       instance returns nullopt, so it raised the mislabeled, span-less "bad optional access" instead
 #       of a clean error. Now raises "join expects an iterable".
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 var T = import("tensor")
 var n = 0
@@ -39,12 +40,12 @@ ok("-".join({1: "x", 2: "y"}.keys().apply(Function(k): return String(k))) != "",
 # Run a generated one-liner through a child process; a SEGFAULT would show up as a signal-derived
 # exit code with no diagnostic, whereas the fix yields a normal parse-error exit + message.
 var probe = Function(src):
-    var path = io.join(sys.gettempdir(), "r8_emptysub_probe.ki")
-    var fh = io.open(path, "w")
+    var ppath = path.join(sys.gettempdir(), "r8_emptysub_probe.ki")
+    var fh = io.open(ppath, "w")
     discard fh.write(src)
     fh.close()
-    var r = sys.createprocess([sys.executable, path])
-    discard io.remove(path)
+    var r = sys.createprocess([sys.executable, ppath])
+    discard io.remove(ppath)
     return r
 var r1 = probe("var xs = [1, 2, 3]\ndiscard xs[]\n")
 ok(r1["code"] != 0, "empty subscript `xs[]` fails (does not run)")
@@ -98,7 +99,7 @@ var bio = io.BytesIO("abcde")
 ok(raises(Function(): return bio.seek(9223372036854775807, 2)), "BytesIO.seek(huge, end) overflow raises (no UB)")
 discard bio.seek(2)
 ok(bio.read() == "cde", "a normal BytesIO seek still works")
-var sp = io.join(sys.gettempdir(), "r8_seek_probe.txt")
+var sp = path.join(sys.gettempdir(), "r8_seek_probe.txt")
 var sfh = io.open(sp, "w")
 discard sfh.write("hello")
 sfh.close()

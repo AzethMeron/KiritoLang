@@ -5,12 +5,13 @@
 # deterministic. NO real network here (offline URL strings only). Temp files live under gettempdir
 # and are cleaned up.
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 var time = import("time")
 var net = import("net")
 
 var tmp = sys.gettempdir()
-var P = Function(name): return sys.joinpath(tmp, name)
+var P = Function(name): return path.join(tmp, name)
 
 # Helper: did calling a zero-arg function raise? (Anonymous functions are single-line only.)
 var raises = Function(thunk):
@@ -218,43 +219,42 @@ assert raises(Function(): return io.print("x", stream=42)), "stream= to a non-st
 
 var ddir = P("kds_dir")
 assert io.mkdir(ddir), "mkdir creates a directory"
-assert io.isdir(ddir) and not io.isfile(ddir), "isdir/isfile on a directory"
-var inside = sys.joinpath(ddir, "x.txt")
+assert path.isdir(ddir) and not path.isfile(ddir), "isdir/isfile on a directory"
+var inside = path.join(ddir, "x.txt")
 with io.open(inside, "w") as nf:
     discard nf.write("hello")
-assert io.exists(inside) and io.isfile(inside), "exists/isfile on a file"
-assert io.getsize(inside) == 5, "getsize counts bytes"
+assert path.exists(inside) and path.isfile(inside), "exists/isfile on a file"
+assert path.getsize(inside) == 5, "getsize counts bytes"
 assert "x.txt" in io.listdir(ddir), "listdir lists entries"
 assert len(io.walk(ddir)) == 1, "walk finds the one file"
 
 # rename then remove
-var moved = sys.joinpath(ddir, "y.txt")
+var moved = path.join(ddir, "y.txt")
 io.rename(inside, moved)
-assert io.exists(moved) and not io.exists(inside), "rename moves the file"
-assert io.remove(moved) and not io.exists(moved), "remove deletes the file"
+assert path.exists(moved) and not path.exists(inside), "rename moves the file"
+assert io.remove(moved) and not path.exists(moved), "remove deletes the file"
 discard io.remove(ddir)
 
 # missing-path operations: rename/getsize RAISE; remove of a missing path does NOT raise
 assert raises(Function(): return io.rename(P("kds_missing_a"), P("kds_missing_b"))), "rename of a missing path raises"
-assert raises(Function(): return io.getsize(P("kds_missing_a"))), "getsize of a missing path raises"
+assert raises(Function(): return path.getsize(P("kds_missing_a"))), "getsize of a missing path raises"
 discard io.remove(P("kds_missing_a"))   # tolerant: removing a missing path is a no-op, not an error
 
 # exists/isfile/isdir on a missing path are all False; listdir/walk of a missing dir are empty
-assert not io.exists(P("kds_missing_a")), "exists False for a missing path"
-assert not io.isfile(P("kds_missing_a")) and not io.isdir(P("kds_missing_a")), "isfile/isdir False for missing"
+assert not path.exists(P("kds_missing_a")), "exists False for a missing path"
+assert not path.isfile(P("kds_missing_a")) and not path.isdir(P("kds_missing_a")), "isfile/isdir False for missing"
 assert io.listdir(P("kds_missing_dir")) == [], "listdir of a missing dir is empty"
 assert io.walk(P("kds_missing_dir")) == [], "walk of a missing dir is empty"
 
 # path helpers (normalize backslashes so the assertions hold on Windows too)
 var nslash = Function(s): return s.replace("\\", "/")
-assert io.basename("/a/b/c.txt") == "c.txt", "basename"
-assert io.basename("just") == "just", "basename of a bare name"
-assert nslash(io.dirname("/a/b/c.txt")) == "/a/b", "dirname"
-assert io.dirname("bare") == "", "dirname of a bare name is empty"
-assert io.splitext("a.tar.gz") == ["a.tar", ".gz"], "splitext takes the last extension"
-assert io.splitext("noext") == ["noext", ""], "splitext with no extension"
-assert io.splitext(".hidden") == [".hidden", ""], "splitext of a dotfile has no extension"
-assert nslash(io.join("a", "b", "c")) == "a/b/c", "io.join"
+assert path.basename("/a/b/c.txt") == "c.txt", "basename"
+assert path.basename("just") == "just", "basename of a bare name"
+assert nslash(path.dirname("/a/b/c.txt")) == "/a/b", "dirname"
+assert path.dirname("bare") == "", "dirname of a bare name is empty"
+assert path.splitext("a.tar.gz") == ["a.tar", ".gz"], "splitext takes the last extension"
+assert path.splitext("noext") == ["noext", ""], "splitext with no extension"
+assert path.splitext(".hidden") == [".hidden", ""], "splitext of a dotfile has no extension"
 
 # ============================ sys ============================
 
@@ -284,18 +284,18 @@ else:
     assert ev == "", "POSIX: empty env value round-trips"
 sys.unsetenv("KDS_EMPTY")
 
-# joinpath: variadic, '/' separator, absolute resets, empty components, needs >= 1 part
-assert sys.joinpath("a", "b", "c") == "a/b/c", "joinpath joins with '/'"
-assert sys.joinpath("a/", "b") == "a/b", "joinpath: trailing slash does not double up"
-assert sys.joinpath("a", "/b", "c") == "/b/c", "joinpath: a later absolute component resets"
-assert sys.joinpath("", "x") == "x", "joinpath: empty first stays relative"
-assert sys.joinpath("/only") == "/only", "joinpath: a single absolute part"
-assert raises(Function(): return sys.joinpath()), "joinpath() with no parts raises"
+# path.join: variadic, '/' separator, absolute resets, empty components, needs >= 1 part
+assert path.join("a", "b", "c") == "a/b/c", "path.join joins with '/'"
+assert path.join("a/", "b") == "a/b", "path.join: trailing slash does not double up"
+assert path.join("a", "/b", "c") == "/b/c", "path.join: a later absolute component resets"
+assert path.join("", "x") == "x", "path.join: empty first stays relative"
+assert path.join("/only") == "/only", "path.join: a single absolute part"
+assert raises(Function(): return path.join()), "path.join() with no parts raises"
 
 # type errors raise across sys entry points
 assert raises(Function(): return sys.getenv(1)), "getenv rejects a non-String name"
 assert raises(Function(): return sys.setenv("k", 1)), "setenv rejects a non-String value"
-assert raises(Function(): return sys.joinpath("a", 5)), "joinpath rejects a non-String part"
+assert raises(Function(): return path.join("a", 5)), "path.join rejects a non-String part"
 
 assert sys.gettempdir() != "", "gettempdir is non-empty"
 

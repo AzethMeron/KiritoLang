@@ -6,6 +6,7 @@
 # lowercase-no-underscore convention (sortvalues, readcsv, valuecounts, resetindex, ...).
 
 var _csv = import("csv")
+var path = import("path")
 
 # Aliases for builtins that share a name with a Series/DataFrame method (min/max). Inside a
 # method a bare `min` resolves to the sibling method (class-body scope), so capture the
@@ -889,7 +890,7 @@ var readcsv = Function(source, header = True, infer = True):
     # source is CSV text (or a filename if it has no newline and the file exists)
     var text = source
     var io = import("io")
-    if "\n" not in source and io.exists(source):
+    if "\n" not in source and path.exists(source):
         with io.open(source, "r") as fh:
             text = fh.read()
     var rows = _csv.parse(text)

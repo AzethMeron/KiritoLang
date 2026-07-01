@@ -1,5 +1,6 @@
 # Thorough checks for json, hash, zlib, serialize, dump.
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 
 # ===== json =====
@@ -82,7 +83,7 @@ dr[0].append(8)
 assert dr[1] == [7, 8], "dump preserves shared references"
 
 # ===== file save/load via temp file =====
-var p = sys.joinpath(sys.gettempdir(), "kirito_spec_serde.dat")
+var p = path.join(sys.gettempdir(), "kirito_spec_serde.dat")
 ser.save({"saved": [1, 2, 3]}, p)
 assert ser.load(p) == {"saved": [1, 2, 3]}, "serialize save/load file"
 discard io.remove(p)

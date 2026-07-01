@@ -9,6 +9,7 @@
 # argmain/arglist are per-file module bindings, so a function/method/closure/default defined in a
 # module always reports THAT module's view, no matter who calls it.
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 
 var n = 0
@@ -282,7 +283,7 @@ ok(modUnpack.m == False, "amarg_unpack: argmain False")
 # ============================================================================================
 var KI = sys.executable
 var time = import("time")
-var runner = io.join(sys.gettempdir(), "amarg_runner_" + String(time.timens()) + ".ki")
+var runner = path.join(sys.gettempdir(), "amarg_runner_" + String(time.timens()) + ".ki")
 var rsrc = r"""var io = import("io")
 io.print(String(argmain))
 io.print(String(len(arglist)))
@@ -342,6 +343,6 @@ var cn = spawn(["007"])
 ok(cn[2] == "007", "a numeric-looking argv token stays a String (no coercion, leading zeros kept)")
 
 discard io.remove(runner)
-ok(io.exists(runner) == False, "the generated runner is cleaned up")
+ok(path.exists(runner) == False, "the generated runner is cleaned up")
 
 io.print("argmain_arglist: " + String(n) + " checks passed")

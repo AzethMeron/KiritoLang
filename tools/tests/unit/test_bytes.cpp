@@ -119,7 +119,7 @@ g.gunzip(g.gzip(b)) == b
     CHECK(ev(vm, R"(
 var io = import("io")
 var z = import("gzip")
-var path = io.join(import("sys").gettempdir(), "kirito_bytes_test.bin")
+var path = import("sys").joinpath(import("sys").gettempdir(), "kirito_bytes_test.bin")
 var data = z.compress(Bytes("payload with embedded \x00 null and \xff high bytes here", "latin-1"))
 var f = io.open(path, "wb")
 f.write(data)

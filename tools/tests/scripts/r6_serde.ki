@@ -19,6 +19,8 @@
 # original (a checkpoint test), never to a literal. No clock/network. Scratch files are removed.
 
 var io = import("io")
+var path = import("path")
+var sys = import("sys")
 var serialize = import("serialize")
 var dump = import("dump")
 var time = import("time")
@@ -195,7 +197,7 @@ ok(id(gx_d["cycle"].peer.peer) == id(gx_d["cycle"]), "cross-format: dump cycle i
 
 # ============================================================ RESOURCES MUST NOT SERIALIZE
 var SCRATCH = import("sys").gettempdir()   # portable temp dir (TMPDIR/TMP/TEMP, falls back to /tmp)
-var fpath = io.join(SCRATCH, "r6_serde_resource.txt")
+var fpath = path.join(SCRATCH, "r6_serde_resource.txt")
 var f = io.open(fpath, "w")
 ok(raises(Function(): return dump.dumps(f)), "dump: an open file raises (resource)")
 ok(raises(Function(): return serialize.dumps(f)), "serialize: an open file raises (resource)")
@@ -235,24 +237,24 @@ ok(dump.loads(data=dump.dumps([6])) == [6], "dump.loads accepts data= keyword")
 
 # ============================================================ FILE save/load ROUND-TRIP (scratch, cleaned)
 # serialize.save/load (text)
-var spath = io.join(SCRATCH, "r6_serde_text.kser")
+var spath = path.join(SCRATCH, "r6_serde_text.kser")
 serialize.save(graph, spath)
 var sload = serialize.load(spath)
 ok(id(sload["cycle"].peer.peer) == id(sload["cycle"]), "serialize.save/load preserves a cycle on disk")
 ok(sload["blob"] == Bytes([1, 2, 3]), "serialize.save/load preserves Bytes on disk")
 discard io.remove(spath)
-ok(io.exists(spath) == False, "serialize scratch file cleaned up")
+ok(path.exists(spath) == False, "serialize scratch file cleaned up")
 # dump.save/load (binary)
-var dpath = io.join(SCRATCH, "r6_serde_bin.kdmp")
+var dpath = path.join(SCRATCH, "r6_serde_bin.kdmp")
 dump.save(graph, dpath)
 var dload = dump.load(dpath)
 ok(id(dload["cycle"].peer.peer) == id(dload["cycle"]), "dump.save/load preserves a cycle on disk")
 ok(dload["dt"] == dt, "dump.save/load preserves a DateTime on disk")
 discard io.remove(dpath)
-ok(io.exists(dpath) == False, "dump scratch file cleaned up")
+ok(path.exists(dpath) == False, "dump scratch file cleaned up")
 # save to an unwritable path raises cleanly
 ok(raises(Function(): return dump.save([1], "/nonexistent_dir_r6/x.bin")), "dump.save to a bad path raises")
-ok(raises(Function(): return serialize.load(io.join(SCRATCH, "r6_does_not_exist.kser"))), "serialize.load of a missing file raises")
+ok(raises(Function(): return serialize.load(path.join(SCRATCH, "r6_does_not_exist.kser"))), "serialize.load of a missing file raises")
 
 # ============================================================ DEPTH GUARD (no native-stack overflow)
 # A pathologically deep nested list must RAISE (flatten depth guard) instead of overflowing.

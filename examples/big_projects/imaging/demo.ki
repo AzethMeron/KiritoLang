@@ -4,6 +4,7 @@
 # system temp directory (or the directory named in the KI_IMAGING_OUT env var).
 
 var Image = import("imaging")
+var path = import("path")
 var ImageDraw = import("imagedraw")
 var ImageFilter = import("imagefilter")
 var ImageOps = import("imageops")
@@ -13,11 +14,11 @@ var math = import("math")
 
 var outdir = sys.getenv("KI_IMAGING_OUT")
 if outdir == None:
-    outdir = io.join(sys.gettempdir(), "ki_imaging_demo")
+    outdir = path.join(sys.gettempdir(), "ki_imaging_demo")
 discard io.mkdir(outdir)
 var saved = []
 var save = Function(img, name):
-    img.save(io.join(outdir, name))
+    img.save(path.join(outdir, name))
     saved.append(name)
 
 var W = 200

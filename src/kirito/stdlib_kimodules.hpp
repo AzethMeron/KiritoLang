@@ -2120,7 +2120,8 @@ var readcsv = Function(source, header = True, infer = True):
     # source is CSV text (or a filename if it has no newline and the file exists)
     var text = source
     var io = import("io")
-    if "\n" not in source and io.exists(source):
+    var path = import("path")
+    if "\n" not in source and path.exists(source):
         with io.open(source, "r") as fh:
             text = fh.read()
     var rows = _csv.parse(text)

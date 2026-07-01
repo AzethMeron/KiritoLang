@@ -547,15 +547,18 @@ public:
         m.value("zero", cpx::make(vm, cdouble(0.0, 0.0)));
         m.value("one", cpx::make(vm, cdouble(1.0, 0.0)));
         m.value("i", cpx::make(vm, cdouble(0.0, 1.0)));
-        m.value("pi", val(vm, std::numbers::pi));
-        m.value("e", val(vm, std::numbers::e));
-        m.value("tau", val(vm, 2.0 * std::numbers::pi));
+        // pi/e/tau are real-axis constants with no Complex-specific value over math.pi/e/tau —
+        // use those (single source of truth) rather than a duplicate copy here.
 
-        // Scalar reductions: modulus/abs, phase/argument, norm2, conjugate.
-        m.fn("modulus", {{"z"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle { return val(vm, std::abs(cpx::asComplex(vm, a[0]))); });
-        m.fn("abs", {{"z"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle { return val(vm, std::abs(cpx::asComplex(vm, a[0]))); });
-        m.fn("phase", {{"z"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle { return val(vm, std::arg(cpx::asComplex(vm, a[0]))); });
-        m.fn("argument", {{"z"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle { return val(vm, std::arg(cpx::asComplex(vm, a[0]))); });
+        // Scalar reductions: modulus/abs, phase/argument, norm2, conjugate. `abs`/`argument` are
+        // aliases of `modulus`/`phase` (one shared impl registered under both names — single source
+        // of truth, matching the ComplexVal::getAttr method-alias pattern above).
+        auto modulusFn = [](KiritoVM& vm, std::span<const Handle> a) -> Handle { return val(vm, std::abs(cpx::asComplex(vm, a[0]))); };
+        m.fn("modulus", {{"z"}}, "Float", modulusFn);
+        m.fn("abs", {{"z"}}, "Float", modulusFn);
+        auto phaseFn = [](KiritoVM& vm, std::span<const Handle> a) -> Handle { return val(vm, std::arg(cpx::asComplex(vm, a[0]))); };
+        m.fn("phase", {{"z"}}, "Float", phaseFn);
+        m.fn("argument", {{"z"}}, "Float", phaseFn);
         m.fn("norm2", {{"z"}}, "Float", [](KiritoVM& vm, std::span<const Handle> a) -> Handle { return val(vm, std::norm(cpx::asComplex(vm, a[0]))); });
         m.fn("conjugate", {{"z"}}, "Complex", [](KiritoVM& vm, std::span<const Handle> a) -> Handle { return cpx::make(vm, std::conj(cpx::asComplex(vm, a[0]))); });
 

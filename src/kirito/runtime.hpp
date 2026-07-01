@@ -24,6 +24,7 @@
 #include "object.hpp"
 #include "parser.hpp"
 #include "stdlib_io.hpp"
+#include "stdlib_path.hpp"
 #include "stdlib_math.hpp"
 #include "stdlib_random.hpp"
 #include "stdlib_matrix.hpp"
@@ -3200,6 +3201,7 @@ inline void KiritoVM::installBuiltins() {
 // their own module exactly the same way: #include the module's header, then vm.install<T>().
 inline void KiritoVM::installStandardLibrary() {
     install<IoModule>();
+    install<PathModule>();
     install<MathModule>();
     install<RandomModule>();
     install<MatrixModule>();

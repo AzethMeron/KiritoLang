@@ -3,6 +3,7 @@
 # so this runs identically on the Linux CI matrix and the maintainer's Windows build. A hang (e.g. a
 # pipe deadlock regression) is caught by the CTest timeout; a leak by the 200-spawn loop.
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 var random = import("random")
 
@@ -19,7 +20,7 @@ var raises = Function(f):
 
 var KI = sys.executable
 var DIR = sys.gettempdir()
-var helper = io.join(DIR, "sysproc_adv_helper.ki")
+var helper = path.join(DIR, "sysproc_adv_helper.ki")
 
 # Parameterized child. arglist[0] is the mode; the rest are mode arguments.
 var src = r"""var io = import("io")

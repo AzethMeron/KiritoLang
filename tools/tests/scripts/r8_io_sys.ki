@@ -10,8 +10,8 @@
 #   * sys.exit exit-code semantics observed through a child (String->1+stderr, None/no-arg->0,
 #     negative->255, >255 wraps to 8 bits) — never previously tested (can't sys.exit the test itself);
 #   * the documented POSIX "128 + signal" exit code for a signal-killed child;
-#   * io.join's empty-middle-part collapse, dirname/basename of all-separator paths;
-#   * the io.join (resets on '/' OR '\\') vs sys.joinpath (resets on '/' only) backslash asymmetry;
+#   * path.join's empty-middle-part collapse, dirname/basename of all-separator paths;
+#   * path.join resets only on a '/'-absolute component, never a '\\' one;
 #   * the File.read(None)-raises vs BytesIO.read(None)-reads-all asymmetry, BytesIO.read(-1),
 #     BytesIO.truncate growing a past-end buffer, and the BytesIO 256 MB "too large" guard;
 #   * setenv rejecting a '='/empty name, getenv returning a non-String default verbatim, environ()
@@ -22,6 +22,7 @@
 #   * createprocess input/cwd/timeout type-error contracts and sys.shell stdin;
 #   * fresh fuzz seeds (777777 / 13579) distinct from the 20260629 used elsewhere.
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 var n = 0
 var ok = Function(c, m):
@@ -36,69 +37,64 @@ var raises = Function(f):
 
 # A private scratch dir so the suite can't collide with other tests sharing gettempdir().
 var TMP = sys.gettempdir()
-var DIR = io.join(TMP, "r8iosys_scratch")
+var DIR = path.join(TMP, "r8iosys_scratch")
 discard io.remove(DIR)                                 # tolerant: clear any stale dir up front
 discard io.mkdir(DIR)
 
-# ============================================================ io.join: empty-part + reset semantics
-ok(io.join("a", "", "b") == "a/b", "join: an empty MIDDLE part contributes nothing and adds no extra sep")
-ok(io.join("a", "", "", "b") == "a/b", "join: multiple empty middle parts collapse")
-ok(io.join("", "", "") == "", "join of only empty parts is empty")
-ok(io.join("a", "b", "") == "a/b/", "join: a single trailing empty part still gets one separator")
-ok(io.join("/", "a") == "/a", "join: root then a relative part")
-ok(io.join("a", "/b/", "c") == "/b/c", "join: an absolute mid component (with trailing slash) resets")
-ok(io.join("x/y", "z") == "x/y/z", "join: a component may itself contain a separator")
-ok(io.join("a", "b/", "c") == "a/b/c", "join: a trailing-slash component does not double the separator")
-# the documented backslash-reset rule (a component starting with '\\' is absolute too)
-ok(io.join("a", "\\b") == "\\b", "join: a backslash-leading component RESETS the result")
-ok(io.join("a\\b", "c\\d") == "a\\b/c\\d", "join: internal backslashes are preserved, joined with /")
+# ============================================================ joinpath: empty-part + reset semantics
+ok(path.join("a", "", "b") == "a/b", "joinpath: an empty MIDDLE part contributes nothing and adds no extra sep")
+ok(path.join("a", "", "", "b") == "a/b", "joinpath: multiple empty middle parts collapse")
+ok(path.join("", "", "") == "", "joinpath of only empty parts is empty")
+ok(path.join("a", "b", "") == "a/b/", "joinpath: a single trailing empty part still gets one separator")
+ok(path.join("/", "a") == "/a", "joinpath: root then a relative part")
+ok(path.join("a", "/b/", "c") == "/b/c", "joinpath: an absolute mid component (with trailing slash) resets")
+ok(path.join("x/y", "z") == "x/y/z", "joinpath: a component may itself contain a separator")
+ok(path.join("a", "b/", "c") == "a/b/c", "joinpath: a trailing-slash component does not double the separator")
+ok(path.join("a\\b", "c\\d") == "a\\b/c\\d", "joinpath: internal (non-leading) backslashes are preserved, joined with /")
 
 # ============================================================ dirname/basename: separator-run paths
-ok(io.dirname("///") == "///", "dirname of an all-separator path keeps it whole (no parent)")
-ok(io.basename("///") == "", "basename of an all-separator path is empty")
-ok(io.dirname("a///b") == "a", "dirname collapses an internal separator run back to the parent")
-ok(io.basename("a///b") == "b", "basename after an internal separator run is the final component")
-ok(io.dirname("a/b///") == "a/b", "dirname of a trailing separator RUN")
-ok(io.basename("a/b///") == "", "basename of a trailing separator run is empty")
-ok(io.dirname("\\\\host") == "\\\\", "dirname of an all-backslash prefix keeps the prefix")
-ok(io.dirname("\\a\\b") == "\\a", "dirname splits on backslashes (literal substring, separators kept)")
-ok(io.basename("\\a\\b") == "b", "basename splits on the final backslash")
-ok(io.dirname("a/b\\c") == "a/b", "dirname uses the last of either / or \\")
-ok(io.basename("a/b\\c") == "c", "basename uses the last of either / or \\")
+ok(path.dirname("///") == "///", "dirname of an all-separator path keeps it whole (no parent)")
+ok(path.basename("///") == "", "basename of an all-separator path is empty")
+ok(path.dirname("a///b") == "a", "dirname collapses an internal separator run back to the parent")
+ok(path.basename("a///b") == "b", "basename after an internal separator run is the final component")
+ok(path.dirname("a/b///") == "a/b", "dirname of a trailing separator RUN")
+ok(path.basename("a/b///") == "", "basename of a trailing separator run is empty")
+ok(path.dirname("\\\\host") == "\\\\", "dirname of an all-backslash prefix keeps the prefix")
+ok(path.dirname("\\a\\b") == "\\a", "dirname splits on backslashes (literal substring, separators kept)")
+ok(path.basename("\\a\\b") == "b", "basename splits on the final backslash")
+ok(path.dirname("a/b\\c") == "a/b", "dirname uses the last of either / or \\")
+ok(path.basename("a/b\\c") == "c", "basename uses the last of either / or \\")
 
 # ============================================================ splitext: backslash + dir-dot corners
-ok(io.splitext("a\\b.txt") == ["a\\b", ".txt"], "splitext finds the extension after a backslash component")
-ok(io.splitext("a.b\\c") == ["a.b\\c", ""], "splitext: a dot in a backslash-separated dir is not an extension")
-ok(io.splitext("dir\\.hidden") == ["dir\\.hidden", ""], "splitext: a dotfile after a backslash dir has no extension")
-ok(io.splitext("a.tar.gz.bz2") == ["a.tar.gz", ".bz2"], "splitext peels only the final extension of a triple")
+ok(path.splitext("a\\b.txt") == ["a\\b", ".txt"], "splitext finds the extension after a backslash component")
+ok(path.splitext("a.b\\c") == ["a.b\\c", ""], "splitext: a dot in a backslash-separated dir is not an extension")
+ok(path.splitext("dir\\.hidden") == ["dir\\.hidden", ""], "splitext: a dotfile after a backslash dir has no extension")
+ok(path.splitext("a.tar.gz.bz2") == ["a.tar.gz", ".bz2"], "splitext peels only the final extension of a triple")
 
-# ============================================================ join (sys.joinpath) vs io.join asymmetry
-# Both reset on a '/'-absolute component; only io.join ALSO resets on a '\\'-absolute one.
-ok(sys.joinpath("a", "/b") == "/b" and io.join("a", "/b") == "/b", "both reset on a /-absolute component")
-ok(sys.joinpath("a", "\\b") == "a/\\b", "sys.joinpath does NOT treat a backslash component as absolute")
-ok(io.join("a", "\\b") == "\\b", "io.join DOES treat a backslash component as absolute (documented difference)")
-ok(sys.joinpath("a", "") == "a/", "joinpath: a trailing empty part gets a separator")
-ok(sys.joinpath("a", "", "b") == "a/b", "joinpath: an empty middle part contributes nothing")
-ok(sys.joinpath("a/", "/b") == "/b", "joinpath: a /-absolute component resets even after a trailing slash")
-ok(raises(Function(): return sys.joinpath()), "joinpath needs at least one part (raises) unlike io.join")
-ok(io.join() == "", "io.join of zero parts is the empty string")
+# ============================================================ joinpath: absolute-reset is '/'-only
+ok(path.join("a", "/b") == "/b", "resets on a /-absolute component")
+ok(path.join("a", "\\b") == "a/\\b", "does NOT treat a backslash component as absolute (only / resets)")
+ok(path.join("a", "") == "a/", "joinpath: a trailing empty part gets a separator")
+ok(path.join("a", "", "b") == "a/b", "joinpath: an empty middle part contributes nothing")
+ok(path.join("a/", "/b") == "/b", "joinpath: a /-absolute component resets even after a trailing slash")
+ok(raises(Function(): return path.join()), "joinpath needs at least one part (raises)")
 
 # ============================================================ getsize: directory + missing contract
-ok(raises(Function(): return io.getsize(DIR)), "getsize of a DIRECTORY raises (not a regular file)")
-ok(raises(Function(): return io.getsize(io.join(DIR, "ghost_r8.bin"))), "getsize of a missing path raises")
-var SZP = io.join(DIR, "size.bin")
+ok(raises(Function(): return path.getsize(DIR)), "getsize of a DIRECTORY raises (not a regular file)")
+ok(raises(Function(): return path.getsize(path.join(DIR, "ghost_r8.bin"))), "getsize of a missing path raises")
+var SZP = path.join(DIR, "size.bin")
 var szf = io.open(SZP, "wb")
 discard szf.write(Bytes([0, 0, 0, 0, 0]))
 szf.close()
-ok(io.getsize(SZP) == 5, "getsize is the exact byte length")
-ok(type(io.getsize(SZP)) == "Integer", "getsize returns an Integer")
+ok(path.getsize(SZP) == 5, "getsize is the exact byte length")
+ok(type(path.getsize(SZP)) == "Integer", "getsize returns an Integer")
 var szf2 = io.open(SZP, "w")          # truncate to 0 and confirm getsize tracks it
 szf2.close()
-ok(io.getsize(SZP) == 0, "getsize of a truncated (empty) file is 0")
+ok(path.getsize(SZP) == 0, "getsize of a truncated (empty) file is 0")
 discard io.remove(SZP)
 
 # ============================================================ File vs BytesIO read(None) asymmetry
-var RNP = io.join(DIR, "readnone.txt")
+var RNP = path.join(DIR, "readnone.txt")
 var rnf = io.open(RNP, "w")
 discard rnf.write("payload")
 rnf.close()
@@ -206,11 +202,16 @@ ok("createprocess(args: List, cwd = None, input = \"\", timeout = None) -> Dict"
 ok("shell(command: String, cwd = None, input = \"\", timeout = None) -> Dict" in INS_SYS, "inspect(sys) shows shell's signature")
 ok("getenv(name: String, default = None) -> String" in INS_SYS, "inspect(sys) shows getenv's signature")
 ok("platform: String" in INS_SYS and "arch: String" in INS_SYS and "version: String" in INS_SYS, "inspect(sys) lists the value members")
-ok("joinpath(...)" in INS_SYS, "inspect(sys) shows joinpath as variadic")
-var fileForInspect = io.open(io.join(DIR, "ins.txt"), "w")
+ok(not ("joinpath" in INS_SYS), "inspect(sys) no longer lists joinpath (it moved to the path module)")
+var INS_PATH = inspect(path)
+ok("module path:" in INS_PATH, "inspect(path) labels the path module")
+ok("join(...)" in INS_PATH, "inspect(path) shows join as variadic")
+ok("dirname(path: String) -> String" in INS_PATH, "inspect(path) shows dirname's signature")
+ok("getsize(path: String) -> Integer" in INS_PATH, "inspect(path) shows getsize's signature")
+var fileForInspect = io.open(path.join(DIR, "ins.txt"), "w")
 var INS_FILE = inspect(fileForInspect)
 fileForInspect.close()
-discard io.remove(io.join(DIR, "ins.txt"))
+discard io.remove(path.join(DIR, "ins.txt"))
 ok("File object:" in INS_FILE, "inspect(File) labels a File object")
 ok("seek(offset, whence) -> Integer" in INS_FILE and "tell() -> Integer" in INS_FILE, "inspect(File) shows seek/tell")
 ok("readlines() -> List" in INS_FILE and "writelines(lines)" in INS_FILE, "inspect(File) shows readlines/writelines")
@@ -223,21 +224,21 @@ ok("StdStream object:" in INS_STD, "inspect(StdStream) labels a std stream")
 ok("write(data)" in INS_STD and "readline() -> String" in INS_STD, "inspect(StdStream) shows the stream protocol")
 
 # ============================================================ kwargs on signatured io fns (fresh)
-var KFP = io.join(DIR, "kw.txt")
+var KFP = path.join(DIR, "kw.txt")
 var kf = io.open(path = KFP, mode = "w")               # open(path=, mode=)
 discard kf.write("kwdata")
 kf.close()
-ok(io.exists(path = KFP) == True, "exists(path=) keyword")
-ok(io.isfile(path = KFP) == True, "isfile(path=) keyword")
-ok(io.isdir(path = KFP) == False, "isdir(path=) keyword")
-ok(io.getsize(path = KFP) == 6, "getsize(path=) keyword")
-ok(type(io.dirname(path = KFP)) == "String", "dirname(path=) keyword")
-ok(io.basename(path = KFP) == "kw.txt", "basename(path=) keyword")
-ok(io.splitext(path = "x.log") == ["x", ".log"], "splitext(path=) keyword")
+ok(path.exists(path = KFP) == True, "exists(path=) keyword")
+ok(path.isfile(path = KFP) == True, "isfile(path=) keyword")
+ok(path.isdir(path = KFP) == False, "isdir(path=) keyword")
+ok(path.getsize(path = KFP) == 6, "getsize(path=) keyword")
+ok(type(path.dirname(path = KFP)) == "String", "dirname(path=) keyword")
+ok(path.basename(path = KFP) == "kw.txt", "basename(path=) keyword")
+ok(path.splitext(path = "x.log") == ["x", ".log"], "splitext(path=) keyword")
 ok(io.chmod(path = KFP, mode = 0o644) == True, "chmod(path=, mode=) keyword")
-var KFP2 = io.join(DIR, "kw2.txt")
+var KFP2 = path.join(DIR, "kw2.txt")
 io.rename(src = KFP, dst = KFP2)
-ok(io.exists(KFP2) == True, "rename(src=, dst=) keyword")
+ok(path.exists(KFP2) == True, "rename(src=, dst=) keyword")
 ok(type(io.listdir(path = DIR)) == "List", "listdir(path=) keyword")
 ok(type(io.walk(dir = DIR)) == "List", "walk(dir=) keyword")
 ok(io.remove(path = KFP2) == True, "remove(path=) keyword")
@@ -300,14 +301,14 @@ sys.unsetenv("R8_IOSYS_EMPTY")
 var vparts = sys.version.split(".")
 ok(len(vparts) >= 2, "sys.version has at least major.minor")
 ok(vparts[0].isdigit() and vparts[1].isdigit(), "the leading version components are numeric")
-ok(io.isfile(sys.executable), "sys.executable is an existing regular file")
-ok(io.getsize(sys.executable) > 0, "the executable file is non-empty")
-ok(io.basename(sys.executable).startswith("ki") or len(io.basename(sys.executable)) > 0, "executable basename is non-empty")
+ok(path.isfile(sys.executable), "sys.executable is an existing regular file")
+ok(path.getsize(sys.executable) > 0, "the executable file is non-empty")
+ok(path.basename(sys.executable).startswith("ki") or len(path.basename(sys.executable)) > 0, "executable basename is non-empty")
 
 # ============================================================ sys.exit semantics OBSERVED via a child
 # We cannot call sys.exit in this process (it would kill the test), so we observe a child's exit code.
 var KI = sys.executable
-var HELPER = io.join(DIR, "r8_child.ki")
+var HELPER = path.join(DIR, "r8_child.ki")
 var hsrc = r"""var io = import("io")
 var sys = import("sys")
 var m = arglist[0] if len(arglist) >= 1 else ""
@@ -382,7 +383,7 @@ ok(raises(Function(): return sys.shell("echo x", input = 9)), "shell input must 
 var defcwd = sys.createprocess(child(["cwd"]))["stdout"].strip()
 var setcwd = sys.createprocess(child(["cwd"]), cwd = DIR)["stdout"].strip()
 ok(len(setcwd) > 0 and setcwd != defcwd, "cwd= changes the child working directory")
-ok(raises(Function(): return sys.createprocess(child(["cwd"]), cwd = io.join(DIR, "no_such_cwd_r8"))), "a nonexistent cwd raises")
+ok(raises(Function(): return sys.createprocess(child(["cwd"]), cwd = path.join(DIR, "no_such_cwd_r8"))), "a nonexistent cwd raises")
 var shape = sys.createprocess(child(["echo"]), input = "shapecheck")
 ok(shape["stdout"] == "shapecheck" and "code" in shape and "stderr" in shape, "result shape: stdin->stdout + code/stderr keys")
 ok(type(shape["code"]) == "Integer" and type(shape["stdout"]) == "String" and type(shape["stderr"]) == "String", "result field types are Integer/String/String")
@@ -424,16 +425,16 @@ while ff < 18:
     while u < flen:
         fpayload = fpayload + chr(rng.randint(0, 255))
         u = u + 1
-    var fpath = io.join(DIR, "fuzz_r8.bin")
+    var fpath = path.join(DIR, "fuzz_r8.bin")
     var fwh = io.open(fpath, "wb")
     discard fwh.write(fpayload.encode("latin-1"))
     fwh.close()
     var frh = io.open(fpath, "rb")
     var back = frh.read()
     frh.close()
-    ok(back.decode("latin-1") == fpayload and io.getsize(fpath) == flen, "fuzz: binary-file byte-exact round-trip #" + String(ff))
+    ok(back.decode("latin-1") == fpayload and path.getsize(fpath) == flen, "fuzz: binary-file byte-exact round-trip #" + String(ff))
     ff = ff + 1
-discard io.remove(io.join(DIR, "fuzz_r8.bin"))
+discard io.remove(path.join(DIR, "fuzz_r8.bin"))
 
 # ============================================================ FUZZ: child stdin->stdout (fresh seed)
 var rng2 = random.Random(13579)

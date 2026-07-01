@@ -6,6 +6,7 @@
 # trailing newline; io.walk returns a flat List of file path strings (not tuples).
 
 var io = import("io")
+var path = import("path")
 
 var n = 0
 var ok = Function(c, m):
@@ -183,20 +184,20 @@ ok(bio5.readline() == "noline", "BytesIO readline with no newline returns all co
 
 # =========================================================== Filesystem helpers
 
-ok(io.exists(tmpfile), "exists() on real file")
-ok(not io.exists("/tmp/r9_io_test/__nope__.txt"), "exists() on missing file is False")
-ok(io.isfile(tmpfile), "isfile() on file")
-ok(not io.isfile(tmpdir), "isfile() on directory is False")
-ok(io.isdir(tmpdir), "isdir() on directory")
-ok(not io.isdir(tmpfile), "isdir() on file is False")
+ok(path.exists(tmpfile), "exists() on real file")
+ok(not path.exists("/tmp/r9_io_test/__nope__.txt"), "exists() on missing file is False")
+ok(path.isfile(tmpfile), "isfile() on file")
+ok(not path.isfile(tmpdir), "isfile() on directory is False")
+ok(path.isdir(tmpdir), "isdir() on directory")
+ok(not path.isdir(tmpfile), "isdir() on file is False")
 
-var sz = io.getsize(tmpfile)
+var sz = path.getsize(tmpfile)
 ok(type(sz) == "Integer", "getsize returns Integer")
 ok(sz > 0, "getsize > 0 for non-empty file")
 
 var subdir = tmpdir + "/subdir"
 discard io.mkdir(subdir)
-ok(io.isdir(subdir), "mkdir creates directory")
+ok(path.isdir(subdir), "mkdir creates directory")
 
 var fl = io.open(subdir + "/f1.txt", "w")
 fl.write("x")
@@ -209,12 +210,12 @@ ok("f1.txt" in entries, "listdir contains created file")
 var oldpath = subdir + "/f1.txt"
 var newpath = subdir + "/f2.txt"
 io.rename(oldpath, newpath)
-ok(not io.exists(oldpath), "rename: old path gone")
-ok(io.exists(newpath), "rename: new path exists")
+ok(not path.exists(oldpath), "rename: old path gone")
+ok(path.exists(newpath), "rename: new path exists")
 
 # remove
 io.remove(newpath)
-ok(not io.exists(newpath), "remove deletes file")
+ok(not path.exists(newpath), "remove deletes file")
 
 # remove non-existent is a silent no-op (does not raise)
 io.remove("/tmp/r9_io_test/__ghost__.txt")
@@ -239,14 +240,14 @@ ok(type(walkPaths[0]) == "String", "io.walk entries are strings")
 
 # =========================================================== Path helpers
 
-ok(io.basename("/some/path/file.txt") == "file.txt", "basename")
-ok(io.dirname("/some/path/file.txt") == "/some/path", "dirname")
-ok(io.dirname("file.txt") == "", "dirname of bare filename is empty")
-ok(io.join("/a", "b", "c.txt") == "/a/b/c.txt", "join multiple parts")
+ok(path.basename("/some/path/file.txt") == "file.txt", "basename")
+ok(path.dirname("/some/path/file.txt") == "/some/path", "dirname")
+ok(path.dirname("file.txt") == "", "dirname of bare filename is empty")
+# path JOINING is path.join's job (single source of truth), not io's.
 
-var se = io.splitext("document.tar.gz")
+var se = path.splitext("document.tar.gz")
 ok(se[0] == "document.tar" and se[1] == ".gz", "splitext splits last extension")
-var se2 = io.splitext("noext")
+var se2 = path.splitext("noext")
 ok(se2[0] == "noext" and se2[1] == "", "splitext no extension gives empty string")
 
 var cwd = io.getcwd()
@@ -258,7 +259,7 @@ var cfh = io.open(chmodfile, "w")
 cfh.write("x")
 cfh.close()
 io.chmod(chmodfile, 0o755)
-ok(io.exists(chmodfile), "file still exists after chmod")
+ok(path.exists(chmodfile), "file still exists after chmod")
 
 # =========================================================== stdout redirect
 var savedOut = io.stdout
