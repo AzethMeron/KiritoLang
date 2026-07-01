@@ -9,7 +9,7 @@
 var io = import("io")
 var m = import("matrix")
 var C = import("complex")
-var M = import("math")
+var MTH = import("math")
 
 var n = 0
 var chk = Function(b, msg):
@@ -183,8 +183,8 @@ chk(approx(C.polar(2.0, 0.0).re, 2.0) and approx(C.polar(2.0, 0.0).im, 0.0), "po
 chk(C.polar(-1, 0).compare(C.of(-1, 0)), "polar negative r")
 chk(C.zero == C.of(0, 0) and C.one == C.of(1, 0), "zero / one constants")
 chk(C.i == C.of(0, 1), "imaginary unit i")
-chk(approx(M.pi, 3.141592653589793) and approx(M.tau, 6.283185307179586), "pi / tau constants")
-chk(approx(M.e, 2.718281828459045), "e constant")
+chk(approx(MTH.pi, 3.141592653589793) and approx(MTH.tau, 6.283185307179586), "pi / tau constants")
+chk(approx(MTH.e, 2.718281828459045), "e constant")
 
 # =================================================================================================
 # complex — arithmetic operators (+, -, *, /, **, unary -) and real coercion
@@ -230,8 +230,8 @@ chk(z.conjugate() == C.of(3, -4), "conjugate")
 chk(approx(z.modulus(), 5.0), "modulus |3+4i| = 5")
 chk(approx(z.abs(), 5.0) and approx(z.magnitude(), 5.0), "abs / magnitude aliases of modulus")
 chk(approx(z.norm2(), 25.0), "norm2 = |z|^2")
-chk(approx(C.of(0, 1).argument(), M.pi / 2.0), "argument(i) = pi/2")
-chk(approx(C.of(0, 1).arg(), M.pi / 2.0) and approx(C.of(0, 1).phase(), M.pi / 2.0), "arg / phase aliases")
+chk(approx(C.of(0, 1).argument(), MTH.pi / 2.0), "argument(i) = pi/2")
+chk(approx(C.of(0, 1).arg(), MTH.pi / 2.0) and approx(C.of(0, 1).phase(), MTH.pi / 2.0), "arg / phase aliases")
 chk(C.zero.is_zero() and not C.one.is_zero(), "is_zero exact 0 / nonzero")
 # is_zero is tolerant (|z| < 1e-10); EXACT == is not. 1e-10 is NOT zero by either; .compare with abs_tol is.
 chk((C.of(0.0000000001, 0) == C.zero) == False, "exact == : 1e-10 != 0")
@@ -245,7 +245,7 @@ chk(C.of(1, 1).compare(C.of(1, 1.0000001), rel_tol = 0.001), "compare loose rel_
 # module-level scalar reductions (accept Complex OR a number)
 chk(approx(C.modulus(C.of(3, 4)), 5.0) and approx(C.abs(C.of(3, 4)), 5.0), "module modulus / abs")
 chk(approx(C.modulus(5), 5.0), "module modulus of a real")
-chk(approx(C.phase(C.of(0, 1)), M.pi / 2.0) and approx(C.argument(C.of(0, 1)), M.pi / 2.0), "module phase / argument")
+chk(approx(C.phase(C.of(0, 1)), MTH.pi / 2.0) and approx(C.argument(C.of(0, 1)), MTH.pi / 2.0), "module phase / argument")
 chk(approx(C.norm2(C.of(3, 4)), 25.0), "module norm2")
 chk(C.conjugate(C.of(3, 4)) == C.of(3, -4), "module conjugate")
 chk(C.conjugate(5) == C.of(5, 0), "module conjugate of a real")
@@ -253,11 +253,11 @@ chk(C.conjugate(5) == C.of(5, 0), "module conjugate of a real")
 # =================================================================================================
 # complex — analytic functions (exp/log/log10/sqrt/cbrt/pow + trig/inverse/hyperbolic)
 # =================================================================================================
-chk(C.exp(C.of(0, M.pi)).compare(C.of(-1, 0), abs_tol = 0.000000001), "exp(i*pi) = -1 (Euler)")
+chk(C.exp(C.of(0, MTH.pi)).compare(C.of(-1, 0), abs_tol = 0.000000001), "exp(i*pi) = -1 (Euler)")
 chk(C.sqrt(C.of(-1, 0)).compare(C.i, abs_tol = 0.000000001), "sqrt(-1) = i")
 chk(C.sqrt(C.of(-4, 0)).compare(C.of(0, 2), abs_tol = 0.000000001), "sqrt(-4) = 2i")
-chk(C.log(C.of(M.e, 0)).compare(C.one, abs_tol = 0.000000001), "log(e) = 1")
-chk(approx(C.log(C.of(-1, 0)).im, M.pi), "log(-1) = i*pi (principal branch, valid)")
+chk(C.log(C.of(MTH.e, 0)).compare(C.one, abs_tol = 0.000000001), "log(e) = 1")
+chk(approx(C.log(C.of(-1, 0)).im, MTH.pi), "log(-1) = i*pi (principal branch, valid)")
 chk(approx(C.log10(C.of(100, 0)).re, 2.0), "log10(100) = 2")
 chk(approx(C.cbrt(C.of(-8, 0)).im, 1.7320508075688772), "cbrt(-8) principal value is complex")
 chk(C.pow(C.of(2, 0), C.of(2, 0)).compare(C.of(4, 0), abs_tol = 0.000000001), "pow(2, 2) = 4")
@@ -269,10 +269,10 @@ chk(C.tan(C.zero).compare(C.zero, abs_tol = 0.000000001), "tan(0) = 0")
 var w2 = C.of(1, 2)
 chk((C.sin(w2) * C.sin(w2) + C.cos(w2) * C.cos(w2)).compare(C.one, abs_tol = 0.000000001), "sin^2 + cos^2 = 1")
 # asin(2) / acos(2) / acosh(0) are VALID across the plane (must NOT raise)
-chk(approx(C.asin(C.of(2, 0)).re, M.pi / 2.0), "asin(2) is valid (real part pi/2)")
+chk(approx(C.asin(C.of(2, 0)).re, MTH.pi / 2.0), "asin(2) is valid (real part pi/2)")
 chk(C.asin(C.of(2, 0)).im != 0.0, "asin(2) has a nonzero imaginary part")
 chk(C.acos(C.of(2, 0)).im != 0.0, "acos(2) is valid")
-chk(approx(C.acosh(C.of(0, 0)).im, M.pi / 2.0), "acosh(0) is valid")
+chk(approx(C.acosh(C.of(0, 0)).im, MTH.pi / 2.0), "acosh(0) is valid")
 chk(C.atan(C.zero).compare(C.zero, abs_tol = 0.000000001), "atan(0) = 0")
 # hyperbolic + inverse round-trips
 chk(C.sinh(C.zero).compare(C.zero, abs_tol = 0.000000001), "sinh(0) = 0")

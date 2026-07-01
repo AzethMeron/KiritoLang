@@ -323,6 +323,6 @@ var df_file = tab.readcsv(csvfile)
 ok(len(df_file) == 2, "readcsv(filename) reads rows from a real file")
 ok(df_file.columns == ["city", "pop"], "readcsv(filename) parses the header")
 ok("NYC" in df_file["city"].values, "readcsv(filename) parses cell values")
-discard io.remove(csvfile)
+discard path.remove(csvfile, missing_ok = True)
 
 io.print("r9_tabular: " + String(n) + " checks passed")

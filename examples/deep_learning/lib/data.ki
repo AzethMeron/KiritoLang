@@ -14,7 +14,7 @@ var CACHE = ".cache"
 # Fetch `url`, caching the (decompressed) text under .cache/<name>; gunzip first when `gz` is True.
 var fetch_text = Function(url : String, name : String, gz : Bool = False) -> String:
     if not path.exists(CACHE):
-        io.mkdir(CACHE)
+        path.mkdir(CACHE, exist_ok = True)
     var fpath = path.join(CACHE, name)
     if path.exists(fpath):
         var fr = io.open(fpath, "r")

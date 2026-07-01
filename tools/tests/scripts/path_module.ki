@@ -98,8 +98,8 @@ ok(raises(Function(): return path.splitext(["a"])), "splitext: a non-String arg 
 
 # =========================================================== filesystem queries: on a real file
 var DIR = path.join(sys.gettempdir(), "kirito_path_module_scratch")
-discard io.remove(DIR)
-discard io.mkdir(DIR)
+discard path.remove(DIR, missing_ok = True)
+discard path.mkdir(DIR, exist_ok = True)
 var FILE = path.join(DIR, "probe.txt")
 var wf = io.open(FILE, "w")
 discard wf.write("abcdef")           # 6 bytes
@@ -142,19 +142,75 @@ ok("exists(path: String) -> Bool" in INS, "inspect(path) shows exists's signatur
 ok("isfile(path: String) -> Bool" in INS, "inspect(path) shows isfile's signature")
 ok("isdir(path: String) -> Bool" in INS, "inspect(path) shows isdir's signature")
 ok("getsize(path: String) -> Integer" in INS, "inspect(path) shows getsize's signature")
+ok("mkdir(path: String, exist_ok: Bool = False)" in INS, "inspect(path) shows mkdir's exist_ok kwarg")
+ok("remove(path: String, missing_ok: Bool = False)" in INS, "inspect(path) shows remove's missing_ok kwarg")
+ok("mkremove(path: String, missing_ok: Bool = False)" in INS, "inspect(path) shows mkremove's missing_ok kwarg")
+ok("rename(src: String, dst: String)" in INS, "inspect(path) shows rename")
+ok("chmod(path: String, mode: Integer) -> Bool" in INS, "inspect(path) shows chmod")
+ok("listdir(path: String) -> List" in INS and "walk(dir: String) -> List" in INS, "inspect(path) shows listdir/walk")
 
-# =========================================================== the split is real: io/sys don't have these
+# =========================================================== mkdir: strict by default + exist_ok
+var MK = path.join(DIR, "mk")
+ok(path.mkdir(MK) == True, "mkdir creates a directory (returns True)")
+ok(path.isdir(MK), "mkdir: the directory now exists")
+ok(raises(Function(): return path.mkdir(MK)), "mkdir on an EXISTING directory RAISES by default")
+ok(path.mkdir(MK, exist_ok = True) == False, "mkdir(exist_ok=True) on an existing directory is a no-op (False)")
+ok(path.mkdir(path.join(MK, "a", "b", "c")) == True, "mkdir creates missing parents")
+ok(path.isdir(path.join(MK, "a", "b", "c")), "mkdir: the nested directory exists")
+ok(raises(Function(): return path.mkdir(5)), "mkdir: a non-String path raises")
+
+# =========================================================== remove: strict by default + missing_ok
+var RMF = path.join(MK, "file.txt")
+io.open(RMF, "w").close()
+ok(path.remove(RMF) == True, "remove deletes a file (returns True)")
+ok(not path.exists(RMF), "remove: the file is gone")
+ok(raises(Function(): return path.remove(RMF)), "remove of a MISSING path RAISES by default")
+ok(path.remove(RMF, missing_ok = True) == False, "remove(missing_ok=True) of a missing path is a no-op (False)")
+# remove on a NON-EMPTY directory raises (that is mkremove's job)
+ok(raises(Function(): return path.remove(MK)), "remove of a NON-EMPTY directory raises (use mkremove)")
+
+# =========================================================== mkremove: recursive delete + missing_ok
+ok(path.mkremove(MK) == True, "mkremove recursively deletes a non-empty directory (returns True)")
+ok(not path.exists(MK), "mkremove: the whole tree is gone")
+ok(raises(Function(): return path.mkremove(MK)), "mkremove of a MISSING path RAISES by default")
+ok(path.mkremove(MK, missing_ok = True) == False, "mkremove(missing_ok=True) of a missing path is a no-op (False)")
+
+# =========================================================== rename
+var RA = path.join(DIR, "ra.txt")
+var RB = path.join(DIR, "rb.txt")
+io.open(RA, "w").close()
+ok(path.rename(RA, RB) == None, "rename returns None")
+ok(path.exists(RB) and not path.exists(RA), "rename moved the file")
+ok(raises(Function(): return path.rename(path.join(DIR, "no_such_zzz"), RB)), "rename of a missing source raises")
+discard path.remove(RB, missing_ok = True)
+
+# =========================================================== chmod / getcwd / listdir / walk (moved to path)
+ok(type(path.getcwd()) == "String" and len(path.getcwd()) > 0, "path.getcwd returns a non-empty String")
+ok(type(path.listdir(DIR)) == "List", "path.listdir returns a List")
+ok(path.listdir(path.join(DIR, "no_such_zzz")) == [], "path.listdir is tolerant: a missing dir lists as []")
+ok(type(path.walk(DIR)) == "List", "path.walk returns a List")
+ok(path.walk(path.join(DIR, "no_such_zzz")) == [], "path.walk is tolerant: a missing dir walks to []")
+var CHF = path.join(DIR, "ch.txt")
+io.open(CHF, "w").close()
+ok(path.chmod(CHF, 0o644) == True, "chmod returns True on success")
+ok(path.chmod(path.join(DIR, "no_such_zzz.txt"), 0o644) == False, "chmod is lenient: a missing file returns False")
+discard path.remove(CHF, missing_ok = True)
+
+# =========================================================== the split is real: io/sys no longer have these
 ok(raises(Function(): return io.dirname("/a/b")), "io.dirname is GONE (moved to path)")
 ok(raises(Function(): return io.exists(".")), "io.exists is GONE (moved to path)")
+ok(raises(Function(): return io.mkdir(".")), "io.mkdir is GONE (moved to path)")
+ok(raises(Function(): return io.remove(".")), "io.remove is GONE (moved to path)")
+ok(raises(Function(): return io.getcwd()), "io.getcwd is GONE (moved to path)")
+ok(raises(Function(): return io.listdir(".")), "io.listdir is GONE (moved to path)")
 ok(raises(Function(): return sys.joinpath("a", "b")), "sys.joinpath is GONE (now path.join)")
-# io keeps the mutation/listing side
-ok(type(io.getcwd()) == "String", "io still owns getcwd")
-ok(type(io.listdir(DIR)) == "List", "io still owns listdir")
+# io keeps only actual I/O (streams / BytesIO / open)
+ok(not raises(Function(): return io.BytesIO()), "io still owns BytesIO / streams")
 
 # =========================================================== cleanup
-discard io.remove(FILE)
-discard io.remove(EMPTY)
-discard io.remove(DIR)
-ok(not path.exists(DIR), "cleanup: scratch dir removed")
+discard path.remove(FILE, missing_ok = True)
+discard path.remove(EMPTY, missing_ok = True)
+discard path.mkremove(DIR, missing_ok = True)
+ok(not path.exists(DIR), "cleanup: scratch dir removed (recursively)")
 
 io.print("path_module: " + String(n) + " checks passed")

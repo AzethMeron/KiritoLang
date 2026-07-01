@@ -104,7 +104,7 @@ for chunk in br3:
     biter.append(type(chunk))
 br3.close()
 assert len(biter) >= 1 and biter[0] == "Bytes", "binary iteration yields Bytes"
-discard io.remove(bp)
+discard path.remove(bp, missing_ok = True)
 
 # --- open of a missing file / an unsupported mode raises ---
 assert raises(Function(): return io.open(P("kds_no_such_file.zzz"), "r")), "open missing (r) raises"
@@ -119,7 +119,7 @@ with io.open(fp, "r") as it:
     for ln in it:
         collected.append(ln)
 assert collected == ["a", "b", "c"], "writelines + line iteration (newlines stripped)"
-discard io.remove(fp)
+discard path.remove(fp, missing_ok = True)
 
 # ============================ io — BytesIO cursor semantics ============================
 
@@ -210,7 +210,7 @@ assert io.read(3, stream=feed) == "two", "read(n) from stream="
 var cf = io.open(fp, "w")
 cf.close()
 assert raises(Function(): return io.print("x", stream=cf)), "print to a closed-file stream raises"
-discard io.remove(fp)
+discard path.remove(fp, missing_ok = True)
 
 # an unknown keyword and a non-stream stream= both raise
 assert raises(Function(): return io.print("x", stream=42)), "stream= to a non-stream raises"
@@ -218,33 +218,33 @@ assert raises(Function(): return io.print("x", stream=42)), "stream= to a non-st
 # ============================ io — filesystem + path helpers ============================
 
 var ddir = P("kds_dir")
-assert io.mkdir(ddir), "mkdir creates a directory"
+assert path.mkdir(ddir), "mkdir creates a directory"
 assert path.isdir(ddir) and not path.isfile(ddir), "isdir/isfile on a directory"
 var inside = path.join(ddir, "x.txt")
 with io.open(inside, "w") as nf:
     discard nf.write("hello")
 assert path.exists(inside) and path.isfile(inside), "exists/isfile on a file"
 assert path.getsize(inside) == 5, "getsize counts bytes"
-assert "x.txt" in io.listdir(ddir), "listdir lists entries"
-assert len(io.walk(ddir)) == 1, "walk finds the one file"
+assert "x.txt" in path.listdir(ddir), "listdir lists entries"
+assert len(path.walk(ddir)) == 1, "walk finds the one file"
 
 # rename then remove
 var moved = path.join(ddir, "y.txt")
-io.rename(inside, moved)
+path.rename(inside, moved)
 assert path.exists(moved) and not path.exists(inside), "rename moves the file"
-assert io.remove(moved) and not path.exists(moved), "remove deletes the file"
-discard io.remove(ddir)
+assert path.remove(moved) and not path.exists(moved), "remove deletes the file"
+discard path.remove(ddir, missing_ok = True)
 
 # missing-path operations: rename/getsize RAISE; remove of a missing path does NOT raise
-assert raises(Function(): return io.rename(P("kds_missing_a"), P("kds_missing_b"))), "rename of a missing path raises"
+assert raises(Function(): return path.rename(P("kds_missing_a"), P("kds_missing_b"))), "rename of a missing path raises"
 assert raises(Function(): return path.getsize(P("kds_missing_a"))), "getsize of a missing path raises"
-discard io.remove(P("kds_missing_a"))   # tolerant: removing a missing path is a no-op, not an error
+discard path.remove(P("kds_missing_a"), missing_ok = True)   # tolerant: removing a missing path is a no-op, not an error
 
 # exists/isfile/isdir on a missing path are all False; listdir/walk of a missing dir are empty
 assert not path.exists(P("kds_missing_a")), "exists False for a missing path"
 assert not path.isfile(P("kds_missing_a")) and not path.isdir(P("kds_missing_a")), "isfile/isdir False for missing"
-assert io.listdir(P("kds_missing_dir")) == [], "listdir of a missing dir is empty"
-assert io.walk(P("kds_missing_dir")) == [], "walk of a missing dir is empty"
+assert path.listdir(P("kds_missing_dir")) == [], "listdir of a missing dir is empty"
+assert path.walk(P("kds_missing_dir")) == [], "walk of a missing dir is empty"
 
 # path helpers (normalize backslashes so the assertions hold on Windows too)
 var nslash = Function(s): return s.replace("\\", "/")

@@ -3,7 +3,7 @@
 # rename/listdir/isfile/isdir/getsize/walk), path helpers (basename/dirname/
 # splitext/join), io.print/io.write redirect.
 # Key Kirito behaviour (vs Python): readline()/readlines()/iteration strip the
-# trailing newline; io.walk returns a flat List of file path strings (not tuples).
+# trailing newline; path.walk returns a flat List of file path strings (not tuples).
 
 var io = import("io")
 var path = import("path")
@@ -22,7 +22,7 @@ var raises = Function(f):
 
 # =========================================================== Temp directory setup
 var tmpdir = "/tmp/r9_io_test"
-discard io.mkdir(tmpdir)
+discard path.mkdir(tmpdir, exist_ok = True)
 var tmpfile = tmpdir + "/test.txt"
 var tmpfile2 = tmpdir + "/test2.txt"
 var tmpbin = tmpdir + "/test.bin"
@@ -196,35 +196,35 @@ ok(type(sz) == "Integer", "getsize returns Integer")
 ok(sz > 0, "getsize > 0 for non-empty file")
 
 var subdir = tmpdir + "/subdir"
-discard io.mkdir(subdir)
+discard path.mkdir(subdir, exist_ok = True)
 ok(path.isdir(subdir), "mkdir creates directory")
 
 var fl = io.open(subdir + "/f1.txt", "w")
 fl.write("x")
 fl.close()
-var entries = io.listdir(subdir)
+var entries = path.listdir(subdir)
 ok(type(entries) == "List", "listdir returns List")
 ok("f1.txt" in entries, "listdir contains created file")
 
 # rename
 var oldpath = subdir + "/f1.txt"
 var newpath = subdir + "/f2.txt"
-io.rename(oldpath, newpath)
+path.rename(oldpath, newpath)
 ok(not path.exists(oldpath), "rename: old path gone")
 ok(path.exists(newpath), "rename: new path exists")
 
 # remove
-io.remove(newpath)
+path.remove(newpath, missing_ok = True)
 ok(not path.exists(newpath), "remove deletes file")
 
 # remove non-existent is a silent no-op (does not raise)
-io.remove("/tmp/r9_io_test/__ghost__.txt")
+path.remove("/tmp/r9_io_test/__ghost__.txt", missing_ok = True)
 ok(True, "remove non-existent file is silent no-op")
 
-# io.walk returns flat list of file paths (not tuples like Python os.walk)
+# path.walk returns flat list of file paths (not tuples like Python os.walk)
 var walkroot = tmpdir + "/walktree"
-discard io.mkdir(walkroot)
-discard io.mkdir(walkroot + "/a")
+discard path.mkdir(walkroot, exist_ok = True)
+discard path.mkdir(walkroot + "/a", exist_ok = True)
 var wf1 = io.open(walkroot + "/root.txt", "w")
 wf1.write("r")
 wf1.close()
@@ -232,11 +232,11 @@ var wf2 = io.open(walkroot + "/a/deep.txt", "w")
 wf2.write("d")
 wf2.close()
 
-var walkPaths = io.walk(walkroot)
-ok(type(walkPaths) == "List", "io.walk returns a List")
-ok(len(walkPaths) == 2, "io.walk finds 2 files recursively")
+var walkPaths = path.walk(walkroot)
+ok(type(walkPaths) == "List", "path.walk returns a List")
+ok(len(walkPaths) == 2, "path.walk finds 2 files recursively")
 # Paths are absolute strings
-ok(type(walkPaths[0]) == "String", "io.walk entries are strings")
+ok(type(walkPaths[0]) == "String", "path.walk entries are strings")
 
 # =========================================================== Path helpers
 
@@ -250,7 +250,7 @@ ok(se[0] == "document.tar" and se[1] == ".gz", "splitext splits last extension")
 var se2 = path.splitext("noext")
 ok(se2[0] == "noext" and se2[1] == "", "splitext no extension gives empty string")
 
-var cwd = io.getcwd()
+var cwd = path.getcwd()
 ok(type(cwd) == "String" and len(cwd) > 0, "getcwd returns non-empty String")
 
 # chmod
@@ -258,7 +258,7 @@ var chmodfile = subdir + "/chmod_test.txt"
 var cfh = io.open(chmodfile, "w")
 cfh.write("x")
 cfh.close()
-io.chmod(chmodfile, 0o755)
+path.chmod(chmodfile, 0o755)
 ok(path.exists(chmodfile), "file still exists after chmod")
 
 # =========================================================== stdout redirect

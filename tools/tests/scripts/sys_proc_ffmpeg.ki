@@ -19,7 +19,7 @@ var hasFFmpeg = Function():
 
 if hasFFmpeg():
     var mp4 = path.join(DIR, "ki_ff_probe.mp4")
-    discard io.remove(mp4)
+    discard path.remove(mp4, missing_ok = True)
 
     # encode a short synthetic clip — ffmpeg pours progress onto stderr while we capture it
     var enc = sys.createprocess(["ffmpeg", "-y", "-f", "lavfi",
@@ -48,7 +48,7 @@ if hasFFmpeg():
 
     # timeout kills a long encode
     var slow = path.join(DIR, "ki_ff_slow.mp4")
-    discard io.remove(slow)
+    discard path.remove(slow, missing_ok = True)
     var timedOut = False
     try:
         discard sys.createprocess(["ffmpeg", "-y", "-f", "lavfi",
@@ -57,8 +57,8 @@ if hasFFmpeg():
         timedOut = True
     assert timedOut, "a long ffmpeg encode is killed by timeout"
 
-    discard io.remove(mp4)
-    discard io.remove(slow)
+    discard path.remove(mp4, missing_ok = True)
+    discard path.remove(slow, missing_ok = True)
     ran = "ran against ffmpeg"
 
 io.eprint("sys_proc_ffmpeg: " + ran)

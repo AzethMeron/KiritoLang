@@ -21,7 +21,8 @@ var raises = Function(f):
 # A private scratch dir so the suite can't collide with other tests sharing gettempdir().
 var TMP = sys.gettempdir()
 var DIR = path.join(TMP, "r7iosys_scratch")
-discard io.mkdir(DIR)
+discard path.mkremove(DIR, missing_ok = True)   # clear any stale scratch (recursively) from a prior run
+path.mkdir(DIR)
 
 # path helpers: path.join basics are covered below under "sys: gettempdir / path.join / traceback"
 # (single source of truth for path joining — no separate path.join).
@@ -339,8 +340,8 @@ ok(coll.data == "ducked\n", "any object with write() can serve as an io stream (
 
 # ============================================================ filesystem helpers
 var FSD = path.join(DIR, "fs")
-ok(io.mkdir(FSD) == True, "mkdir creates a directory and returns True")
-ok(io.mkdir(path.join(FSD, "a", "b", "c")) == True, "mkdir creates parents")
+ok(path.mkdir(FSD) == True, "mkdir creates a directory and returns True")
+ok(path.mkdir(path.join(FSD, "a", "b", "c")) == True, "mkdir creates parents")
 ok(path.isdir(FSD) == True, "isdir on a directory")
 ok(path.isfile(FSD) == False, "isfile on a directory is False")
 ok(path.exists(FSD) == True, "exists on a directory")
@@ -354,23 +355,23 @@ f1.close()
 ok(path.isfile(FILE1) == True, "isfile on a regular file")
 ok(path.exists(FILE1) == True, "exists on a regular file")
 ok(path.exists(path = FILE1) == True, "exists(path=) keyword form")
-var entries = io.listdir(FSD)
+var entries = path.listdir(FSD)
 ok("one.txt" in entries and "a" in entries, "listdir lists direct entries")
-ok(type(io.listdir(FSD)) == "List", "listdir returns a List")
-ok(io.listdir(path = FSD) == entries, "listdir(path=) keyword form")
+ok(type(path.listdir(FSD)) == "List", "listdir returns a List")
+ok(path.listdir(path = FSD) == entries, "listdir(path=) keyword form")
 # walk: recursive flatten of file paths
 var FILE2 = path.join(FSD, "a", "b", "deep.txt")
 var f2 = io.open(FILE2, "w")
 discard f2.write("x")
 f2.close()
-var walked = io.walk(FSD)
+var walked = path.walk(FSD)
 ok(type(walked) == "List", "walk returns a List")
 ok(len(walked) == 2, "walk finds every file recursively (flattened)")
-ok(io.walk(dir = FSD) == walked, "walk(dir=) keyword form")
+ok(path.walk(dir = FSD) == walked, "walk(dir=) keyword form")
 # a missing directory is a tolerant query: lists/walks to [] (intentional — see r4_io/deep_system)
 var MISSING = path.join(FSD, "no_such_subdir_zzz")
-ok(io.listdir(MISSING) == [], "listdir of a missing directory is empty (tolerant)")
-ok(io.walk(MISSING) == [], "walk of a missing directory is empty (tolerant)")
+ok(path.listdir(MISSING) == [], "listdir of a missing directory is empty (tolerant)")
+ok(path.walk(MISSING) == [], "walk of a missing directory is empty (tolerant)")
 
 # ============================================================ rename / chmod / remove
 var SRC = path.join(FSD, "src.txt")
@@ -378,23 +379,24 @@ var DST = path.join(FSD, "dst.txt")
 var sf = io.open(SRC, "w")
 discard sf.write("payload")
 sf.close()
-io.rename(SRC, DST)
+path.rename(SRC, DST)
 ok(path.exists(DST) == True and path.exists(SRC) == False, "rename moves a file")
-io.rename(src = DST, dst = SRC)                        # keyword form, move it back
+path.rename(src = DST, dst = SRC)                        # keyword form, move it back
 ok(path.exists(SRC) == True, "rename(src=, dst=) keyword form")
-ok(raises(Function(): return io.rename(path.join(DIR, "no_src_r7"), path.join(DIR, "no_dst_r7"))), "rename of a missing source raises")
-ok(io.chmod(SRC, 0o644) == True, "chmod returns True on success")
-ok(io.chmod(SRC, 0o600) == True, "chmod with a different octal mode")
-ok(io.chmod(path = SRC, mode = 0o755) == True, "chmod(path=, mode=) keyword form")
-ok(io.chmod(path.join(DIR, "missing_r7.txt"), 0o644) == False, "chmod on a missing file returns False (no raise)")
-ok(raises(Function(): return io.chmod(SRC)), "chmod missing the mode argument raises")
-ok(io.remove(SRC) == True, "remove deletes a file and returns True")
-ok(io.remove(path.join(DIR, "never_existed_r7.txt")) == False, "remove of a missing file returns False")
-ok(io.remove(path = FILE1) == True, "remove(path=) keyword form")
+ok(raises(Function(): return path.rename(path.join(DIR, "no_src_r7"), path.join(DIR, "no_dst_r7"))), "rename of a missing source raises")
+ok(path.chmod(SRC, 0o644) == True, "chmod returns True on success")
+ok(path.chmod(SRC, 0o600) == True, "chmod with a different octal mode")
+ok(path.chmod(path = SRC, mode = 0o755) == True, "chmod(path=, mode=) keyword form")
+ok(path.chmod(path.join(DIR, "missing_r7.txt"), 0o644) == False, "chmod on a missing file returns False (no raise)")
+ok(raises(Function(): return path.chmod(SRC)), "chmod missing the mode argument raises")
+ok(path.remove(SRC) == True, "remove deletes a file and returns True")
+ok(raises(Function(): return path.remove(path.join(DIR, "never_existed_r7.txt"))), "remove of a missing file RAISES by default")
+ok(path.remove(path.join(DIR, "never_existed_r7.txt"), missing_ok = True) == False, "remove(missing_ok=True) of a missing file is False")
+ok(path.remove(path = FILE1) == True, "remove(path=) keyword form")
 
 # ============================================================ getcwd
-ok(type(io.getcwd()) == "String", "getcwd returns a String")
-ok(len(io.getcwd()) > 0, "getcwd is non-empty")
+ok(type(path.getcwd()) == "String", "getcwd returns a String")
+ok(len(path.getcwd()) > 0, "getcwd is non-empty")
 
 # ============================================================ sys: platform / arch / version / executable
 ok(sys.platform == "linux" or sys.platform == "darwin" or sys.platform == "windows", "sys.platform is a known value")
@@ -462,6 +464,7 @@ var KI = sys.executable
 var HELPER = path.join(DIR, "child_helper.ki")
 var hsrc = r"""var io = import("io")
 var sys = import("sys")
+var path = import("path")
 var m = arglist[0] if len(arglist) >= 1 else ""
 if m == "echo":
     io.write(io.read())
@@ -475,7 +478,7 @@ elif m == "args":
 elif m == "err":
     io.write("E" * Integer(arglist[1]), stream = io.stderr)
 elif m == "cwd":
-    io.write(io.getcwd())
+    io.write(path.getcwd())
 elif m == "sleep":
     import("time").sleep(Float(arglist[1]))
 """
@@ -585,18 +588,18 @@ while fc < 12:
     fc = fc + 1
 
 # ============================================================ cleanup
-discard io.remove(HELPER)
-discard io.remove(path.join(DIR, "fuzz_bin.bin"))
-discard io.remove(FP)
-discard io.remove(BP)
-discard io.remove(BLP)
-discard io.remove(LOGP)
-discard io.remove(FILE2)
-discard io.remove(path.join(FSD, "a", "b", "c"))
-discard io.remove(path.join(FSD, "a", "b"))
-discard io.remove(path.join(FSD, "a"))
-discard io.remove(path.join(FSD, "dst.txt"))
-discard io.remove(FSD)
-discard io.remove(DIR)
+discard path.remove(HELPER, missing_ok = True)
+discard path.remove(path.join(DIR, "fuzz_bin.bin"), missing_ok = True)
+discard path.remove(FP, missing_ok = True)
+discard path.remove(BP, missing_ok = True)
+discard path.remove(BLP, missing_ok = True)
+discard path.remove(LOGP, missing_ok = True)
+discard path.remove(FILE2, missing_ok = True)
+discard path.remove(path.join(FSD, "a", "b", "c"), missing_ok = True)
+discard path.remove(path.join(FSD, "a", "b"), missing_ok = True)
+discard path.remove(path.join(FSD, "a"), missing_ok = True)
+discard path.remove(path.join(FSD, "dst.txt"), missing_ok = True)
+discard path.remove(FSD, missing_ok = True)
+discard path.remove(DIR, missing_ok = True)
 
 io.print("r7_io_sys: " + String(n) + " checks passed")

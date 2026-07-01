@@ -277,7 +277,7 @@ var fh = io.open(fp, "w")
 assert throws(Function(): return serialize.dumps(fh)), "serialize rejects an open File"
 assert throws(Function(): return dump.dumps(fh)), "dump rejects an open File"
 fh.close()
-discard io.remove(fp)
+discard path.remove(fp, missing_ok = True)
 
 # ================================================================= STRUCTURAL EQUIVALENCE: ser == dump
 # The two graph formats must reconstruct an IDENTICAL graph shape (shared refs + cycles + instances).

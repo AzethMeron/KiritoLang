@@ -610,64 +610,10 @@ public:
             return vm.alloc(std::move(f));
         });
 
-        // pathArg: a path argument as a std::string, shared by the filesystem helpers below.
-        // (Path *interpretation* and *queries* — join/dirname/basename/splitext/exists/isfile/isdir/
-        // getsize — live in the `path` module; `io` keeps I/O and filesystem mutation + listing.)
-        auto pathArg = [](KiritoVM& vm, Handle h) -> std::string { return Value(vm, h).asString("path"); };
-        m.fn("remove", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::error_code ec;
-            bool removed = std::filesystem::remove(pathArg(vm, a[0]), ec);  // false if nothing was there
-            return val(vm, removed);
-        });
-        m.fn("rename", {{"src", "String"}, {"dst", "String"}}, "", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::error_code ec;
-            std::filesystem::rename(pathArg(vm, a[0]), pathArg(vm, a[1]), ec);
-            if (ec) throw KiritoError("rename failed: " + ec.message());
-            return none(vm);
-        });
-        m.fn("mkdir", {{"path", "String"}}, "Bool", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            std::error_code ec;
-            std::filesystem::create_directories(pathArg(vm, a[0]), ec);
-            return val(vm, !ec);
-        });
-        // chmod(path, mode): set file permission bits from a POSIX-style octal Integer (e.g. 0o755).
-        // The low 12 bits map onto std::filesystem::perms (POSIX semantics on Unix; on Windows only
-        // the owner read/write bits are meaningful, the rest are ignored). Returns success as a Bool.
-        m.fn("chmod", {{"path", "String"}, {"mode", "Integer"}}, "Bool",
-             [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            auto mode = static_cast<unsigned>(Value(vm, a[1]).asInt("mode")) & 0xFFFu;
-            std::error_code ec;
-            std::filesystem::permissions(pathArg(vm, a[0]), std::filesystem::perms(mode),
-                                         std::filesystem::perm_options::replace, ec);
-            return val(vm, !ec);
-        });
-        m.fn("getcwd", {}, "String", [](KiritoVM& vm, std::span<const Handle>) -> Handle {
-            std::error_code ec;
-            return val(vm, std::filesystem::current_path(ec).string());
-        });
-        m.fn("listdir", {{"path", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            // Tolerant query (like path.exists/isfile/isdir and io.remove): a missing/inaccessible
-            // dir lists as no entries ([]) rather than raising — a deliberate, tested choice.
-            List out(vm);
-            std::error_code ec;
-            for (const auto& entry : std::filesystem::directory_iterator(pathArg(vm, a[0]), ec))
-                out.add(val(vm, entry.path().filename().string()));
-            return out.build();
-        });
-
-        // NB: path interpretation/queries (join/dirname/basename/splitext/exists/isfile/isdir/getsize)
-        // live in the `path` module, not here.
-        // walk(dir) -> List of file paths under dir, recursively (flattened; simpler than
-        // (dirpath, dirnames, filenames) triples but covers the common "visit every file" case).
-        m.fn("walk", {{"dir", "String"}}, "List", [pathArg](KiritoVM& vm, std::span<const Handle> a) -> Handle {
-            // Tolerant (like listdir): a missing/inaccessible top dir walks to no files ([]), matching
-            // os.walk's default lenience — a deliberate, tested choice (see r4_io/deep_system).
-            List out(vm);
-            std::error_code ec;
-            for (const auto& entry : std::filesystem::recursive_directory_iterator(pathArg(vm, a[0]), ec))
-                if (entry.is_regular_file()) out.add(val(vm, entry.path().string()));
-            return out.build();
-        });
+        // NB: everything that interprets, queries, mutates, or lists the filesystem by path
+        // (join/dirname/basename/splitext, exists/isfile/isdir/getsize, mkdir/remove/mkremove/rename/
+        // chmod, getcwd/listdir/walk) lives in the `path` module, NOT here. `io` is only I/O:
+        // streams, open, print/eprint/input/read/write, and BytesIO.
     }
 };
 

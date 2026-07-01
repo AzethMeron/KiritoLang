@@ -1,5 +1,6 @@
 # ============================================ Frozen-Kirito stdlib: the previously-untested symbols
 var io = import("io")
+var path = import("path")
 
 # ===================== itertools: count, cycle (the untested pair) =====================
 var it = import("itertools")
@@ -92,6 +93,6 @@ logf.close()
 var back = io.open(logpath, "r")
 assert "mirrored to log" in back.read(), "tee_stderr mirrors stderr to the extra stream"
 back.close()
-io.remove(logpath)
+path.remove(logpath, missing_ok = True)
 
 io.print("OK stdmods-full")

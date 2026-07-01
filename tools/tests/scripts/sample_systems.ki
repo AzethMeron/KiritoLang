@@ -5,7 +5,7 @@ var C = import("complex")
 var solver = import("linsolve")
 
 var dir = import("sys").gettempdir() + "/kirito_systems_test"
-io.mkdir(dir)
+path.mkdir(dir, exist_ok = True)
 
 # --- generator: write a system to a file as "re im" pairs per row ---
 var writeSystem = Function(path, n, matrix):

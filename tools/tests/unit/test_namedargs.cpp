@@ -26,7 +26,7 @@ int main() {
         CHECK(run(vm,
             "var io = import(\"io\")\nvar p = import(\"sys\").gettempdir() + \"/kirito_namedargs_native.txt\"\n"
             "var f = io.open(p, mode=\"w\")\ndiscard f.write(\"yo\")\nf.close()\n"
-            "var g = io.open(p)\nvar s = g.read()\ng.close()\nio.remove(p)\ns") == "yo");
+            "var g = io.open(p)\nvar s = g.read()\ng.close()\nimport(\"path\").remove(p)\ns") == "yo");
     }
     // native-signature errors: unknown keyword, duplicate, too many positional, missing required.
     {

@@ -38,8 +38,8 @@ var raises = Function(f):
 # A private scratch dir so the suite can't collide with other tests sharing gettempdir().
 var TMP = sys.gettempdir()
 var DIR = path.join(TMP, "r8iosys_scratch")
-discard io.remove(DIR)                                 # tolerant: clear any stale dir up front
-discard io.mkdir(DIR)
+discard path.mkremove(DIR, missing_ok = True)   # clear any stale scratch (recursively) from a prior run
+path.mkdir(DIR)
 
 # ============================================================ joinpath: empty-part + reset semantics
 ok(path.join("a", "", "b") == "a/b", "joinpath: an empty MIDDLE part contributes nothing and adds no extra sep")
@@ -91,7 +91,7 @@ ok(type(path.getsize(SZP)) == "Integer", "getsize returns an Integer")
 var szf2 = io.open(SZP, "w")          # truncate to 0 and confirm getsize tracks it
 szf2.close()
 ok(path.getsize(SZP) == 0, "getsize of a truncated (empty) file is 0")
-discard io.remove(SZP)
+discard path.remove(SZP, missing_ok = True)
 
 # ============================================================ File vs BytesIO read(None) asymmetry
 var RNP = path.join(DIR, "readnone.txt")
@@ -108,7 +108,7 @@ ok(io.BytesIO("xyz").read(-1) == "xyz", "BytesIO.read(-1): a negative size reads
 var rnf2 = io.open(RNP, "r")
 ok(rnf2.read(-1) == "payload", "File.read(-1): a negative size reads everything")
 rnf2.close()
-discard io.remove(RNP)
+discard path.remove(RNP, missing_ok = True)
 
 # ============================================================ BytesIO: truncate-grow + size guard
 # truncate() resizes the buffer TO the cursor, so a cursor past the end GROWS (zero-fills) the buffer.
@@ -193,7 +193,7 @@ var INS_IO = inspect(io)
 ok("module io:" in INS_IO, "inspect(io) labels the io module")
 ok("open(path: String, mode: String = \"r\") -> File" in INS_IO, "inspect(io) shows open's full signature")
 ok("BytesIO(initial: String = \"\") -> BytesIO" in INS_IO, "inspect(io) shows BytesIO's signature")
-ok("chmod(path: String, mode: Integer) -> Bool" in INS_IO, "inspect(io) shows chmod's signature")
+ok(not ("chmod" in INS_IO), "inspect(io) no longer shows chmod (moved to the path module)")
 ok("print(...)" in INS_IO and "write(...)" in INS_IO, "inspect(io) shows variadic console fns as (...)")
 ok("stdout: StdStream" in INS_IO and "__stdout__: StdStream" in INS_IO, "inspect(io) lists the stream slots")
 var INS_SYS = inspect(sys)
@@ -211,7 +211,7 @@ ok("getsize(path: String) -> Integer" in INS_PATH, "inspect(path) shows getsize'
 var fileForInspect = io.open(path.join(DIR, "ins.txt"), "w")
 var INS_FILE = inspect(fileForInspect)
 fileForInspect.close()
-discard io.remove(path.join(DIR, "ins.txt"))
+discard path.remove(path.join(DIR, "ins.txt"), missing_ok = True)
 ok("File object:" in INS_FILE, "inspect(File) labels a File object")
 ok("seek(offset, whence) -> Integer" in INS_FILE and "tell() -> Integer" in INS_FILE, "inspect(File) shows seek/tell")
 ok("readlines() -> List" in INS_FILE and "writelines(lines)" in INS_FILE, "inspect(File) shows readlines/writelines")
@@ -235,13 +235,13 @@ ok(path.getsize(path = KFP) == 6, "getsize(path=) keyword")
 ok(type(path.dirname(path = KFP)) == "String", "dirname(path=) keyword")
 ok(path.basename(path = KFP) == "kw.txt", "basename(path=) keyword")
 ok(path.splitext(path = "x.log") == ["x", ".log"], "splitext(path=) keyword")
-ok(io.chmod(path = KFP, mode = 0o644) == True, "chmod(path=, mode=) keyword")
+ok(path.chmod(path = KFP, mode = 0o644) == True, "chmod(path=, mode=) keyword")
 var KFP2 = path.join(DIR, "kw2.txt")
-io.rename(src = KFP, dst = KFP2)
+path.rename(src = KFP, dst = KFP2)
 ok(path.exists(KFP2) == True, "rename(src=, dst=) keyword")
-ok(type(io.listdir(path = DIR)) == "List", "listdir(path=) keyword")
-ok(type(io.walk(dir = DIR)) == "List", "walk(dir=) keyword")
-ok(io.remove(path = KFP2) == True, "remove(path=) keyword")
+ok(type(path.listdir(path = DIR)) == "List", "listdir(path=) keyword")
+ok(type(path.walk(dir = DIR)) == "List", "walk(dir=) keyword")
+ok(path.remove(path = KFP2) == True, "remove(path=) keyword")
 # unexpected-keyword rejection on the variadic console natives (fresh keyword names)
 ok(raises(Function(): return io.print("x", flush = 1)), "print rejects an unexpected keyword 'flush'")
 ok(raises(Function(): return io.read(size = 3)), "read rejects an unexpected keyword 'size' (only stream= allowed)")
@@ -311,6 +311,7 @@ var KI = sys.executable
 var HELPER = path.join(DIR, "r8_child.ki")
 var hsrc = r"""var io = import("io")
 var sys = import("sys")
+var path = import("path")
 var m = arglist[0] if len(arglist) >= 1 else ""
 if m == "echo":
     io.write(io.read())
@@ -325,7 +326,7 @@ elif m == "exitbare":
 elif m == "stderronly":
     io.write("E" * Integer(arglist[1]), stream = io.stderr)
 elif m == "cwd":
-    io.write(io.getcwd())
+    io.write(path.getcwd())
 elif m == "self_signal":
     discard import("sys").shell("kill -TERM $$")
 """
@@ -434,7 +435,7 @@ while ff < 18:
     frh.close()
     ok(back.decode("latin-1") == fpayload and path.getsize(fpath) == flen, "fuzz: binary-file byte-exact round-trip #" + String(ff))
     ff = ff + 1
-discard io.remove(path.join(DIR, "fuzz_r8.bin"))
+discard path.remove(path.join(DIR, "fuzz_r8.bin"), missing_ok = True)
 
 # ============================================================ FUZZ: child stdin->stdout (fresh seed)
 var rng2 = random.Random(13579)
@@ -450,7 +451,7 @@ while fc < 10:
     fc = fc + 1
 
 # ============================================================ cleanup
-discard io.remove(HELPER)
-discard io.remove(DIR)
+discard path.remove(HELPER, missing_ok = True)
+discard path.remove(DIR, missing_ok = True)
 
 io.print("r8_io_sys: " + String(n) + " checks passed")

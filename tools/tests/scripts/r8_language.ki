@@ -27,6 +27,7 @@
 # Self-checking: every assertion bumps a counter; the final line reports the total.
 
 var io = import("io")
+var path = import("path")
 var random = import("random")
 
 var n = 0
@@ -50,16 +51,16 @@ var raises = Function(thunk):
 var impCounter = 0
 var importErr = Function(src, sub):
     impCounter = impCounter + 1
-    var path = "/tmp/r8_lang_" + String(impCounter)
-    var fh = io.open(path + ".ki", "w")
+    var fp = "/tmp/r8_lang_" + String(impCounter)
+    var fh = io.open(fp + ".ki", "w")
     fh.write(src)
     fh.close()
     var threw = False
     try:
-        discard import(path)
+        discard import(fp)
     catch as e:
         threw = sub == "" or sub in e
-    io.remove(path + ".ki")
+    path.remove(fp + ".ki", missing_ok = True)
     return threw
 
 # ============================================================================

@@ -286,12 +286,12 @@ var json = import("json")
 var jdata = json.parse("{\"name\": \"Kirito\", \"version\": 1}")
 ok(jdata["name"] == "Kirito" and jdata["version"] == 1, "recipe json.parse")
 
-# ---- Lesson 13: io path helpers + path.join ----
+# ---- Lesson 13: path helpers + path.join ----
 var sys = import("sys")
 ok(path.join("dir", "sub", "file.txt").endswith("file.txt"), "path.join")
-ok(path.basename("/a/b/c.txt") == "c.txt", "io.basename")
-ok(path.dirname("/a/b/c.txt") == "/a/b", "io.dirname")
-ok(String(path.splitext("report.csv")) == "['report', '.csv']", "io.splitext")
+ok(path.basename("/a/b/c.txt") == "c.txt", "path.basename")
+ok(path.dirname("/a/b/c.txt") == "/a/b", "path.dirname")
+ok(String(path.splitext("report.csv")) == "['report', '.csv']", "path.splitext")
 
 # ---- Lesson 13: file round-trip + line iteration + append ----
 var fpath = path.join(sys.gettempdir(), "r8_docs_io.txt")
@@ -304,7 +304,7 @@ with io.open(fpath, "r") as fr:
     for fl in fr:
         flines.append(fl.strip())
 ok(String(flines) == "['first', 'second', 'third', 'fourth']", "file write/append/iterate round-trip")
-discard io.remove(fpath)
+discard path.remove(fpath, missing_ok = True)
 
 # ---- Lesson 13: stdout redirect is just an assignment ----
 var redir = io.BytesIO()
@@ -402,7 +402,7 @@ try:
 catch TaskNotFound as ce:
     miss = ce.title
 ok(miss == "Take over the world", "capstone TaskNotFound carries title")
-discard io.remove(cappath)
+discard path.remove(cappath, missing_ok = True)
 
 # ---- Bonus 1: regex char classes, anchors, quantifiers (distinct from r7) ----
 var re = import("regex")

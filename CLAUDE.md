@@ -230,20 +230,24 @@ a stability fuzzer, and a benchmark). Working today:
     **binary mode** (`"rb"`/`"wb"`/`"ab"`/`"r+b"`) makes read/readline/iteration yield `Bytes` and
     write accept `Bytes` (the stream is always byte-exact internally),
     `BytesIO` (an in-memory byte buffer with a read/write cursor; note its reads return **String** —
-    Kirito Strings are byte-transparent), plus filesystem **mutation + listing** helpers
-    (remove/rename/mkdir/chmod/getcwd/listdir/walk). `chmod(path, mode)` sets POSIX permission
-    bits from an octal Integer (e.g. `0o755`). Module members are rebindable (`ModuleValue::setAttr`).
-    Path *interpretation* and *queries* are NOT here — they live in the `path` module (below), the
-    single home for path operations, so callers never have to remember whether a helper is in `io`
-    or `sys`.
-  - `path` — Kirito's **os.path**: the sole home for path operations. Pure path-string manipulation
-    (`join`/`dirname`/`basename`/`splitext`) + read-only filesystem queries about a path
-    (`exists`/`isfile`/`isdir`/`getsize`). Path strings use `/` on every platform (identical
+    Kirito Strings are byte-transparent). Module members are rebindable (`ModuleValue::setAttr`).
+    `io` is **only** I/O now: streams, `open`, `print`/`eprint`/`input`/`read`/`write`, `BytesIO`.
+    Everything that interprets, queries, mutates, or lists the filesystem by path lives in the `path`
+    module (below), the single home for path operations — so callers never have to remember whether a
+    helper is in `io` or `sys`.
+  - `path` — Kirito's **os.path + os filesystem** surface: the sole home for ALL path/filesystem
+    operations. Pure path-string manipulation (`join`/`dirname`/`basename`/`splitext`), read-only
+    queries (`exists`/`isfile`/`isdir`/`getsize`/`listdir`/`walk`/`getcwd`), and mutation
+    (`mkdir`/`remove`/`mkremove`/`rename`/`chmod`). Path strings use `/` on every platform (identical
     cross-platform; the split helpers still accept `\`). `join(*parts)` is variadic with os.path.join
     semantics (absolute `/`-component resets; needs ≥1 part — **raises on zero args**; a leading `\`
-    is not absolute). `exists`/`isfile`/`isdir` are tolerant (missing → `False`); `getsize` **raises**
-    on a missing/non-regular path. (`io` keeps filesystem mutation/listing; `sys.gettempdir` — a
-    system *location*, not a path op — stays in `sys`.)
+    is not absolute). Queries `exists`/`isfile`/`isdir`/`listdir`/`walk` are tolerant (missing →
+    `False`/`[]`); `getsize` **raises** on a missing/non-regular path. Mutation is **strict by
+    default** (raise, not silent no-op) with opt-in leniency: `mkdir(exist_ok=False)` raises if the
+    dir exists; `remove`/`mkremove(missing_ok=False)` raise if the target is absent; `mkremove` is the
+    recursive `rm -rf`. `mkdir`/`remove`/`mkremove` return a Bool (True=did it, False=lenient no-op),
+    `rename` returns None, `chmod` is lenient (Bool). (`sys.gettempdir` — a system *location*, not a
+    path op — stays in `sys`.)
   - `math` — constants and the usual functions (trig/hyperbolic, exp/log, gamma/erf/erfc, floor/ceil/
     trunc, gcd/lcm, factorial, isnan/isinf, prod/comb/perm, ...). **Domain errors RAISE** a clear `math
     domain error` rather than returning silent `NaN`/`inf` rubbish (`sqrt(-1)`, `log(0)`, `asin(2)`,

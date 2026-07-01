@@ -45,7 +45,7 @@ var probe = Function(src):
     discard fh.write(src)
     fh.close()
     var r = sys.createprocess([sys.executable, ppath])
-    discard io.remove(ppath)
+    discard path.remove(ppath, missing_ok = True)
     return r
 var r1 = probe("var xs = [1, 2, 3]\ndiscard xs[]\n")
 ok(r1["code"] != 0, "empty subscript `xs[]` fails (does not run)")
@@ -108,6 +108,6 @@ ok(raises(Function(): return srf.seek(9223372036854775807, 2)), "File.seek(huge,
 discard srf.seek(1)
 ok(srf.read(2) == "el", "a normal File seek still works")
 srf.close()
-discard io.remove(sp)
+discard path.remove(sp, missing_ok = True)
 
 io.print("r8_regressions: " + String(n) + " checks passed")

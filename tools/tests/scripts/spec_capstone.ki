@@ -95,11 +95,11 @@ for task in inbox.ordered():
     io.print(f"  {task}")                       # uses Task._str_
 
 # Persist to disk and reload into a brand-new list.
-var path = path.join(io.getcwd(), "tasks.json")
-inbox.save(path)
+var store = path.join(path.getcwd(), "tasks.json")
+inbox.save(store)
 
 var reloaded = TaskList()
-reloaded.load(path)
+reloaded.load(store)
 io.print(f"reloaded {len(reloaded)} tasks from disk")
 
 # Completing a task that doesn't exist is handled, not fatal.
@@ -108,4 +108,4 @@ try:
 catch TaskNotFound as e:
     io.print(f"no such task: {e.title}")
 
-discard io.remove(path)                         # clean up the demo file
+discard path.remove(store, missing_ok = True)                        # clean up the demo file

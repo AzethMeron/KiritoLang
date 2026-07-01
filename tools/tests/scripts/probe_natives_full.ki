@@ -1,5 +1,6 @@
 # ============================================ Native C++ modules: the previously-untested members
 var io = import("io")
+var path = import("path")
 var sys = import("sys")
 var close = Function(a, b) -> Bool:
     return abs(a - b) < 0.000001
@@ -13,7 +14,7 @@ f.close()
 var g = io.open(tmp, "r")
 assert g.readline().strip() == "hello", "File.readline after flush"
 g.close()
-io.remove(tmp)
+path.remove(tmp, missing_ok = True)
 
 var b = io.BytesIO("line1\nline2\n")
 assert b.readline() == "line1", "BytesIO.readline"

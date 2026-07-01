@@ -228,7 +228,7 @@ var dpath = path.join(SCRATCH, "r5_serde_cycle.bin")
 dump.save(ca, dpath)
 var loaded = dump.load(dpath)
 ok(loaded.label == "ca" and id(loaded.peer.peer) == id(loaded), "dump.save/load preserves a stateful cycle")
-discard io.remove(dpath)
+discard path.remove(dpath, missing_ok = True)
 ok(path.exists(dpath) == False, "scratch file cleaned up")
 
 io.print("r5_serde: all " + String(n) + " assertions passed")

@@ -342,7 +342,7 @@ ok(cf[2] == "--flag" and cf[3] == "-x" and cf[4] == "--" and cf[5] == "tail", "o
 var cn = spawn(["007"])
 ok(cn[2] == "007", "a numeric-looking argv token stays a String (no coercion, leading zeros kept)")
 
-discard io.remove(runner)
+discard path.remove(runner, missing_ok = True)
 ok(path.exists(runner) == False, "the generated runner is cleaned up")
 
 io.print("argmain_arglist: " + String(n) + " checks passed")

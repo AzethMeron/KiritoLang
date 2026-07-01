@@ -3,6 +3,7 @@
 # every function advertises a parameter list (named params => kwargs-capable, or `...` for variadic),
 # every attribute advertises a type. A bare/empty/malformed description fails the test.
 var io = import("io")
+var path = import("path")
 
 var memberLines = Function(text):
     # drop the header (first line), keep indented member lines
@@ -72,7 +73,7 @@ var tmp = sys.gettempdir() + "/ki_surface_probe.txt"
 var fh = io.open(tmp, "w")
 checkObject("File", fh)
 fh.close()
-io.remove(tmp)
+path.remove(tmp, missing_ok = True)
 
 # --- classes + instances describe correctly ---
 class Widget:

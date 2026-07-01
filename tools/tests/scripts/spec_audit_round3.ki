@@ -2,6 +2,7 @@
 # (The deep-nesting / native-method-UB crash regressions live in the C++ test_audit_regressions.cpp;
 # this golden pins the behavioural fixes runnable through the `ki` binary.)
 var io = import("io")
+var path = import("path")
 var raises = Function(f):
     try:
         discard f()
@@ -86,7 +87,8 @@ var g = io.open("/tmp/ki_round3.txt", "r")
 discard g.readlines()
 assert len(g.read(9000000000000000000)) == 0, "read after EOF is empty (capped)"
 g.close()
-assert io.remove("/tmp/ki_round3_missing") == False, "remove missing file is False"
+assert raises(Function(): return path.remove("/tmp/ki_round3_missing")), "remove of a missing file RAISES by default"
+assert path.remove("/tmp/ki_round3_missing", missing_ok = True) == False, "remove(missing_ok=True) of a missing file is False"
 
 # --- net: out-of-range port and negative recv size raise (no silent wrap / bad_alloc) ---
 var net = import("net")

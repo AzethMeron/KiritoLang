@@ -561,6 +561,6 @@ with iox.open(tmp, "w") as fh:
 var dfromfile = tb.readcsv(tmp)
 ok(dfromfile.shape() == [2, 2], "tabular readcsv from file shape")
 ok(dfromfile["pop"].sum() == 300, "tabular readcsv from file values")
-discard iox.remove(tmp)
+discard path.remove(tmp, missing_ok = True)
 
 io.print("r6_kimods_b: " + String(n) + " checks passed")

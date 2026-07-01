@@ -9,6 +9,7 @@
 # failing claim.
 # =============================================================================
 var io = import("io")
+var path = import("path")
 
 # =============================================================================
 # Recipe 1: "Read a file line by line"
@@ -25,7 +26,7 @@ with io.open(tmppath, "r") as f:
     for line in f:
         lines.append(line.strip())
 assert lines == ["alpha", "beta", "gamma", "", "delta"], "recipe1: file line-by-line"
-io.remove(tmppath)
+path.remove(tmppath, missing_ok = True)
 
 # Adversarial: empty file produces no iterations.
 with io.open(tmppath, "w") as out:
@@ -35,7 +36,7 @@ with io.open(tmppath, "r") as f:
     for line in f:
         emptyLines.append(line.strip())
 assert emptyLines == [], "recipe1 edge: empty file iterates zero lines"
-io.remove(tmppath)
+path.remove(tmppath, missing_ok = True)
 
 # Adversarial: single line, no trailing newline.
 with io.open(tmppath, "w") as out:
@@ -45,7 +46,7 @@ with io.open(tmppath, "r") as f:
     for line in f:
         soloLines.append(line.strip())
 assert soloLines == ["solo"], "recipe1 edge: single line no trailing newline"
-io.remove(tmppath)
+path.remove(tmppath, missing_ok = True)
 
 # Adversarial: trailing newline does NOT add an empty entry after iteration
 # (the doc strips the line so a fully-trimmed entry would also flag a real
@@ -57,7 +58,7 @@ with io.open(tmppath, "r") as f:
     for line in f:
         twoLines.append(line.strip())
 assert twoLines == ["a", "b"], "recipe1 edge: trailing newline iterates 2 lines"
-io.remove(tmppath)
+path.remove(tmppath, missing_ok = True)
 
 # =============================================================================
 # Recipe 2: "Count word frequencies"

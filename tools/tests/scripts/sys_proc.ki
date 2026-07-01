@@ -23,6 +23,7 @@ var helper = path.join(DIR, "sysproc_helper_k.ki")
 # A parameterized child program: arglist[0] selects the behavior.
 var src = r"""var io = import("io")
 var sys = import("sys")
+var path = import("path")
 var mode = arglist[0] if len(arglist) >= 1 else ""
 if mode == "out":
     io.print("child-stdout-line")
@@ -32,7 +33,7 @@ elif mode == "exit3":
 elif mode == "echo":
     io.write(io.read())
 elif mode == "cwd":
-    io.write(io.getcwd())
+    io.write(path.getcwd())
 elif mode == "sleep":
     import("time").sleep(5)
 """
@@ -75,6 +76,6 @@ ok(sys.shell("exit 7")["code"] == 7, "shell exit code reported")
 var r = sys.shell("echo k")
 ok("code" in r and "stdout" in r and "stderr" in r, "result has code/stdout/stderr")
 
-discard io.remove(helper)
+discard path.remove(helper, missing_ok = True)
 ok(path.exists(helper) == False, "helper cleaned up")
 io.print("sys_proc: " + String(n) + " checks passed")

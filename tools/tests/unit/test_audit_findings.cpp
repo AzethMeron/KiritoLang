@@ -198,6 +198,6 @@ int main() {
             "var p = import(\"path\").join(import(\"sys\").gettempdir(), \"kira_tell_probe.txt\")\n"
             "var w = io.open(p, \"w\")\ndiscard w.write(\"hello\")\nw.close()\n"
             "var f = io.open(p, \"r\")\n";
-        CHECK(ev(vm, mk + "discard f.read(1000)\nvar t = f.tell()\nf.close()\ndiscard io.remove(p)\nt") == "5");
+        CHECK(ev(vm, mk + "discard f.read(1000)\nvar t = f.tell()\nf.close()\ndiscard import(\"path\").remove(p)\nt") == "5");
     }
 }

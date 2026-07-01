@@ -3,7 +3,7 @@
 # tolerance via the modulus of the difference.
 var io = import("io")
 var C = import("complex")
-var M = import("math")
+var MTH = import("math")
 
 var close = Function(a, b) -> Bool:
     return (a - b).modulus() < 0.000000001
@@ -37,13 +37,13 @@ assert C.of(2, 0) == 2, "Complex == real number"
 assert z.conjugate() == C.of(3, -4), "conjugate"
 assert closef(z.modulus(), 5.0), "modulus"
 assert closef(z.norm2(), 25.0), "norm2"
-assert closef(C.of(0, 1).argument(), M.pi / 2.0), "argument"
+assert closef(C.of(0, 1).argument(), MTH.pi / 2.0), "argument"
 assert C.zero.is_zero() and not C.one.is_zero(), "is_zero"
 
 # --- analytic functions (complex extensions of math) ---
-assert close(C.exp(C.of(0, M.pi)), C.of(-1, 0)), "exp(i*pi) = -1 (Euler)"
+assert close(C.exp(C.of(0, MTH.pi)), C.of(-1, 0)), "exp(i*pi) = -1 (Euler)"
 assert close(C.sqrt(C.of(-1, 0)), C.i), "sqrt(-1) = i"
-assert close(C.log(C.of(M.e, 0)), C.one), "log(e) = 1"
+assert close(C.log(C.of(MTH.e, 0)), C.one), "log(e) = 1"
 assert close(C.sin(C.of(0, 0)), C.zero), "sin(0) = 0"
 assert close(C.cos(C.of(0, 0)), C.one), "cos(0) = 1"
 # sin^2 + cos^2 = 1 for a complex argument too

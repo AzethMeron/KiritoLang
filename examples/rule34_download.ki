@@ -8,6 +8,7 @@
 # (Requires outbound network; in sandboxes without it, the request raises and we report cleanly.)
 
 var io = import("io")
+var path = import("path")
 var net = import("net")
 var json = import("json")
 
@@ -54,7 +55,7 @@ if len(arglist) >= 2:
     count = Integer(arglist[1])
 
 var outDir = "/tmp/rule34_out"
-io.mkdir(outDir)
+discard path.mkdir(outDir, exist_ok = True)
 
 try:
     var posts = fetchPosts(tags, count)

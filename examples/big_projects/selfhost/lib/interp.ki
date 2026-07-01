@@ -2470,6 +2470,7 @@ var makeGlobal = Function(St):
 # for things that genuinely require the OS — reading a source file, file I/O, clocks, environment.
 # All marked _sys_. Module *logic* (path handling, datetime math, RNG, JSON, matrices, ...) is Kirito.
 var _sys_hostIo = import("io")
+var _sys_hostPath = import("path")
 var _sys_hostSys = import("sys")
 var _sys_hostTime = import("time")
 var _sys_readFile = Function(path):
@@ -2484,6 +2485,8 @@ var importModule = Function(St, name):
     var mod = None
     if name == "io":
         mod = bridgeIo(St)
+    elif name == "path":
+        mod = bridgePath(St)
     elif name == "_os":
         mod = bridgeOs(St)
     else:
@@ -2493,7 +2496,7 @@ var importModule = Function(St, name):
 
 # Read a module's source from the first import dir that has it.
 var _sys_exists = Function(path):
-    return _sys_hostIo.exists(path)
+    return _sys_hostPath.exists(path)
 
 var _findModuleSource = Function(St, name):
     for dir in St["importdirs"]:
@@ -2602,6 +2605,8 @@ var ioOpen = Function(St2, a, k):
         mode = a[1]
     return {"sk": "hostobj", "kind": "file", "h": _sys_hostIo.open(a[0], mode)}
 
+# io is I/O only (streams / open / print / input / BytesIO) — mirroring the host. Everything that
+# interprets, queries, mutates, or lists the filesystem by path lives in the `path` module below.
 var bridgeIo = Function(St):
     var members = {}
     members["stdout"] = mkStream("stdout")
@@ -2614,27 +2619,84 @@ var bridgeIo = Function(St):
     members["input"] = mkNative("input", ioInput)
     members["BytesIO"] = mkNative("BytesIO", ioBytesIO)
     members["open"] = mkNative("open", ioOpen)
-    members["exists"] = mkNative("exists", Function(St2, a, k): return _sys_hostIo.exists(a[0]))
-    members["isfile"] = mkNative("isfile", Function(St2, a, k): return _sys_hostIo.isfile(a[0]))
-    members["isdir"] = mkNative("isdir", Function(St2, a, k): return _sys_hostIo.isdir(a[0]))
-    members["remove"] = mkNative("remove", Function(St2, a, k): return _sys_hostIo.remove(a[0]))
-    members["mkdir"] = mkNative("mkdir", Function(St2, a, k): return _sys_hostIo.mkdir(a[0]))
-    members["getsize"] = mkNative("getsize", Function(St2, a, k): return _sys_hostIo.getsize(a[0]))
-    members["listdir"] = mkNative("listdir", Function(St2, a, k): return _sys_hostIo.listdir(a[0]))
-    members["getcwd"] = mkNative("getcwd", Function(St2, a, k): return _sys_hostIo.getcwd())
-    members["rename"] = mkNative("rename", Function(St2, a, k): return _sys_hostIo.rename(a[0], a[1]))
-    members["walk"] = mkNative("walk", Function(St2, a, k): return _sys_hostIo.walk(a[0]))
-    members["dirname"] = mkNative("dirname", Function(St2, a, k): return _sys_hostIo.dirname(a[0]))
-    members["basename"] = mkNative("basename", Function(St2, a, k): return _sys_hostIo.basename(a[0]))
-    members["splitext"] = mkNative("splitext", Function(St2, a, k): return _sys_hostIo.splitext(a[0]))
-    members["join"] = mkNative("join", _ioJoinHost)
     return mkModule("io", members)
 
-var _ioJoinHost = Function(St2, a, k):
+# Fill a fixed-arity positional list from a self-host native call's positional `a` + keyword `k` (a
+# list of [name, value] pairs), applying `defaults` for unsupplied params. The host `path` module does
+# all the real work (return values, strict raises, kwargs) — this just re-orders args by name so a
+# keyword call (path.mkdir(p, exist_ok = True), path.remove(path = p)) forwards positionally.
+var _bindPath = Function(a, k, names, defaults, mname):
+    var out = []
+    var i = 0
+    while i < len(names):
+        out.append(defaults[i])
+        i = i + 1
+    i = 0
+    while i < len(a):
+        if i >= len(names):
+            rtError(mname + "() takes at most " + String(len(names)) + " positional arguments")
+        out[i] = a[i]
+        i = i + 1
+    for kw in k:
+        var idx = -1
+        var j = 0
+        while j < len(names):
+            if names[j] == kw[0]:
+                idx = j
+            j = j + 1
+        if idx < 0:
+            rtError(mname + "() got an unexpected keyword argument '" + kw[0] + "'")
+        out[idx] = kw[1]
+    return out
+
+# The `path` module: Kirito's os.path + os filesystem surface. Each member forwards to the host
+# `_sys_hostPath` after binding args by name, so semantics match the native module exactly.
+var bridgePath = Function(St):
+    var members = {}
+    members["join"] = mkNative("join", _pathJoinHost)
+    members["dirname"] = mkNative("dirname", Function(St2, a, k): return _sys_hostPath.dirname(_bindPath(a, k, ["path"], [None], "dirname")[0]))
+    members["basename"] = mkNative("basename", Function(St2, a, k): return _sys_hostPath.basename(_bindPath(a, k, ["path"], [None], "basename")[0]))
+    members["splitext"] = mkNative("splitext", Function(St2, a, k): return _sys_hostPath.splitext(_bindPath(a, k, ["path"], [None], "splitext")[0]))
+    members["exists"] = mkNative("exists", Function(St2, a, k): return _sys_hostPath.exists(_bindPath(a, k, ["path"], [None], "exists")[0]))
+    members["isfile"] = mkNative("isfile", Function(St2, a, k): return _sys_hostPath.isfile(_bindPath(a, k, ["path"], [None], "isfile")[0]))
+    members["isdir"] = mkNative("isdir", Function(St2, a, k): return _sys_hostPath.isdir(_bindPath(a, k, ["path"], [None], "isdir")[0]))
+    members["getsize"] = mkNative("getsize", Function(St2, a, k): return _sys_hostPath.getsize(_bindPath(a, k, ["path"], [None], "getsize")[0]))
+    members["listdir"] = mkNative("listdir", Function(St2, a, k): return _sys_hostPath.listdir(_bindPath(a, k, ["path"], [None], "listdir")[0]))
+    members["walk"] = mkNative("walk", Function(St2, a, k): return _sys_hostPath.walk(_bindPath(a, k, ["dir"], [None], "walk")[0]))
+    members["getcwd"] = mkNative("getcwd", Function(St2, a, k): return _sys_hostPath.getcwd())
+    members["mkdir"] = mkNative("mkdir", _pathMkdir)
+    members["remove"] = mkNative("remove", _pathRemove)
+    members["mkremove"] = mkNative("mkremove", _pathMkremove)
+    members["rename"] = mkNative("rename", _pathRename)
+    members["chmod"] = mkNative("chmod", _pathChmod)
+    return mkModule("path", members)
+
+# The two-argument path mutators, as top-level natives (a self-host inline Function can't carry a
+# multi-line body in call-argument position). Each binds by name then forwards positionally to the
+# host — which owns the real strict/return-value/kwargs semantics.
+var _pathMkdir = Function(St2, a, k):
+    var b = _bindPath(a, k, ["path", "exist_ok"], [None, False], "mkdir")
+    return _sys_hostPath.mkdir(b[0], b[1])
+var _pathRemove = Function(St2, a, k):
+    var b = _bindPath(a, k, ["path", "missing_ok"], [None, False], "remove")
+    return _sys_hostPath.remove(b[0], b[1])
+var _pathMkremove = Function(St2, a, k):
+    var b = _bindPath(a, k, ["path", "missing_ok"], [None, False], "mkremove")
+    return _sys_hostPath.mkremove(b[0], b[1])
+var _pathRename = Function(St2, a, k):
+    var b = _bindPath(a, k, ["src", "dst"], [None, None], "rename")
+    return _sys_hostPath.rename(b[0], b[1])
+var _pathChmod = Function(St2, a, k):
+    var b = _bindPath(a, k, ["path", "mode"], [None, None], "chmod")
+    return _sys_hostPath.chmod(b[0], b[1])
+
+var _pathJoinHost = Function(St2, a, k):
+    if len(a) == 0:
+        rtError("join expected at least one path component")
     var out = a[0]
     var i = 1
     while i < len(a):
-        out = _sys_hostIo.join(out, a[i])
+        out = _sys_hostPath.join(out, a[i])
         i = i + 1
     return out
 
@@ -2643,7 +2705,7 @@ var _ioJoinHost = Function(St2, a, k):
 var bridgeOs = Function(St):
     var m = {}
     m["getenv"] = mkNative("getenv", _osGetenv)
-    m["getcwd"] = mkNative("getcwd", Function(St2, a, k): return _sys_hostIo.getcwd())
+    m["getcwd"] = mkNative("getcwd", Function(St2, a, k): return _sys_hostPath.getcwd())
     m["gettempdir"] = mkNative("gettempdir", Function(St2, a, k): return _sys_hostSys.gettempdir())
     m["platform"] = _sys_hostSys.platform
     m["time"] = mkNative("time", Function(St2, a, k): return _sys_hostTime.time())

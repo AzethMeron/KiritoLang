@@ -86,6 +86,6 @@ assert dr[1] == [7, 8], "dump preserves shared references"
 var p = path.join(sys.gettempdir(), "kirito_spec_serde.dat")
 ser.save({"saved": [1, 2, 3]}, p)
 assert ser.load(p) == {"saved": [1, 2, 3]}, "serialize save/load file"
-discard io.remove(p)
+discard path.remove(p, missing_ok = True)
 
 io.print("OK")

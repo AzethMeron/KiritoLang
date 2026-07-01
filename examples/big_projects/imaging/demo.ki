@@ -15,7 +15,7 @@ var math = import("math")
 var outdir = sys.getenv("KI_IMAGING_OUT")
 if outdir == None:
     outdir = path.join(sys.gettempdir(), "ki_imaging_demo")
-discard io.mkdir(outdir)
+discard path.mkdir(outdir, exist_ok = True)
 var saved = []
 var save = Function(img, name):
     img.save(path.join(outdir, name))

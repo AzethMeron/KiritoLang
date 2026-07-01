@@ -3,6 +3,7 @@
 # header below names the doc section being verified.
 
 var io = import("io")
+var path = import("path")
 
 # ============================================================================
 # Section: Comments and layout
@@ -28,7 +29,7 @@ try:
 catch as e:
     threw = "indent" in e or "tabs" in e or "spaces" in e
 assert threw, "ambiguous tabs+spaces indentation is rejected"
-io.remove("/tmp/audit_lg_badindent.ki")
+path.remove("/tmp/audit_lg_badindent.ki", missing_ok = True)
 
 # ============================================================================
 # Section: Variables and assignment
@@ -226,7 +227,7 @@ try:
 catch as e:
     threw = "return" in e
 assert threw, "return outside function is a parse-time error"
-io.remove("/tmp/audit_lg_ret.ki")
+path.remove("/tmp/audit_lg_ret.ki", missing_ok = True)
 
 writeFile("/tmp/audit_lg_brk.ki", "break\n")
 threw = False
@@ -235,7 +236,7 @@ try:
 catch as e:
     threw = "break" in e
 assert threw, "break outside loop is a parse-time error"
-io.remove("/tmp/audit_lg_brk.ki")
+path.remove("/tmp/audit_lg_brk.ki", missing_ok = True)
 
 writeFile("/tmp/audit_lg_cont.ki", "continue\n")
 threw = False
@@ -244,7 +245,7 @@ try:
 catch as e:
     threw = "continue" in e
 assert threw, "continue outside loop is a parse-time error"
-io.remove("/tmp/audit_lg_cont.ki")
+path.remove("/tmp/audit_lg_cont.ki", missing_ok = True)
 
 # for iterates a snapshot: appending inside loop doesn't visit new elements.
 var snap = [1, 2, 3]
@@ -701,7 +702,7 @@ fmod.close()
 var modImp = import("/tmp/audit_lg_argmod")
 assert modImp.argmain_seen == False, "imported module: argmain is False"
 assert modImp.arglist_seen == [], "imported module: arglist is []"
-io.remove("/tmp/audit_lg_argmod.ki")
+path.remove("/tmp/audit_lg_argmod.ki", missing_ok = True)
 
 # Circular import detected and reported as 'circular import detected: ...'.
 # The inner import reaches back via the same absolute path so we don't depend on cwd/search-path.
@@ -714,7 +715,7 @@ try:
 catch as e:
     threw = "circular import detected" in e
 assert threw, "circular self-import: clear error"
-io.remove("/tmp/audit_lg_circ.ki")
+path.remove("/tmp/audit_lg_circ.ki", missing_ok = True)
 
 # Diamond (non-cyclic) is fine — `a` -> {`b`, `c`} -> `d` loads `d` once.
 var fd = io.open("/tmp/audit_lg_d.ki", "w")
@@ -731,10 +732,10 @@ fa.write("var b = import(\"/tmp/audit_lg_b\")\nvar c = import(\"/tmp/audit_lg_c\
 fa.close()
 var aMod = import("/tmp/audit_lg_a")
 assert aMod.both == [7, 7], "diamond import resolves cleanly (d loaded once, shared)"
-io.remove("/tmp/audit_lg_a.ki")
-io.remove("/tmp/audit_lg_b.ki")
-io.remove("/tmp/audit_lg_c.ki")
-io.remove("/tmp/audit_lg_d.ki")
+path.remove("/tmp/audit_lg_a.ki", missing_ok = True)
+path.remove("/tmp/audit_lg_b.ki", missing_ok = True)
+path.remove("/tmp/audit_lg_c.ki", missing_ok = True)
+path.remove("/tmp/audit_lg_d.ki", missing_ok = True)
 
 # ============================================================================
 # Section: discard / pass / todo
@@ -779,7 +780,7 @@ try:
 catch as e:
     threw = True
 assert threw, "bad backslash escape rejected"
-io.remove("/tmp/audit_lg_badesc.ki")
+path.remove("/tmp/audit_lg_badesc.ki", missing_ok = True)
 
 var funt = io.open("/tmp/audit_lg_unterm.ki", "w")
 funt.write("var s = \"oops\n")
@@ -790,7 +791,7 @@ try:
 catch as e:
     threw = True
 assert threw, "unterminated string rejected"
-io.remove("/tmp/audit_lg_unterm.ki")
+path.remove("/tmp/audit_lg_unterm.ki", missing_ok = True)
 
 var fraw = io.open("/tmp/audit_lg_rawbs.ki", "w")
 fraw.write("var s = r\"\\\"\n")
@@ -801,7 +802,7 @@ try:
 catch as e:
     threw = True
 assert threw, "raw string ending in lone backslash rejected"
-io.remove("/tmp/audit_lg_rawbs.ki")
+path.remove("/tmp/audit_lg_rawbs.ki", missing_ok = True)
 
 # Negative literal-arity in switch arm — second `default` must be rejected
 var fsw = io.open("/tmp/audit_lg_sw.ki", "w")
@@ -813,6 +814,6 @@ try:
 catch as e:
     threw = "default" in e
 assert threw, "second 'default' rejected"
-io.remove("/tmp/audit_lg_sw.ki")
+path.remove("/tmp/audit_lg_sw.ki", missing_ok = True)
 
 io.print("OK audit-langguide")

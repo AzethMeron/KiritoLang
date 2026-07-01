@@ -77,7 +77,7 @@ io.stdout = io.__stdout__
 var g = io.open(path, "r")
 var content = g.read()
 g.close()
-io.remove(path)
+import("path").remove(path)
 content
 )") == "into the file\n");
     }

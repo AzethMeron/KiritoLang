@@ -24,7 +24,7 @@ like images or `.gz` data). Always use a `with` block so the file closes itself:
 ```kirito
 var io = import("io")
 var path = import("path")
-var notes = path.join(io.getcwd(), "notes.txt")
+var notes = path.join(path.getcwd(), "notes.txt")
 
 # Write three lines.
 with io.open(notes, "w") as f:
@@ -47,7 +47,7 @@ process large files:
 ```kirito
 var io = import("io")
 var path = import("path")
-var notes = path.join(io.getcwd(), "notes.txt")
+var notes = path.join(path.getcwd(), "notes.txt")
 
 var line_number = 0
 with io.open(notes, "r") as f:
@@ -55,7 +55,7 @@ with io.open(notes, "r") as f:
         line_number = line_number + 1
         io.print(f"{line_number}: {line.strip()}")
 # => 1: first / 2: second / 3: third / 4: fourth
-discard io.remove(notes)           # clean up
+discard path.remove(notes, missing_ok = True)           # clean up
 ```
 
 `f.readline()` reads one line, and `f.readlines()` reads them all into a List, if you prefer explicit
@@ -69,7 +69,7 @@ dedicated **`path`** module (Kirito's `os.path`):
 ```kirito
 var io = import("io")
 var path = import("path")
-var here = io.getcwd()
+var here = path.getcwd()
 io.print(path.exists(here))            # => True
 io.print(path.isdir(here))             # => True
 io.print(path.basename("/a/b/c.txt"))  # => c.txt
@@ -79,8 +79,8 @@ io.print(path.join("dir", "sub", "file.txt"))   # => dir/sub/file.txt  (always '
 ```
 
 `path` also has `isfile` and `getsize`, and `path.join` for building paths (os.path.join semantics,
-always `/`). The operations that *change* or *list* the filesystem stay in `io`: `mkdir`, `rename`,
-`remove`, `getcwd`, `listdir`, and `walk` (recursive).
+always `/`). The operations that *change* or *list* the filesystem are all in `path` too: `mkdir`,
+`remove`, `mkremove` (recursive `rm -rf`), `rename`, `chmod`, `listdir`, `walk`, and `getcwd`.
 
 ## In-memory buffers: `BytesIO`
 

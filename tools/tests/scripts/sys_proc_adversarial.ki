@@ -25,6 +25,7 @@ var helper = path.join(DIR, "sysproc_adv_helper.ki")
 # Parameterized child. arglist[0] is the mode; the rest are mode arguments.
 var src = r"""var io = import("io")
 var sys = import("sys")
+var path = import("path")
 var m = arglist[0] if len(arglist) >= 1 else ""
 if m == "echo":
     io.write(io.read())
@@ -47,7 +48,7 @@ elif m == "both":
 elif m == "ignorestdin":
     io.print("noread")
 elif m == "cwd":
-    io.write(io.getcwd())
+    io.write(path.getcwd())
 """
 var fh = io.open(helper, "w")
 discard fh.write(src)
@@ -180,5 +181,5 @@ while li < 200:
     li = li + 1
 ok(leak == 200, "200 sequential spawns, no fd/zombie exhaustion")
 
-discard io.remove(helper)
+discard path.remove(helper, missing_ok = True)
 io.print("sys_proc_adversarial: " + String(n) + " checks passed")

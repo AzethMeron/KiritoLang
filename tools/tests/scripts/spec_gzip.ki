@@ -1,6 +1,7 @@
 # Deep pure-Kirito test of the gzip + zlib codecs and the hash checksums, including String/Bytes
 # same-type behavior, round-trips over binary data, interop, and malformed/adversarial inputs.
 var io = import("io")
+var path = import("path")
 var gzip = import("gzip")
 var zlib = import("zlib")
 var hash = import("hash")
@@ -74,14 +75,14 @@ while j < 200:
 var blob = dump.dumps(payload)                 # Bytes
 var packed = gzip.compress(blob)               # Bytes
 var digest = hash.sha256(packed)
-var path = import("sys").gettempdir() + "/spec_gzip_pipe.bin"
-var f = io.open(path, "wb")
+var fp = import("sys").gettempdir() + "/spec_gzip_pipe.bin"
+var f = io.open(fp, "wb")
 f.write(packed)
 f.close()
-var g = io.open(path, "rb")
+var g = io.open(fp, "rb")
 var readback = g.read()
 g.close()
-discard io.remove(path)
+discard path.remove(fp, missing_ok = True)
 assert type(readback) == "Bytes", "binary file read -> Bytes"
 assert hash.sha256(readback) == digest, "file round-trip preserves bytes"
 assert dump.loads(gzip.decompress(readback)) == payload, "full pipeline round-trips the object"

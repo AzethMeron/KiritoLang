@@ -42,15 +42,15 @@ io.stdout = io.__stdout__
 assert dcap.getvalue() == "default\n", "no stream= uses the current stdout"
 
 # --- stream= a real file round-trips ---
-var path = path.join(io.getcwd(), "kirito_stream_kw.tmp")
-var f = io.open(path, "w")
+var fp = path.join(path.getcwd(), "kirito_stream_kw.tmp")
+var f = io.open(fp, "w")
 io.print("file line", stream=f)
 io.write("more", stream=f)
 f.close()
-var rf = io.open(path, "r")
+var rf = io.open(fp, "r")
 assert rf.read() == "file line\nmore", "stream= to a File round-trips"
 rf.close()
-discard io.remove(path)
+discard path.remove(fp, missing_ok = True)
 
 # --- composes with Tee: stream= accepts a Tee to fan out ---
 var tee = import("tee")

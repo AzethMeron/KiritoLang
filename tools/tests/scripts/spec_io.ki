@@ -62,19 +62,20 @@ assert path.exists(fp) and path.isfile(fp) and not path.isdir(fp), "exists/isfil
 assert path.getsize(fp) == 6, "getsize"
 assert path.isdir(tmp), "isdir on a directory"
 var subdir = path.join(tmp, "kirito_spec_dir")
-assert io.mkdir(subdir), "mkdir"
+discard path.mkremove(subdir, missing_ok = True)   # clear any stale scratch from a prior run
+assert path.mkdir(subdir), "mkdir"
 assert path.isdir(subdir), "mkdir created a directory"
 var nested = path.join(subdir, "f.txt")
 with io.open(nested, "w") as nf:
     discard nf.write("x")
-assert nested.replace("\\", "/") in io.walk(subdir)[0].replace("\\", "/") or len(io.walk(subdir)) >= 1, "walk finds files"
-var entries = io.listdir(subdir)
+assert nested.replace("\\", "/") in path.walk(subdir)[0].replace("\\", "/") or len(path.walk(subdir)) >= 1, "walk finds files"
+var entries = path.listdir(subdir)
 assert "f.txt" in entries, "listdir"
 # rename + remove
 var renamed = path.join(subdir, "g.txt")
-io.rename(nested, renamed)
+path.rename(nested, renamed)
 assert path.exists(renamed) and not path.exists(nested), "rename"
-assert io.remove(renamed), "remove"
+assert path.remove(renamed), "remove"
 assert not path.exists(renamed), "removed file is gone"
 
 # --- path string helpers ---
@@ -92,5 +93,5 @@ io.stdout = io.__stdout__
 assert cap.getvalue() == "captured\n", "redirect stdout to BytesIO"
 
 # --- cleanup ---
-discard io.remove(fp)
+discard path.remove(fp, missing_ok = True)
 io.print("OK")

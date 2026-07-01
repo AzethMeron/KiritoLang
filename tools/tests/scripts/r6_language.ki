@@ -6,6 +6,7 @@
 # assert, pass/todo. Typical + edge + malformed (via `raises`) + nesting + interaction cases.
 
 var io = import("io")
+var path = import("path")
 
 var n = 0
 var ok = Function(c, m):
@@ -27,16 +28,16 @@ var raises = Function(thunk):
 var impCounter = 0
 var importErr = Function(src, msgsub):
     impCounter = impCounter + 1
-    var path = "/tmp/r6_lang_" + String(impCounter)
-    var fh = io.open(path + ".ki", "w")
+    var fp = "/tmp/r6_lang_" + String(impCounter)
+    var fh = io.open(fp + ".ki", "w")
     fh.write(src)
     fh.close()
     var threw = False
     try:
-        discard import(path)
+        discard import(fp)
     catch as e:
         threw = msgsub == "" or msgsub in e
-    io.remove(path + ".ki")
+    path.remove(fp + ".ki", missing_ok = True)
     return threw
 
 # ============================================================================
@@ -882,6 +883,6 @@ try:
 catch as e:
     circCaught = "circular import detected" in e
 ok(circCaught, "circular self-import raises a clear error")
-io.remove("/tmp/r6_lang_circ.ki")
+path.remove("/tmp/r6_lang_circ.ki", missing_ok = True)
 
 io.print("r6_language: " + String(n) + " checks passed")

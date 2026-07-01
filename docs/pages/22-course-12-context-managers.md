@@ -12,7 +12,7 @@ cleanup on the way out — normal exit *or* exception. The classic case is files
 ```kirito
 var io = import("io")
 var path = import("path")
-var demo = path.join(io.getcwd(), "lesson17_demo.txt")
+var demo = path.join(path.getcwd(), "lesson17_demo.txt")
 
 with io.open(demo, "w") as file:
     file.write("line one\n")
@@ -22,7 +22,7 @@ with io.open(demo, "w") as file:
 with io.open(demo, "r") as file:
     io.print(file.read())
 # => line one / line two
-discard io.remove(demo)            # tidy up the demo file
+discard path.remove(demo, missing_ok = True)            # tidy up the demo file
 ```
 
 No explicit `close()` — leaving the `with` block closes the file for you. That's the whole appeal:

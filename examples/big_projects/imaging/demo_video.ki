@@ -17,7 +17,7 @@ if not path.exists(sample):
     sample = "testdata/anim.gif"
 
 var outdir = path.join(sys.gettempdir(), "ki_video_demo")
-discard io.mkdir(outdir)
+discard path.mkdir(outdir, exist_ok = True)
 
 var cap = cv.VideoCapture(sample)
 io.print("opened " + String(cap) + "  frames=" + String(cap.count) +

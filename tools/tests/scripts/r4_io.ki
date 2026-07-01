@@ -16,8 +16,8 @@ var time = import("time")
 # path; output stays deterministic (the summary line is identical regardless of the chosen name).
 var uniq = String(time.perfcounterns()) + "_" + String(time.timens())
 var root = path.join(sys.gettempdir(), "kirito_r4_io_" + uniq)
-discard io.remove(root)          # tolerant: a no-op if (impossibly) a stale one exists
-assert io.mkdir(root), "scratch dir created"
+discard path.remove(root, missing_ok = True)          # tolerant: a no-op if (impossibly) a stale one exists
+assert path.mkdir(root), "scratch dir created"
 var P = Function(name): return path.join(root, name)
 
 # Did calling a zero-arg thunk raise? (anonymous functions are single-line only, so multi-statement
@@ -110,7 +110,7 @@ assert raises(Function(): return io.open(fp, "")), "an empty mode raises"
 n = n + 1
 assert raises(Function(): return io.open(fp, "b")), "a lone 'b' mode raises"
 var rplusMissing = P("rplus_missing.txt")
-discard io.remove(rplusMissing)
+discard path.remove(rplusMissing, missing_ok = True)
 n = n + 1
 assert raises(Function(): return io.open(rplusMissing, "r+")), "r+ on a missing file raises"
 n = n + 1
@@ -314,7 +314,7 @@ var rtr = io.open(bp, "rb")
 n = n + 1
 assert rtr.read() == rt, "Bytes round-trips byte-exactly through a binary file"
 rtr.close()
-discard io.remove(bp)
+discard path.remove(bp, missing_ok = True)
 
 # ============================ BytesIO ============================
 
@@ -510,7 +510,7 @@ sfo.close()
 with io.open(streamFile, "r") as sfr:
     n = n + 1
     assert sfr.read() == "into the file\n", "a File works as stdout"
-discard io.remove(streamFile)
+discard path.remove(streamFile, missing_ok = True)
 
 # ============================ Console: the stream= keyword ============================
 
@@ -616,9 +616,11 @@ assert printToBad, "print to a stdout object lacking write() raises"
 
 var ddir = P("fs")
 n = n + 1
-assert io.mkdir(ddir), "mkdir creates a directory"
+assert path.mkdir(ddir), "mkdir creates a directory (returns True)"
 n = n + 1
-assert io.mkdir(ddir), "mkdir is idempotent on an existing directory"
+assert raises(Function(): return path.mkdir(ddir)), "mkdir on an existing directory RAISES by default"
+n = n + 1
+assert path.mkdir(ddir, exist_ok = True) == False, "mkdir(exist_ok=True) on an existing directory is a no-op (False)"
 n = n + 1
 assert path.isdir(ddir) and not path.isfile(ddir), "isdir/isfile on a directory"
 
@@ -630,49 +632,51 @@ assert path.exists(inside) and path.isfile(inside) and not path.isdir(inside), "
 n = n + 1
 assert path.getsize(inside) == 5, "getsize counts bytes"
 n = n + 1
-assert "x.txt" in io.listdir(ddir), "listdir lists the entry"
+assert "x.txt" in path.listdir(ddir), "listdir lists the entry"
 n = n + 1
-assert len(io.walk(ddir)) == 1, "walk finds the one file"
+assert len(path.walk(ddir)) == 1, "walk finds the one file"
 
 # nested directories: walk is recursive (flattened), listdir is shallow.
 var subdir = path.join(ddir, "sub")
-discard io.mkdir(subdir)
+discard path.mkdir(subdir, exist_ok = True)
 with io.open(path.join(subdir, "y.txt"), "w") as nf2:
     discard nf2.write("yy")
 n = n + 1
-assert len(io.walk(ddir)) == 2, "walk recurses into subdirectories"
-var names = io.listdir(ddir)
+assert len(path.walk(ddir)) == 2, "walk recurses into subdirectories"
+var names = path.listdir(ddir)
 n = n + 1
 assert "x.txt" in names and "sub" in names, "listdir is shallow (lists the subdir, not its contents)"
 n = n + 1
-assert len(io.listdir(ddir)) == 2, "listdir does not recurse"
+assert len(path.listdir(ddir)) == 2, "listdir does not recurse"
 
 # rename moves a file (overwriting any destination); remove deletes and reports success.
 var moved = path.join(ddir, "moved.txt")
-io.rename(inside, moved)
+path.rename(inside, moved)
 n = n + 1
 assert path.exists(moved) and not path.exists(inside), "rename moves the file"
 n = n + 1
-assert io.remove(moved) and not path.exists(moved), "remove deletes a file and returns True"
+assert path.remove(moved) and not path.exists(moved), "remove deletes a file and returns True"
 
 # missing-path semantics: getsize/rename RAISE; remove of a missing path is a tolerant no-op (False);
 # exists/isfile/isdir are False; listdir/walk of a missing dir are empty.
 var missing = P("missing_path")
-discard io.remove(missing)
+discard path.remove(missing, missing_ok = True)
 n = n + 1
 assert raises(Function(): return path.getsize(missing)), "getsize of a missing path raises"
 n = n + 1
-assert raises(Function(): return io.rename(missing, P("missing_dst"))), "rename of a missing path raises"
+assert raises(Function(): return path.rename(missing, P("missing_dst"))), "rename of a missing path raises"
 n = n + 1
-assert io.remove(missing) == False, "remove of a missing path returns False (no raise)"
+assert raises(Function(): return path.remove(missing)), "remove of a missing path RAISES by default"
+n = n + 1
+assert path.remove(missing, missing_ok = True) == False, "remove(missing_ok=True) of a missing path is False"
 n = n + 1
 assert not path.exists(missing), "exists is False for a missing path"
 n = n + 1
 assert not path.isfile(missing) and not path.isdir(missing), "isfile/isdir are False for a missing path"
 n = n + 1
-assert io.listdir(P("missing_dir")) == [], "listdir of a missing dir is empty"
+assert path.listdir(P("missing_dir")) == [], "listdir of a missing dir is empty"
 n = n + 1
-assert io.walk(P("missing_dir")) == [], "walk of a missing dir is empty"
+assert path.walk(P("missing_dir")) == [], "walk of a missing dir is empty"
 
 # getsize on a directory raises (it isn't a regular file).
 n = n + 1
@@ -680,7 +684,7 @@ assert raises(Function(): return path.getsize(ddir)), "getsize of a directory ra
 
 # getcwd is a non-empty String.
 n = n + 1
-assert type(io.getcwd()) == "String" and io.getcwd() != "", "getcwd returns a non-empty String"
+assert type(path.getcwd()) == "String" and path.getcwd() != "", "getcwd returns a non-empty String"
 
 # filesystem type errors raise.
 n = n + 1
@@ -688,9 +692,9 @@ assert raises(Function(): return path.exists(123)), "exists rejects a non-String
 n = n + 1
 assert raises(Function(): return path.getsize(123)), "getsize rejects a non-String"
 n = n + 1
-assert raises(Function(): return io.rename(1, "x")), "rename rejects a non-String"
+assert raises(Function(): return path.rename(1, "x")), "rename rejects a non-String"
 n = n + 1
-assert raises(Function(): return io.mkdir(1)), "mkdir rejects a non-String"
+assert raises(Function(): return path.mkdir(1)), "mkdir rejects a non-String"
 
 # ============================ chmod ============================
 
@@ -698,19 +702,19 @@ var perm = path.join(ddir, "perm.txt")
 with io.open(perm, "w") as pf:
     discard pf.write("x")
 n = n + 1
-assert io.chmod(perm, 0o600) == True, "chmod returns True on success"
+assert path.chmod(perm, 0o600) == True, "chmod returns True on success"
 n = n + 1
-assert io.chmod(path = perm, mode = 0o644) == True, "chmod accepts keyword arguments"
+assert path.chmod(path = perm, mode = 0o644) == True, "chmod accepts keyword arguments"
 n = n + 1
-assert io.chmod(P("chmod_missing"), 0o644) == False, "chmod of a missing path returns False (no raise)"
+assert path.chmod(P("chmod_missing"), 0o644) == False, "chmod of a missing path returns False (no raise)"
 n = n + 1
-assert raises(Function(): return io.chmod(perm, "755")), "chmod rejects a non-Integer mode"
-discard io.remove(perm)
+assert raises(Function(): return path.chmod(perm, "755")), "chmod rejects a non-Integer mode"
+discard path.remove(perm, missing_ok = True)
 
 # clean out the nested fs tree.
-discard io.remove(path.join(subdir, "y.txt"))
-discard io.remove(subdir)
-discard io.remove(ddir)
+discard path.remove(path.join(subdir, "y.txt"), missing_ok = True)
+discard path.remove(subdir, missing_ok = True)
+discard path.remove(ddir, missing_ok = True)
 
 # ============================ Path helpers: dirname / basename / splitext / join ============================
 
@@ -741,9 +745,9 @@ assert raises(Function(): return path.basename(123)), "basename rejects a non-St
 # ============================ tear down + deterministic summary ============================
 
 # remove any leftover top-level scratch file, then the (now-empty) scratch dir; confirm no trace.
-discard io.remove(fp)
-discard io.remove(rplusMissing)
-assert io.remove(root), "scratch dir removed"
+discard path.remove(fp, missing_ok = True)
+discard path.remove(rplusMissing, missing_ok = True)
+assert path.remove(root), "scratch dir removed"
 n = n + 1
 assert not path.exists(root), "scratch dir leaves no trace"
 n = n + 1

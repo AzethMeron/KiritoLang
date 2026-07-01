@@ -10,7 +10,8 @@ A leading `*args` denotes a variadic positional list; `[arg]` denotes an optiona
 
 ## io
 
-Console I/O, files, in-memory buffers, and filesystem helpers.
+Console I/O, files, and in-memory buffers — actual I/O only. Path and filesystem operations live in
+the dedicated [`path`](#path) module.
 
 ### Console (interchangeable streams)
 
@@ -35,21 +36,12 @@ The optional `stream=` keyword sends/takes that one call's output/input to/from 
 - `open(path: String, mode: String = "r") → File` — open a file. Modes: `"r"` read, `"w"` truncate-write, `"a"` append, `"r+"` read/write. Append a `"b"` (`"rb"`/`"wb"`/`"ab"`/`"r+b"`) for **binary** mode: `read`/`readline`/iteration then yield [`Bytes`](types.html#bytes) and `write`/`writelines` accept Bytes (the right mode for non-text files — images, gzip, `dump` blobs). Raises if it can't be opened. Usable as a `with` context manager.
 - `BytesIO([initial: String]) → BytesIO` — an in-memory read/write byte buffer, usable anywhere a file or stream is expected.
 
-### Filesystem (mutation & listing)
+### Filesystem
 
-`io` owns the operations that *change* the filesystem or *list* it. Interpreting or *querying* a path
-(exists/isfile/isdir/getsize) and manipulating path strings (join/dirname/basename/splitext) live in
-the dedicated [`path`](#path) module — the single home for path operations.
-
-- `remove(path: String) → Bool` — delete a file; returns whether it succeeded.
-- `rename(src: String, dst: String) → None` — rename/move a path (raises on failure).
-- `mkdir(path: String) → Bool` — create a directory (and parents); returns success.
-- `chmod(path: String, mode: Integer) → Bool` — set file permission bits from a POSIX-style octal
-  (e.g. `0o755`); returns success. On Windows only the owner read/write bits are meaningful.
-- `getcwd() → String` — the current working directory.
-- `listdir(path: String) → List` — the entry names directly under `path` (tolerant: a missing dir
-  lists as `[]`).
-- `walk(dir: String) → List` — every file path under `dir`, recursively (flattened).
+`io` is **only** streams and buffers (above). Everything that interprets, queries, mutates, or lists
+the filesystem by path — `mkdir`/`remove`/`mkremove`/`rename`/`chmod`, `exists`/`isfile`/`isdir`/
+`getsize`, `getcwd`/`listdir`/`walk`, and the path-string helpers `join`/`dirname`/`basename`/
+`splitext` — lives in the dedicated [`path`](#path) module, the single home for path operations.
 
 ### File object
 
@@ -89,19 +81,20 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 
 ## path
 
-Kirito's `os.path`: the **single home for path operations**, so you never have to remember whether a
-helper lives in `io` or `sys`. It covers pure path-string manipulation and read-only filesystem
-queries about a path. (Filesystem *mutation* and *listing* stay in [`io`](#io); `sys.gettempdir` — a
-system location, not a path operation — stays in [`sys`](#sys).)
+Kirito's `os.path` **and** `os` filesystem surface: the **single home for path and filesystem
+operations**, so you never have to remember whether a helper lives in `io` or `sys`. It covers pure
+path-string manipulation, read-only filesystem queries, *and* filesystem mutation (create / delete /
+rename / chmod / list). [`io`](#io) keeps only actual I/O (open/print/read/write, streams, `BytesIO`);
+`sys.gettempdir` — a system location, not a path operation — stays in [`sys`](#sys).
 
 Path strings use `/` on **every platform** (results are identical cross-platform, unlike the native
 `\` on Windows). The splitting helpers still accept a `\` as a separator, so native Windows paths
-(from `io.getcwd`/`io.listdir`) split correctly.
+(from `path.getcwd`/`path.listdir`) split correctly.
 
 ```kirito
 var path = import("path")
 var io = import("io")
-var full = path.join(io.getcwd(), "data", "report.csv")   # os.path.join semantics
+var full = path.join(path.getcwd(), "data", "report.csv")   # os.path.join semantics
 if path.exists(full) and path.isfile(full):
     io.print(path.basename(full))                          # => report.csv
     io.print(path.splitext(full)[1])                       # => .csv
@@ -130,6 +123,42 @@ if path.exists(full) and path.isfile(full):
 - `isdir(path: String) → Bool` — whether `path` is a directory (tolerant).
 - `getsize(path: String) → Integer` — the file size in bytes. Unlike the tolerant predicates,
   `getsize` **raises** on a missing or non-regular path (there is no sensible size to return).
+- `listdir(path: String) → List` — the entry names directly under `path` (tolerant: a missing dir
+  lists as `[]`).
+- `walk(dir: String) → List` — every file path under `dir`, recursively (flattened; tolerant).
+- `getcwd() → String` — the current working directory.
+
+### Filesystem mutation
+
+The mutating ops are **strict by default** — they raise rather than silently no-op — with opt-in
+leniency. `mkdir`/`remove`/`mkremove` return a `Bool` (`True` = it did the work, `False` = the opt-in
+lenient no-op); `rename` returns `None`; `chmod` returns a `Bool` success flag.
+
+- `mkdir(path: String, exist_ok = False) → Bool` — create the directory (and any missing parents).
+  Returns `True` when it creates it; **raises** if `path` already exists. Pass `exist_ok = True` to
+  make an existing directory a no-op (returns `False`, nothing created).
+- `remove(path: String, missing_ok = False) → Bool` — delete a file (or an *empty* directory).
+  Returns `True` when it removes something; **raises** if `path` does not exist. Pass
+  `missing_ok = True` to make a missing path a no-op (returns `False`). A non-empty directory raises —
+  use `mkremove`.
+- `mkremove(path: String, missing_ok = False) → Bool` — **recursively** delete a directory and
+  everything under it (or a single file) — the recursive counterpart to `remove` (`rm -rf` /
+  `shutil.rmtree`). Same strict/`missing_ok` contract as `remove`.
+- `rename(src: String, dst: String) → None` — rename/move a path (raises on failure).
+- `chmod(path: String, mode: Integer) → Bool` — set permission bits from a POSIX-style octal (e.g.
+  `0o755`); lenient (a missing file returns `False`, no raise). On Windows only the owner read/write
+  bits are meaningful.
+
+```kirito
+var path = import("path")
+var io = import("io")
+var d = path.join(path.getcwd(), "scratch")
+path.mkdir(d, exist_ok = True)              # idempotent setup
+with io.open(path.join(d, "note.txt"), "w") as f:
+    f.write("hi")
+io.print(path.getsize(path.join(d, "note.txt")))   # => 2
+path.mkremove(d)                            # recursively remove the whole tree
+```
 
 ---
 
@@ -754,7 +783,7 @@ Process environment and platform.
 - `platform` — `"linux"` / `"darwin"` / `"windows"` (a `String`).
 - `arch` — the CPU architecture, normalized to the names used in release-asset filenames:
   `"x64"` / `"arm64"` / `"x86"` / `"unknown"` (a `String`).
-- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.9.4"`); the same
+- `version` — the Kirito interpreter version, a semantic-version `String` (e.g. `"1.9.5"`); the same
   value `ki --version` prints. `kpm` compares it against the latest GitHub release to self-upgrade.
 - `executable` — the absolute path of the running `ki` binary (a `String`, or `""` if it can't be
   determined). `kpm update-ki` uses it to locate the binary to replace.

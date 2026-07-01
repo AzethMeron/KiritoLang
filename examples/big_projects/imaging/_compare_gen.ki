@@ -8,7 +8,7 @@ var io = import("io")
 var sys = import("sys")
 
 var outdir = path.join(sys.gettempdir(), "ki_imaging_xval")
-discard io.mkdir(outdir)
+discard path.mkdir(outdir, exist_ok = True)
 var out = Function(name):
     return path.join(outdir, name)
 

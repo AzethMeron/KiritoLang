@@ -143,7 +143,7 @@ for task in inbox.ordered():
     io.print(f"  {task}")                       # uses Task._str_
 
 # Persist to disk and reload into a brand-new list.
-var store = path.join(io.getcwd(), "tasks.json")
+var store = path.join(path.getcwd(), "tasks.json")
 inbox.save(store)
 
 var reloaded = TaskList()
@@ -156,7 +156,7 @@ try:
 catch TaskNotFound as e:
     io.print(f"no such task: {e.title}")
 
-discard io.remove(store)                        # clean up the demo file
+discard path.remove(store, missing_ok = True)  # clean up the demo file
 ```
 
 Running it prints:
@@ -188,8 +188,8 @@ sinks to the bottom — all from that one `_lt_` definition.
   driver recovers from it and carries on.
 - **Context managers & files (Lessons 12–13):** `save`/`load` persist the whole list inside a `with`
   block that closes the file no matter what.
-- **The standard library (Lesson 14):** `json` serializes the records; `path.join`/`io.getcwd`/
-  `io.remove` handle the path.
+- **The standard library (Lesson 14):** `json` serializes the records; `path.join`/`path.getcwd`/
+  `path.remove` handle the path.
 - **Collections, strings & functions (Lessons 5, 3, 6):** a `List` of tasks ordered by a
   List-valued key; f-strings with a `:<6` alignment spec; `sorted` doing the work.
 

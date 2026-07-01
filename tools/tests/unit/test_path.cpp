@@ -97,19 +97,44 @@ int main() {
 
     std::filesystem::remove_all(dir);
 
-    // ---- inspect(path) describes the module ----
+    // ---- filesystem mutation: strict by default + opt-in leniency ----
+    auto mk = dir.string();   // a fresh scratch dir (removed above)
+    const std::string fb = P + "var io = import(\"io\")\nvar d = \"" + mk + "\"\n";
+    CHECK(evalStr(vm, fb + "path.mkdir(d)") == "True");               // creates -> True
+    CHECK(evalStr(vm, fb + "path.isdir(d)") == "True");
+    CHECK_THROWS(evalStr(vm, fb + "path.mkdir(d)"));                  // existing -> raises
+    CHECK(evalStr(vm, fb + "path.mkdir(d, exist_ok = True)") == "False");  // existing + exist_ok -> False
+    CHECK(evalStr(vm, fb + "var f = d + \"/x.txt\"\nio.open(f, \"w\").close()\npath.remove(f)") == "True");
+    CHECK_THROWS(evalStr(vm, fb + "path.remove(d + \"/x.txt\")"));    // missing -> raises
+    CHECK(evalStr(vm, fb + "path.remove(d + \"/x.txt\", missing_ok = True)") == "False");
+    CHECK_THROWS(evalStr(vm, fb + "io.open(d + \"/y.txt\", \"w\").close()\npath.remove(d)"));  // non-empty dir raises
+    CHECK(evalStr(vm, fb + "path.mkremove(d)") == "True");           // recursive delete
+    CHECK(evalStr(vm, fb + "path.exists(d)") == "False");
+    CHECK_THROWS(evalStr(vm, fb + "path.mkremove(d)"));              // missing -> raises
+    CHECK(evalStr(vm, fb + "path.mkremove(d, missing_ok = True)") == "False");
+    std::filesystem::remove_all(dir);
+
+    // ---- inspect(path) describes the module (incl. the moved fs ops + their kwargs) ----
     std::string ins = evalStr(vm, P + "inspect(path)");
     CHECK(ins.find("module path:") != std::string::npos);
     CHECK(ins.find("join(...)") != std::string::npos);
     CHECK(ins.find("dirname(path: String) -> String") != std::string::npos);
     CHECK(ins.find("getsize(path: String) -> Integer") != std::string::npos);
+    CHECK(ins.find("mkdir(path: String, exist_ok: Bool = False)") != std::string::npos);
+    CHECK(ins.find("remove(path: String, missing_ok: Bool = False)") != std::string::npos);
+    CHECK(ins.find("mkremove(path: String, missing_ok: Bool = False)") != std::string::npos);
+    CHECK(ins.find("listdir(path: String) -> List") != std::string::npos);
 
-    // ---- the split is real: these moved OUT of io / sys ----
+    // ---- the split is real: all path/filesystem ops moved OUT of io / sys ----
     CHECK_THROWS(evalStr(vm, "import(\"io\").dirname(\"/a/b\")"));
     CHECK_THROWS(evalStr(vm, "import(\"io\").exists(\".\")"));
+    CHECK_THROWS(evalStr(vm, "import(\"io\").mkdir(\".\")"));
+    CHECK_THROWS(evalStr(vm, "import(\"io\").remove(\".\")"));
+    CHECK_THROWS(evalStr(vm, "import(\"io\").getcwd()"));
+    CHECK_THROWS(evalStr(vm, "import(\"io\").listdir(\".\")"));
     CHECK_THROWS(evalStr(vm, "import(\"sys\").joinpath(\"a\", \"b\")"));
-    // io keeps mutation/listing
-    CHECK(evalStr(vm, "type(import(\"io\").getcwd())") == "String");
+    // io keeps only actual I/O
+    CHECK(evalStr(vm, "type(import(\"path\").getcwd())") == "String");
 
     return RUN_TESTS();
 }

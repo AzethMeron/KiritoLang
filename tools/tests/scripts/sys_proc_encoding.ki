@@ -153,5 +153,5 @@ ok(echo("") == "", "empty stdin -> empty stdout")
 var both = sys.createprocess([KI, helper, "echo"], input = "p" + chr(0) + "q")
 ok(both["stdout"] == "p" + chr(0) + "q" and both["code"] == 0, "binary stdout captured alongside the exit code")
 
-discard io.remove(helper)
+discard path.remove(helper, missing_ok = True)
 io.print("sys_proc_encoding: " + String(n) + " checks passed")

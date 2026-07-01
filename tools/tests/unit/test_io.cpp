@@ -18,7 +18,7 @@ int main() {
 
     // mkdir + writelines + line iteration
     CHECK(evalStr(vm, base + R"(
-io.mkdir(dir)
+path.mkdir(dir, exist_ok = True)
 with io.open(dir + "/a.txt", "w") as f:
     f.writelines(["one\n", "two\n", "three\n"])
 var n = 0
@@ -56,16 +56,16 @@ with io.open(dir + "/a.txt", "r") as f:
 c
 )") == "4");
 
-    // filesystem helpers: path.exists (query) + io.listdir / io.rename / io.remove (io keeps mutation)
+    // filesystem helpers all live in `path` now: path.exists (query) + path.listdir / path.rename / path.remove (mutation)
     CHECK(evalStr(vm, base + "path.exists(dir + \"/a.txt\")") == "True");
     CHECK(evalStr(vm, base + "path.exists(dir + \"/missing.txt\")") == "False");
-    CHECK(evalStr(vm, base + "\"a.txt\" in io.listdir(dir)") == "True");
+    CHECK(evalStr(vm, base + "\"a.txt\" in path.listdir(dir)") == "True");
     CHECK(evalStr(vm, base + R"(
-io.rename(dir + "/a.txt", dir + "/b.txt")
+path.rename(dir + "/a.txt", dir + "/b.txt")
 path.exists(dir + "/b.txt") and not path.exists(dir + "/a.txt")
 )") == "True");
     CHECK(evalStr(vm, base + R"(
-io.remove(dir + "/b.txt")
+path.remove(dir + "/b.txt")
 path.exists(dir + "/b.txt")
 )") == "False");
 
@@ -79,19 +79,19 @@ path.exists(dir + "/b.txt")
         CHECK(evalStr(vm, pbase + R"(
 with io.open(p, "w") as fh:
     fh.write("x")
-io.chmod(p, 0o600)
+path.chmod(p, 0o600)
 )") == "True");
         auto perm = fs::status(f).permissions();
         CHECK((perm & fs::perms::owner_all) == (fs::perms::owner_read | fs::perms::owner_write));
         CHECK((perm & (fs::perms::group_all | fs::perms::others_all)) == fs::perms::none);
         // bump to 0o755 -> rwxr-xr-x ; the keyword-argument form works too (chmod is signatured)
-        CHECK(evalStr(vm, pbase + "io.chmod(path = p, mode = 0o755)") == "True");
+        CHECK(evalStr(vm, pbase + "path.chmod(path = p, mode = 0o755)") == "True");
         perm = fs::status(f).permissions();
         CHECK((perm & fs::perms::owner_all) == fs::perms::owner_all);
         CHECK((perm & fs::perms::group_exec) == fs::perms::group_exec);
         CHECK((perm & fs::perms::others_write) == fs::perms::none);
         // a missing path raises nothing and reports failure as False
-        CHECK(evalStr(vm, base + "io.chmod(dir + \"/nope.txt\", 0o644)") == "False");
+        CHECK(evalStr(vm, base + "path.chmod(dir + \"/nope.txt\", 0o644)") == "False");
     }
 
     // --- the stream= keyword on print / write / eprint / input / read ---

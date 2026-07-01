@@ -127,7 +127,7 @@ f.close()
 var g = io.open(path, "rb")
 var back = g.read()
 g.close()
-io.remove(path)
+import("path").remove(path)
 type(back) == "Bytes" and back == data
 )") == "True");
 

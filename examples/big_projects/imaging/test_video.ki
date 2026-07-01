@@ -89,7 +89,7 @@ check(Image.open(path.join(tdata, "anim.gif")).size == [12, 10], "Image.open(gif
 
 # ----------------------------------------------------------------- image sequence (lossless round-trip)
 var seqdir = path.join(tmp, "ki_vid_seq")
-discard io.mkdir(seqdir)
+discard path.mkdir(seqdir, exist_ok = True)
 var colors = [[200, 10, 20], [10, 200, 30], [40, 50, 200]]
 var k = 0
 while k < 3:

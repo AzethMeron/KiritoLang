@@ -36,12 +36,12 @@ ok(path.splitext("archive.tar.gz") == ["archive.tar", ".gz"], "splitext last ext
 # path JOINING is path.join's job (single source of truth), not io's — covered in the sys suites.
 
 # --- create our scratch tree ---
-ok(io.mkdir(root) == True, "mkdir returns True")
+ok(path.mkdir(root) == True, "mkdir returns True")
 ok(path.isdir(root) == True, "isdir true on a directory")
 ok(path.isfile(root) == False, "isfile false on a directory")
 ok(path.exists(root) == True, "exists true after mkdir")
 var sub = path.join(root, "sub")
-ok(io.mkdir(sub) == True, "mkdir nested")
+ok(path.mkdir(sub) == True, "mkdir nested")
 
 # --- text file: write / read / readline / readlines / iterate ---
 var tpath = path.join(root, "text.txt")
@@ -119,7 +119,7 @@ var readClosed = Function():
     cf.close()
     discard cf.read()
 # `with` so the handle closes even though the op raises — else the leaked handle locks tpath on
-# Windows (which can't delete an open file) and the teardown io.remove(tpath) below fails.
+# Windows (which can't delete an open file) and the teardown path.remove(tpath) below fails.
 var writeReadonly = Function():
     with io.open(tpath, "r") as rf:
         discard rf.write("nope")
@@ -237,34 +237,35 @@ with io.open(f1, "w") as g1:
     discard g1.write("a")
 with io.open(f2, "w") as g2:
     discard g2.write("bb")
-var names = io.listdir(root)
+var names = path.listdir(root)
 ok("f1.txt" in names, "listdir lists a direct entry")
 ok("sub" in names, "listdir lists a subdirectory")
 ok(("f2.txt" in names) == False, "listdir is not recursive")
-ok(len(io.walk(root)) >= 2, "walk finds files recursively")
+ok(len(path.walk(root)) >= 2, "walk finds files recursively")
 
 # --- rename ---
 var f3 = path.join(root, "renamed.txt")
-io.rename(f1, f3)
+path.rename(f1, f3)
 ok(path.exists(f1) == False, "rename removed the old path")
 ok(path.exists(f3) == True, "rename created the new path")
 var renameMissing = Function():
-    io.rename(path.join(root, "missing.txt"), f1)
+    path.rename(path.join(root, "missing.txt"), f1)
 raises(renameMissing, "rename of a missing source raises")
 
 # --- getcwd is a non-empty string ---
-ok(type(io.getcwd()) == "String", "getcwd returns a String")
-ok(len(io.getcwd()) > 0, "getcwd is non-empty")
+ok(type(path.getcwd()) == "String", "getcwd returns a String")
+ok(len(path.getcwd()) > 0, "getcwd is non-empty")
 
 # --- tear down every temp path and assert it is gone ---
-ok(io.remove(f3) == True, "remove a file")
-ok(io.remove(f2) == True, "remove a nested file")
-ok(io.remove(tpath) == True, "remove the text file")
-ok(io.remove(bpath) == True, "remove the binary file")
-ok(io.remove(wpath) == True, "remove the with file")
-ok(io.remove(path.join(root, "missing.txt")) == False, "remove returns False for a missing path")
-ok(io.remove(sub) == True, "remove the empty subdirectory")
-ok(io.remove(root) == True, "remove the root directory")
+ok(path.remove(f3) == True, "remove a file")
+ok(path.remove(f2) == True, "remove a nested file")
+ok(path.remove(tpath) == True, "remove the text file")
+ok(path.remove(bpath) == True, "remove the binary file")
+ok(path.remove(wpath) == True, "remove the with file")
+raises(Function(): return path.remove(path.join(root, "missing.txt")), "remove of a missing path RAISES by default")
+ok(path.remove(path.join(root, "missing.txt"), missing_ok = True) == False, "remove(missing_ok=True) of a missing path is False")
+ok(path.remove(sub) == True, "remove the empty subdirectory")
+ok(path.remove(root) == True, "remove the root directory")
 ok(path.exists(root) == False, "scratch tree fully removed")
 
 io.print("r6_io: " + String(n) + " checks passed")
