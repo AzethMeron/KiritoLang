@@ -1,4 +1,5 @@
 var io = import("io")
+var path = import("path")
 
 # r6_kimods_b — independent audit of the Kirito-authored frozen-source modules, GROUP 2:
 # string, textwrap, base64, csv, tabular, xml, tee, arg, semver.
@@ -554,7 +555,7 @@ ok(dn.fillna(0).torows() == [{"a": 1, "b": 4}, {"a": 0, "b": 5}, {"a": 3, "b": 0
 
 # ============================================================ tabular: CSV file round-trip
 var iox = import("io")
-var tmp = iox.join(import("sys").gettempdir(), "r6_tab.csv")   # portable temp path
+var tmp = path.join(import("sys").gettempdir(), "r6_tab.csv")   # portable temp path
 with iox.open(tmp, "w") as fh:
     discard fh.write("city,pop\nA,100\nB,200\n")
 var dfromfile = tb.readcsv(tmp)

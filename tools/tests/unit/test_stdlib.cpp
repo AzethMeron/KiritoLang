@@ -67,8 +67,8 @@ first
     CHECK(evalStr(vm, "var sys = import(\"sys\")\nvar path = import(\"path\")\npath.isdir(sys.gettempdir()) and len(sys.gettempdir()) > 0") == "True");
     // --- path.join: os.path.join semantics (separator join; absolute part resets) ---
     CHECK(evalStr(vm, "import(\"path\").join(\"a\", \"b\", \"c\")") == "a/b/c");
-    CHECK(evalStr(vm, "import(\"sys\").joinpath(\"/usr\", \"local\", \"bin\")") == "/usr/local/bin");
-    CHECK(evalStr(vm, "import(\"sys\").joinpath(\"a\", \"/b\")") == "/b");
+    CHECK(evalStr(vm, "import(\"path\").join(\"/usr\", \"local\", \"bin\")") == "/usr/local/bin");
+    CHECK(evalStr(vm, "import(\"path\").join(\"a\", \"/b\")") == "/b");
 
     return RUN_TESTS();
 }

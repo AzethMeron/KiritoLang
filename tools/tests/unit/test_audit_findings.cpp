@@ -195,7 +195,7 @@ int main() {
         // File.tell() after an over-long read reports the byte length, not -1 (EOF bit cleared)
         const std::string mk =
             "var io = import(\"io\")\n"
-            "var p = import(\"sys\").joinpath(import(\"sys\").gettempdir(), \"kira_tell_probe.txt\")\n"
+            "var p = import(\"path\").join(import(\"sys\").gettempdir(), \"kira_tell_probe.txt\")\n"
             "var w = io.open(p, \"w\")\ndiscard w.write(\"hello\")\nw.close()\n"
             "var f = io.open(p, \"r\")\n";
         CHECK(ev(vm, mk + "discard f.read(1000)\nvar t = f.tell()\nf.close()\ndiscard io.remove(p)\nt") == "5");

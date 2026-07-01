@@ -44,9 +44,10 @@ int main() {
     CHECK(run("C.zero.is_zero()") == "True");
 
     // --- analytic functions (modulus of the difference is ~0) ---
-    CHECK(run("C.abs(C.exp(C.of(0, C.pi)) - C.of(-1, 0)) < 0.000000001") == "True");  // Euler
+    // complex has no pi/e — use math's (single source of truth)
+    CHECK(run("C.abs(C.exp(C.of(0, import(\"math\").pi)) - C.of(-1, 0)) < 0.000000001") == "True");  // Euler
     CHECK(run("C.sqrt(C.of(-1, 0))") == "0.0+1.0i");                                   // sqrt(-1) = i
-    CHECK(run("C.abs(C.log(C.of(C.e, 0)) - C.one) < 0.000000001") == "True");
+    CHECK(run("C.abs(C.log(C.of(import(\"math\").e, 0)) - C.one) < 0.000000001") == "True");
     CHECK(run("C.polar(2.0, 0.0)") == "2.0+0.0i");
 
     // --- matrices: determinant (Gaussian) and inverse (Gauss-Jordan) ---

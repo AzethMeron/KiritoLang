@@ -122,13 +122,13 @@ int main() {
         CHECK(run(vm, "var j = import(\"json\")\nlen(j.parse(\"{\\\"e\\\": \\\"\\\\uD83D\\\\uDE00\\\"}\")[\"e\"])") == "1");
     }
 
-    // --- io path helpers ---
+    // --- path helpers (the `path` module — moved out of io) ---
     {
         KiritoVM vm;
-        CHECK(run(vm, "import(\"io\").basename(\"/a/b/c.txt\")") == "c.txt");
-        CHECK(run(vm, "import(\"io\").dirname(\"/a/b/c.txt\")") == "/a/b");
-        CHECK(run(vm, "String(import(\"io\").splitext(\"file.tar.gz\"))") == "['file.tar', '.gz']");
-        CHECK(run(vm, "import(\"io\").join(\"a\", \"b\", \"c\")") == "a/b/c");
+        CHECK(run(vm, "import(\"path\").basename(\"/a/b/c.txt\")") == "c.txt");
+        CHECK(run(vm, "import(\"path\").dirname(\"/a/b/c.txt\")") == "/a/b");
+        CHECK(run(vm, "String(import(\"path\").splitext(\"file.tar.gz\"))") == "['file.tar', '.gz']");
+        CHECK(run(vm, "import(\"path\").join(\"a\", \"b\", \"c\")") == "a/b/c");
     }
 
     return RUN_TESTS();
