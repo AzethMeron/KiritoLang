@@ -79,7 +79,7 @@ int main() {
         ev(vm, "var f = import(\"io\").open(\"" + tmp + "\", \"w\")\ndiscard f.write(\"0123456789\")\nf.close()");
         CHECK(ev(vm, "var g = import(\"io\").open(\"" + tmp + "\", \"r\")\ndiscard g.seek(5)\nvar r = g.read(2)\ng.close()\nr") == "56");
         CHECK(ev(vm, "var g = import(\"io\").open(\"" + tmp + "\", \"r\")\nvar p = g.seek(3)\ng.close()\np") == "3");
-        ev(vm, "import(\"io\").remove(\"" + tmp + "\")");
+        ev(vm, "import(\"path\").remove(\"" + tmp + "\")");
         CHECK(ev(vm, "len(import(\"io\").BytesIO(\"abcde\"))") == "5");
         CHECK(ev(vm, "import(\"io\").BytesIO(\"l1\\nl2\\n\").readline()") == "l1");
     }
