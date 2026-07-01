@@ -180,7 +180,7 @@ loop and `return` outside a function are rejected at parse time.
 at loop start, then walks that fixed snapshot. So mutating the collection inside the loop is safe and
 well-defined: appending never causes an infinite loop (the new items aren't visited this pass),
 removing every element still visits all the originals (no skipping), and adding a dict key mid-loop
-does **not** raise. The structural change still
+does **not** throw. The structural change still
 applies to the collection — you just won't see it until the next loop. In-place mutation of a
 nested object you still hold a reference to *is* visible, because it's the same object.
 
@@ -221,7 +221,7 @@ switch command:
 Case labels are **expressions**, matched against the subject **exactly by type and value** — `case 1`
 and `case 1.0` are distinct, so a constant `case 3 + 4` or even `case some_var` is allowed. In practice
 you'll use constant scalars (`Integer`/`Float`/`String`/`Bool`/`None`); a label whose **runtime value**
-is non-scalar raises when that arm is reached, and a non-scalar *subject* (e.g. a list) only ever
+is non-scalar throws when that arm is reached, and a non-scalar *subject* (e.g. a list) only ever
 reaches `default`. The labels are tested in turn as an exact-match comparison chain. A second `default`,
 an empty arm body, and a non-scalar **literal** label are rejected at **parse time**; a **duplicate case
 value** is reported when the `switch` is actually reached at **run time** (so a never-executed `switch`
@@ -230,7 +230,7 @@ loop/function as usual; a `switch` with no matching case and no `default` is a n
 
 ### `assert`
 
-`assert CONDITION[, message]` raises a catchable error when `CONDITION` is falsy, and does nothing
+`assert CONDITION[, message]` throws a catchable error when `CONDITION` is falsy, and does nothing
 when it is truthy — a compact way to state an invariant at the point it must hold. The optional
 `message` (any expression) becomes the error text; without one it reads `"assertion failed"`. The
 error is an ordinary exception, so a surrounding `try`/`catch` (see [Exceptions](#exceptions)) can
@@ -261,7 +261,7 @@ var typed = Function(d : Dict) -> Float:
 ```
 
 A non-`None` return annotation also checks the **implicit** `None` a function returns by falling off
-the end (or hitting a `return`-less branch): such a function annotated `-> Integer` raises `function
+the end (or hitting a `return`-less branch): such a function annotated `-> Integer` throws `function
 must return Integer, got None`. (`-> None` accepts an explicit `return`, `return None`, or fall-off.)
 
 Annotations are checked at runtime (inheritance-aware for classes). `Any` or no annotation accepts
@@ -328,7 +328,7 @@ class Dog(Animal):
 Because resolution starts at the *current method's* class base, each `_super_()` climbs exactly one
 level, so multi-level chains (`Puppy → Dog → Animal`) compose correctly.
 
-`_super_()` is only meaningful when the class inherits — calling it from a class with no base raises
+`_super_()` is only meaningful when the class inherits — calling it from a class with no base throws
 `_super_() called in 'X', which does not inherit from any class`.
 
 It is technically a special method, so a class *can* define its own `_super_` and override the
@@ -337,7 +337,7 @@ call in that class's methods; there is no good reason to do it.
 
 ## Exceptions
 
-The keywords `throw`/`try`/`catch`/`finally` with indented blocks. `throw` raises; `try`/`catch [Type as e]`/`finally` handles.
+The keywords `throw`/`try`/`catch`/`finally` with indented blocks. `throw` throws; `try`/`catch [Type as e]`/`finally` handles.
 
 ```kirito
 class ValueError:
@@ -377,7 +377,7 @@ math.sqrt(2)
 
 A module's members only become visible once its body has finished running, so a **circular import**
 — a module that imports itself, directly or through a chain (`a` imports `b` imports `a`) — cannot
-be satisfied. Kirito detects the loop and raises a clear `circular import detected: a -> b -> a`
+be satisfied. Kirito detects the loop and throws a clear `circular import detected: a -> b -> a`
 error naming the chain, instead of looping until the stack is exhausted. Re-importing a module that
 has already finished loading is fine (a diamond `a` → {`b`, `c`} → `d` loads `d` once and shares it).
 

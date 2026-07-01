@@ -140,7 +140,7 @@ prints:
 report (String)
 ```
 
-If a value can't be converted (`--width abc`), `parse` raises a clear, catchable error rather than
+If a value can't be converted (`--width abc`), `parse` throws a clear, catchable error rather than
 handing you a bad value.
 
 ## Flags, short forms, `=`, and leftovers
@@ -217,7 +217,7 @@ arguments:
 
 ## Handling bad input
 
-Unknown options, a missing required positional, and unconvertible values all raise — wrap `parse` in
+Unknown options, a missing required positional, and unconvertible values all throw — wrap `parse` in
 a `try` to report them nicely instead of crashing:
 
 ```kirito
@@ -294,7 +294,7 @@ Drop `wordcount(arglist)` behind an `if argmain:` and the same file becomes a re
 - The **`arg` module**: build a `Parser`, declare `positional`/`option`/`flag` (chainable), then
   `parse(arglist)` into a Dict. Option values are **typed by their default**, extras land in `"rest"`,
   and `-h`/`--help` prints usage and returns `None`.
-- Parsing **raises clear, catchable errors** on bad input, so a `try` around `parse` gives friendly
+- Parsing **throws clear, catchable errors** on bad input, so a `try` around `parse` gives friendly
   diagnostics.
 
 Next bonus lesson: tabular **data analysis** with the `tabular` library.

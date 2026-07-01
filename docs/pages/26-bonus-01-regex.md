@@ -274,7 +274,7 @@ time — effectively a hang, and a real source of denial-of-service bugs. Kirito
 trap: its engine is linear-time by construction.
 
 The price of that guarantee (the same trade-off the RE2 library makes) is that two features which
-*require* backtracking are not supported, and raise a clear error rather than misbehaving:
+*require* backtracking are not supported, and throw a clear error rather than misbehaving:
 
 - **backreferences** like `(\\w+)\\1`
 - **lookaround** like `(?=...)`, `(?!...)`, `(?<=...)`, `(?<!...)`

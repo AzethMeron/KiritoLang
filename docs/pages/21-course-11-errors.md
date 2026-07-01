@@ -3,11 +3,11 @@
 Things go wrong: a file is missing, input is malformed, a divisor is zero. **Exceptions** let you
 signal such problems where they're detected and handle them where you can do something about it —
 without threading error codes through every return value. Kirito uses indented blocks
-with the keyword names `throw` (to raise), `try`/`catch`/`finally` (to handle).
+with the keyword names `throw` (to throw), `try`/`catch`/`finally` (to handle).
 
-## Raising with `throw`
+## Throwing with `throw`
 
-`throw` raises an exception, which unwinds the program until a matching `catch` handles it (or, if
+`throw` throws an exception, which unwinds the program until a matching `catch` handles it (or, if
 none does, stops the program with a message):
 
 ```kirito
@@ -148,7 +148,7 @@ call in its own `try` to turn a conversion failure into your `ParseError`.)
 
 ## What you learned
 
-- `throw` raises any value; uncaught exceptions stop the program with a message.
+- `throw` throws any value; uncaught exceptions stop the program with a message.
 - `try` / `catch as e` handles errors; `catch Type as e` handles a specific type (and subclasses).
 - Custom exception classes carry structured data; list multiple handlers specific-to-general.
 - `finally` always runs (cleanup); `assert` checks invariants.

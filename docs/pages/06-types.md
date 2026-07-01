@@ -59,7 +59,7 @@ The arithmetic operators are `+`, `-`, `*`, the three division forms below, and 
   remainder takes the sign of the divisor: `divmod(-7, 3) == [-3, 2]`.
 - `**` raises to a power (`2 ** 10 == 1024`). A negative base with a *fractional* exponent has no real
   result, so the operator yields `NaN` (it follows IEEE-754); the `math` module's `pow`/`sqrt` instead
-  **raise** a domain error.
+  **throw** a domain error.
 - `bin(n)` / `oct(n)` / `hex(n)` render an Integer in base 2 / 8 / 16 as a `String`
   (`hex(255) == "0xff"`).
 - Kirito has no bitwise *operators*; the builtins `bitand` / `bitor` / `bitxor` / `bitnot` and
@@ -152,8 +152,8 @@ io.print(", ".join(["a", "b", "c"])) # "a, b, c"
 | `s.endswith(p[, start[, end]])` | Whether `s` ends with suffix `p` (within an optional code-point window). |
 | `s.find(sub[, start[, end]])` | First index of `sub`, or `-1` if absent. |
 | `s.rfind(sub[, start[, end]])` | Last index of `sub`, or `-1` if absent. |
-| `s.index(sub[, start[, end]])` | First index of `sub`; raises if absent. |
-| `s.rindex(sub[, start[, end]])` | Last index of `sub`; raises if absent. |
+| `s.index(sub[, start[, end]])` | First index of `sub`; throws if absent. |
+| `s.rindex(sub[, start[, end]])` | Last index of `sub`; throws if absent. |
 | `s.count(sub[, start[, end]])` | Number of non-overlapping occurrences. |
 | `s.format(...)` | Substitute `{}` (sequential) and `{0}`/`{1}` (indexed) fields with the positional arguments. (Named `{x}` fields and `:format-spec` like `{:05d}` are **not** supported here — use an f-string or the `format()` builtin for those.) |
 | `s.isdigit()` | Whether every character is a digit. **ASCII `0`–`9` only** (`²`, `½`, fullwidth/Arabic-Indic digits are not digits here). |
@@ -197,7 +197,7 @@ String (encoded; default `utf-8`), or another Bytes (copied) — or `fromhex("48
 
 | Method / function | Meaning |
 | --- | --- |
-| `b.decode([encoding])` | Decode to a `String` (`utf-8` default, or `latin-1`/`ascii`). Raises on bytes that aren't valid for the encoding (malformed/overlong/surrogate UTF-8; a byte ≥ 0x80 for `ascii`). |
+| `b.decode([encoding])` | Decode to a `String` (`utf-8` default, or `latin-1`/`ascii`). Throws on bytes that aren't valid for the encoding (malformed/overlong/surrogate UTF-8; a byte ≥ 0x80 for `ascii`). |
 | `b.hex()` | Lowercase hex String (`b'Hi' → "4869"`). |
 | `b.apply(fn)` | A new Bytes with `fn` applied to each byte (`fn` takes/returns an Integer 0–255). |
 | `fromhex(s)` | Build a Bytes from a hex String (whitespace ignored). |
@@ -228,8 +228,8 @@ io.print(xs[0], xs[-1], xs[1:3])   # 1 4 [2, 3]
 | `xs.append(x)` | Add `x` to the end. |
 | `xs.pop([i])` | Remove and return the last element (or index `i`). |
 | `xs.insert(i, x)` | Insert `x` before index `i`. |
-| `xs.remove(x)` | Remove the first element equal to `x`; raises if absent. |
-| `xs.index(x[, start[, end]])` | Index of the first element equal to `x` (raises if absent), within an optional window. |
+| `xs.remove(x)` | Remove the first element equal to `x`; throws if absent. |
+| `xs.index(x[, start[, end]])` | Index of the first element equal to `x` (throws if absent), within an optional window. |
 | `xs.count(x)` | Number of elements equal to `x`. |
 | `xs.reverse()` | Reverse in place. |
 | `xs.sort([key][, reverse])` | Sort in place, **stable**; `key` precomputed once per element. |
@@ -258,7 +258,7 @@ io.print(a.union(b), a.intersection(b))   # a 4-element set and {3} (a Set is un
 |--------|-------------|
 | `s.add(x)` | Insert `x`. |
 | `s.discard(x)` | Remove `x` if present (no error if absent). |
-| `s.remove(x)` | Remove `x` (raises if `x` is absent — unlike `discard`). |
+| `s.remove(x)` | Remove `x` (throws if `x` is absent — unlike `discard`). |
 | `s.pop()` | Remove and return an arbitrary element. |
 | `s.contains(x)` | Membership test (also `x in s`). |
 | `s.union(other)` | Elements in either set. |
@@ -275,7 +275,7 @@ io.print(a.union(b), a.intersection(b))   # a 4-element set and {3} (a Set is un
 The set-algebra **methods** (`union`/`intersection`/`difference`/`symmetricdifference`/`issubset`/
 `issuperset`/`isdisjoint`) accept **any iterable** for `other` — another Set, a List, a Dict (its
 keys), or a String (its characters) — e.g. `{1, 2}.union([2, 3])`. The set-algebra **operators**
-(`-`, `<`, `<=`, `>`, `>=`), by contrast, require a Set on the right-hand side and raise otherwise.
+(`-`, `<`, `<=`, `>`, `>=`), by contrast, require a Set on the right-hand side and throw otherwise.
 
 ## Dict
 
@@ -300,7 +300,7 @@ io.print(d.get("z", 0))    # 0 (default)
 | `d.items()` | List of `[key, value]` pairs. |
 | `d.get(key[, default])` | Value for `key`, or `default` (or `None`) if missing. |
 | `d.pop(key[, default])` | Remove and return `key`'s value. |
-| `d.remove(key)` | Delete `key` (raises if absent; like `pop` but returns nothing). |
+| `d.remove(key)` | Delete `key` (throws if absent; like `pop` but returns nothing). |
 | `d.popitem()` | Remove and return an arbitrary `[key, value]` pair (a Dict is unordered — no "last" pair to rely on). |
 | `d.setdefault(key[, default])` | Get `key`, inserting `default` first if absent. |
 | `d.update(other)` | Merge another Dict (or `[key, value]` pairs) in. |
@@ -320,7 +320,7 @@ prints a class/instance/module's public API.
 
 Define any of these as methods on a class to control how instances respond to operators, built-ins,
 and language constructs. Each takes `self` as its first parameter. A method that isn't defined means
-the corresponding operator raises a clear "no operator" / "not supported" error (except `_ne_`, which
+the corresponding operator throws a clear "no operator" / "not supported" error (except `_ne_`, which
 falls back to `not _eq_`). Names use **single** leading/trailing underscores (`_add_`, not `__add__`).
 
 ### Construction and display
@@ -389,7 +389,7 @@ A few deliberate boundaries (different from Python — worth knowing so you don'
 that isn't there):
 
 - **Left operand only — no reflected operators.** `x + y` consults `x`'s `_add_` (and `x < y` consults
-  `x`'s `_lt_`), never a right-hand `_radd_`/reflected form. `3 * v` raises even if `v` defines `_mul_`;
+  `x`'s `_lt_`), never a right-hand `_radd_`/reflected form. `3 * v` throws even if `v` defines `_mul_`;
   put the instance on the left. (`_eq_`/`_ne_` are the exception — equality is checked symmetrically.)
 - **Only `_ne_` derives from `_eq_`.** The ordering operators do **not** derive from each other — define
   each of `_lt_`/`_le_`/`_gt_`/`_ge_` you need.

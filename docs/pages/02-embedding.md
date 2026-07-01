@@ -204,5 +204,5 @@ Handle r = vm.runSource("import(\"stats\").mean([2, 4, 6, 8])\n");
 
 This is the lightest possible embed and is exactly what the extending integration test
 (`tools/tests/integration/embed_demo.cpp`) uses. The only thing you give up is multiprocessing:
-`import("parallel")` raises, because the `parallel` module is a dispatcher-provided capability. Reach
+`import("parallel")` throws, because the `parallel` module is a dispatcher-provided capability. Reach
 for this only when you are certain you'll never want worker VMs; otherwise prefer the dispatcher.

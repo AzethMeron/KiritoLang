@@ -19,7 +19,7 @@ io.print(repeat("ab", 3))      # => ababab
 ```
 
 When you call `repeat`, Kirito verifies each argument is an instance of the named type and that the
-returned value matches `-> String`. A mismatch raises a clear, catchable error instead of producing
+returned value matches `-> String`. A mismatch throws a clear, catchable error instead of producing
 nonsense:
 
 <!--norun (intentional annotation violation)-->
@@ -68,7 +68,7 @@ io.print(half(3.0))         # => 1.5
 io.print(half(Float(3)))    # => 1.5   (convert an Integer first)
 ```
 
-Calling `half(3)` with a bare Integer raises `argument 'x' must be Float, got Integer`. (Inside
+Calling `half(3)` with a bare Integer throws `argument 'x' must be Float, got Integer`. (Inside
 arithmetic, mixing an Integer and a Float still promotes to Float — it is only the annotation *check*
 that is strict.)
 

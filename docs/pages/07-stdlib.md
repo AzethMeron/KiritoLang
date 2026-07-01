@@ -33,7 +33,7 @@ The optional `stream=` keyword sends/takes that one call's output/input to/from 
 
 ### Files and buffers
 
-- `open(path: String, mode: String = "r") → File` — open a file. Modes: `"r"` read, `"w"` truncate-write, `"a"` append, `"r+"` read/write. Append a `"b"` (`"rb"`/`"wb"`/`"ab"`/`"r+b"`) for **binary** mode: `read`/`readline`/iteration then yield [`Bytes`](types.html#bytes) and `write`/`writelines` accept Bytes (the right mode for non-text files — images, gzip, `dump` blobs). Raises if it can't be opened. Usable as a `with` context manager.
+- `open(path: String, mode: String = "r") → File` — open a file. Modes: `"r"` read, `"w"` truncate-write, `"a"` append, `"r+"` read/write. Append a `"b"` (`"rb"`/`"wb"`/`"ab"`/`"r+b"`) for **binary** mode: `read`/`readline`/iteration then yield [`Bytes`](types.html#bytes) and `write`/`writelines` accept Bytes (the right mode for non-text files — images, gzip, `dump` blobs). Throws if it can't be opened. Usable as a `with` context manager.
 - `BytesIO([initial: String]) → BytesIO` — an in-memory read/write byte buffer, usable anywhere a file or stream is expected.
 
 ### Filesystem
@@ -50,17 +50,17 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 - `f.read([n]) → String` — read `n` characters, or the whole rest of the file if omitted. (In binary mode, returns [`Bytes`](types.html#bytes); `n` counts bytes.)
 - `f.readline() → String` — read one line (without the trailing newline). (Bytes in binary mode.)
 - `f.readlines() → List` — read all remaining lines into a List.
-- `f.write(s: String | Bytes) → None` — write `s` at the current position. Raises on a closed file
+- `f.write(s: String | Bytes) → None` — write `s` at the current position. Throws on a closed file
   or one opened read-only — a write is never silently dropped.
-- `f.writelines(lines) → None` — write each String/Bytes in an iterable (same raising rules).
+- `f.writelines(lines) → None` — write each String/Bytes in an iterable (same throwing rules).
 - `f.seek(offset: Integer, whence: Integer = 0) → Integer` — move the read/write cursor and return the
   new position. `whence` is `0` (from the start, the default), `1` (relative to the current position),
   or `2` (from the end).
 - `f.tell() → Integer` — the current byte position.
 - `f.flush() → None` — flush buffered output.
 - `f.close() → None` — close the file (also done automatically on `with` exit / collection).
-  Reading, writing, or seeking a **closed** file raises a catchable error; reading a write-only
-  (`"w"`/`"a"`) file or writing a read-only (`"r"`) one likewise raises.
+  Reading, writing, or seeking a **closed** file throws a catchable error; reading a write-only
+  (`"w"`/`"a"`) file or writing a read-only (`"r"`) one likewise throws.
 
 ### BytesIO object
 
@@ -71,7 +71,7 @@ Returned by `io.open`. Iterating a file yields its remaining lines.
 - `b.getvalue() → String` — the entire buffer contents.
 - `b.tell() → Integer` — the current cursor position.
 - `b.seek(off[, whence]) → Integer` — move the cursor (whence 0=start, 1=cur, 2=end). A resulting
-  position before the start clamps to 0 (whereas `File.seek` to a negative position raises).
+  position before the start clamps to 0 (whereas `File.seek` to a negative position throws).
 - `b.size() → Integer` — total buffer length in bytes (`len(b)` also works).
 - `b.truncate() → Integer` — drop everything after the cursor.
 - `b.flush() → None` — a no-op (the buffer is always in sync); present for the common stream protocol.
@@ -104,7 +104,7 @@ if path.exists(full) and path.isfile(full):
 
 - `join(*parts) → String` — join path components with `/`. A later component that is **absolute**
   (starts with `/`) resets the result; a trailing slash is not doubled; empty parts contribute
-  nothing. Like `os.path.join` it needs at least one component — `join()` with no parts **raises**. A
+  nothing. Like `os.path.join` it needs at least one component — `join()` with no parts **throws**. A
   leading `\` is **not** treated as absolute (only `/` resets).
 - `dirname(path: String) → String` — the directory part of `path` (the root is kept: `dirname("/a")`
   is `"/"`).
@@ -113,16 +113,16 @@ if path.exists(full) and path.isfile(full):
   of dots is protected, so `.bashrc`/`..`/`...x` have no extension (matching `os.path.splitext`).
 - `dirname`/`basename`/`splitext` split on either `/` or `\` and return literal substrings of the
   input — they do not rewrite separators, so only `basename` (the final component) is guaranteed free
-  of a backslash; a `\` inside a retained prefix is preserved. A non-String argument **raises**.
+  of a backslash; a `\` inside a retained prefix is preserved. A non-String argument **throws**.
 
 ### Filesystem queries
 
 - `exists(path: String) → Bool` — whether `path` exists (tolerant: a missing/inaccessible path is
-  simply `False`, never a raise).
+  simply `False`, never a throw).
 - `isfile(path: String) → Bool` — whether `path` is a regular file (tolerant).
 - `isdir(path: String) → Bool` — whether `path` is a directory (tolerant).
 - `getsize(path: String) → Integer` — the file size in bytes. Unlike the tolerant predicates,
-  `getsize` **raises** on a missing or non-regular path (there is no sensible size to return).
+  `getsize` **throws** on a missing or non-regular path (there is no sensible size to return).
 - `listdir(path: String) → List` — the entry names directly under `path` (tolerant: a missing dir
   lists as `[]`).
 - `walk(dir: String) → List` — every file path under `dir`, recursively (flattened; tolerant).
@@ -130,23 +130,23 @@ if path.exists(full) and path.isfile(full):
 
 ### Filesystem mutation
 
-The mutating ops are **strict by default** — they raise rather than silently no-op — with opt-in
+The mutating ops are **strict by default** — they throw rather than silently no-op — with opt-in
 leniency. `mkdir`/`remove`/`mkremove` return a `Bool` (`True` = it did the work, `False` = the opt-in
 lenient no-op); `rename` returns `None`; `chmod` returns a `Bool` success flag.
 
 - `mkdir(path: String, exist_ok = False) → Bool` — create the directory (and any missing parents).
-  Returns `True` when it creates it; **raises** if `path` already exists. Pass `exist_ok = True` to
+  Returns `True` when it creates it; **throws** if `path` already exists. Pass `exist_ok = True` to
   make an existing directory a no-op (returns `False`, nothing created).
 - `remove(path: String, missing_ok = False) → Bool` — delete a file (or an *empty* directory).
-  Returns `True` when it removes something; **raises** if `path` does not exist. Pass
-  `missing_ok = True` to make a missing path a no-op (returns `False`). A non-empty directory raises —
+  Returns `True` when it removes something; **throws** if `path` does not exist. Pass
+  `missing_ok = True` to make a missing path a no-op (returns `False`). A non-empty directory throws —
   use `mkremove`.
 - `mkremove(path: String, missing_ok = False) → Bool` — **recursively** delete a directory and
   everything under it (or a single file) — the recursive counterpart to `remove` (`rm -rf` /
   `shutil.rmtree`). Same strict/`missing_ok` contract as `remove`.
-- `rename(src: String, dst: String) → None` — rename/move a path (raises on failure).
+- `rename(src: String, dst: String) → None` — rename/move a path (throws on failure).
 - `chmod(path: String, mode: Integer) → Bool` — set permission bits from a POSIX-style octal (e.g.
-  `0o755`); lenient (a missing file returns `False`, no raise). On Windows only the owner read/write
+  `0o755`); lenient (a missing file returns `False`, no throw). On Windows only the owner read/write
   bits are meaningful.
 
 ```kirito
@@ -164,13 +164,13 @@ path.mkremove(d)                            # recursively remove the whole tree
 
 ## math
 
-Constants and the usual numeric functions. Both type **and domain** errors raise a clear `math domain
+Constants and the usual numeric functions. Both type **and domain** errors throw a clear `math domain
 error` rather than silently returning `nan`/`inf` rubbish — `sqrt(-1)`, `log(0)`, `log(-1)`, `asin(2)`,
 `acos(2)`, `acosh(0)`, `atanh(1)`, `log2(0)`, `log10(0)`, `log1p(-1)`, `gamma(0)`/`gamma(-1)`,
 `lgamma(0)`, `pow(-2, 0.5)` (negative base, non-integer exponent), `pow(0, -1)` (zero to a negative
-power), `fmod(x, 0)`, and a `log` base `≤ 0` or `== 1` all raise. A NaN argument passes through
+power), `fmod(x, 0)`, and a `log` base `≤ 0` or `== 1` all throw. A NaN argument passes through
 unchanged (`sqrt(nan) → nan`), and a genuine *range* condition — overflow to infinity such
-as `exp(1000) → inf` — is not a domain error and does not raise. Results are `Float` unless noted.
+as `exp(1000) → inf` — is not a domain error and does not throw. Results are `Float` unless noted.
 
 - Constants: `pi`, `e`, `tau`, `inf`, `nan` (all `Float`).
 - `sqrt(x: Number) → Float` — square root.
@@ -213,12 +213,12 @@ as `exp(1000) → inf` — is not a domain error and does not raise. Results are
 - `isfinite(x: Number) → Bool` — whether `x` is finite (neither NaN nor infinite).
 - `gcd(a: Integer, b: Integer) → Integer` — greatest common divisor.
 - `lcm(a: Integer, b: Integer) → Integer` — least common multiple.
-- `factorial(n: Integer) → Integer` — `n!` (raises on negatives / Integer overflow).
+- `factorial(n: Integer) → Integer` — `n!` (throws on negatives / Integer overflow).
 - `comb(n: Integer, k: Integer) → Integer` — combinations “n choose k”.
 - `perm(n: Integer, k = None) → Integer` — permutations of `n` taken `k` at a time; with `k` omitted
   (or `None`) it returns `n!`.
 - `prod(iterable, start = 1) → Number` — product of the elements times `start` (Integer if all Integer,
-  else Float). Like `factorial`/`comb`/`perm`/`lcm`, an all-Integer product raises on Integer overflow
+  else Float). Like `factorial`/`comb`/`perm`/`lcm`, an all-Integer product throws on Integer overflow
   rather than silently wrapping; a Float anywhere in the mix makes the result a Float (no overflow).
 
 ---
@@ -263,7 +263,7 @@ module below; for arbitrary-rank arrays, see `tensor`.
 - `vector(values: List) → Matrix` — a 1×n row vector from a flat list of numbers.
 
 Matrices are arbitrary-shape (any rows × cols). Shape-specific operations (`determinant`, `inverse`,
-`trace`) require a square matrix and raise otherwise; `*` requires conformable inner dimensions.
+`trace`) require a square matrix and throw otherwise; `*` requires conformable inner dimensions.
 
 ### Matrix object
 
@@ -287,7 +287,7 @@ Matrices are arbitrary-shape (any rows × cols). Shape-specific operations (`det
 - `m.determinant() → Float` — determinant (square matrices). A matrix whose elimination produces a
   pivot below ~`1e-15` is treated as singular and the determinant is reported as `0.0` (a conservative
   guard against an ill-conditioned, near-garbage value).
-- `m.inverse() → Matrix` — inverse. **Raises** `"singular"` if the matrix is singular (pivot below the
+- `m.inverse() → Matrix` — inverse. **Throws** `"singular"` if the matrix is singular (pivot below the
   threshold above) — unlike `determinant`, which returns `0.0`.
 - `m.trace() → Float` — sum of the diagonal.
 - `m.sum() → Float` — sum of every element.
@@ -322,12 +322,12 @@ the real axis, so any function or operator below also accepts plain `Integer`/`F
 
 - `z.re → Float`, `z.im → Float` — the real and imaginary parts (also `z.real`/`z.imag`).
 - `z1 + z2`, `z1 - z2`, `z1 * z2`, `z1 / z2`, `z1 ** z2`, `-z` — arithmetic. A `Complex` must be the
-  left operand when mixing with a number (`z + 2`, not `2 + z`). Division by zero raises.
+  left operand when mixing with a number (`z + 2`, not `2 + z`). Division by zero throws.
 - `z1 == z2 → Bool` — **exact** equality (real and imaginary parts bit-equal; `NaN` never equal); a
   `Complex` with zero imaginary part also equals the matching real number (`Complex(2, 0) == 2`).
 - `z.compare(other, rel_tol = 1e-9, abs_tol = 0.0) → Bool` — tolerant comparison (relative/absolute tolerance on the
   complex magnitude); use it for computed values, e.g. `(1+i)**2 ≈ 2i`.
-- Complex numbers are **unordered**: `<`, `<=`, `>`, `>=` raise.
+- Complex numbers are **unordered**: `<`, `<=`, `>`, `>=` throw.
 - `z.conjugate() → Complex` — the complex conjugate.
 - `z.modulus() → Float` — the magnitude `|z|` (also `z.magnitude()` / `z.abs()`).
 - `z.argument() → Float` — the phase angle in radians (also `z.arg()` / `z.phase()`).
@@ -348,13 +348,13 @@ Scalar reductions (one per line):
 
 The analytic math set — the complex extensions of the `math` functions — each take a `Complex` or a
 number and return a `Complex`. They are defined across the whole complex plane (so `sqrt(-1)` → `i`,
-`log(-1)` → `iπ`, `asin(2)`/`acosh(0)` are valid), but the true singularities raise a `math domain
+`log(-1)` → `iπ`, `asin(2)`/`acosh(0)` are valid), but the true singularities throw a `math domain
 error` on the same out-of-domain inputs: `log(0)`/`log10(0)`, `atanh(±1)`, and `pow`/`**` of zero to
 a negative or non-real power (`zero ** -1`):
 
 - `exp(z)`
-- `log(z)` — natural logarithm (principal branch); raises on `0`.
-- `log10(z)` — raises on `0`.
+- `log(z)` — natural logarithm (principal branch); throws on `0`.
+- `log10(z)` — throws on `0`.
 - `sqrt(z)` — principal square root.
 - `cbrt(z)` — principal cube root.
 - `pow(z, w)` — `z` raised to the power `w`.
@@ -381,7 +381,7 @@ a negative or non-real power (`zero ** -1`):
 - `vector(values: List) → ComplexMatrix` — a 1×n complex row vector.
 
 Like real matrices, complex matrices are arbitrary-shape; `determinant`/`inverse`/`trace` need a
-square matrix and raise otherwise.
+square matrix and throw otherwise.
 
 #### ComplexMatrix object
 
@@ -394,7 +394,7 @@ square matrix and raise otherwise.
 - `m.conjugate() → ComplexMatrix` — element-wise complex conjugate.
 - `m.hermitian() → ComplexMatrix` — the conjugate transpose (also `m.conjugatetranspose()`).
 - `m.determinant() → Complex` — determinant via **Gaussian elimination** with partial pivoting.
-- `m.inverse() → ComplexMatrix` — inverse via **fast O(n³) Gauss-Jordan** elimination (raises if
+- `m.inverse() → ComplexMatrix` — inverse via **fast O(n³) Gauss-Jordan** elimination (throws if
   singular).
 - `m.trace() → Complex` — sum of the diagonal.
 - `m.apply(fn) → ComplexMatrix` — a new matrix with `fn` applied to each element.
@@ -467,8 +467,8 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
   the real part).
 - `t.sum(axis = None)`, `t.mean(axis = None)`, `t.prod(axis = None)` — reduce the whole tensor to a
   scalar, or one `axis` to a lower-rank tensor. A **negative axis** counts from the end NumPy-style
-  (`-1` is the last axis); an out-of-range axis raises. (Applies to every axis-taking reduction below.)
-- `t.min(axis = None)`, `t.max(axis = None)` — extremes (whole-tensor or along an axis; raise for a
+  (`-1` is the last axis); an out-of-range axis throws. (Applies to every axis-taking reduction below.)
+- `t.min(axis = None)`, `t.max(axis = None)` — extremes (whole-tensor or along an axis; throw for a
   `Complex` tensor, which is unordered).
 
 ### Indexing & slicing
@@ -525,7 +525,7 @@ result as a differentiable leaf (Float only — see [Autograd](#autograd)).
   `inner`/`tensordot`/`contract`/`einsum` return a **Tensor** (0-D for a full contraction — call
   `.item()` for a Float scalar); only `dot` and the scalar reductions (no `axis`) return a plain Float.
   A repeated *output* label in `einsum` (e.g. `"ii->ii"`) is rejected. `outer` flattens operands of any
-  rank, but `kron` requires both operands to be **2-D** (raises otherwise). `det` can underflow to `0.0`
+  rank, but `kron` requires both operands to be **2-D** (throws otherwise). `det` can underflow to `0.0`
   for an extreme-but-well-conditioned matrix (e.g. `diag(1e-200)`, true det `1e-400`) even though `inv`
   and `solve` still succeed — the singularity test is scale-relative, so `det == 0.0` does not by itself
   mean singular at extreme scales.
@@ -552,7 +552,7 @@ Every one of these returns a new tensor with the function applied element-wise, 
 - hyperbolic: `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`
 - neural-net: `relu`, `sigmoid`
 
-Like the scalar `math` module — and like the tensor engine's own division-by-zero guard — these raise a
+Like the scalar `math` module — and like the tensor engine's own division-by-zero guard — these throw a
 clear `tensor … : math domain error` on an out-of-domain **element** instead of silently emitting
 `NaN`/`inf` into the result (and poisoning gradients): `log`/`log10`/`log2` of `≤ 0`, `sqrt` of a
 negative, `asin`/`acos` outside `[-1, 1]`, `acosh` below `1`, `atanh` at/outside `±1`, `reciprocal` of
@@ -580,7 +580,7 @@ accumulates each tensor's gradient. The graph records *operations*, not where th
 design carries forward to a future GPU backend.
 
 Autograd applies to the **Float** dtype only: a **Complex tensor has no gradients** — marking one with
-`requiresgrad = True` (constructor keyword or method) raises, and the differentiable element-wise math
+`requiresgrad = True` (constructor keyword or method) throws, and the differentiable element-wise math
 methods are Float-only as well. Complex tensors remain a full numeric container (arithmetic, `matmul`,
 `tensordot`, reshaping, reductions); use the `complex` module for complex analytic functions.
 
@@ -636,7 +636,7 @@ io.print(w[0, 0], b[0, 0])      # ~ 2.0  ~ 1.0
 JSON parsing and serialization (flat data interchange — for reference/cycle-preserving snapshots see
 `serialize` / `dump` below). `loads` and `dumps` are aliases of `parse` and `stringify`.
 
-- `parse(text: String)` — parse JSON text into Kirito values (objects → Dict, arrays → List, decodes `\u` escapes and surrogate pairs). Raises a clear error on malformed input.
+- `parse(text: String)` — parse JSON text into Kirito values (objects → Dict, arrays → List, decodes `\u` escapes and surrogate pairs). Throws a clear error on malformed input.
 - `loads(text: String)` — an alias of `parse`.
 - `stringify(value, indent: Integer = 0) → String` — serialize a value to JSON; compact by default, pretty-printed when the indent width is greater than zero.
 - `dumps(value, indent: Integer = 0) → String` — an alias of `stringify`.
@@ -673,7 +673,7 @@ checkpoint), and gradient-free **`Tensor`** (`tensor`; a Tensor that requires gr
 `detach()`-ed first). They can be stored standalone or nested inside Lists/Dicts/Sets/instances, with
 shared references preserved. Resource-like natives that wrap live state — `Socket`/`Session` (`net`),
 open files/`BytesIO`/streams (`io`), a compiled `Regex`/`Match` (`regex`) — are **not** serializable
-and raise a clear, catchable error instead.
+and throw a clear, catchable error instead.
 
 Human-readable **text** serialization → a `String`.
 
@@ -796,7 +796,7 @@ Process environment and platform.
 - `unsetenv(name: String) → None` — remove a variable.
 - `environ() → Dict` — all environment variables.
 - `traceback() → String` — the call chain of the most recent error this VM unwound (empty until one
-  is raised); useful for logging inside a `catch`.
+  is thrown); useful for logging inside a `catch`.
 
 > **Encoding & empty values.** Names and values are byte-for-byte round-tripped on POSIX. On
 > Windows they go through the narrow (ANSI code-page) environment API, so a non-ASCII value isn't
@@ -826,8 +826,8 @@ identical on Linux, macOS and Windows.
   - `cwd` — working directory for the child (`None` = inherit the parent's).
   - `input` — a String written to the child's stdin (then closed); `""` sends nothing.
   - `timeout` — seconds (a number); if the child is still running when it elapses, it is killed and a
-    catchable error is raised. `None` waits indefinitely.
-  - A program that can't be started (not found, etc.) raises a clear catchable error.
+    catchable error is thrown. `None` waits indefinitely.
+  - A program that can't be started (not found, etc.) throws a clear catchable error.
 
   ```kirito
   var r = sys.createprocess(["ffmpeg", "-i", "in.mov", "out.mp4"], timeout = 60)
@@ -864,11 +864,11 @@ Clocks and calendar time.
 - `datetime([timestamp: Number]) → DateTime` — a `DateTime` from epoch seconds (current time if omitted).
 - `make(year, month, day, hour = 0, minute = 0, second = 0) → DateTime` — build from UTC components.
   Out-of-range components **normalize** (C `mktime`-style: month 13 → January of the next year,
-  day 32 → the 1st of the next month), rather than raising.
+  day 32 → the 1st of the next month), rather than throwing.
 - `strptime(text: String, format: String) → DateTime` — parse a time string against a format of
   `%`-codes (`%Y-%m-%d %H:%M:%S`, …). Unlike `make`, parsing is strict: a literal/format mismatch,
   an **out-of-range** field (`2024-99-99`, hour `25`), or **unconverted trailing input**
-  (`"2024-01-01XYZ"`) all raise rather than silently producing a garbage date.
+  (`"2024-01-01XYZ"`) all throw rather than silently producing a garbage date.
 
 ### DateTime object
 
@@ -902,7 +902,7 @@ data (downloads, files) stays byte-correct as Bytes while text round-trips as a 
 *container* is its own [`gzip`](#gzip) module.
 
 - `compress(data) → data` — zlib-format (RFC 1950) compress.
-- `decompress(data) → data` — zlib-format decompress (raises on bad data).
+- `decompress(data) → data` — zlib-format decompress (throws on bad data).
 - `deflate(data) → data` — raw DEFLATE compression (no zlib header).
 - `inflate(data) → data` — raw DEFLATE decompression (no zlib header).
 
@@ -918,7 +918,7 @@ same type as its input.
 - `compress(data) → data` (alias `gzip`) — wrap the DEFLATE body in the gzip container (RFC 1952). A
   valid `.gz` stream interoperable with `gzip(1)`/`gunzip` (OS = unknown, MTIME = 0, so not byte-identical to gzip(1)).
 - `decompress(data) → data` (alias `gunzip`) — validate the header, skip the optional filename/extra
-  fields, INFLATE, and verify the CRC-32 trailer (raises on a corrupt stream).
+  fields, INFLATE, and verify the CRC-32 trailer (throws on a corrupt stream).
 
 Pair with `net.get(url).content` (raw `Bytes`) to fetch and unpack a `.gz` resource:
 
@@ -953,7 +953,7 @@ Regular expressions with a **guaranteed linear-time** match. The engine compiles
 bytecode program and simulates a Thompson NFA (Pike's algorithm, tracking capture positions), so
 matching is O(text × pattern) with **no catastrophic backtracking** — a pattern like `(a+)+b` against
 a long input is instant, not exponential. The cost of that guarantee (the same trade-off RE2 makes)
-is that two backtracking-only constructs are deliberately **not supported** and raise a clear error:
+is that two backtracking-only constructs are deliberately **not supported** and throw a clear error:
 **backreferences** (`\1`) and **lookaround** (`(?=…)`, `(?!…)`, `(?<=…)`, `(?<!…)`).
 
 All positions and spans are **code-point indices** (consistent with
@@ -1056,11 +1056,11 @@ threads directly — instead a value is serialized out of one VM and rebuilt in 
 ### Task
 
 - `t.join() → value` — block until the worker finishes and return its result (rebuilt in the caller's
-  VM). If the worker raised, `join` re-raises it here. `join` is **idempotent**: a second call returns
-  the same value (or re-raises the same error) from the cached result. Enforced type annotations on
+  VM). If the worker thrown, `join` re-throws it here. `join` is **idempotent**: a second call returns
+  the same value (or re-throws the same error) from the cached result. Enforced type annotations on
   the spawned function are checked inside the worker, so an annotation violation surfaces here at `join`.
 - `t.done() → Bool` — whether the worker has finished (non-blocking). True once the worker has
-  finished **whether it returned or raised** — pair it with `join` to retrieve the value or error.
+  finished **whether it returned or thrown** — pair it with `join` to retrieve the value or error.
 
 ### Queue
 
@@ -1070,13 +1070,13 @@ a Queue into `spawn` (or through another Queue) references the **same** underlyi
 - `Queue(maxsize: Integer = 0) → Queue` — a new queue; `maxsize = 0` is unbounded, otherwise bounded
   (a full `put` blocks for back-pressure).
 - `q.put(item, block: Bool = True, timeout = None) → None` — enqueue `item` (serialized). On a full
-  bounded queue: blocks, or raises if `block = False` / the `timeout` elapses.
+  bounded queue: blocks, or throws if `block = False` / the `timeout` elapses.
 - `q.get(block: Bool = True, timeout = None) → value` — dequeue the next value. On an empty queue:
-  blocks, or raises if `block = False` / the `timeout` elapses.
+  blocks, or throws if `block = False` / the `timeout` elapses.
 - `q.putnowait(item)` / `q.getnowait()` — non-blocking `put` / `get`.
 - `q.qsize() → Integer`, `q.empty() → Bool`, `q.full() → Bool`.
-- `q.close() → None` — mark the queue closed. Pending and subsequent `put`s raise; `get` drains the
-  remaining items and then raises — the idiom a consumer loop uses to stop (here `q` is a `Queue` and
+- `q.close() → None` — mark the queue closed. Pending and subsequent `put`s throw; `get` drains the
+  remaining items and then throws — the idiom a consumer loop uses to stop (here `q` is a `Queue` and
   `handle` a function from the surrounding program):
 
 <!--norun (consumer-loop idiom fragment; q/handle come from the surrounding program)-->
@@ -1085,7 +1085,7 @@ var running = True
 while running:
     try:
         handle(q.get())
-    catch as e:        # raised when the queue is closed and drained
+    catch as e:        # thrown when the queue is closed and drained
         running = False
 ```
 
@@ -1097,16 +1097,16 @@ woken by interpreter shutdown.
 - `Lock() → Lock` — a non-reentrant mutex. `l.acquire(block = True, timeout = None) → Bool` (True if
   acquired, False on timeout), `l.release()`, `l.locked() → Bool`. Best used as a context manager,
   which always releases: `with l: ...`. Non-reentrant means a worker that already holds the lock and
-  acquires it again **raises** (rather than self-deadlocking); releasing an unheld lock also raises.
+  acquires it again **throws** (rather than self-deadlocking); releasing an unheld lock also throws.
 - `Event() → Event` — a resettable flag. `e.set()`, `e.clear()`, `e.isset() → Bool`,
   `e.wait(timeout = None) → Bool` (True once set, False on timeout).
 - `Semaphore(value: Integer = 1) → Semaphore` — a permit counter for bounded concurrency.
   `s.acquire(block = True, timeout = None) → Bool`, `s.release()`; also a context manager (`with s:`).
 - `Barrier(parties: Integer) → Barrier` — an N-party rendezvous. `b.wait(timeout = None) → Integer`
   (returns the arrival index 0..parties-1; the last arrival releases all), `b.parties() → Integer`,
-  `b.nwaiting() → Integer`, `b.reset()`, `b.abort()`. Unlike the others, `b.wait` on **timeout raises**
+  `b.nwaiting() → Integer`, `b.reset()`, `b.abort()`. Unlike the others, `b.wait` on **timeout throws**
   (it breaks the barrier) rather than returning a sentinel. `reset()` breaks only the currently-waiting
-  parties and keeps the barrier reusable; `abort()` is **permanent** — every later `wait` raises.
+  parties and keeps the barrier reusable; `abort()` is **permanent** — every later `wait` throws.
 
 These primitives cross VM boundaries **by identity** (passing one into `spawn`, or returning one from a
 worker, shares the same underlying object), but they define no `==`/hash: two handles to the same object
@@ -1115,7 +1115,7 @@ compare `==` as `False`, and a primitive cannot be used as a Dict/Set key (it is
 ### Avoiding deadlock
 
 The runtime is deadlock-safe by construction: every blocking call honors a `timeout`, and interpreter
-shutdown aborts every blocked primitive (a blocked op then raises "operation aborted"). For
+shutdown aborts every blocked primitive (a blocked op then throws "operation aborted"). For
 application-level safety:
 
 - prefer `with lock:` / `with sem:` so a primitive is always released, even on an exception;
@@ -1212,7 +1212,7 @@ rather than a lazy sequence.
 - `pvariance(data) → Float` — the population variance.
 - `pstdev(data) → Float` — the population standard deviation.
 - `quantiles(data[, n]) → List` — cut points dividing `data` into `n` equal groups (`n ≥ 1`, default
-  `4`); raises on fewer than two data points or `n < 1`.
+  `4`); throws on fewer than two data points or `n < 1`.
 
 ---
 
@@ -1275,7 +1275,7 @@ Low-level CSV parsing/formatting (RFC-4180-style quoting). For tabular data anal
 A dataframe-style data-analysis library: a labelled 1-D **`Series`** and 2-D **`DataFrame`**, with CSV
 I/O, label/position indexing, boolean masking, element-wise arithmetic (on `Series` —
 a `DataFrame` is operated on per-column), aggregations, group-by, joins, and missing-data handling.
-`Series`-to-`Series` arithmetic and comparison require **equal length** (a mismatch raises consistently
+`Series`-to-`Series` arithmetic and comparison require **equal length** (a mismatch throws consistently
 in either order — no silent truncation); a `Series`-to-scalar op broadcasts the scalar.
 Public names follow Kirito's lowercase-no-underscore convention (`readcsv`, `sortvalues`,
 `valuecounts`, `resetindex`, ...).
@@ -1291,7 +1291,7 @@ Public names follow Kirito's lowercase-no-underscore convention (`readcsv`, `sor
   List of row-Lists (pair with `columns`), or a List of row-Dicts (columns are the key union).
 - `readcsv(source, header = True, infer = True)` — build a DataFrame from CSV text (or a filename).
   With `infer`, each cell becomes Integer/Float/Bool/None/String; a short row's missing trailing cells
-  are `None`, but a row with **more** fields than the header raises (no silent data loss, like pandas).
+  are `None`, but a row with **more** fields than the header throws (no silent data loss, like pandas).
 - `merge(left, right, on, how = "inner")` — join two DataFrames on a key column; `how` is
   `"inner"`/`"left"`/`"right"`/`"outer"`. A non-key column present in **both** frames is disambiguated
   pandas-style: the left copy becomes `<name>_x` and the right `<name>_y`.
@@ -1352,7 +1352,7 @@ A small, dependency-free XML parser/serializer. It parses
 elements, attributes, text, nested children, comments, the `<?xml?>` declaration, `<!DOCTYPE>`,
 `<![CDATA[…]]>` sections, and the standard entities (`&lt; &gt; &amp; &quot; &apos;` and numeric
 `&#65;` / `&#x41;`); it serializes a tree back to XML. The parser is **lenient** — malformed markup
-is tolerated rather than raising.
+is tolerated rather than throwing.
 
 ### Module functions
 
@@ -1436,7 +1436,7 @@ Binary search / ordered insertion into a sorted List.
 
 ### Enum object
 
-- `e.get(name) → Integer` — the value (index) of a member; raises on an unknown name.
+- `e.get(name) → Integer` — the value (index) of a member; throws on an unknown name.
 - `e[name] → Integer` — index syntax for the same lookup as `e.get(name)`.
 - `e.nameof(value) → String` — the name for a value.
 - `e.names() → List` — all member names.
@@ -1489,13 +1489,13 @@ chain:
 - `p.positional(name, help = "") → Parser` — a required positional argument (consumed in order).
 - `p.option(name, default = None, help = "") → Parser` — a `--name VALUE` option. The value is
   converted to the **type of `default`** — an Integer default parses the value as an Integer (a bad
-  value raises a clear error), a Float default as a Float, otherwise it stays a String.
+  value throws a clear error), a Float default as a Float, otherwise it stays a String.
 - `p.flag(name, help = "") → Parser` — a boolean `--name` flag (default `False`, `True` when present).
 - `p.usage() → String` — the generated usage/help text.
 - `p.parse(args) → Dict` — parse `args` into a Dict keyed by argument name. Returns **`None`** if
   `-h`/`--help` is present (after printing `usage()`), so the program can stop. Accepts `--name value`,
   `--name=value`, and short `-n value` / `-f` (matched by the name's first letter); extra positionals
-  are collected under the `"rest"` key. Raises a clear, catchable error on an unknown option, a
+  are collected under the `"rest"` key. Throws a clear, catchable error on an unknown option, a
   missing required positional, or a value that can't be converted.
 
 ```kirito
@@ -1532,7 +1532,7 @@ and `+build` (a leading `v`/`=` is tolerated, e.g. `v1.2.3`).
 
 - `clean(s: String) → String` — strip a leading `v`/`=` and surrounding whitespace.
 - `parse(s: String) → Dict` — `{major, minor, patch, prerelease, build, raw}` (`prerelease`/`build`
-  are Lists of dot-separated identifier Strings). Raises on an invalid version.
+  are Lists of dot-separated identifier Strings). Throws on an invalid version.
 - `valid(s: String) → String` — the cleaned version string if valid, else `None`.
 - `major(s) / minor(s) / patch(s) → Integer` — a single component.
 - `prerelease(s) → List` — the prerelease identifiers, or `None` if there are none.

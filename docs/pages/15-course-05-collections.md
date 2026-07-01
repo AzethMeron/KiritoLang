@@ -129,7 +129,7 @@ io.print(len(ages))             # => 3
 ```
 
 Looking up a missing key is an error. When a key might be absent, use `.get`, which returns a default
-instead of raising:
+instead of throwing:
 
 ```kirito
 var io = import("io")

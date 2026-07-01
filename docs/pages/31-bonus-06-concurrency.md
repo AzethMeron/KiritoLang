@@ -86,7 +86,7 @@ if argmain:
     while running:
         try:
             got.append(q.get())     # blocks for the next item
-        catch as e:                 # raised once the queue is closed and drained
+        catch as e:                 # thrown once the queue is closed and drained
             running = False
     got.sort()
     io.print(got)               # [0, 1, 4, 9, 16]

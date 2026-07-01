@@ -60,7 +60,7 @@ And why did i call it after MC of SAO? Dunno, just thought it's funny. Also I do
 - **Memory safety by construction.** Every value lives in a VM-owned arena and is referred to through
   lightweight handles, never raw pointers. A precise mark-and-sweep garbage collector reclaims values
   automatically (the test suite runs clean under AddressSanitizer and UBSan). Recursion depth, huge
-  allocations, and deeply nested data are all guarded so hostile or runaway scripts raise a catchable
+  allocations, and deeply nested data are all guarded so hostile or runaway scripts throw a catchable
   error instead of crashing the host.
 
 - **Strong typing without ceremony.** `Integer` and `Float` are distinct, there are no silent

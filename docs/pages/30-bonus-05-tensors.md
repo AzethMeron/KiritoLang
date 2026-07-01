@@ -540,7 +540,7 @@ var loaded = ser.loads(saved)
 io.print(loaded == w)                  # True
 ```
 
-Only **gradient-free** tensors may be saved: trying to serialize a tensor that requires grad raises,
+Only **gradient-free** tensors may be saved: trying to serialize a tensor that requires grad throws,
 so detach it first.
 
 ```kirito
@@ -571,8 +571,8 @@ io.print((T.Tensor([1, 2]) + T.Tensor([1, 1], dtype = "Complex")).dtype())   # C
 ```
 
 Complex tensors are a numeric container only. **Autograd is Float-only**: a Complex tensor cannot
-require gradients (`requiresgrad(True)` raises), and the differentiable element-wise math methods are
-Float-only (for complex analytic functions, the `complex` module has them). `min`/`max` also raise —
+require gradients (`requiresgrad(True)` throws), and the differentiable element-wise math methods are
+Float-only (for complex analytic functions, the `complex` module has them). `min`/`max` also throw —
 complex numbers have no ordering. Everything else — arithmetic, `matmul`, `tensordot`, reshaping,
 reductions, `real`/`imag`/`conj`/`angle` — works on both dtypes.
 

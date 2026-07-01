@@ -102,7 +102,7 @@ When the `with` block ends, `stdout` is restored automatically — again, cleanu
 Write a `Transaction` context manager whose `_enter_` prints `"BEGIN"` and returns `self`, and whose
 `_exit_` prints `"COMMIT"`. Run a `with Transaction():` block that prints some work in between, and
 watch BEGIN/work/COMMIT bracket it. (Bonus, once you've read more: have it print `"ROLLBACK"` instead
-when the block raised — combine `with` and exceptions.)
+when the block thrown — combine `with` and exceptions.)
 
 ## What you learned
 

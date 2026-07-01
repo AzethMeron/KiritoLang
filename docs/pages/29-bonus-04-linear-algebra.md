@@ -22,8 +22,8 @@ io.print(m.zeros(2, 3))     # [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 io.print(m.identity(2))     # [[1.0, 0.0], [0.0, 1.0]]
 ```
 
-Matrices are **arbitrary shape** — any rows × cols. Arithmetic checks dimensions and raises on a
-mismatch; the square-only operations (`determinant`, `inverse`, `trace`) raise on a non-square
+Matrices are **arbitrary shape** — any rows × cols. Arithmetic checks dimensions and throws on a
+mismatch; the square-only operations (`determinant`, `inverse`, `trace`) throw on a non-square
 matrix.
 
 ```kirito
@@ -84,7 +84,7 @@ io.print(u.apply(Function(x): return x * 10))    # [[10.0, 20.0, 30.0]]
 ```
 
 > `*` is **always** matrix multiply — never a dot product. The dot product is `u.dot(v)`. (Two
-> same-shape row vectors have incompatible inner dimensions for `*`, so `u * v` would raise.)
+> same-shape row vectors have incompatible inner dimensions for `*`, so `u * v` would throw.)
 
 ## Complex numbers
 
@@ -108,7 +108,7 @@ io.print(C.exp(C.of(0, C.pi)))   # ~ -1.0 + 0i
 io.print(C.sqrt(C.of(-1, 0)))    # 0.0+1.0i  = i
 ```
 
-Complex numbers are **unordered** (`<`, `>` raise), and — like every numeric type in Kirito — their
+Complex numbers are **unordered** (`<`, `>` throw), and — like every numeric type in Kirito — their
 `==` is **exact** (real and imaginary parts compared bit-for-bit; `NaN` never equals anything). For a
 tolerant comparison of computed values use the **`.compare(other, rel_tol = 1e-9, abs_tol = 0.0)`**
 method, which `Complex`, real/complex `Matrix`, and `Tensor` all carry (so `(a - b).modulus()` checks
@@ -162,7 +162,7 @@ function, its parameters, and its return type — so you can explore the library
 
 ## Recap
 
-- `matrix` and `complex` provide arbitrary-shape dense matrices; square-only operations raise on
+- `matrix` and `complex` provide arbitrary-shape dense matrices; square-only operations throw on
   non-square inputs.
 - **`apply(fn)`** is the efficient map-over-every-element — the loop runs in C++.
 - A matrix with a dimension of `1` is a **vector**: `vector`, `dot`, `cross`, `norm`. `*` is matrix

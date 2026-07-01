@@ -334,7 +334,7 @@ if (name == "_setstate_")
 sense under a dispatcher). See `stdlib_parallel.hpp` (`QueueVal` and the dispatcher's `queueById`) for a
 complete, compiling instance of this pattern. Live resources that *can't*
 meaningfully cross (open sockets, file handles) should simply omit `_getstate_` — serialization then
-raises a clear error instead of silently breaking.
+throws a clear error instead of silently breaking.
 
 ## Design rules
 
@@ -343,5 +343,5 @@ raises a clear error instead of silently breaking.
 - **No global mutable state** — everything is VM-scoped, so multiple VMs stay isolated.
 - **Never expose raw pointers** across the boundary; hold `Handle`s, deref at point of use.
 - **Header-only ODR**: everything `inline`/templated, `#ifndef` include guards (never `#pragma once`).
-- Raise `KiritoError` with a clear, actionable message for bad arguments — errors are part of the
+- Throw `KiritoError` with a clear, actionable message for bad arguments — errors are part of the
   language, not an afterthought.

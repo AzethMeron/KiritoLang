@@ -21,11 +21,11 @@ parameter name.
 - `Integer(x) → Integer` — convert to a 64-bit integer. Accepts `Bool` (`True`→`1`), `Float`
   (truncates toward zero; rejects NaN/∞/out-of-range), or a `String` in decimal or `0x`/`0o`/`0b`
   form (the base prefix is case-insensitive — `0X`/`0O`/`0B` also work; surrounding whitespace and a
-  single leading sign allowed). Raises on anything else or an unparseable String — including a doubled
+  single leading sign allowed). Throws on anything else or an unparseable String — including a doubled
   sign or a space after the sign/prefix (`"--5"`, `"+ 5"`, `"0x-5"`).
 - `Float(x) → Float` — convert to a double. Accepts `Integer`, `Bool`, or a numeric `String`
   (decimal/scientific notation, plus the special values `"inf"`/`"infinity"`/`"nan"`, case-insensitive
-  and sign-prefixable). Raises if a String doesn't parse; a C99 hex-float literal (`"0x1p4"`) is
+  and sign-prefixable). Throws if a String doesn't parse; a C99 hex-float literal (`"0x1p4"`) is
   rejected too.
 - `String(x) → String` — the `str()` form of any value (the same text `io.print` would emit).
 - `Bool(x) → Bool` — the truthiness of `x` (empty collections/`0`/`""`/`None` are `False`).
@@ -64,7 +64,7 @@ parameter name.
 - `len(x) → Integer` — number of elements of a collection, or code points of a String.
 - `range(stop) → List` / `range(start, stop[, step]) → List` — integers from `start` (default `0`)
   up to but excluding `stop`, stepping by `step` (default `1`, may be negative). Materializes a List;
-  a step of `0` raises, and an over-large result raises rather than exhausting memory. (`stop` may also
+  a step of `0` throws, and an over-large result throws rather than exhausting memory. (`stop` may also
   be given by the keyword `end`.)
 - `enumerate(iterable[, start]) → List` — a list of `[index, value]` pairs, indices starting at
   `0` (or at `start`, e.g. `enumerate(xs, start = 1)`).
@@ -82,7 +82,7 @@ parameter name.
 - `min(*args[, key][, default]) → value` / `max(*args[, key][, default]) → value` — the smallest /
   largest of a single iterable (`min(xs)`) or of several positional values (`min(a, b, c)`). `key` is
   an optional function producing the comparison key; `default` is returned when the (single) iterable
-  is empty — without it, an empty sequence raises. `max(words, key = len)`.
+  is empty — without it, an empty sequence throws. `max(words, key = len)`.
 - `all(iterable) → Bool` — `True` if every element is truthy (vacuously `True` when empty).
 - `any(iterable) → Bool` — `True` if at least one element is truthy.
 
@@ -93,12 +93,12 @@ parameter name.
 - `round(x[, ndigits]) → Number` — with `ndigits` omitted (or `None`), round to the nearest
   `Integer`; with `ndigits` given, round to that many decimal places, yielding a `Float`.
   `round(pi, ndigits = 2)`. Ties round **half away from zero** (`round(0.5) == 1`, `round(-1.5) == -2`),
-  not round-half-to-even. A `NaN`/infinite `x` raises in the `→ Integer` form (no `ndigits`) but passes
+  not round-half-to-even. A `NaN`/infinite `x` throws in the `→ Integer` form (no `ndigits`) but passes
   through unchanged when `ndigits` is given (`round(nan, 2)` is `nan`).
 - `divmod(a, b) → List` — `[a // b, a % b]` in one step, using floor semantics.
 - `pow(base, exp[, mod]) → Number` — exponentiation; the 3-argument form is modular,
   `(base ** exp) % mod`, computed efficiently over non-negative Integers (`mod` must be positive and
-  `exp` non-negative; both raise otherwise). `pow(2, 10, mod = 1000)`.
+  `exp` non-negative; both throw otherwise). `pow(2, 10, mod = 1000)`.
 - `bin(n) → String` — the base-2 text of an Integer with a `0b` prefix (sign-aware).
 - `oct(n) → String` — the base-8 text of an Integer with a `0o` prefix (sign-aware).
 - `hex(n) → String` — the base-16 text of an Integer with a `0x` prefix (sign-aware).
@@ -136,7 +136,7 @@ format(-42, "+06d")      # "-00042"    (sign + zero-pad)
 
 - `import(name) → Module` — load and return the named module (cached per VM). `import(name = "io")`.
   A circular import (a module that imports itself directly or through a chain `a → b → a`) is
-  detected and raises `circular import detected: ...` naming the cycle, rather than recursing until
+  detected and throws `circular import detected: ...` naming the cycle, rather than recursing until
   the stack overflows.
 - `inspect(x) → String` — a human-readable description of the public methods/attributes (with
   signatures, type annotations, and defaults) of a class, instance, module, function, or **native
@@ -154,7 +154,7 @@ format(-42, "+06d")      # "-00042"    (sign + zero-pad)
 - `divmod`/`//`/`%` use floor semantics — the quotient rounds toward negative infinity and the
   remainder takes the sign of the divisor: `divmod(-7, 3) == [-3, 2]`.
 - `range` materializes a List (there are no lazy generators yet), so very large ranges allocate.
-- `min`/`max` raise on an empty sequence unless `default` is given; `sum([])` is `0`.
-- Passing a non-iterable where an iterable is expected raises a clean `is not iterable` error.
+- `min`/`max` throw on an empty sequence unless `default` is given; `sum([])` is `0`.
+- Passing a non-iterable where an iterable is expected throws a clean `is not iterable` error.
 - An unknown keyword, a duplicated argument, a missing required argument, or too many positionals all
-  raise a clear, catchable error naming the function and argument.
+  throw a clear, catchable error naming the function and argument.

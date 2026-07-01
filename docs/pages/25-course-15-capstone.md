@@ -58,7 +58,7 @@ something callers should touch.
 
 ## Reporting errors
 
-When a caller asks for a task that isn't there, we raise a **specific** exception type so the caller
+When a caller asks for a task that isn't there, we throw a **specific** exception type so the caller
 can catch exactly that case:
 
 <!--norun (one section of the single program assembled across this lesson)-->

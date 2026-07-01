@@ -95,7 +95,7 @@ io.print(Bool(0), Bool(42), Bool(""), Bool("hi"), Bool([]))
 
 **`Bool` is its own type, not a number.** `True` is *not* `1`: `True == 1` is `False`,
 and Bools are deliberately **not numeric** — `True + 1`, `abs(True)`, `sum([True, False])`, and
-`sorted([True, False])` all raise a type error rather than treating `True`/`False` as `1`/`0`. When
+`sorted([True, False])` all throw a type error rather than treating `True`/`False` as `1`/`0`. When
 you really want to count truth values, convert explicitly with `Integer(flag)` (`Integer(True) == 1`).
 
 ## Two number types
@@ -237,7 +237,7 @@ io.print(String(3.5) + "!")     # => 3.5! (anything -> String)
 io.print(Integer(3.9))          # => 3    (Float -> Integer, truncates toward zero)
 ```
 
-A conversion that can't succeed raises a clear error rather than guessing:
+A conversion that can't succeed throws a clear error rather than guessing:
 
 <!--norun (intentional conversion error)-->
 ```kirito
