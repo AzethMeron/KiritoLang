@@ -44,10 +44,17 @@ public:
         throw KiritoError("expected a number");
     }
 
+    // Draw one element uniformly from `pool` WITH replacement — the shared primitive behind `choice`
+    // (the k = 1 case, unwrapped to the element) and `choices` (k draws collected into a List).
+    static Handle pickOne(RandomState& st, const std::vector<Handle>& pool) {
+        return pool[std::uniform_int_distribution<std::size_t>(0, pool.size() - 1)(st.engine)];
+    }
+
     std::vector<std::string> inspectMembers() const override {
         return {
             "random() -> Float", "uniform(a, b) -> Float", "randint(a, b) -> Integer",
-            "randrange(start, stop, step) -> Integer", "choice(seq)", "shuffle(seq)",
+            "randrange(start, stop, step) -> Integer", "choice(seq)", "choices(population, k) -> List",
+            "shuffle(seq)",
             "sample(population, k) -> List", "seed(a)", "gauss(mu, sigma) -> Float",
             "normalvariate(mu, sigma) -> Float", "expovariate(lambd) -> Float",
         };
@@ -119,14 +126,35 @@ public:
                 // start + k*step, overflow-safe; the result is in range by construction so it fits int64
                 return vm.makeInt(static_cast<int64_t>(static_cast<uint64_t>(start) + static_cast<uint64_t>(k) * static_cast<uint64_t>(step)));
             });
-        if (name == "choice")
+        if (name == "choice")   // one random element (scalar) — the k = 1 case of choices, unwrapped
             return bind("choice", {"seq"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
                 if (a.empty()) throw KiritoError("choice expects a sequence");
                 auto items = vm.arena().deref(a[0]).iterate(vm);
                 if (!items) throw KiritoError("choice expects an iterable");
                 if (items.value().empty()) throw KiritoError("choice from empty sequence");
-                std::size_t i = std::uniform_int_distribution<std::size_t>(0, items.value().size() - 1)(rng(vm, self).engine);
-                return items.value()[i];
+                return pickOne(rng(vm, self), items.value());
+            });
+        if (name == "choices")  // k random elements WITH replacement -> new List (Python random.choices)
+            return bind("choices", {"population", "k"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+                if (a.empty()) throw KiritoError("choices expects a population");
+                auto items = vm.arena().deref(a[0]).iterate(vm);
+                if (!items) throw KiritoError("choices expects an iterable population");
+                const std::vector<Handle>& pool = items.value();
+                if (pool.empty()) throw KiritoError("choices from empty population");
+                // k defaults to 1 (like choice, but as a 1-element List); an explicit None is also 1.
+                int64_t k = (a.size() < 2 || vm.arena().deref(a[1]).kind() == ValueKind::None) ? 1 : asInt(vm, a[1]);
+                if (k < 0) throw KiritoError("choices: k must be non-negative");
+                // Resource guard on the result length, matching runtime.hpp's kMaxRepeat for list
+                // repetition (not visible here — stdlib_random is included before that constant).
+                if (static_cast<uint64_t>(k) > 256ull * 1024 * 1024)
+                    throw KiritoError("choices: k too large");
+                RootScope rs(vm);
+                for (Handle h : pool) rs.add(h);   // keep the (possibly freshly-iterated) pool alive
+                auto out = std::make_unique<ListVal>();
+                out->elems.reserve(static_cast<std::size_t>(k));
+                for (int64_t i = 0; i < k; ++i)
+                    out->elems.push_back(rs.add(pickOne(rng(vm, self), pool)));
+                return vm.alloc(std::move(out));
             });
         if (name == "shuffle")  // in place, requires a List
             return bind("shuffle", {"seq"}, [self, rng](KiritoVM& vm, std::span<const Handle> a) -> Handle {

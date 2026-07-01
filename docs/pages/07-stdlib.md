@@ -236,9 +236,13 @@ Object-based RNG — no global state; create a generator and call methods on it.
 - `r.uniform(a, b) → Float` — uniform in `[a, b)` (the upper bound `b` is excluded).
 - `r.randint(a, b) → Integer` — uniform integer in `[a, b]` (inclusive).
 - `r.randrange(stop)` / `r.randrange(start, stop[, step]) → Integer` — like `range`, a random member.
-- `r.choice(seq)` — a random element of a non-empty sequence.
+- `r.choice(seq)` — a random element of a non-empty sequence (a single scalar).
+- `r.choices(population, k = 1) → List` — a List of `k` elements sampled **with replacement** (elements
+  can repeat), so `k` may exceed `len(population)`. `choice(seq)` is the `k = 1` case of this same draw,
+  unwrapped to the single element. `k = 0` gives `[]`; a negative or enormous `k`, or an empty
+  population, throws. (Contrast `sample`, which is **without** replacement.)
 - `r.shuffle(seq) → None` — shuffle a List in place.
-- `r.sample(population, k) → List` — `k` distinct elements chosen at random.
+- `r.sample(population, k) → List` — `k` distinct elements chosen at random (without replacement).
 - `r.gauss(mu, sigma) → Float` — a sample from a normal distribution.
 - `r.normalvariate(mu, sigma) → Float` — a sample from a normal distribution (an alias of `gauss`).
 - `r.expovariate(lambd) → Float` — exponential distribution.

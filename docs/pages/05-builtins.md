@@ -46,6 +46,15 @@ parameter name.
   The type-name `String` form also accepts the **pseudo-types** `"Number"` (Integer or Float),
   `"Any"` (always `True`), `"Function"`, `"Module"`, `"None"`, and a **native object's type name**
   (e.g. `isinstance(m, "Matrix")`).
+- `hasattr(obj, name: String) → Bool` — whether `obj.name` resolves to an attribute or method. It is
+  **existence**, not value: an attribute set to `None` still exists, so `hasattr` returns `True` for it
+  (this is the whole point — it tells a present-but-`None` attribute apart from a missing one). Works
+  uniformly on every value: instances (own + inherited attributes and methods, including private
+  `_members` and shared class attributes), the built-in types and their methods (`hasattr("x", "upper")`,
+  `hasattr([1], "append")`, `hasattr(5, "compare")`), native and `.ki` **modules** (`hasattr(math,
+  "sqrt")`), and native objects. `hasattr(obj, name)` is exactly `True` iff `obj.name` would evaluate
+  without throwing — so on a **class value** (which exposes no member access) it is always `False`, and
+  on a plain function it is `False`. A non-String `name` throws.
 - `id(x) → Integer` — a stable identity number for `x`, unique among live objects and equal for two
   references to the same object (`id(a) == id(b)` iff `a` and `b` are the same object). Used to tell
   shared references apart from equal-but-distinct values.

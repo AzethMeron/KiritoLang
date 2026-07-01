@@ -80,5 +80,34 @@ x >= 2.0 and x <= 3.0
     CHECK_THROWS(vm.runSource("import(\"random\").Random(1).choice([])\n"));
     CHECK_THROWS(vm.runSource("import(\"random\").Random(1).randint(5, 1)\n"));
 
+    // choices(population, k): a List of k elements sampled WITH replacement.
+    CHECK(evalStr(vm, R"(
+var rng = import("random").Random(7)
+len(rng.choices([1, 2, 3], 5))
+)") == "5");
+    CHECK(evalStr(vm, "len(import(\"random\").Random(7).choices([1, 2, 3]))") == "1");     // k defaults to 1
+    CHECK(evalStr(vm, "import(\"random\").Random(7).choices([1, 2, 3], 0)") == "[]");       // k = 0
+    CHECK(evalStr(vm, "import(\"random\").Random(7).choices(population = [9], k = 3)") == "[9, 9, 9]");  // kwargs
+    // WITH replacement: 20 draws from 2 values must repeat (sample, WITHOUT replacement, would throw).
+    CHECK(evalStr(vm, R"(
+var rng = import("random").Random(7)
+len(Set(rng.choices([0, 1], 20))) < 20
+)") == "True");
+    // determinism: same seed -> identical result.
+    CHECK(evalStr(vm, R"(
+import("random").Random(3).choices([1, 2, 3, 4], 6) == import("random").Random(3).choices([1, 2, 3, 4], 6)
+)") == "True");
+    // choice is the k=1 case unwrapped: under one seed, choice(seq) == choices(seq, 1)[0], and stays scalar.
+    CHECK(evalStr(vm, R"(
+import("random").Random(88).choice([5, 6, 7]) == import("random").Random(88).choices([5, 6, 7], 1)[0]
+)") == "True");
+    CHECK(evalStr(vm, "import(\"random\").Random(1).choice([42])") == "42");   // scalar, not [42]
+    // error surface
+    CHECK_THROWS(vm.runSource("import(\"random\").Random(1).choices([])\n"));            // empty population
+    CHECK_THROWS(vm.runSource("import(\"random\").Random(1).choices([1, 2], -1)\n"));    // negative k
+    CHECK_THROWS(vm.runSource("import(\"random\").Random(1).choices(5, 2)\n"));          // non-iterable
+    // inspect advertises it
+    CHECK(evalStr(vm, "\"choices(population\" in inspect(import(\"random\").Random(1))") == "True");
+
     return RUN_TESTS();
 }

@@ -192,6 +192,9 @@ a stability fuzzer, and a benchmark). Working today:
   `filter`, `len`, `type`, `id`, `import`, `inspect`, `all`, `any`, `reversed`, `divmod`, `isinstance`
   (the type argument may be a user class, a **built-in type constructor** — `isinstance(1, Integer)` —
   or a type-name String; typed `catch` likewise matches built-in types, e.g. `catch String as e`),
+  `hasattr(obj, name)` (does `obj.name` resolve? — **existence**, so an attribute that is `None` still
+  counts as present; privacy-agnostic; `True` iff `obj.name` would evaluate, so uniformly `False` on a
+  class value and a plain function; a non-String name throws),
   `ord`, `chr`, `bin`, `oct`, `hex`, `pow` (2- and 3-arg modular), `bitand`/`bitor`/`bitxor`/`bitnot`
   and `shl`/`shr` (bitwise ops + shifts on Integers — Kirito has no `&`/`|`/`^`/`~`/`<<`/`>>`
   operators), `format` (mini-format-spec:
@@ -257,7 +260,9 @@ a stability fuzzer, and a benchmark). Working today:
     (`log`/`log10` of `0`, `atanh(±1)`, zero to a negative/complex power) and **`tensor`** element-wise
     math raises on an out-of-domain element (consistent with the tensor engine's div-by-zero guard).
   - `random` — object-based RNG (`Random([seed])`, no global state): random/uniform/randint/
-    randrange/choice/shuffle/sample/gauss/expovariate.
+    randrange/choice/choices/shuffle/sample/gauss/expovariate (`choices(population, k=1)` samples WITH
+    replacement into a List; `choice` is its k=1 case unwrapped to a scalar; `sample` is without
+    replacement).
   - `tensor` — dense **N-dimensional** arrays in C++ (`tensor.hpp`, a generic `Tensor<T>` engine;
     CPU-only, GPU-ready single-buffer design). dtype **Float** (default) or **Complex**
     (the engine is generic in T). `Tensor(nested[, dtype][, requiresgrad])`/`zeros`/`ones`/`full`/`eye`/`arange`;

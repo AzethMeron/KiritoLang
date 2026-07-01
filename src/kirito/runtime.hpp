@@ -3098,6 +3098,26 @@ inline void KiritoVM::installBuiltins() {
             throw KiritoError("isinstance second argument must be a class, a built-in type, or a type-name String");
         return vm.makeBool(typeMatches(vm, a[0], typeName));
     });
+    defSig("hasattr", {{"obj"}, {"name", "String"}}, "Bool", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
+        // hasattr(obj, name) -> does `obj.name` resolve to an attribute or method? True even when the
+        // value is None (an attribute set to None still exists); False when the name is absent. Works
+        // uniformly across every value: instances, classes, native/`.ki` modules, the built-in types
+        // (Integer/String/List/... and their methods), and native objects.
+        if (a.size() != 2) throw KiritoError("hasattr expected 2 arguments");
+        const Object& n = vm.arena().deref(a[1]);
+        if (n.kind() != ValueKind::String) throw KiritoError("hasattr: name (2nd argument) must be a String");
+        std::string name = static_cast<const StrVal&>(n).value();   // copy: getAttr may allocate
+        // Existence, not accessibility: probe the object's own attribute/method protocol slot, which
+        // does NOT enforce privacy (that check lives in evalMemberGet, not here) — so a private member
+        // reports as existing. getAttr runs no user code and has no side effects for any Kirito type,
+        // so catching its throw is a clean "no such member" test.
+        try {
+            (void)vm.arena().deref(a[0]).getAttr(vm, a[0], name);
+            return vm.makeBool(true);
+        } catch (const KiritoError&) {
+            return vm.makeBool(false);
+        }
+    });
     defSig("ord", {{"char", "String"}}, "Integer", [](KiritoVM& vm, std::span<const Handle> a) -> Handle {
         if (a.size() != 1) throw KiritoError("ord expected 1 argument");
         const Object& o = vm.arena().deref(a[0]);
