@@ -28,6 +28,15 @@ namespace kirito {
 // Path strings use '/' on EVERY platform (results are identical cross-platform, unlike
 // std::filesystem's '\' on Windows). A '\' in the input is still accepted as a separator by the
 // splitting helpers, so native Windows paths (from path.getcwd/path.listdir) still split correctly.
+
+// The native-binding idiom below re-uses `vm` as a bound-lambda parameter that intentionally shadows
+// the enclosing setup `vm` (same VM, by design). Silence -Wshadow for these mechanical bindings; it
+// stays active in the evaluator/parser/lexer core.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 class PathModule : public NativeModule {
 public:
     std::string name() const override { return "path"; }
@@ -197,4 +206,7 @@ public:
 
 }  // namespace kirito
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #endif
