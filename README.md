@@ -402,4 +402,11 @@ Full documentation lives in [`docs/`](docs/) as a small, dependency-free static 
 
 ## License
 
-Released under the [MIT License](LICENSE).
+Kirito is released under the [MIT License](LICENSE) — all of its own source
+(`src/kirito/`, `tools/`, `kpm/`, `examples/`, `docs/`) is original work.
+
+Incorporated third-party software and its licenses are recorded in
+[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md): the bundled **fum** hash-map
+library (MIT), and **OpenSSL** (Apache License 2.0), which is linked only into TLS
+builds (`-DKIRITO_ENABLE_TLS=ON`). The compression, hashing, and regex modules are
+from-scratch implementations of public standards, not third-party code.
