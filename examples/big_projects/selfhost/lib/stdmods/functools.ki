@@ -13,9 +13,12 @@ var reduce = Function(func, iterable, initial = None):
     return acc
 
 var partial = Function(func, bound):
-    # partial(f, [a, b]) -> g(rest...) calls f(a, b, rest...). `bound` is a list of leading args.
+    # partial(f, [a, b]) -> g(rest...) calls f(a, b, rest...). `bound` is a list of leading args,
+    # SNAPSHOT at creation (like Python's functools.partial) so a later mutation of the caller's list
+    # never leaks into subsequent calls.
+    var frozen = bound.copy()
     return Function(rest):
-        var allargs = bound.copy()
+        var allargs = frozen.copy()
         for x in rest:
             allargs.append(x)
         return func(allargs)

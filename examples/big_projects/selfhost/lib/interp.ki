@@ -443,6 +443,7 @@ var _contains = Function(St, container, item):
         var m = classLookup(container["cls"], "_contains_")
         if m != None:
             return truthy(St, callValue(St, mkBound(container, m), [item], []))
+        rtError("'" + container["cls"]["name"] + "' does not support 'in'")
     return item in container
 
 var evalUnary = Function(St, op, v):

@@ -561,7 +561,14 @@ class Tensor:
             return None
         var reduced = _unbroadcastFlat(gflat, gshape, self._shape)
         if self.grad == None:
-            self.grad = _make(reduced, List(self._shape), "Float")
+            # _unbroadcastFlat returns its `gflat` argument UNCHANGED (aliased, not copied) whenever
+            # no broadcasting is needed — copy it here so self.grad._data is always an INDEPENDENT
+            # list. Without this, two _addGrad calls sharing the same upstream `g` (e.g. both operands
+            # of dx + dx are the same leaf) alias the same list; the accumulation branch below then
+            # mutates it in place and corrupts the *upstream* gradient tensor's own data, compounding
+            # into wildly wrong (roughly-doubling-per-node) gradients on any graph where a node is
+            # reachable via more than one path.
+            self.grad = _make(List(reduced), List(self._shape), "Float")
         else:
             var i = 0
             while i < len(reduced):
@@ -2147,17 +2154,27 @@ class Tensor:
     var backward = Function(self, seed = None):
         if not self._req:
             throw "tensor: backward on a tensor that does not require grad"
+        # Iterative post-order DFS (an explicit work-stack, NOT recursion): a deep chain of ops
+        # (thousands of nodes, e.g. x+x+...+x) would otherwise recurse one native call frame per
+        # node and hit the recursion-depth guard. Each stack entry is [node, expanded]; a node is
+        # pushed once unexpanded, then re-pushed as expanded (with its parents pushed in between,
+        # so they pop — and append to topo — first), matching the recursive version's topo order.
         var topo = []
         var seen = Set()
-        var visit = Function(t):
-            if id(t) in seen:
-                return None
-            seen.add(id(t))
-            for p in t._parents:
-                visit(p)
-            topo.append(t)
-            return None
-        visit(self)
+        var stack = [[self, False]]
+        while len(stack) > 0:
+            var top = stack.pop()
+            var t = top[0]
+            if top[1]:
+                topo.append(t)
+            else:
+                if id(t) in seen:
+                    continue
+                seen.add(id(t))
+                stack.append([t, True])
+                for p in t._parents:
+                    if not (id(p) in seen):
+                        stack.append([p, False])
         if seed == None:
             var sf = []
             var i = 0
