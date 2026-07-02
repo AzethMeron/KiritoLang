@@ -248,6 +248,7 @@ var _parseFunc = Function(P):
     var params = []
     if not _isOp(P, ")"):
         var more = True
+        var seenDefault = False
         while more:
             if _ty(P) != "name":
                 parseError(_peek(P), "expected a parameter name")
@@ -263,6 +264,10 @@ var _parseFunc = Function(P):
                 P["i"] = P["i"] + 1
                 default = parseExpr(P)
                 hasDefault = True
+            if hasDefault:
+                seenDefault = True
+            elif seenDefault:
+                parseError(_peek(P), "non-default parameter '" + pname + "' follows a default parameter")
             params.append({"name": pname, "default": default, "has": hasDefault, "ann": ann})
             more = _eatOp(P, ",")
         _expectOp(P, ")")
@@ -421,6 +426,7 @@ var _parseExprList = Function(P):
 var _parseVar = Function(P):
     P["i"] = P["i"] + 1
     var target = _parseExprList(P)
+    _checkTargetStars(P, target)
     _expectOp(P, "=")
     var value = _parseExprList(P)
     return {"k": "var", "target": target, "e": value}
@@ -459,16 +465,46 @@ var _parseWhile = Function(P):
 
 # A target list (loop / unpack targets): names, indices, members — parsed without treating
 # `in` as a comparison operator (which would otherwise swallow the for-loop's `in`).
+# One unpack-target item: a starred name (*rest, absorbing the surplus) or a plain postfix target
+# (name / a[i] / obj.attr).
+var _parseTargetItem = Function(P):
+    if _isOp(P, "*"):
+        P["i"] = P["i"] + 1
+        if _ty(P) != "name":
+            parseError(_peek(P), "expected a name after '*'")
+        return {"k": "name", "v": "*" + _adv(P)["v"]}
+    return parsePostfix(P)
+
+var _isStarTarget = Function(item):
+    return item["k"] == "name" and len(item["v"]) > 0 and item["v"][0] == "*"
+
+# A parsed target (a single item, or a {"k":"tuple","items":[...]}) may absorb the surplus with at
+# most one starred slot — used after parsing a `for`/`var`/plain-assign target, once we actually
+# know the parsed node IS a target (an expression list isn't checked, since e.g. a value list on
+# var's RHS or a return's expression list has no unpack-target meaning for a leading `*`).
+var _checkTargetStars = Function(P, node):
+    if node["k"] != "tuple":
+        return None
+    var starCount = 0
+    for item in node["items"]:
+        if _isStarTarget(item):
+            starCount = starCount + 1
+    if starCount > 1:
+        parseError(_peek(P), "two starred targets in assignment")
+    return None
+
 var _parseTargetList = Function(P):
-    var first = parsePostfix(P)
+    var first = _parseTargetItem(P)
     if not _isOp(P, ","):
         return first
     var items = [first]
     while _eatOp(P, ","):
         if _isKw(P, "in") or _isOp(P, "=") or _ty(P) == "newline":
             break
-        items.append(parsePostfix(P))
-    return {"k": "tuple", "items": items}
+        items.append(_parseTargetItem(P))
+    var node = {"k": "tuple", "items": items}
+    _checkTargetStars(P, node)
+    return node
 
 var _parseFor = Function(P):
     P["i"] = P["i"] + 1
@@ -616,6 +652,7 @@ var parseStatement = Function(P):
     # expression statement, or an assignment
     var lhs = _parseExprList(P)
     if _isOp(P, "="):
+        _checkTargetStars(P, lhs)
         P["i"] = P["i"] + 1
         var rhs = _parseExprList(P)
         return {"k": "assign", "target": lhs, "e": rhs}

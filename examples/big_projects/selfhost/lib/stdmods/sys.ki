@@ -4,9 +4,17 @@
 var _os = import("_os")
 
 var platform = _os.platform
+var executable = _os.executable
+var version = _os.version
 
 var getenv = Function(name, fallback = None):
     return _os.getenv(name, fallback)
+
+var createprocess = Function(args, cwd = None, input = "", timeout = None):
+    return _os.createprocess(args, cwd, input, timeout)
+
+var shell = Function(command, cwd = None, input = "", timeout = None):
+    return _os.shell(command, cwd, input, timeout)
 
 var getcwd = Function():
     return _os.getcwd()

@@ -22,7 +22,44 @@ var boxKind = Function(v):
         return v["sk"]
     return ""
 
+# Collect every free `name` reference reachable from an AST node (a generic Dict/List walk — any
+# dict with "k":"name" is a leaf reference; a nested "k":"func" node is skipped since ITS "name"
+# nodes are that lambda's own bindings, not references into the outer scope).
+var _collectNameRefs = Function(node, out):
+    if type(node) == "Dict":
+        if "k" in node:
+            if node["k"] == "name":
+                out.append(node["v"])
+                return None
+            if node["k"] == "func":
+                return None
+        for key in node.keys():
+            _collectNameRefs(node[key], out)
+    elif type(node) == "List":
+        for item in node:
+            _collectNameRefs(item, out)
+    return None
+
+# A default expression evaluates in the function's CLOSURE scope, not progressively alongside
+# earlier parameters (each call re-evaluates it fresh, before any parameter of THIS call is bound) —
+# so a default that references a sibling parameter, with no same-named outer binding to fall back
+# to, can never resolve. Catch that statically when the function value is created (mirroring the
+# real compiler's resolver, which flags this at compile time rather than only on the first call).
+var _checkDefaultScoping = Function(env, params):
+    var ownNames = Set([])
+    for p in params:
+        ownNames.add(p["name"])
+    for p in params:
+        if p["has"]:
+            var refs = []
+            _collectNameRefs(p["default"], refs)
+            for nm in refs:
+                if (nm in ownNames) and not envHas(env, nm):
+                    rtError("NameError: name '" + nm + "' is not defined")
+    return None
+
 var mkFunc = Function(name, params, body, env, ret):
+    _checkDefaultScoping(env, params)
     return {"sk": "function", "name": name, "params": params, "body": body, "env": env, "ret": ret}
 
 var mkNative = Function(name, fn):
@@ -118,13 +155,95 @@ var classLookupC = Function(cls, name):
         c = c["base"]
     return None
 
+var _hex2 = Function(n):
+    var digits = "0123456789abcdef"
+    return String(digits[(n // 16) % 16]) + String(digits[n % 16])
+
+# repr of a String as it appears NESTED inside a container: quoted + escaped, matching the real
+# native's reprString exactly (single-quote unless the text has a ' but no ", then double-quote).
+var _reprString = Function(s):
+    var hasSingle = "'" in s
+    var hasDouble = "\"" in s
+    var quote = "'"
+    if hasSingle and not hasDouble:
+        quote = "\""
+    var out = quote
+    var i = 0
+    var n = len(s)
+    while i < n:
+        var c = s[i]
+        var cp = ord(c)
+        if c == quote or c == "\\":
+            out = out + "\\" + c
+        elif c == "\n":
+            out = out + "\\n"
+        elif c == "\t":
+            out = out + "\\t"
+        elif c == "\r":
+            out = out + "\\r"
+        elif cp < 32:
+            out = out + "\\x" + _hex2(cp)
+        else:
+            out = out + c
+        i = i + 1
+    return out + quote
+
+# Stringify a value as a container ELEMENT: a String is repr'd (quoted); everything else uses its
+# normal stringify() — nested containers recurse through this same helper for their own elements,
+# so quoting stays consistent at every depth (str()-vs-repr(): print(s) shows raw text, print([s])
+# shows the quoted form).
+var _stringifyElem = Function(St, v):
+    if type(v) == "String":
+        return _reprString(v)
+    return stringify(St, v)
+
 var stringify = Function(St, v):
     var k = boxKind(v)
     if k == "":
-        # Integers are formatted in Kirito; Float/collection repr stays on the host primitive
-        # (shortest-round-trip float formatting and cycle-safe container repr are irreducible).
+        # Integers are formatted in Kirito. List/Set/Dict are walked element-wise (via
+        # _stringifyElem) rather than handed to the host's String() so a nested guest instance gets
+        # its _str_ dispatched instead of the host printing the instance's raw internal Dict, and a
+        # nested String is quoted. Float stays on the host primitive (shortest-round-trip formatting
+        # is irreducible). A List/Set/Dict currently being stringified higher up the call stack
+        # (self-reference) prints as "[...]"/"{...}" instead of recursing forever.
         if type(v) == "Integer":
             return _intToBase(v, 10, "")
+        if type(v) == "List":
+            var lid = id(v)
+            if lid in St["strActive"]:
+                return "[...]"
+            St["strActive"].add(lid)
+            var lparts = []
+            try:
+                for e in v:
+                    lparts.append(_stringifyElem(St, e))
+            finally:
+                St["strActive"].discard(lid)
+            return "[" + ", ".join(lparts) + "]"
+        if type(v) == "Set":
+            var sid = id(v)
+            if sid in St["strActive"]:
+                return "{...}"
+            St["strActive"].add(sid)
+            var sparts = []
+            try:
+                for e in v:
+                    sparts.append(_stringifyElem(St, e))
+            finally:
+                St["strActive"].discard(sid)
+            return "{" + ", ".join(sparts) + "}"
+        if type(v) == "Dict":
+            var did = id(v)
+            if did in St["strActive"]:
+                return "{...}"
+            St["strActive"].add(did)
+            var dparts = []
+            try:
+                for dk in v.keys():
+                    dparts.append(_stringifyElem(St, dk) + ": " + _stringifyElem(St, v[dk]))
+            finally:
+                St["strActive"].discard(did)
+            return "{" + ", ".join(dparts) + "}"
         return String(v)
     if k == "instance":
         var m = classLookup(v["cls"], "_str_")
@@ -161,15 +280,30 @@ var _identityEq = Function(l, r, op):
         return same
     return not same
 
+# Per-type real method names for a host primitive (verified against the native `inspect()` output),
+# used to validate member access on a primitive at ACCESS time (see evalMember) rather than only
+# when the resulting boundnative thunk is later called.
+var _METHOD_NAMES = {
+    "Integer": Set(["compare"]), "Float": Set(["compare"]), "Bool": Set([]), "None": Set([]),
+    "List": Set(["append", "apply", "clear", "copy", "count", "extend", "index", "insert", "pop",
+        "remove", "reverse", "sort"]),
+    "String": Set(["apply", "center", "count", "encode", "endswith", "find", "format", "index",
+        "isalnum", "isalpha", "isdigit", "islower", "isspace", "isupper", "join", "levenshtein",
+        "ljust", "lower", "lstrip", "partition", "removeprefix", "removesuffix", "replace", "rfind",
+        "rindex", "rjust", "rpartition", "rstrip", "split", "startswith", "strip", "upper", "zfill"]),
+    "Dict": Set(["apply", "clear", "copy", "get", "items", "keys", "pop", "popitem", "remove",
+        "setdefault", "update", "values"]),
+    "Set": Set(["add", "apply", "clear", "contains", "copy", "difference", "discard",
+        "intersection", "isdisjoint", "issubset", "issuperset", "pop", "remove",
+        "symmetricdifference", "union"]),
+    "Bytes": Set(["apply", "decode", "hex"]),
+}
+
 var truthy = Function(St, v):
     var k = boxKind(v)
     if k == "instance":
-        var m = classLookup(v["cls"], "_bool_")
-        if m != None:
-            return truthy(St, callValue(St, mkBound(v, m), [], []))
-        var lm = classLookup(v["cls"], "_len_")
-        if lm != None:
-            return callValue(St, mkBound(v, lm), [], []) != 0
+        # No _bool_ dunder exists, and _len_ does NOT affect truthiness either (InstanceValue::truthy
+        # in the real native is an unconditional `true`) — an instance is always truthy.
         return True
     if k != "":
         return True
@@ -496,7 +630,15 @@ var evalMember = Function(St, env, node):
         if name in obj["methods"]:
             return obj["methods"][name]
         rtError("class '" + obj["name"] + "' has no member '" + name + "'")
-    # a host value (List/String/Dict/Set/...) — member access yields a bound native method
+    # a host value (List/String/Dict/Set/...) — member access yields a bound native method, but only
+    # for a name that is actually a real method of the type (matching the real native's getAttr,
+    # which raises on an unknown attribute rather than deferring the check to call time — otherwise
+    # e.g. `obj.bogus == 5` silently compares a placeholder instead of raising). Types with no entry
+    # in _METHOD_NAMES (hostobj streams, ...) keep the old permissive fallback: their own dispatcher
+    # already raises cleanly on an unknown name when the thunk is actually called.
+    var tn = typeName(obj)
+    if tn in _METHOD_NAMES and not (name in _METHOD_NAMES[tn]):
+        rtError("'" + tn + "' object has no attribute '" + name + "'")
     return {"sk": "boundnative", "recv": obj, "name": name}
 
 # Build the parent-view returned by self._super_(): method lookup starts at the base of the class
@@ -664,10 +806,18 @@ var execBlock = Function(St, env, stmts):
 var assignTo = Function(St, env, target, value, isVar):
     var k = target["k"]
     if k == "name":
+        var nm = target["v"]
+        var v2 = value
+        if len(nm) > 0 and nm[0] == "*":
+            # a LONE starred target (not part of a larger unpack list) absorbs the whole RHS,
+            # materialized to a List — same "gather the surplus" rule as a starred slot inside
+            # unpackInto, just with nothing before/after it to leave a surplus of.
+            nm = nm[1:]
+            v2 = materialize(St, value)
         if isVar:
-            envDefine(env, target["v"], value)
+            envDefine(env, nm, v2)
         else:
-            envAssign(env, target["v"], value)
+            envAssign(env, nm, v2)
         return None
     if k == "index":
         var obj = evalExpr(St, env, target["obj"])
@@ -696,7 +846,7 @@ var unpackInto = Function(St, env, targets, value, isVar):
         i = i + 1
     if starAt < 0:
         if len(items) != len(targets):
-            rtError("unpack count mismatch: expected " + String(len(targets)) + ", got " + String(len(items)))
+            rtError("expected " + String(len(targets)) + " values to unpack, got " + String(len(items)))
         var j = 0
         for t2 in targets:
             assignTo(St, env, t2, items[j], isVar)
@@ -705,7 +855,7 @@ var unpackInto = Function(St, env, targets, value, isVar):
     var before = starAt
     var after = len(targets) - starAt - 1
     if len(items) < before + after:
-        rtError("not enough values to unpack")
+        rtError("expected at least " + String(before + after) + " values to unpack, got " + String(len(items)))
     var idx = 0
     while idx < before:
         assignTo(St, env, targets[idx], items[idx], isVar)
@@ -836,9 +986,26 @@ var evalStmt = Function(St, env, node):
         return execWith(St, env, node)
     if k == "switch":
         var subj = evalExpr(St, env, node["subject"])
+        # Duplicate LITERAL case values are rejected (mirrors the real compiler, which detects this
+        # among compile-time-constant case values); the check runs here, not at parse time, so it's
+        # only observable once the switch is actually reached, same as the real deferred-throw form.
+        var seenCases = Set([])
+        var litKinds = Set(["int", "float", "str", "bool", "none"])
+        for lcase in node["cases"]:
+            for lvn in lcase["values"]:
+                if lvn["k"] in litKinds:
+                    var dkey = lvn["k"]
+                    if lvn["k"] != "none":
+                        dkey = lvn["k"] + ":" + String(lvn["v"])
+                    if dkey in seenCases:
+                        rtError("duplicate switch case value")
+                    seenCases.add(dkey)
         for case in node["cases"]:
             for vn in case["values"]:
                 var cv = evalExpr(St, env, vn)
+                var cvt = type(cv)
+                if not (cvt == "Integer" or cvt == "Float" or cvt == "String" or cvt == "Bool" or cvt == "None"):
+                    rtError("switch case value must be Integer, Float, String, Bool, or None")
                 if typeName(subj) == typeName(cv) and subj == cv:
                     return execBlock(St, env, case["body"])
         if node["default"] != None:
@@ -889,8 +1056,14 @@ var execTry = Function(St, env, node):
             if ok:
                 if clause["name"] != None:
                     envDefine(env, clause["name"], thrownVal)
-                result = execBlock(St, env, clause["body"])
                 matched = True
+                # A throw from WITHIN the catch body must still run the same-level finally before
+                # propagating (and it replaces the original exception, not adds to it) — so it's
+                # caught here rather than escaping straight past the finally block below.
+                try:
+                    result = execBlock(St, env, clause["body"])
+                catch as e2:
+                    rethrow = e2
                 break
         if not matched:
             rethrow = caught
@@ -1424,6 +1597,11 @@ var strMethod = Function(St, recv, name, args):
         if fi < 0:
             rtError("substring not found")
         return fi
+    if name == "rindex":
+        var ri = _rfind(recv, args[0])
+        if ri < 0:
+            rtError("substring not found")
+        return ri
     if name == "count":
         var startC = 0
         if len(args) >= 2 and args[1] != None:
@@ -1614,6 +1792,11 @@ var dictMethod = Function(St, recv, name, args):
         if len(args) == 2:
             return recv.pop(args[0], args[1])
         return recv.pop(args[0])
+    if name == "remove":
+        if not (args[0] in recv):
+            rtError("key not found: " + stringify(St, args[0]))
+        recv.pop(args[0])
+        return None
     if name == "popitem":
         return recv.popitem()
     if name == "clear":
@@ -2498,7 +2681,24 @@ var importModule = Function(St, name):
 var _sys_exists = Function(path):
     return _sys_hostPath.exists(path)
 
+# An absolute module name (POSIX /path, Windows C:\ or C:/, or a \\server UNC share) is used as-is,
+# matching std::filesystem::path's own join semantics (dir / absolute-path discards dir) that the
+# real native's import() relies on — a plain dir+"/"+name string join wouldn't short-circuit that way.
+var _isAbsPath = Function(p):
+    if len(p) > 0 and p[0] == "/":
+        return True
+    if len(p) >= 2 and p[1] == ":":
+        return True
+    if len(p) >= 2 and p[0] == "\\" and p[1] == "\\":
+        return True
+    return False
+
 var _findModuleSource = Function(St, name):
+    if _isAbsPath(name):
+        var direct = name + ".ki"
+        if _sys_exists(direct):
+            return _sys_readFile(direct)
+        rtError("no module named '" + name + "'")
     for dir in St["importdirs"]:
         var path = dir + "/" + name + ".ki"
         if _sys_exists(path):
@@ -2708,6 +2908,10 @@ var bridgeOs = Function(St):
     m["getcwd"] = mkNative("getcwd", Function(St2, a, k): return _sys_hostPath.getcwd())
     m["gettempdir"] = mkNative("gettempdir", Function(St2, a, k): return _sys_hostSys.gettempdir())
     m["platform"] = _sys_hostSys.platform
+    m["executable"] = _sys_hostSys.executable
+    m["version"] = _sys_hostSys.version
+    m["createprocess"] = mkNative("createprocess", Function(St2, a, k): return _sys_hostSys.createprocess(a[0], a[1], a[2], a[3]))
+    m["shell"] = mkNative("shell", Function(St2, a, k): return _sys_hostSys.shell(a[0], a[1], a[2], a[3]))
     m["time"] = mkNative("time", Function(St2, a, k): return _sys_hostTime.time())
     m["timens"] = mkNative("timens", Function(St2, a, k): return _sys_hostTime.timens())
     m["monotonic"] = mkNative("monotonic", Function(St2, a, k): return _sys_hostTime.monotonic())
@@ -2839,7 +3043,7 @@ var run5 = Function(src, inputText, importdirs, arglist):
     var inlines = []
     if len(inputText) > 0:
         inlines = inputText.split("\n")
-    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0, "importdirs": importdirs, "classes": {}}
+    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0, "importdirs": importdirs, "classes": {}, "strActive": Set([])}
     var g = makeGlobal(St)
     St["global"] = g
     var failed = None
