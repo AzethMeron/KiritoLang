@@ -96,7 +96,7 @@ type method** of String (`upper`/`split`/`replace`/`find`/`strip`/`center`/…),
 | Module | Notes |
 |--------|-------|
 | `math` | series/Newton/Lanczos; inf/NaN via ordering comparisons |
-| `sys`  | `joinpath` logic in Kirito; env/cwd facts via the `_os` syscall module |
+| `sys`  | env/platform/process facts via the `_os` syscall module (path-joining lives in `path`) |
 | `json` | recursive-descent parser + compact/indented serializer |
 | `random` | object PRNG (LCG): random/uniform/randint/randrange/choice/shuffle/sample/gauss |
 | `matrix` | Matrix class: +,-,*, transpose, determinant, trace, inverse, zeros/ones/identity; `vector`/dot/cross/norm |

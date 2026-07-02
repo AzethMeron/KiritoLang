@@ -1,5 +1,5 @@
-# The `sys` module in pure Kirito. Environment/clock facts come from the thin _os syscall module;
-# the path logic (joinpath) is computed here.
+# The `sys` module in pure Kirito. Environment/clock facts come from the thin _os syscall module.
+# (Path-joining logic lives in the `path` module, not here — matching the native split.)
 
 var _os = import("_os")
 
@@ -26,10 +26,10 @@ var exit = Function(code = 0):
 var traceback = Function():
     return _os.traceback()
 
-var createprocess = Function(args, cwd = None, input = "", timeout = None):
+var createprocess = Function(args: List, cwd = None, input = "", timeout = None) -> Dict:
     return _os.createprocess(args, cwd, input, timeout)
 
-var shell = Function(command, cwd = None, input = "", timeout = None):
+var shell = Function(command: String, cwd = None, input = "", timeout = None) -> Dict:
     return _os.shell(command, cwd, input, timeout)
 
 var getcwd = Function():
@@ -37,26 +37,3 @@ var getcwd = Function():
 
 var gettempdir = Function():
     return _os.gettempdir()
-
-# os.path.join semantics with '/' on every platform; a later absolute component resets the result.
-# Kirito has no variadic parameters, so accept a fixed set of optional components.
-var _joinReduce = Function(parts):
-    var out = parts[0]
-    var i = 1
-    while i < len(parts):
-        var part = parts[i]
-        if len(part) > 0 and part[0] == "/":
-            out = part
-        elif len(out) == 0 or out[len(out) - 1] == "/":
-            out = out + part
-        else:
-            out = out + "/" + part
-        i = i + 1
-    return out
-
-var joinpath = Function(a, b = None, c = None, d = None, e = None, f = None, g = None, h = None):
-    var parts = [a]
-    for x in [b, c, d, e, f, g, h]:
-        if x != None:
-            parts.append(x)
-    return _joinReduce(parts)

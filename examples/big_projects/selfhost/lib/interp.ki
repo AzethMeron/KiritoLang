@@ -134,6 +134,8 @@ var typeName = Function(v):
             return "BytesIO"
         if hk == "file":
             return "File"
+        if hk == "stdout" or hk == "stderr" or hk == "stdin":
+            return "StdStream"
         return "Stream"
     return type(v)
 
@@ -2498,7 +2500,19 @@ var _NATIVE_SIGS = {"Integer": "Integer(x) -> Integer", "Float": "Float(x) -> Fl
     "ord": "ord(char: String) -> Integer", "chr": "chr(codepoint: Integer) -> String",
     "bin": "bin(n: Integer) -> String", "oct": "oct(n: Integer) -> String", "hex": "hex(n: Integer) -> String",
     "id": "id(x) -> Integer", "Bytes": "Bytes(x = None, encoding = None) -> Bytes", "fromhex": "fromhex(s: String) -> Bytes",
-    "open": "open(path: String, mode: String = \"r\") -> File", "BytesIO": "BytesIO(initial: String = \"\") -> BytesIO"}
+    "open": "open(path: String, mode: String = \"r\") -> File", "BytesIO": "BytesIO(initial: String = \"\") -> BytesIO",
+    "createprocess": "createprocess(args: List, cwd = None, input = \"\", timeout = None) -> Dict",
+    "shell": "shell(command: String, cwd = None, input = \"\", timeout = None) -> Dict",
+    "getenv": "getenv(name: String, default = None) -> String",
+    "dirname": "dirname(path: String) -> String", "basename": "basename(path: String) -> String",
+    "splitext": "splitext(path: String) -> List", "exists": "exists(path: String) -> Bool",
+    "isfile": "isfile(path: String) -> Bool", "isdir": "isdir(path: String) -> Bool",
+    "getsize": "getsize(path: String) -> Integer", "listdir": "listdir(path: String) -> List",
+    "walk": "walk(dir: String) -> List", "getcwd": "getcwd() -> String",
+    "mkdir": "mkdir(path: String, exist_ok: Bool = False) -> Bool",
+    "remove": "remove(path: String, missing_ok: Bool = False) -> Bool",
+    "mkremove": "mkremove(path: String, missing_ok: Bool = False) -> Bool",
+    "rename": "rename(src: String, dst: String)", "chmod": "chmod(path: String, mode: Integer) -> Bool"}
 
 var _nativeSig = Function(v):
     if v["name"] in _NATIVE_SIGS:
@@ -2528,6 +2542,12 @@ var _funcSig = Function(name, fn):
 var _memberLine = Function(nm, m):
     var bk = boxKind(m)
     if bk == "function":
+        # A thin guest-level wrapper standing in for what's a genuinely native function on the real
+        # interpreter (sys.createprocess/shell forward straight to _os): show ITS signature (with
+        # real literal defaults, like a native's) rather than the generic guest-function rendering
+        # (whose defaults always show as "..." since they're call-time-evaluated).
+        if nm in _NATIVE_SIGS:
+            return _NATIVE_SIGS[nm]
         return _funcSig(nm, m)
     if bk == "native":
         return _nativeSig(m)
@@ -2564,6 +2584,14 @@ var builtinInspect = Function(St, a, k):
         for nm in sorted(ms):
             clines.append("  " + _memberLine(nm, v["methods"][nm]))
         return "\n".join(clines)
+    if kind == "hostobj":
+        var hk = v["kind"]
+        if hk == "file":
+            return "File object:\n  close()\n  flush()\n  read(size) -> String\n  readline() -> String\n  readlines() -> List\n  seek(offset, whence) -> Integer\n  tell() -> Integer\n  write(data)\n  writelines(lines)"
+        if hk == "bytesio":
+            return "BytesIO object:\n  close()\n  flush()\n  getvalue() -> String\n  read(size) -> String\n  readline() -> String\n  seek(offset, whence) -> Integer\n  size() -> Integer\n  tell() -> Integer\n  truncate() -> Integer\n  write(data) -> Integer"
+        if hk == "stdout" or hk == "stderr" or hk == "stdin":
+            return "StdStream object:\n  flush()\n  read(size) -> String\n  readline() -> String\n  write(data)"
     if kind == "instance" and v["cls"]["name"] == "Random":
         # random.Random is a pure-Kirito guest class standing in for the native random.Random object;
         # its inspect() output mimics the native's exact "<Name> object:" header + declared-member
@@ -2795,13 +2823,35 @@ var evalModule = Function(St, name):
 var mkStream = Function(kind):
     return {"sk": "hostobj", "kind": kind}
 
+# BytesIO stores its buffer internally as a "byte string": a Kirito String where each CHARACTER is
+# one BYTE (the latin-1 code-point-per-byte identity), matching the real native's raw-bytes buffer —
+# so len(data) is the byte count, not the code-point count, and a multi-byte UTF-8 sequence occupies
+# multiple internal characters. _toByteStr converts an incoming write() argument (String, UTF-8-
+# encoded first, or Bytes, already raw) to that representation; _fromByteStr converts it back to a
+# proper Kirito String on read (a round-trip through UTF-8 encode/decode, exact for any well-formed
+# content — in particular anything that itself arrived via _toByteStr).
+var _toByteStr = Function(v):
+    if type(v) == "String":
+        return v.encode("utf-8").decode("latin-1")
+    if type(v) == "Bytes":
+        return v.decode("latin-1")
+    rtError("BytesIO.write expects a String or Bytes")
+
+var _fromByteStr = Function(s):
+    return s.encode("latin-1").decode("utf-8")
+
 var mkBytesIO = Function(initial):
-    return {"sk": "hostobj", "kind": "bytesio", "data": initial, "pos": 0}
+    return {"sk": "hostobj", "kind": "bytesio", "data": _toByteStr(initial), "pos": 0}
+
+var _BYTESIO_CAP = 256 * 1024 * 1024      # in-memory guard: never grow past this, no matter the cursor
 
 # Write `text` into a BytesIO at its current position (overwriting/extending), advancing pos.
-var _bytesWrite = Function(stream, text):
+var _bytesWrite = Function(stream, rawtext):
+    var text = _toByteStr(rawtext)
     var d = stream["data"]
     var p = stream["pos"]
+    if p + len(text) > _BYTESIO_CAP:
+        rtError("BytesIO: write would exceed the 256 MB in-memory cap")
     if p > len(d):
         d = d + chr(0) * (p - len(d))         # zero-fill the gap left by a seek past the end
     stream["data"] = d[0:p] + text + d[p + len(text):]
@@ -3099,7 +3149,7 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
         if name == "write":
             return _bytesWrite(recv, args[0])
         if name == "getvalue":
-            return recv["data"]
+            return _fromByteStr(recv["data"])
         if name == "size":
             return len(recv["data"])
         if name == "seek":
@@ -3130,19 +3180,25 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
                 if args[0] >= 0:
                     r = d[p:p + args[0]]
             recv["pos"] = p + len(r)
-            return r
+            return _fromByteStr(r)
         if name == "readline":
             var d2 = recv["data"]
             var p2 = recv["pos"]
             var nl = _find(d2[p2:], "\n", 0)
             if nl < 0:
                 recv["pos"] = len(d2)
-                return d2[p2:]
+                return _fromByteStr(d2[p2:])
             recv["pos"] = p2 + nl + 1
-            return d2[p2:p2 + nl]
+            return _fromByteStr(d2[p2:p2 + nl])
         if name == "truncate":
-            recv["data"] = recv["data"][0:recv["pos"]]
-            return len(recv["data"])
+            var td = recv["data"]
+            var tp = recv["pos"]
+            if tp > len(td):
+                td = td + chr(0) * (tp - len(td))     # a cursor past the end GROWS the buffer
+            else:
+                td = td[0:tp]
+            recv["data"] = td
+            return len(td)
         if name == "flush":
             return None
         if name == "_len_":
