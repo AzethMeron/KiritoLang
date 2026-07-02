@@ -66,6 +66,15 @@ var mkNative = Function(name, fn):
     return {"sk": "native", "name": name, "fn": fn}
 
 var mkClass = Function(name, base, methods):
+    # `var` is a keyword, so no class body can ever declare `var var = Function(...)` (parsing a
+    # class-body `var` statement requires a genuine identifier token, just like the real parser's
+    # parseTargetNameList) even though `t.var(...)` — member access after a dot — parses fine
+    # (parseMemberName explicitly allows any keyword spelling there). A guest class that needs a
+    # method literally named "var" (e.g. tensor.Tensor's variance reducer) therefore names it "varr"
+    # and this constructor aliases it to the callable name "var", the same accommodation a native C++
+    # module gets for free (it registers the string "var" directly, with no Kirito-source restriction).
+    if ("varr" in methods) and not ("var" in methods):
+        methods["var"] = methods["varr"]
     return {"sk": "class", "name": name, "base": base, "methods": methods}
 
 var mkInstance = Function(cls):
