@@ -305,7 +305,13 @@ var truthy = Function(St, v):
     var k = boxKind(v)
     if k == "instance":
         # No _bool_ dunder exists, and _len_ does NOT affect truthiness either (InstanceValue::truthy
-        # in the real native is an unconditional `true`) — an instance is always truthy.
+        # in the real native is an unconditional `true`) — an instance is always truthy. EXCEPTION:
+        # this self-host's complex.Complex is a pure-Kirito stand-in for a genuinely NATIVE type whose
+        # C++ class overrides truthy() (ComplexVal::truthy in stdlib_complex.hpp: re!=0 or im!=0) — a
+        # Kirito `class` has no dunder to express that, so mimic the native rule by class name, the
+        # same way Random's inspect() above stands in for its native counterpart.
+        if v["cls"]["name"] == "Complex":
+            return not (v["attrs"]["re"] == 0.0 and v["attrs"]["im"] == 0.0)
         return True
     if k != "":
         return True
@@ -372,9 +378,16 @@ var evalBinary = Function(St, op, l, r):
             return _identityEq(l, r, op)
         rtError("'" + l["cls"]["name"] + "' has no operator " + op)
     if boxKind(r) == "instance":
-        if op == "==":
-            return _identityEq(l, r, op)
-        if op == "!=":
+        # symmetric _eq_ trial (mirrors the real interpreter's kiEquals, which tries both sides'
+        # equality before giving up): l has no _eq_ of its own (handled above), but r might, e.g.
+        # `2 == Complex(2, 0)` should defer to Complex._eq_(self=r, other=l).
+        if op == "==" or op == "!=":
+            var rm = classLookup(r["cls"], "_eq_")
+            if rm != None:
+                var req = truthy(St, callValue(St, mkBound(r, rm), [l], []))
+                if op == "==":
+                    return req
+                return not req
             return _identityEq(l, r, op)
         rtError("unsupported operand type(s) for " + op)
     if op == "+":
