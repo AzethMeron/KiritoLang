@@ -50,12 +50,21 @@ var readFile = Function(path):
 #     — a per-frame call stack with source line numbers, which would mean threading a frame stack +
 #     line tracking through the hot call path (with naming of anonymous functions). Out of scope, like
 #     inspect's native-vs-Kirito format above.
+#   * compile-time static resolution: r8_language asserts an undefined name is rejected even inside a
+#     never-taken branch ("if False: return undefinedName"), i.e. BEFORE the function is ever called.
+#     The real interpreter has a dedicated scope-aware resolver pass (resolver.hpp) that walks every
+#     function body once at compile time; the self-host is a lazy tree-walker with no such pass — an
+#     undefined name only surfaces when that line actually executes. A naive "scan the whole body for
+#     free names" check can't be bolted on safely: legitimate recursion/mutual-recursion/forward
+#     references (a function calling itself or a sibling defined later in the module) would falsely
+#     trip it, since the resolver's actual algorithm is scope-MEMBERSHIP, not execution-order. Out of
+#     scope, like the two VM-introspection cases above.
 #   * other pre-existing exclusions: spec_modules, sample_pipeline, spec_fuzz, libraries, spec_net,
 #     spec_pass_todo, spec_tee, spec_io_stream
 #
 # SLOW (below) PASS but their KB-scale sha256 + LZ77 over the doubly-interpreted runtime takes minutes,
 # so they run only under `full`: spec_gzip, probe_compress_fuzz.
-var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_binary_adversarial", "probe_inspect", "probe_serde_matrix", "probe_trio", "spec_edges", "spec_inspect", "spec_serialize_native", "spec_traceback", "path_module"])
+var EXCLUDE = Set(["spec_modules", "spec_serde", "sample_pipeline", "spec_fuzz", "libraries", "spec_net", "spec_pass_todo", "spec_tee", "spec_io_stream", "parallel_basic", "parallel_sync", "probe_parallel", "probe_parallel_adversarial", "probe_surface", "probe_parallel_fuzz", "probe_binary_adversarial", "probe_inspect", "probe_serde_matrix", "probe_trio", "spec_edges", "spec_inspect", "spec_serialize_native", "spec_traceback", "path_module", "r8_language"])
 # The `audit_*`, `deep_*`, and `r4_`/`r5_`/`r6_` families are the NATIVE-interpreter audit suites —
 # they deliberately probe native stdlib behaviour (Integer("0xFF"), Latin-1 case, sys.arch, RFC-4180
 # csv, Matrix.shape, Tensor // and cumprod, native serde round-trips, ...) that the self-host's

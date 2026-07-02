@@ -37,6 +37,9 @@ var _digitVal = Function(c):
         return ord(c) - ord("a") + 10
     return ord(c) - ord("A") + 10
 
+var _isHexDigit = Function(c):
+    return (c >= "0" and c <= "9") or (c >= "a" and c <= "f") or (c >= "A" and c <= "F")
+
 var _parseRadix = Function(digits, base):
     var val = 0
     for c in digits:
@@ -58,6 +61,8 @@ var _readNumber = Function(src, n, i, line, col):
         while i < n and (_isAlnum(src[i])):
             digits = digits + src[i]
             i = i + 1
+        if len(digits) == 0:
+            lexError(line, col, "numeric literal: base prefix '0" + base + "' with no digits")
         var val = 0
         if base == "x" or base == "X":
             val = _parseRadix(digits, 16)
@@ -114,6 +119,8 @@ var _decodeEscapes = Function(raw, line, col):
             elif e == "'":
                 out = out + "'"
             elif e == "x":
+                if i + 2 >= n or not _isHexDigit(raw[i + 1]) or not _isHexDigit(raw[i + 2]):
+                    lexError(line, col, "invalid \\x escape (expected hex digit)")
                 var hx = raw[i + 1:i + 3]
                 out = out + chr(_parseRadix(hx, 16))
                 i = i + 2
@@ -245,7 +252,10 @@ var _parseFstring = Function(raw, line, col, isRaw):
                 if colonAt >= 0:
                     spec = expr[colonAt + 1:]
                     expr = expr[0:colonAt]
-                parts.append({"t": "hole", "v": expr.strip(), "spec": spec})
+                var trimmedExpr = expr.strip()
+                if trimmedExpr == "":
+                    lexError(line, col, "f-string '{...}' must contain a single expression")
+                parts.append({"t": "hole", "v": trimmedExpr, "spec": spec})
         elif c == "}":
             if i + 1 < n and raw[i + 1] == "}":
                 lit = lit + "}"

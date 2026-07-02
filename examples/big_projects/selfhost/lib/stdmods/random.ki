@@ -26,6 +26,8 @@ class Random:
         return a + (b - a) * self.random()
 
     var randint = Function(self, a, b):
+        if a > b:
+            throw "randint: empty range"
         return a + Integer(self.random() * Float(b - a + 1))
 
     var randrange = Function(self, start = None, stop = None, step = None):
@@ -76,6 +78,8 @@ class Random:
         var copy = []
         for x in pop:
             copy.append(x)
+        if k < 0 or k > len(copy):
+            throw "sample: k out of range"
         self.shuffle(copy)
         return copy[0:k]
 

@@ -739,7 +739,7 @@ var callFunction = Function(St, fn, args, kwargs, defcls):
     if sig["flow"] == CTL_RETURN:
         result = sig["value"]
     if fn["ret"] != None and not _typeMatches(St, result, fn["ret"]):
-        rtError(fn["name"] + "() return value must be " + fn["ret"] + ", got " + typeName(result))
+        rtError("function must return " + fn["ret"] + ", got " + typeName(result))
     return result
 
 # An argument/return value satisfies an annotation if it is exactly that type, or (for instances)

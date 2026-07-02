@@ -89,6 +89,10 @@ class DateTime:
                     out = out + _pad(self.minute, 2)
                 elif code == "S":
                     out = out + _pad(self.second, 2)
+                elif code == "w":
+                    out = out + String(self.weekday)
+                elif code == "j":
+                    out = out + _pad(self.yearday, 3)
                 elif code == "%":
                     out = out + "%"
                 else:
@@ -128,6 +132,8 @@ var _fromEpoch = Function(secs):
     var days = secs // 86400
     var rem = secs - days * 86400
     var ymd = _civilFromDays(days)
+    if ymd[0] < -9999 or ymd[0] > 9999:
+        throw "DateTime: epoch " + String(secs) + " is out of representable range"
     return DateTime(ymd[0], ymd[1], ymd[2], rem // 3600, (rem % 3600) // 60, rem % 60)
 
 var make = Function(year, month, day, hour = 0, minute = 0, second = 0):
