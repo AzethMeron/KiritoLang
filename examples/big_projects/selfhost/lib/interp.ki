@@ -1056,6 +1056,11 @@ var execTry = Function(St, env, node):
             elif typeName(thrownVal) == clause["type"]:
                 ok = True                                  # typed catch on a builtin type (catch String, ...)
             if ok:
+                # sys.traceback(): the educational tree-walker has no per-frame call stack (unlike the
+                # real VM's), so this is a minimal stand-in — non-empty once ANY catch has handled
+                # something, holding the last-caught value's text. Good enough for "traceback is a
+                # String, empty before any error, non-empty after one".
+                St["lasttraceback"] = "Traceback (most recent call last):\n  " + stringify(St, thrownVal)
                 if clause["name"] != None:
                     envDefine(env, clause["name"], thrownVal)
                 matched = True
@@ -2492,7 +2497,8 @@ var _NATIVE_SIGS = {"Integer": "Integer(x) -> Integer", "Float": "Float(x) -> Fl
     "shr": "shr(a: Integer, n: Integer) -> Integer", "format": "format(value, spec: String = \"\") -> String",
     "ord": "ord(char: String) -> Integer", "chr": "chr(codepoint: Integer) -> String",
     "bin": "bin(n: Integer) -> String", "oct": "oct(n: Integer) -> String", "hex": "hex(n: Integer) -> String",
-    "id": "id(x) -> Integer", "Bytes": "Bytes(x = None, encoding = None) -> Bytes", "fromhex": "fromhex(s: String) -> Bytes"}
+    "id": "id(x) -> Integer", "Bytes": "Bytes(x = None, encoding = None) -> Bytes", "fromhex": "fromhex(s: String) -> Bytes",
+    "open": "open(path: String, mode: String = \"r\") -> File", "BytesIO": "BytesIO(initial: String = \"\") -> BytesIO"}
 
 var _nativeSig = Function(v):
     if v["name"] in _NATIVE_SIGS:
@@ -2796,6 +2802,8 @@ var mkBytesIO = Function(initial):
 var _bytesWrite = Function(stream, text):
     var d = stream["data"]
     var p = stream["pos"]
+    if p > len(d):
+        d = d + chr(0) * (p - len(d))         # zero-fill the gap left by a seek past the end
     stream["data"] = d[0:p] + text + d[p + len(text):]
     stream["pos"] = p + len(text)
     return len(text)
@@ -2822,51 +2830,130 @@ var streamWrite = Function(St, stream, text):
         rtError("cannot write to stream of kind '" + kind + "'")
     return None
 
-var _renderArgs = Function(St2, args, kwargs):
-    var sep = " "
-    var end = "\n"
+# Resolve the optional `stream=` keyword (any object with write/readline/read: a File/BytesIO/std
+# stream/duck-typed instance); if absent, fall back to the named module slot (looked up fresh each
+# call, so a rebind of io.stdout etc. is honoured). Any other keyword is rejected — print/eprint/
+# write/input/read take no sep/end, only *args + stream=.
+var _pickStream = Function(St2, kwargs, dfltName, who):
+    var chosen = None
+    var have = False
     for kw in kwargs:
-        if kw[0] == "sep":
-            sep = kw[1]
-        if kw[0] == "end":
-            end = kw[1]
+        if kw[0] == "stream":
+            chosen = kw[1]
+            have = True
+        else:
+            rtError(who + "() got an unexpected keyword argument '" + kw[0] + "'")
+    if have:
+        return chosen
+    return St2["modules"]["io"]["members"][dfltName]
+
+var _renderArgs = Function(St2, args):
     var parts = []
     for a in args:
         parts.append(stringify(St2, a))
-    return sep.join(parts) + end
+    return " ".join(parts) + "\n"
 
 var ioPrint = Function(St2, args, kwargs):
-    streamWrite(St2, St2["modules"]["io"]["members"]["stdout"], _renderArgs(St2, args, kwargs))
+    streamWrite(St2, _pickStream(St2, kwargs, "stdout", "print"), _renderArgs(St2, args))
     return None
 
 var ioEprint = Function(St2, args, kwargs):
-    streamWrite(St2, St2["modules"]["io"]["members"]["stderr"], _renderArgs(St2, args, kwargs))
+    streamWrite(St2, _pickStream(St2, kwargs, "stderr", "eprint"), _renderArgs(St2, args))
     return None
 
 var ioWrite = Function(St2, args, kwargs):
-    streamWrite(St2, St2["modules"]["io"]["members"]["stdout"], stringify(St2, args[0]))
+    var out = ""
+    for a in args:
+        out = out + stringify(St2, a)
+    streamWrite(St2, _pickStream(St2, kwargs, "stdout", "write"), out)
     return None
 
-var ioInput = Function(St2, args, kwargs):
-    if len(args) >= 1:
-        streamWrite(St2, St2["modules"]["io"]["members"]["stdout"], stringify(St2, args[0]))
+var _stdinReadLine = Function(St2):
     if St2["inpos"] >= len(St2["inlines"]):
         return ""
     var line = St2["inlines"][St2["inpos"]]
     St2["inpos"] = St2["inpos"] + 1
     return line
 
-var ioBytesIO = Function(St2, args, kwargs):
+var streamReadLine = Function(St2, stream):
+    if boxKind(stream) == "instance":
+        var m = classLookup(stream["cls"], "readline")
+        if m == None:
+            rtError("'" + stream["cls"]["name"] + "' object has no 'readline' method")
+        return callValue(St2, mkBound(stream, m), [], [])
+    var kind = stream["kind"]
+    if kind == "stdin":
+        return _stdinReadLine(St2)
+    if kind == "bytesio":
+        return hostObjMethod(St2, stream, "readline", [], [])
+    if kind == "file":
+        return _fileMethod(stream["h"], "readline", [])
+    rtError("cannot read from stream of kind '" + kind + "'")
+
+var streamRead = Function(St2, stream, n):
+    if boxKind(stream) == "instance":
+        var m2 = classLookup(stream["cls"], "read")
+        if m2 == None:
+            rtError("'" + stream["cls"]["name"] + "' object has no 'read' method")
+        if n == None:
+            return callValue(St2, mkBound(stream, m2), [], [])
+        return callValue(St2, mkBound(stream, m2), [n], [])
+    var kind = stream["kind"]
+    if kind == "stdin":
+        var rest = []
+        while St2["inpos"] < len(St2["inlines"]):
+            rest.append(St2["inlines"][St2["inpos"]])
+            St2["inpos"] = St2["inpos"] + 1
+        var all = "".join(rest)
+        if n != None and n >= 0 and n < len(all):
+            return all[0:n]
+        return all
+    if kind == "bytesio":
+        if n == None:
+            return hostObjMethod(St2, stream, "read", [], [])
+        return hostObjMethod(St2, stream, "read", [n], [])
+    if kind == "file":
+        if n == None:
+            return _fileMethod(stream["h"], "read", [])
+        return _fileMethod(stream["h"], "read", [n])
+    rtError("cannot read from stream of kind '" + kind + "'")
+
+var ioInput = Function(St2, args, kwargs):
+    var src = _pickStream(St2, kwargs, "stdin", "input")
     if len(args) >= 1:
-        return mkBytesIO(args[0])
+        streamWrite(St2, St2["modules"]["io"]["members"]["stdout"], stringify(St2, args[0]))
+    return streamReadLine(St2, src)
+
+var ioRead = Function(St2, args, kwargs):
+    var src = _pickStream(St2, kwargs, "stdin", "read")
+    var n = None
+    if len(args) >= 1 and args[0] != None:
+        if type(args[0]) != "Integer":
+            rtError("read expects an Integer")
+        n = args[0]
+    return streamRead(St2, src, n)
+
+var ioBytesIO = Function(St2, args, kwargs):
+    var b = _mbind(args, kwargs, ["initial"], "BytesIO", 0)
+    if len(b) >= 1:
+        if type(b[0]) != "String":
+            rtError("BytesIO: initial must be a String")
+        return mkBytesIO(b[0])
     return mkBytesIO("")
 
 # io file open (thin syscall): wraps a host file in a "file" box; methods dispatched in hostObjMethod.
 var ioOpen = Function(St2, a, k):
+    if len(a) + len(k) > 2:
+        rtError("open expected 1 or 2 arguments")
+    var b = _mbind(a, k, ["path", "mode"], "open", 1)
     var mode = "r"
-    if len(a) >= 2:
-        mode = a[1]
-    return {"sk": "hostobj", "kind": "file", "h": _sys_hostIo.open(a[0], mode)}
+    if len(b) >= 2:
+        mode = b[1]
+    if type(b[0]) != "String":
+        rtError("open: path must be a String")
+    if type(mode) != "String":
+        rtError("open: mode must be a String")
+    return {"sk": "hostobj", "kind": "file", "h": _sys_hostIo.open(b[0], mode)}
 
 # io is I/O only (streams / open / print / input / BytesIO) — mirroring the host. Everything that
 # interprets, queries, mutates, or lists the filesystem by path lives in the `path` module below.
@@ -2876,10 +2963,13 @@ var bridgeIo = Function(St):
     members["__stdout__"] = members["stdout"]
     members["stderr"] = mkStream("stderr")
     members["__stderr__"] = members["stderr"]
+    members["stdin"] = mkStream("stdin")
+    members["__stdin__"] = members["stdin"]
     members["print"] = mkNative("print", ioPrint)
     members["eprint"] = mkNative("eprint", ioEprint)
     members["write"] = mkNative("write", ioWrite)
     members["input"] = mkNative("input", ioInput)
+    members["read"] = mkNative("read", ioRead)
     members["BytesIO"] = mkNative("BytesIO", ioBytesIO)
     members["open"] = mkNative("open", ioOpen)
     return mkModule("io", members)
@@ -2971,10 +3061,16 @@ var bridgeOs = Function(St):
     m["getcwd"] = mkNative("getcwd", Function(St2, a, k): return _sys_hostPath.getcwd())
     m["gettempdir"] = mkNative("gettempdir", Function(St2, a, k): return _sys_hostSys.gettempdir())
     m["platform"] = _sys_hostSys.platform
+    m["arch"] = _sys_hostSys.arch
     m["executable"] = _sys_hostSys.executable
     m["version"] = _sys_hostSys.version
     m["createprocess"] = mkNative("createprocess", Function(St2, a, k): return _sys_hostSys.createprocess(a[0], a[1], a[2], a[3]))
     m["shell"] = mkNative("shell", Function(St2, a, k): return _sys_hostSys.shell(a[0], a[1], a[2], a[3]))
+    m["setenv"] = mkNative("setenv", _osSetenv)
+    m["unsetenv"] = mkNative("unsetenv", _osUnsetenv)
+    m["environ"] = mkNative("environ", Function(St2, a, k): return _sys_hostSys.environ())
+    m["exit"] = mkNative("exit", _osExit)
+    m["traceback"] = mkNative("traceback", Function(St2, a, k): return St2["lasttraceback"])
     m["time"] = mkNative("time", Function(St2, a, k): return _sys_hostTime.time())
     m["timens"] = mkNative("timens", Function(St2, a, k): return _sys_hostTime.timens())
     m["monotonic"] = mkNative("monotonic", Function(St2, a, k): return _sys_hostTime.monotonic())
@@ -2985,6 +3081,18 @@ var _osGetenv = Function(St2, a, k):
     if len(a) == 2:
         return _sys_hostSys.getenv(a[0], a[1])
     return _sys_hostSys.getenv(a[0])
+
+var _osSetenv = Function(St2, a, k):
+    return _sys_hostSys.setenv(a[0], a[1])
+
+var _osUnsetenv = Function(St2, a, k):
+    return _sys_hostSys.unsetenv(a[0])
+
+var _osExit = Function(St2, a, k):
+    var code = 0
+    if len(a) >= 1:
+        code = a[0]
+    return _sys_hostSys.exit(code)
 
 var hostObjMethod = Function(St, recv, name, args, kwargs):
     if recv["kind"] == "bytesio":
@@ -3007,6 +3115,8 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
                 recv["pos"] = off
             else:
                 rtError("seek: whence must be 0 (set), 1 (cur), or 2 (end)")
+            if recv["pos"] < 0:
+                recv["pos"] = 0
             return recv["pos"]
         if name == "tell":
             return recv["pos"]
@@ -3014,10 +3124,11 @@ var hostObjMethod = Function(St, recv, name, args, kwargs):
             var d = recv["data"]
             var p = recv["pos"]
             var r = d[p:]
-            if len(args) >= 1:
+            if len(args) >= 1 and args[0] != None:
                 if type(args[0]) != "Integer":
                     rtError("read expects an Integer")
-                r = d[p:p + args[0]]
+                if args[0] >= 0:
+                    r = d[p:p + args[0]]
             recv["pos"] = p + len(r)
             return r
         if name == "readline":
@@ -3106,7 +3217,7 @@ var run5 = Function(src, inputText, importdirs, arglist):
     var inlines = []
     if len(inputText) > 0:
         inlines = inputText.split("\n")
-    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0, "importdirs": importdirs, "classes": {}, "strActive": Set([])}
+    var St = {"out": [], "err": [], "nextid": 1, "modules": {}, "inlines": inlines, "inpos": 0, "importdirs": importdirs, "classes": {}, "strActive": Set([]), "lasttraceback": ""}
     var g = makeGlobal(St)
     St["global"] = g
     var failed = None

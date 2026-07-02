@@ -4,11 +4,27 @@
 var _os = import("_os")
 
 var platform = _os.platform
+var arch = _os.arch
 var executable = _os.executable
 var version = _os.version
 
-var getenv = Function(name, fallback = None):
-    return _os.getenv(name, fallback)
+var getenv = Function(name, default = None):
+    return _os.getenv(name, default)
+
+var setenv = Function(name, value):
+    return _os.setenv(name, value)
+
+var unsetenv = Function(name):
+    return _os.unsetenv(name)
+
+var environ = Function():
+    return _os.environ()
+
+var exit = Function(code = 0):
+    return _os.exit(code)
+
+var traceback = Function():
+    return _os.traceback()
 
 var createprocess = Function(args, cwd = None, input = "", timeout = None):
     return _os.createprocess(args, cwd, input, timeout)
