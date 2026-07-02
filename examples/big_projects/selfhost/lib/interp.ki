@@ -627,9 +627,10 @@ var evalMember = Function(St, env, node):
             return mkBoundD(obj["inst"], sp[0], sp[1])
         rtError("super object has no method '" + name + "'")
     if k == "class":
-        if name in obj["methods"]:
-            return obj["methods"][name]
-        rtError("class '" + obj["name"] + "' has no member '" + name + "'")
+        # A Kirito class is an instantiation factory, not an attribute namespace: `Class.x` always
+        # throws (matching the real native), even for a name that IS a defined method — only an
+        # instance (or a bound self._super_() view) exposes member access.
+        rtError("type '" + obj["name"] + "' has no attribute '" + name + "'")
     # a host value (List/String/Dict/Set/...) — member access yields a bound native method, but only
     # for a name that is actually a real method of the type (matching the real native's getAttr,
     # which raises on an unknown attribute rather than deferring the check to call time — otherwise
@@ -677,7 +678,7 @@ var evalCall = Function(St, env, node):
 # Fixed-arity builtins that take their arguments by name. (range/sum/min/max/sorted/enumerate/round/
 # pow/map/filter/zip and the converters self-handle keywords or are variadic, so they're absent here
 # and receive raw args+kwargs.)
-var _BUILTIN_PARAMS = {"isinstance": ["value", "type"], "abs": ["x"], "ord": ["char"],
+var _BUILTIN_PARAMS = {"isinstance": ["value", "type"], "hasattr": ["obj", "name"], "abs": ["x"], "ord": ["char"],
     "chr": ["codepoint"], "bin": ["n"], "oct": ["n"], "hex": ["n"], "len": ["x"], "type": ["x"],
     "id": ["x"], "all": ["iterable"], "any": ["iterable"], "reversed": ["iterable"],
     "divmod": ["a", "b"], "bitand": ["a", "b"], "bitor": ["a", "b"], "bitxor": ["a", "b"],
@@ -2234,6 +2235,37 @@ var builtinIsinstance = Function(St, args, kwargs):
         return instanceOf(x, name)
     return type(x) == name
 
+# hasattr(obj, name) -> Bool: EXISTENCE (not accessibility) of an attribute or method, matching the
+# host `ki`. A present-but-None attribute is True; a private member is True even though reading it
+# from outside the class throws (privacy is a read-time gate, not an existence gate) — so this
+# deliberately does NOT go through evalMember's privacy check.
+var builtinHasattr = Function(St, args, kwargs):
+    if len(args) != 2:
+        rtError("hasattr expected 2 arguments")
+    var obj = args[0]
+    var name = args[1]
+    if type(name) != "String":
+        rtError("hasattr: name (2nd argument) must be a String")
+    var kind = boxKind(obj)
+    if kind == "module":
+        return name in obj["members"]
+    if kind == "instance":
+        if name == "_super_":
+            return True
+        if name in obj["attrs"]:
+            return True
+        return classLookupC(obj["cls"], name) != None
+    if kind == "super":
+        return classLookupC(obj["cls"], name) != None
+    if kind == "class":
+        return False
+    if kind == "function" or kind == "native" or kind == "bound" or kind == "boundnative":
+        return False
+    var tn = typeName(obj)
+    if tn in _METHOD_NAMES:
+        return name in _METHOD_NAMES[tn]
+    return False
+
 var builtinType = Function(St, args, kwargs):
     return typeName(args[0])
 
@@ -2605,6 +2637,7 @@ var makeGlobal = Function(St):
     def("any", builtinAny)
     def("sum", builtinSum)
     def("isinstance", builtinIsinstance)
+    def("hasattr", builtinHasattr)
     def("type", builtinType)
     def("min", builtinMin)
     def("max", builtinMax)
