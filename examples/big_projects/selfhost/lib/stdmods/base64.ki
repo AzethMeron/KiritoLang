@@ -7,7 +7,10 @@ while _i < len(_alphabet):
     _i = _i + 1
 
 var encode = Function(data) -> String:
-    # data: a List of byte values (0..255). Returns the base64 String.
+    # data: a List of byte values (0..255), a Bytes, or a String (encoded as UTF-8 bytes).
+    # Returns the base64 String.
+    if type(data) == "String":
+        data = data.encode()
     var out = ""
     var i = 0
     var n = len(data)

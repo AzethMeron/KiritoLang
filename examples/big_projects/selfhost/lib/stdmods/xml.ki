@@ -4,15 +4,37 @@
 # via an `Element` tree: `.tag`, `.attrib`, `.text`, `.children`, with `find`/`findall`/`get`.
 
 # --- entity (un)escaping ------------------------------------------------------------------------
+# Strict numeric-entity parsers: return -1 (not garbage, not an exception) on an empty or malformed
+# body, or one past the max code point — so a bad numeric entity can be kept verbatim (XML leniency).
 var _parsehex = Function(s):
+    if len(s) == 0:
+        return -1
     var v = 0
     for c in s:
-        var d = 0
+        var d = -1
         if c >= "0" and c <= "9":
             d = ord(c) - ord("0")
-        else:
-            d = ord(c.lower()) - ord("a") + 10
+        elif c >= "a" and c <= "f":
+            d = ord(c) - ord("a") + 10
+        elif c >= "A" and c <= "F":
+            d = ord(c) - ord("A") + 10
+        if d < 0:
+            return -1
         v = v * 16 + d
+        if v > 1114111:
+            return -1
+    return v
+
+var _parsedec = Function(s):
+    if len(s) == 0:
+        return -1
+    var v = 0
+    for c in s:
+        if c < "0" or c > "9":
+            return -1
+        v = v * 10 + (ord(c) - ord("0"))
+        if v > 1114111:
+            return -1
     return v
 
 var _decode = Function(s):
@@ -41,12 +63,15 @@ var _decode = Function(s):
             elif ent == "apos":
                 out = out + "'"
             elif len(ent) > 0 and ent[0] == "#":
-                var code = 0
+                var code = -1
                 if len(ent) > 1 and (ent[1] == "x" or ent[1] == "X"):
                     code = _parsehex(ent[2:])
                 else:
-                    code = Integer(ent[1:])
-                out = out + chr(code)
+                    code = _parsedec(ent[1:])
+                if code >= 0:
+                    out = out + chr(code)
+                else:
+                    out = out + s[i:semi + 1]   # malformed numeric entity: keep verbatim (lenient)
             else:
                 out = out + s[i:semi + 1]   # unknown entity: keep verbatim
             i = semi + 1

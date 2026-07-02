@@ -2594,10 +2594,15 @@ var builtinInspect = Function(St, a, k):
     if kind == "module":
         var names = []
         for nm in v["members"].keys():
-            names.append(nm)
+            # hide private members (single leading underscore, no trailing one — e.g. a kimodule's
+            # internal state); public dunders like io.__stdout__ stay visible
+            if not _isPrivate(nm):
+                names.append(nm)
         var lines = ["module " + v["name"] + ":"]
         for nm in sorted(names):
             lines.append("  " + _memberLine(nm, v["members"][nm]))
+        if len(lines) == 1:
+            return lines[0] + "\n  (empty)"
         return "\n".join(lines)
     if kind == "class":
         var ms = []
