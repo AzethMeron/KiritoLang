@@ -123,7 +123,7 @@ var typeName = Function(v):
     if k == "function" or k == "native" or k == "bound" or k == "boundnative":
         return "Function"
     if k == "class":
-        return "Type"
+        return v["name"]    # type(SomeClass) is the class's own name (Dog, not a generic "Type")
     if k == "instance":
         return v["cls"]["name"]
     if k == "module":
@@ -676,11 +676,12 @@ var evalCall = Function(St, env, node):
     return callValue(St, fn, args, kwargs)
 
 # Fixed-arity builtins that take their arguments by name. (range/sum/min/max/sorted/enumerate/round/
-# pow/map/filter/zip and the converters self-handle keywords or are variadic, so they're absent here
-# and receive raw args+kwargs.)
-var _BUILTIN_PARAMS = {"isinstance": ["value", "type"], "hasattr": ["obj", "name"], "abs": ["x"], "ord": ["char"],
+# pow/zip and the converters self-handle keywords or are variadic, so they're absent here and
+# receive raw args+kwargs.)
+var _BUILTIN_PARAMS = {"isinstance": ["value", "type"], "hasattr": ["obj", "name"], "import": ["name"], "abs": ["x"], "ord": ["char"],
     "chr": ["codepoint"], "bin": ["n"], "oct": ["n"], "hex": ["n"], "len": ["x"], "type": ["x"],
     "id": ["x"], "all": ["iterable"], "any": ["iterable"], "reversed": ["iterable"],
+    "map": ["function", "iterable"], "filter": ["function", "iterable"],
     "divmod": ["a", "b"], "bitand": ["a", "b"], "bitor": ["a", "b"], "bitxor": ["a", "b"],
     "bitnot": ["a"], "shl": ["a", "n"], "shr": ["a", "n"], "format": ["value", "spec"],
     "round": ["x", "ndigits"], "sum": ["iterable", "start"], "enumerate": ["iterable", "start"],
@@ -2226,11 +2227,15 @@ var builtinSum = Function(St, args, kwargs):
 var builtinIsinstance = Function(St, args, kwargs):
     var x = args[0]
     var t = args[1]
-    var name = t
     if boxKind(t) == "class":
         if boxKind(x) == "instance":
             return instanceOf(x, t["name"])
         return False
+    var name = t
+    if boxKind(t) == "native":
+        name = t["name"]                    # a built-in type constructor, e.g. isinstance(1, Integer)
+    elif type(t) != "String":
+        rtError("isinstance() arg 2 must be a type, a String, or a class")
     if boxKind(x) == "instance":
         return instanceOf(x, name)
     return type(x) == name
@@ -2323,12 +2328,22 @@ var builtinPow = Function(St, a, k):
         if kw[0] == "mod":
             modArg = kw[1]
     if modArg != None:
-        if modArg <= 0:
-            rtError("pow() 3rd argument (modulus) must be positive")
+        if type(a[0]) != "Integer":
+            rtError("pow base must be Integer with 3 args")
+        if type(a[1]) != "Integer":
+            rtError("pow exp must be Integer with 3 args")
+        if type(modArg) != "Integer":
+            rtError("pow mod must be Integer with 3 args")
+        if a[1] < 0:
+            rtError("pow exponent must be non-negative with a modulus")
+        if modArg == 0:
+            rtError("pow modulus must be non-zero")
+        if modArg < 0:
+            rtError("pow modulus must be positive")
         var base = a[0] % modArg
         var ex = a[1]
         var mod = modArg
-        var r = 1
+        var r = 1 % mod
         while ex > 0:
             if ex % 2 == 1:
                 r = (r * base) % mod
@@ -2403,6 +2418,8 @@ var builtinDictC = Function(St, a0, k):
         return {}
     return Dict(a[0])
 var builtinImport = Function(St, a, k):
+    if type(a[0]) != "String":
+        rtError("import expects a String module name")
     return importModule(St, a[0])
 # Bytes constructor + the free fromhex builtin forward to the host Bytes value type (the self-host has
 # no value of its own to add; an inner Bytes IS a host Bytes, so operators/index/iteration are
@@ -2465,23 +2482,22 @@ var builtinInstNew = Function(St, a, k):
 # inspect: describe the public surface of a value. Native builtins with a known signature render it
 # exactly (others fall back to the variadic `NAME(...)  [native]` form); functions/modules show
 # parameter names, annotations, defaults and return types.
-var _NATIVE_SIGS = {"Integer": "Integer(x) -> Integer", "Float": "Float(x) -> Float", "String": "String(x) -> String", "Bool": "Bool(x) -> Bool", "List": "List(iterable = None) -> List", "Set": "Set(iterable = None) -> Set", "Dict": "Dict(iterable = None) -> Dict", "round": "round(x: Number, ndigits = None)", "sorted": "sorted(iterable, key = None, reverse: Bool = False) -> List", "len": "len(x) -> Integer", "abs": "abs(x) -> Number", "type": "type(x) -> String"}
+var _NATIVE_SIGS = {"Integer": "Integer(x) -> Integer", "Float": "Float(x) -> Float", "String": "String(x) -> String", "Bool": "Bool(x) -> Bool", "List": "List(iterable = None) -> List", "Set": "Set(iterable = None) -> Set", "Dict": "Dict(iterable = None) -> Dict", "round": "round(x: Number, ndigits = None)", "sorted": "sorted(iterable, key = None, reverse: Bool = False) -> List", "len": "len(x) -> Integer", "abs": "abs(x: Number) -> Number", "type": "type(x) -> String", "isinstance": "isinstance(value, type) -> Bool", "hasattr": "hasattr(obj, name: String) -> Bool", "pow": "pow(base, exp, mod = None)",
+    "enumerate": "enumerate(iterable, start = 0) -> List", "sum": "sum(iterable, start = 0) -> Number",
+    "map": "map(function, iterable) -> List", "filter": "filter(function, iterable) -> List",
+    "all": "all(iterable) -> Bool", "any": "any(iterable) -> Bool", "reversed": "reversed(iterable) -> List",
+    "divmod": "divmod(a, b) -> List", "bitand": "bitand(a: Integer, b: Integer) -> Integer",
+    "bitor": "bitor(a: Integer, b: Integer) -> Integer", "bitxor": "bitxor(a: Integer, b: Integer) -> Integer",
+    "bitnot": "bitnot(a: Integer) -> Integer", "shl": "shl(a: Integer, n: Integer) -> Integer",
+    "shr": "shr(a: Integer, n: Integer) -> Integer", "format": "format(value, spec: String = \"\") -> String",
+    "ord": "ord(char: String) -> Integer", "chr": "chr(codepoint: Integer) -> String",
+    "bin": "bin(n: Integer) -> String", "oct": "oct(n: Integer) -> String", "hex": "hex(n: Integer) -> String",
+    "id": "id(x) -> Integer", "Bytes": "Bytes(x = None, encoding = None) -> Bytes", "fromhex": "fromhex(s: String) -> Bytes"}
 
 var _nativeSig = Function(v):
     if v["name"] in _NATIVE_SIGS:
         return _NATIVE_SIGS[v["name"]]
     return v["name"] + "(...)  [native]"
-
-# Render a literal default-value AST node back to source text (simple literals only).
-var _renderDefault = Function(node):
-    var dk = node["k"]
-    if dk == "int" or dk == "float":
-        return String(node["v"])
-    if dk == "str":
-        return "\"" + node["v"] + "\""
-    if dk == "name":
-        return node["v"]
-    return "..."
 
 # Render a pure-Kirito function value's signature: name(p: ann = default, ...) -> ret.
 var _funcSig = Function(name, fn):
@@ -2496,7 +2512,7 @@ var _funcSig = Function(name, fn):
         if p["ann"] != None and p["ann"] != "":
             out = out + ": " + p["ann"]
         if p["has"]:
-            out = out + " = " + _renderDefault(p["default"])
+            out = out + " = ..."          # defaults are call-time-evaluated; inspect never renders one
         i = i + 1
     out = out + ")"
     if fn["ret"] != None and fn["ret"] != "":
@@ -2520,10 +2536,10 @@ var builtinInspect = Function(St, a, k):
         return _nativeSig(v)
     if kind == "function" or kind == "bound":
         var fn = v
-        var nm = "<anonymous>"
+        var nm = "function"
         if kind == "bound":
             fn = v["func"]
-        if "name" in fn and fn["name"] != None and fn["name"] != "":
+        if "name" in fn and fn["name"] != None and fn["name"] != "" and fn["name"] != "<anonymous>":
             nm = fn["name"]
         return _funcSig(nm, fn)
     if kind == "module":
@@ -2542,6 +2558,12 @@ var builtinInspect = Function(St, a, k):
         for nm in sorted(ms):
             clines.append("  " + _memberLine(nm, v["methods"][nm]))
         return "\n".join(clines)
+    if kind == "instance" and v["cls"]["name"] == "Random":
+        # random.Random is a pure-Kirito guest class standing in for the native random.Random object;
+        # its inspect() output mimics the native's exact "<Name> object:" header + declared-member
+        # list (the self-host's own instance format below is "<Name> instance:" with attrs shown too,
+        # which doesn't match since Random has no public attrs on the native side to begin with).
+        return "Random object:\n  choice(seq)\n  choices(population, k) -> List\n  expovariate(lambd) -> Float\n  gauss(mu, sigma) -> Float\n  normalvariate(mu, sigma) -> Float\n  randint(a, b) -> Integer\n  random() -> Float\n  randrange(start, stop, step) -> Integer\n  sample(population, k) -> List\n  seed(a)\n  shuffle(seq)\n  uniform(a, b) -> Float"
     if kind == "instance":
         var attrs = v["attrs"]
         var ilines = [v["cls"]["name"] + " instance:"]
@@ -2598,23 +2620,31 @@ var _pow2 = Function(n):
         r = r * 2
         i = i + 1
     return r
+var _bint = Function(v, fn, who):
+    if type(v) != "Integer":
+        rtError(fn + ": " + who + " must be an Integer")
+    return v
 var builtinBitand = Function(St, a, k):
-    return _bitop(a[0], a[1], 0)
+    return _bitop(_bint(a[0], "bitand", "a"), _bint(a[1], "bitand", "b"), 0)
 var builtinBitor = Function(St, a, k):
-    return _bitop(a[0], a[1], 1)
+    return _bitop(_bint(a[0], "bitor", "a"), _bint(a[1], "bitor", "b"), 1)
 var builtinBitxor = Function(St, a, k):
-    return _bitop(a[0], a[1], 2)
+    return _bitop(_bint(a[0], "bitxor", "a"), _bint(a[1], "bitxor", "b"), 2)
 var builtinBitnot = Function(St, a, k):
-    return -a[0] - 1
+    return -_bint(a[0], "bitnot", "a") - 1
 var builtinShl = Function(St, a, k):
+    _bint(a[0], "shl", "a")
+    _bint(a[1], "shl", "n")
     if a[1] < 0:
-        rtError("negative shift count")
+        rtError("shl: negative shift count")
     if a[1] >= 64:
         return 0
     return a[0] * _pow2(a[1])
 var builtinShr = Function(St, a, k):
+    _bint(a[0], "shr", "a")
+    _bint(a[1], "shr", "n")
     if a[1] < 0:
-        rtError("negative shift count")
+        rtError("shr: negative shift count")
     if a[1] >= 64:
         if a[0] < 0:
             return -1
